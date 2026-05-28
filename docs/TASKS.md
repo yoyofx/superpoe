@@ -169,6 +169,19 @@ Post:    LessLuminance，未分配节点变暗
 
 验证：tsc 0 错误，vite build 190KB，vitest 17/17 通过。
 
+### 15.15：缩小时毛边修复 [x]
+
+问题：Canvas 2D 缩小高分辨率 PNG/WebP 时没有自动 mipmap，节点、背景和连接线在小 zoom 下会出现明显 alpha 毛边；放大后问题消失。
+
+实现：
+
+- 新增 `web/src/engine/imageMipmaps.ts`，按图片缓存 1/2、1/4、1/8 等运行时 mip 层
+- `TreeCanvas.tsx` 每次 render/resize 设置 `imageSmoothingEnabled = true` 与 `imageSmoothingQuality = high`
+- 节点 icon/frame/effect、BGTree、职业/升华背景、orbit/ring 精灵和 connector quad 使用 mipped draw helper
+- connector 两片三角形裁剪增加极小 overlap，降低缩小时拼接缝
+
+验证：`npm run build` 通过。
+
 ## Phase 16：Backlog 可达项 [x]
 
 | ID | 想法 | 状态 |

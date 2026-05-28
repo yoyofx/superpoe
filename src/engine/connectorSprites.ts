@@ -15,6 +15,8 @@
  * For Canvas 2D we use drawImage with appropriate transforms.
  */
 
+import { drawImageMipped, getMippedImage } from './imageMipmaps'
+
 const BASE = '/assets/connectors/0_4'
 
 type ConnectorState = 'normal' | 'intermediate' | 'intermediateactive'
@@ -128,15 +130,28 @@ export function drawConnectorQuadTexture(
   texCoords?: number[],
 ): void {
   if (points.length !== 4) return
+  const targetWidth = Math.max(
+    Math.hypot(points[1][0] - points[0][0], points[1][1] - points[0][1]),
+    Math.hypot(points[2][0] - points[3][0], points[2][1] - points[3][1]),
+  )
+  const targetHeight = Math.max(
+    Math.hypot(points[3][0] - points[0][0], points[3][1] - points[0][1]),
+    Math.hypot(points[2][0] - points[1][0], points[2][1] - points[1][1]),
+  )
+  const mip = getMippedImage(img, targetWidth, targetHeight)
+  const mipImage = mip.image
+  const srcWidth = img.width * mip.scale
+  const srcHeight = img.height * mip.scale
+
   if (texCoords?.length === 8) {
     const uv: [number, number][] = [
-      [texCoords[0] * img.width, texCoords[1] * img.height],
-      [texCoords[2] * img.width, texCoords[3] * img.height],
-      [texCoords[4] * img.width, texCoords[5] * img.height],
-      [texCoords[6] * img.width, texCoords[7] * img.height],
+      [texCoords[0] * srcWidth, texCoords[1] * srcHeight],
+      [texCoords[2] * srcWidth, texCoords[3] * srcHeight],
+      [texCoords[4] * srcWidth, texCoords[5] * srcHeight],
+      [texCoords[6] * srcWidth, texCoords[7] * srcHeight],
     ]
-    drawTexturedTriangle(ctx, img, [points[0], points[1], points[2]], [uv[0], uv[1], uv[2]])
-    drawTexturedTriangle(ctx, img, [points[0], points[2], points[3]], [uv[0], uv[2], uv[3]])
+    drawTexturedTriangle(ctx, mipImage, [points[0], points[1], points[2]], [uv[0], uv[1], uv[2]])
+    drawTexturedTriangle(ctx, mipImage, [points[0], points[2], points[3]], [uv[0], uv[2], uv[3]])
     return
   }
 
@@ -149,14 +164,14 @@ export function drawConnectorQuadTexture(
   ctx.lineTo(points[3][0], points[3][1])
   ctx.closePath()
   ctx.clip()
-  ctx.transform((x2 - x1) / img.width, (y2 - y1) / img.width, (x4 - x1) / img.height, (y4 - y1) / img.height, x1, y1)
-  ctx.drawImage(img, 0, 0)
+  ctx.transform((x2 - x1) / srcWidth, (y2 - y1) / srcWidth, (x4 - x1) / srcHeight, (y4 - y1) / srcHeight, x1, y1)
+  ctx.drawImage(mipImage, 0, 0)
   ctx.restore()
 }
 
 function drawTexturedTriangle(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  img: HTMLImageElement | HTMLCanvasElement | OffscreenCanvas,
   dst: [[number, number], [number, number], [number, number]],
   src: [[number, number], [number, number], [number, number]],
 ): void {
@@ -182,14 +197,31 @@ function drawTexturedTriangle(
 
   ctx.save()
   ctx.beginPath()
-  ctx.moveTo(x0, y0)
-  ctx.lineTo(x1, y1)
-  ctx.lineTo(x2, y2)
+  const [ex0, ey0] = expandTrianglePoint(dst[0], dst)
+  const [ex1, ey1] = expandTrianglePoint(dst[1], dst)
+  const [ex2, ey2] = expandTrianglePoint(dst[2], dst)
+  ctx.moveTo(ex0, ey0)
+  ctx.lineTo(ex1, ey1)
+  ctx.lineTo(ex2, ey2)
   ctx.closePath()
   ctx.clip()
   ctx.transform(a, b, c, d, e, f)
   ctx.drawImage(img, 0, 0)
   ctx.restore()
+}
+
+function expandTrianglePoint(
+  point: [number, number],
+  triangle: [[number, number], [number, number], [number, number]],
+): [number, number] {
+  const cx = (triangle[0][0] + triangle[1][0] + triangle[2][0]) / 3
+  const cy = (triangle[0][1] + triangle[1][1] + triangle[2][1]) / 3
+  const dx = point[0] - cx
+  const dy = point[1] - cy
+  const len = Math.hypot(dx, dy)
+  if (!len) return point
+  const overlap = 0.35
+  return [point[0] + (dx / len) * overlap, point[1] + (dy / len) * overlap]
 }
 
 /**
@@ -204,7 +236,8 @@ export function drawArcConnectorTexture(
   const size = orbitRadius * 2
   const halfSize = size / 2
 
-  ctx.drawImage(
+  drawImageMipped(
+    ctx,
     img,
     groupCenterX - halfSize,
     groupCenterY - halfSize,

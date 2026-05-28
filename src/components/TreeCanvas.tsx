@@ -17,6 +17,7 @@ import { drawOrbitSprite, getOrbitState, preloadOrbitSprites, drawRingFrame } fr
 import type { TreeNode } from '@/types/tree'
 import { spriteLoader } from '@/engine/spriteLoader'
 import { preloadConnectors, drawConnectorQuadTexture, getConnectorState, resolveConnectorTexture } from '@/engine/connectorSprites'
+import { applyCanvasImageQuality, drawImageMipped } from '@/engine/imageMipmaps'
 
 
 
@@ -130,13 +131,13 @@ function assetHalfSize(
 
 function drawCenteredAsset(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  img: HTMLImageElement | HTMLCanvasElement | OffscreenCanvas,
   cx: number,
   cy: number,
   halfWidth: number,
   halfHeight: number,
 ): void {
-  ctx.drawImage(img, cx - halfWidth, cy - halfHeight, halfWidth * 2, halfHeight * 2)
+  drawImageMipped(ctx, img, cx - halfWidth, cy - halfHeight, halfWidth * 2, halfHeight * 2)
 }
 
 
@@ -331,6 +332,7 @@ export function TreeCanvas() {
 
 
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+    applyCanvasImageQuality(ctx)
 
 
 
@@ -398,7 +400,7 @@ export function TreeCanvas() {
           const bgw = 2000 * zoom
           const bgh = 2000 * zoom
           ctx.globalAlpha = 0.35
-          ctx.drawImage(bgImg, cx - bgw / 2, cy - bgh / 2, bgw, bgh)
+          drawImageMipped(ctx, bgImg, cx - bgw / 2, cy - bgh / 2, bgw, bgh)
           ctx.globalAlpha = 1
         } else {
           spriteLoader.getImage(bgInfo).then((loaded) => {
@@ -428,7 +430,7 @@ export function TreeCanvas() {
           ctx.translate(cx, cy)
           ctx.rotate(angleRad)
           ctx.globalAlpha = 0.5
-          ctx.drawImage(activeImg, -aw / 2, -ah / 2, aw, ah)
+          drawImageMipped(ctx, activeImg, -aw / 2, -ah / 2, aw, ah)
           ctx.globalAlpha = 1
           ctx.restore()
         } else {
@@ -450,7 +452,7 @@ export function TreeCanvas() {
           const cw = clsBg.width * zoom
           const ch = clsBg.height * zoom
           ctx.globalAlpha = 0.8
-          ctx.drawImage(img, cx - cw / 2, cy - ch / 2, cw, ch)
+          drawImageMipped(ctx, img, cx - cw / 2, cy - ch / 2, cw, ch)
           ctx.globalAlpha = 1
         } else {
           spriteLoader.getImage(info).then((loaded) => {
@@ -481,7 +483,7 @@ export function TreeCanvas() {
           const bgh = bg.height * zoom
           const isSelected = asc.id === selectedAscendancyId || asc.name === selectedAscendancyId
           ctx.globalAlpha = isSelected ? 0.8 : 0.18
-          ctx.drawImage(img, bgx - bgw / 2, bgy - bgh / 2, bgw, bgh)
+          drawImageMipped(ctx, img, bgx - bgw / 2, bgy - bgh / 2, bgw, bgh)
           ctx.globalAlpha = 1
         }
       }
@@ -988,7 +990,10 @@ export function TreeCanvas() {
 
 
 
-      if (ctx) ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+      if (ctx) {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
+        applyCanvasImageQuality(ctx)
+      }
 
 
 

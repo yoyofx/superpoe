@@ -5,7 +5,9 @@
  * Three states per orbit (0-9): normal, intermediate, intermediateactive.
  */
 
-const ORBIT_COUNT = 10
+import { drawImageMipped, drawImageMippedSource } from './imageMipmaps'
+
+const ORBIT_COUNT = 10
 const SPRITE_BASE = '/assets/orbit/0_4/Character_orbit'
 
 type OrbitState = 'normal' | 'intermediate' | 'intermediateactive'
@@ -53,7 +55,7 @@ export function drawRingFrame(
   if (!img) return
 
   const size = nodeRadius * 3.5 * zoom
-  ctx.drawImage(img, sx - size / 2, sy - size / 2, size, size)
+  drawImageMipped(ctx, img, sx - size / 2, sy - size / 2, size, size)
 }
 
 /** Preload all orbit sprites for the given states */
@@ -114,10 +116,11 @@ export function drawOrbitSprite(
   ctx.translate(sx, sy)
   ctx.rotate(angle)
 
-  ctx.drawImage(
-    img,
-    srcX, 0,                           // source: center portion of the strip
-    segWidth / zoom, img.height,       // source dimensions
+  drawImageMippedSource(
+    ctx,
+    img,
+    srcX, 0,                           // source: center portion of the strip
+    segWidth / zoom, img.height,       // source dimensions
     -segWidth / 2, -segHeight / 2,     // destination: centered on node
     segWidth, segHeight,
   )
