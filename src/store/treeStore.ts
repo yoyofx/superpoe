@@ -16,6 +16,10 @@ import type { TreeData, SavedBuild } from '@/types/tree'
 
 import type { CalcResult, CalcApiResponse } from '@/types/calc'
 
+export const MIN_ZOOM = 0.2
+export const DEFAULT_ZOOM = 0.2
+export const MAX_ZOOM = 5
+
 
 
 
@@ -1079,7 +1083,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-  zoom: 1,
+  zoom: DEFAULT_ZOOM,
 
 
 
@@ -1547,7 +1551,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-  setZoom: (zoom) => set({ zoom: Math.max(0.1, Math.min(5, zoom)) }),
+  setZoom: (zoom) => set({ zoom: Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom)) }),
 
 
 
@@ -1603,7 +1607,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-    const newZoom = Math.max(0.1, Math.min(5, zoom * factor))
+    const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * factor))
 
 
 

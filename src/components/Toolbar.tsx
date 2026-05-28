@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useTreeStore } from '@/store/treeStore'
+import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM, useTreeStore } from '@/store/treeStore'
 
 /**
  * Toolbar - top toolbar with search and zoom controls
@@ -31,11 +31,11 @@ export function Toolbar() {
   const ascendancies = currentClass?.ascendancies || []
 
   const handleZoomIn = useCallback(() => {
-    setZoom(Math.min(5, zoom * 1.3))
+    setZoom(Math.min(MAX_ZOOM, zoom * 1.3))
   }, [zoom, setZoom])
 
   const handleZoomOut = useCallback(() => {
-    setZoom(Math.max(0.1, zoom / 1.3))
+    setZoom(Math.max(MIN_ZOOM, zoom / 1.3))
   }, [zoom, setZoom])
 
   const handleZoomReset = useCallback(() => {
@@ -43,7 +43,7 @@ export function Toolbar() {
     const c = treeData.constants
     const cx = (c.min_x + c.max_x) / 2
     const cy = (c.min_y + c.max_y) / 2
-    useTreeStore.setState({ zoom: 1, offsetX: -cx, offsetY: -cy })
+    useTreeStore.setState({ zoom: DEFAULT_ZOOM, offsetX: -cx, offsetY: -cy })
   }, [treeData])
 
   const zoomPct = Math.round(zoom * 100)
