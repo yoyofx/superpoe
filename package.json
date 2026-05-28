@@ -1,0 +1,41 @@
+{
+  "name": "pob2-web-tree",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:server": "tsx server/index.ts",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test:server": "vitest run",
+    "test:lua": "cd scripts/spec && busted .",
+    "pipeline:tree": "python scripts/gen_tree_data.py 0_4",
+    "pipeline:orbit": "python scripts/copy_orbit_png.py",
+    "pipeline:ui": "python scripts/copy_ui_assets.py",
+    "pipeline:connectors": "python scripts/dds_to_webp.py --connectors-only",
+    "pipeline:dds": "python scripts/dds_to_webp.py",
+    "pipeline:all": "npm run pipeline:tree && npm run pipeline:orbit && npm run pipeline:ui && npm run pipeline:connectors"
+  },
+  "dependencies": {
+    "fast-xml-parser": "^5.8.0",
+    "fastify": "^5.8.5",
+    "pako": "^2.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.16",
+    "tsx": "^4.22.3",
+    "typescript": "~5.6.3",
+    "vite": "^6.0.3",
+    "vitest": "^4.1.7"
+  }
+}

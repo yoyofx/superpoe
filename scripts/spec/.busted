@@ -1,0 +1,13 @@
+return {
+    _all = {
+        coverage = false,
+        verbose = true,
+    },
+    default = {
+        directory = "../sources/src",
+        lpath = "../sources/runtime/lua/?.lua;../sources/runtime/lua/?/init.lua",
+        helper = "HeadlessWrapper.lua",
+        ROOT = { "." },
+        ["exclude-tags"] = "builds",
+    }
+}

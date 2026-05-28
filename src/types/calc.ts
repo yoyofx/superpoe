@@ -1,0 +1,68 @@
+/** Phase 6-7: Calculation result from LuaJIT backend */
+export interface CalcResult {
+  // Attributes
+  Str: number
+  Dex: number
+  Int: number
+  // Life/Mana/ES
+  Life: number
+  LifeUnreserved: number
+  Mana: number
+  ManaUnreserved: number
+  EnergyShield: number
+  // Defences
+  Armour: number
+  Evasion: number
+  ArmourPhysicalDamageReduction?: number
+  // Resistances
+  FireResist: number
+  FireResistTotal: number
+  ColdResist: number
+  ColdResistTotal: number
+  LightningResist: number
+  LightningResistTotal: number
+  ChaosResist: number
+  ChaosResistTotal: number
+  // Block
+  BlockChance: number
+  SpellBlockChance: number
+  // DPS
+  TotalDPS: number
+  FullDPS: number
+  FullDotDPS?: number
+  AverageHit: number
+  Speed: number
+  HitSpeed?: number
+  CritChance: number
+  CritMultiplier: number
+  // Charges
+  PowerChargesMax: number
+  FrenzyChargesMax: number
+  EnduranceChargesMax: number
+  // Misc
+  MovementSpeedMod: number
+  ActionSpeedMod: number
+  Ward: number
+  // Regen
+  LifeRegen: number
+  ManaRegen: number
+  EnergyShieldRegen: number
+  // Build info
+  CharacterLevel: number
+  AscendClassName?: string
+  ClassName?: string
+  allocatedNodes: number
+  // Skill DPS breakdown
+  SkillDPS?: Array<{ name: string; dps: number; count: number; trigger?: string; skillPart?: string }>
+}
+
+/** API response from POST /api/build/calculate or /api/build/import-and-calc */
+export interface CalcApiResponse {
+  success: boolean
+  data?: CalcResult
+  error?: string
+  meta?: {
+    nodeCount: number
+    xmlSize: number
+  }
+}
