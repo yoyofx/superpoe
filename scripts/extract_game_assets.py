@@ -72,7 +72,7 @@ def main():
     version = args.version
     tree_data_dir = SOURCES_DIR / 'TreeData' / version
     
-    if not tree_data_dir.exists():
+    if not tree_data_dir.exists() and not args.dry_run:
         print(f"ERROR: TreeData/{version} not found at {tree_data_dir}")
         print("Make sure sources/ is copied from the PoB2 repository.")
         sys.exit(1)

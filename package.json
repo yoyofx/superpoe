@@ -15,7 +15,7 @@
     "pipeline:ui": "python scripts/copy_ui_assets.py",
     "pipeline:connectors": "python scripts/dds_to_webp.py --connectors-only",
     "pipeline:dds": "python scripts/dds_to_webp.py",
-    "pipeline:all": "npm run pipeline:tree && npm run pipeline:orbit && npm run pipeline:ui && npm run pipeline:dds && npm run pipeline:connectors"
+    "pipeline:all": "node scripts/run_pipeline_all.mjs"
   },
   "dependencies": {
     "fast-xml-parser": "^5.8.0",
