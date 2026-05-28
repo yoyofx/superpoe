@@ -18,6 +18,8 @@ const MIN_MIP_SIZE = 32
 
 const MAX_MIP_LEVELS = 8
 
+const MIP_SHARPNESS_BIAS = 1.6
+
 function imageSize(image: MipSource): { width: number; height: number } {
   if (image instanceof HTMLImageElement) {
     return {
@@ -138,11 +140,12 @@ export function getMippedImageForSource(
   const scaleX = Math.abs(targetWidth) / sourceWidth
   const scaleY = Math.abs(targetHeight) / sourceHeight
   const targetScale = Math.max(scaleX || 1, scaleY || 1)
-  ensureMipScale(levels, targetScale)
+  const selectionScale = Math.min(1, targetScale * MIP_SHARPNESS_BIAS)
+  ensureMipScale(levels, selectionScale)
 
   let selected = original
   for (const level of levels) {
-    if (level.scale >= targetScale || level.width <= 32 || level.height <= 32) {
+    if (level.scale >= selectionScale || level.width <= MIN_MIP_SIZE || level.height <= MIN_MIP_SIZE) {
       selected = level
     } else {
       break

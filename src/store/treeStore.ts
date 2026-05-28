@@ -18,7 +18,7 @@ import type { CalcResult, CalcApiResponse } from '@/types/calc'
 
 export const MIN_ZOOM = 0.2
 export const DEFAULT_ZOOM = 0.2
-export const MAX_ZOOM = 5
+export const MAX_ZOOM = 0.5
 
 
 
