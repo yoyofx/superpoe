@@ -5,7 +5,7 @@
  * Three states per orbit (0-9): normal, intermediate, intermediateactive.
  */
 
-import { drawImageMipped, drawImageMippedSource } from './imageMipmaps'
+import { drawImageMipped, drawImageMippedSource, prepareMipmaps } from './imageMipmaps'
 
 const ORBIT_COUNT = 10
 const SPRITE_BASE = '/assets/orbit/0_4/Character_orbit'
@@ -22,7 +22,8 @@ function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image()
     img.onload = () => {
-      imageCache.set(src, img)
+      imageCache.set(src, img)
+      prepareMipmaps(img)
       resolve(img)
     }
     img.onerror = () => reject(new Error(`Failed to load: ${src}`))

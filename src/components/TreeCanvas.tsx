@@ -17,7 +17,7 @@ import { drawOrbitSprite, getOrbitState, preloadOrbitSprites, drawRingFrame } fr
 import type { TreeNode } from '@/types/tree'
 import { spriteLoader } from '@/engine/spriteLoader'
 import { preloadConnectors, drawConnectorQuadTexture, getConnectorState, resolveConnectorTexture } from '@/engine/connectorSprites'
-import { applyCanvasImageQuality, drawImageMipped } from '@/engine/imageMipmaps'
+import { applyCanvasImageQuality, drawImageMipped, prepareMipmaps } from '@/engine/imageMipmaps'
 
 
 
@@ -117,6 +117,12 @@ const NODE_COLOR: Record<string, string> = {
 
 const HOVER_GLOW = 'rgba(255,255,200,0.4)'
 
+const CONNECTOR_TEXTURE_MIN_ZOOM = 0.18
+
+const NODE_DETAIL_MIN_ZOOM = 0.12
+
+const CONNECTOR_CULL_MARGIN = 160
+
 function assetHalfSize(
   size: { width?: number; height?: number } | undefined,
   fallbackWidth: number,
@@ -138,6 +144,25 @@ function drawCenteredAsset(
   halfHeight: number,
 ): void {
   drawImageMipped(ctx, img, cx - halfWidth, cy - halfHeight, halfWidth * 2, halfHeight * 2)
+}
+
+function pointsIntersectViewport(
+  points: [number, number][],
+  width: number,
+  height: number,
+  margin: number,
+): boolean {
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const [x, y] of points) {
+    if (x < minX) minX = x
+    if (x > maxX) maxX = x
+    if (y < minY) minY = y
+    if (y > maxY) maxY = y
+  }
+  return maxX >= -margin && minX <= width + margin && maxY >= -margin && minY <= height + margin
 }
 
 
@@ -187,6 +212,7 @@ export function TreeCanvas() {
 
 
   const rafRef = useRef<number>(0)
+  const renderRef = useRef<() => void>(() => {})
   const [ddsReady, setDdsReady] = useState(false)
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map())
 
@@ -288,6 +314,21 @@ export function TreeCanvas() {
 
 
 
+
+  const scheduleRender = useCallback(() => {
+    if (rafRef.current) return
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0
+      renderRef.current()
+    })
+  }, [])
+
+  const cacheLoadedImage = useCallback((file: string, loaded: HTMLImageElement | null) => {
+    if (!loaded) return
+    imageCache.current.set(file, loaded)
+    prepareMipmaps(loaded)
+    scheduleRender()
+  }, [scheduleRender])
 
   // ---- Render Loop ----
 
@@ -403,9 +444,7 @@ export function TreeCanvas() {
           drawImageMipped(ctx, bgImg, cx - bgw / 2, cy - bgh / 2, bgw, bgh)
           ctx.globalAlpha = 1
         } else {
-          spriteLoader.getImage(bgInfo).then((loaded) => {
-            if (loaded) imageCache.current.set(bgInfo.file, loaded)
-          })
+          spriteLoader.getImage(bgInfo).then((loaded) => cacheLoadedImage(bgInfo.file, loaded))
         }
       }
     }
@@ -434,9 +473,7 @@ export function TreeCanvas() {
           ctx.globalAlpha = 1
           ctx.restore()
         } else {
-          spriteLoader.getImage(activeInfo).then((loaded) => {
-            if (loaded) imageCache.current.set(activeInfo.file, loaded)
-          })
+          spriteLoader.getImage(activeInfo).then((loaded) => cacheLoadedImage(activeInfo.file, loaded))
         }
       }
     }
@@ -455,9 +492,7 @@ export function TreeCanvas() {
           drawImageMipped(ctx, img, cx - cw / 2, cy - ch / 2, cw, ch)
           ctx.globalAlpha = 1
         } else {
-          spriteLoader.getImage(info).then((loaded) => {
-            if (loaded) imageCache.current.set(info.file, loaded)
-          })
+          spriteLoader.getImage(info).then((loaded) => cacheLoadedImage(info.file, loaded))
         }
       }
     }
@@ -473,9 +508,7 @@ export function TreeCanvas() {
           if (!info) continue
           const img = imageCache.current.get(info.file)
           if (!img) {
-            spriteLoader.getImage(info).then((loaded) => {
-              if (loaded) imageCache.current.set(info.file, loaded)
-            })
+            spriteLoader.getImage(info).then((loaded) => cacheLoadedImage(info.file, loaded))
             continue
           }
           const [bgx, bgy] = treeToScreen(bg.x, bg.y, cam, W, H)
@@ -591,21 +624,45 @@ export function TreeCanvas() {
 
     // ---- Connector texture quads ----
     if (connectorsReady && treeData.connectors?.length) {
+      const useTextureConnectors = zoom >= CONNECTOR_TEXTURE_MIN_ZOOM
+      if (!useTextureConnectors) {
+        ctx.save()
+        ctx.globalAlpha = 0.45
+        ctx.strokeStyle = 'rgba(116, 126, 148, 0.55)'
+        ctx.lineWidth = Math.max(0.5, zoom * 2.5)
+        ctx.setLineDash([])
+      }
       for (const connector of treeData.connectors) {
         const state = getConnectorState(
           allocatedNodes.has(connector.nodeId1),
           allocatedNodes.has(connector.nodeId2),
         )
-        const img = resolveConnectorTexture(connector.connectionArt, connector.type, state)
         const vert = connector.vert[state] || connector.vert.Normal
-        if (!img || !vert) continue
+        if (!vert) continue
         const points: [number, number][] = [
           treeToScreen(vert[0], vert[1], cam, W, H),
           treeToScreen(vert[2], vert[3], cam, W, H),
           treeToScreen(vert[4], vert[5], cam, W, H),
           treeToScreen(vert[6], vert[7], cam, W, H),
         ]
-        drawConnectorQuadTexture(ctx, img, points, connector.texCoords)
+        if (!pointsIntersectViewport(points, W, H, CONNECTOR_CULL_MARGIN)) continue
+
+        if (useTextureConnectors) {
+          const img = resolveConnectorTexture(connector.connectionArt, connector.type, state)
+          if (!img) continue
+          drawConnectorQuadTexture(ctx, img, points, connector.texCoords)
+        } else {
+          const active = state === 'Active'
+          const intermediate = state === 'Intermediate'
+          ctx.globalAlpha = active ? 0.75 : intermediate ? 0.55 : 0.28
+          ctx.beginPath()
+          ctx.moveTo((points[0][0] + points[1][0]) / 2, (points[0][1] + points[1][1]) / 2)
+          ctx.lineTo((points[2][0] + points[3][0]) / 2, (points[2][1] + points[3][1]) / 2)
+          ctx.stroke()
+        }
+      }
+      if (!useTextureConnectors) {
+        ctx.restore()
       }
     }
 
@@ -688,6 +745,7 @@ export function TreeCanvas() {
       const color = isAllocated ? '#4A9EFF' : (NODE_COLOR[node.type] ?? '#888')
 
       const baseColor = color
+      const useNodeDetails = zoom >= NODE_DETAIL_MIN_ZOOM
 
 
 
@@ -697,7 +755,7 @@ export function TreeCanvas() {
 
             // 8.2.5: Ring frame behind Notable/Keystone nodes
 
-      if (['Notable', 'Keystone'].includes(node.type)) {
+      if (useNodeDetails && ['Notable', 'Keystone'].includes(node.type)) {
 
         drawRingFrame(ctx, sx, sy, r, zoom, node.type === 'Keystone')
 
@@ -706,7 +764,7 @@ export function TreeCanvas() {
 
 
       // --- Layer 1: activeEffectImage (glow texture under node) ---
-      if (ddsReady && spriteLoader.isAvailable() && node.activeEffectImage) {
+      if (useNodeDetails && ddsReady && spriteLoader.isAvailable() && node.activeEffectImage) {
         const effInfo = spriteLoader.getByIconPath(node.activeEffectImage)
         if (effInfo) {
           const effImg = imageCache.current.get(effInfo.file)
@@ -717,9 +775,7 @@ export function TreeCanvas() {
             drawCenteredAsset(ctx, effImg, sx, sy, effW, effH)
             ctx.globalAlpha = 1
           } else {
-            spriteLoader.getImage(effInfo).then((loaded) => {
-              if (loaded) imageCache.current.set(effInfo.file, loaded)
-            })
+            spriteLoader.getImage(effInfo).then((loaded) => cacheLoadedImage(effInfo.file, loaded))
           }
         }
       }
@@ -732,7 +788,7 @@ export function TreeCanvas() {
           const info = spriteLoader.getByIconPath(node.icon)
           if (info) {
             ddsIcon = imageCache.current.get(info.file) || null
-            if (!ddsIcon) spriteLoader.getImage(info).then((l) => { if (l) imageCache.current.set(info.file, l) })
+            if (!ddsIcon) spriteLoader.getImage(info).then((l) => cacheLoadedImage(info.file, l))
           }
         }
         // Per-node overlay takes priority, fall back to type-default overlay from tree.json
@@ -744,7 +800,7 @@ export function TreeCanvas() {
             const fi = spriteLoader.getByName(fn)
             if (fi) {
               ddsFrame = imageCache.current.get(fi.file) || null
-              if (!ddsFrame) spriteLoader.getImage(fi).then((l) => { if (l) imageCache.current.set(fi.file, l) })
+              if (!ddsFrame) spriteLoader.getImage(fi).then((l) => cacheLoadedImage(fi.file, l))
             }
           }
         }
@@ -762,7 +818,7 @@ export function TreeCanvas() {
           ctx.filter = 'none'
         }
         ctx.globalAlpha = 1
-        if (ddsFrame) {
+        if (useNodeDetails && ddsFrame) {
           const [frameW, frameH] = assetHalfSize(node.targetSize?.overlay, r * 1.2, r * 1.2, zoom)
           if (!isAllocated && !isHovered && !isSelected && ['ClassStart', 'AscendClassStart'].includes(node.type)) {
             ctx.filter = 'brightness(0.5)'
@@ -904,11 +960,11 @@ export function TreeCanvas() {
 
     }
 
-    rafRef.current = requestAnimationFrame(render)
+  }, [treeData, offsetX, offsetY, zoom, hoveredNodeId, selectedNodeId, allocatedNodes, availableNodes, searchMatchIds, selectedClassId, selectedAscendancyId, ddsReady, connectorsReady, cacheLoadedImage])
 
-
-
-  }, [treeData, offsetX, offsetY, zoom, hoveredNodeId, selectedNodeId, allocatedNodes, availableNodes, searchMatchIds, selectedClassId, ddsReady])
+  useEffect(() => {
+    renderRef.current = render
+  }, [render])
 
 
 
@@ -926,15 +982,20 @@ export function TreeCanvas() {
 
 
 
-    rafRef.current = requestAnimationFrame(render)
+    scheduleRender()
 
 
 
-    return () => cancelAnimationFrame(rafRef.current)
+    return () => {
+      if (rafRef.current) {
+        cancelAnimationFrame(rafRef.current)
+        rafRef.current = 0
+      }
+    }
 
 
 
-  }, [treeData, render])
+  }, [treeData, render, scheduleRender])
 
 
 
@@ -994,6 +1055,7 @@ export function TreeCanvas() {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
         applyCanvasImageQuality(ctx)
       }
+      scheduleRender()
 
 
 
@@ -1013,7 +1075,7 @@ export function TreeCanvas() {
 
 
 
-  }, [])
+  }, [scheduleRender])
 
 
 

@@ -14,6 +14,10 @@ export interface MippedImage {
 
 const mipCache = new WeakMap<MipSource, MipLevel[]>()
 
+const MIN_MIP_SIZE = 32
+
+const MAX_MIP_LEVELS = 8
+
 function imageSize(image: MipSource): { width: number; height: number } {
   if (image instanceof HTMLImageElement) {
     return {
@@ -46,54 +50,64 @@ function getContext(canvas: HTMLCanvasElement | OffscreenCanvas): CanvasRenderin
   return ctx
 }
 
-function buildMipLevels(image: MipSource): MipLevel[] {
+function createBaseLevel(image: MipSource): MipLevel[] {
   const { width, height } = imageSize(image)
   if (!width || !height) return []
 
-  const levels: MipLevel[] = [{
+  return [{
     image: image as MipSource,
     scale: 1,
     width,
     height,
   }]
+}
 
-  let previous = image
-  let previousWidth = width
-  let previousHeight = height
-  let scale = 1
-
-  while (previousWidth > 32 && previousHeight > 32 && levels.length < 8) {
-    const nextWidth = Math.max(1, Math.floor(previousWidth / 2))
-    const nextHeight = Math.max(1, Math.floor(previousHeight / 2))
-    const canvas = createCanvas(nextWidth, nextHeight)
-    const ctx = getContext(canvas)
-    if (!ctx) break
-
-    ctx.clearRect(0, 0, nextWidth, nextHeight)
-    ctx.drawImage(previous, 0, 0, previousWidth, previousHeight, 0, 0, nextWidth, nextHeight)
-
-    scale /= 2
-    levels.push({
-      image: canvas,
-      scale,
-      width: nextWidth,
-      height: nextHeight,
-    })
-
-    previous = canvas
-    previousWidth = nextWidth
-    previousHeight = nextHeight
+function appendMipLevel(levels: MipLevel[]): boolean {
+  const previous = levels[levels.length - 1]
+  if (!previous) return false
+  if (previous.width <= MIN_MIP_SIZE || previous.height <= MIN_MIP_SIZE || levels.length >= MAX_MIP_LEVELS) {
+    return false
   }
 
-  return levels
+  const nextWidth = Math.max(1, Math.floor(previous.width / 2))
+  const nextHeight = Math.max(1, Math.floor(previous.height / 2))
+  const canvas = createCanvas(nextWidth, nextHeight)
+  const ctx = getContext(canvas)
+  if (!ctx) return false
+
+  ctx.clearRect(0, 0, nextWidth, nextHeight)
+  ctx.drawImage(previous.image, 0, 0, previous.width, previous.height, 0, 0, nextWidth, nextHeight)
+
+  levels.push({
+    image: canvas,
+    scale: previous.scale / 2,
+    width: nextWidth,
+    height: nextHeight,
+  })
+  return true
 }
 
 function getMipLevels(image: MipSource): MipLevel[] {
   const cached = mipCache.get(image)
   if (cached) return cached
-  const levels = buildMipLevels(image)
+  const levels = createBaseLevel(image)
   mipCache.set(image, levels)
   return levels
+}
+
+function ensureMipScale(levels: MipLevel[], targetScale: number): void {
+  while (levels.length) {
+    const last = levels[levels.length - 1]
+    if (last.scale <= targetScale || last.width <= MIN_MIP_SIZE || last.height <= MIN_MIP_SIZE) break
+    if (!appendMipLevel(levels)) break
+  }
+}
+
+export function prepareMipmaps(image: MipSource): void {
+  const levels = getMipLevels(image)
+  while (appendMipLevel(levels)) {
+    // Build the capped chain during idle/preload paths, not in hot render loops.
+  }
 }
 
 export function applyCanvasImageQuality(ctx: CanvasRenderingContext2D): void {
@@ -124,6 +138,7 @@ export function getMippedImageForSource(
   const scaleX = Math.abs(targetWidth) / sourceWidth
   const scaleY = Math.abs(targetHeight) / sourceHeight
   const targetScale = Math.max(scaleX || 1, scaleY || 1)
+  ensureMipScale(levels, targetScale)
 
   let selected = original
   for (const level of levels) {

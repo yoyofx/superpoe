@@ -777,6 +777,8 @@ SimpleGraphic 的能力包括：纹理加载、纹理四边形绘制、自由四
 
 缩小时出现明显毛边，放大后消失，属于 Canvas 2D minification 采样问题：Canvas 不会像 WebGL 一样自动生成 mipmap，高分辨率 PNG/WebP 在小尺寸下会直接重采样，容易把 alpha 边缘和细线采成锯齿。当前前端通过运行时 mipmap 缓存处理：`imageMipmaps.ts` 为纹理生成 1/2、1/4、1/8 等离屏层，背景、节点 DDS、orbit/ring 精灵和 connector quad 在缩小时优先从更接近目标尺寸的 mip 层绘制，同时保持 `imageSmoothingQuality = 'high'`。
 
+缩小时卡顿主要来自可见元素数量暴增和常驻 RAF 重绘。当前前端已改为按需单帧渲染：状态变化、资源加载和 resize 才调度 `scheduleRender()`；connector 绘制前做 viewport 裁剪；低 zoom 下 connector 使用简化线，节点跳过 frame/effect 等昂贵细节。交互命中仍基于完整 tree data，不因视觉降级丢失数据。
+
 ### 24.9 LessLuminance
 
 `LessLuminance()` 是纯 Lua 逻辑，用于对未分配节点做 50% 去饱和和 50% 变暗，然后通过 `SetDrawColor()` 影响下一次绘制。

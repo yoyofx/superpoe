@@ -182,6 +182,19 @@ Post:    LessLuminance，未分配节点变暗
 
 验证：`npm run build` 通过。
 
+### 15.16：低 zoom 性能优化 [x]
+
+问题：缩小时可见节点和 connector 数量暴增，旧实现还会持续 `requestAnimationFrame` 重绘整棵树，静止画面也占用主线程。
+
+实现：
+
+- `TreeCanvas.tsx` 改为 `scheduleRender()` 按需单帧渲染，状态变化、资源加载和 resize 时才重绘
+- connector 绘制前做 viewport bounding box 裁剪，屏幕外 quad 不再进入贴图绘制
+- `zoom < 0.18` 时 connector 降级为低成本细线；`zoom < 0.12` 时跳过节点 frame/effect 等昂贵细节
+- `imageMipmaps.ts` 改为按需生成 mip 层，并在资源加载完成后预热，减少缩放交互中的同步成本
+
+验证：`npm run build` 通过。
+
 ## Phase 16：Backlog 可达项 [x]
 
 | ID | 想法 | 状态 |

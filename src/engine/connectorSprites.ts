@@ -15,7 +15,7 @@
  * For Canvas 2D we use drawImage with appropriate transforms.
  */
 
-import { drawImageMipped, getMippedImage } from './imageMipmaps'
+import { drawImageMipped, getMippedImage, prepareMipmaps } from './imageMipmaps'
 
 const BASE = '/assets/connectors/0_4'
 
@@ -38,6 +38,7 @@ function loadImage(src: string): Promise<HTMLImageElement> {
     const img = new Image()
     img.onload = () => {
       imageCache.set(src, img)
+      prepareMipmaps(img)
       resolve(img)
     }
     img.onerror = reject
