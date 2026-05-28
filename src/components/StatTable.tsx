@@ -141,9 +141,48 @@ export function StatTable() {
         {renderRow('Chaos Resist', `${r.ChaosResist}% (${r.ChaosResistTotal}%)`)}
         {renderRow('Life Regen', fmt(r.LifeRegen, 1))}
         {renderRow('Mana Regen', fmt(r.ManaRegen, 1))}
+        {renderRow('ES Regen', fmt(r.EnergyShieldRegen, 1))}
         {renderRow('Movement Speed', `${fmt(r.MovementSpeedMod, 1)}%`)}
+        {renderRow('Action Speed', `${fmt(r.ActionSpeedMod, 1)}%`)}
         {renderRow('Ward', fmt(r.Ward, 0))}
       </>)}
+
+      {/* Charges */}
+      <div className="border-b border-gray-700 last:border-b-0">
+        <div className="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-gray-300">
+          <span>Charges</span>
+        </div>
+        <div className="px-3 pb-3 space-y-1.5">
+          {renderRow('Power Charges', r.PowerChargesMax)}
+          {renderRow('Frenzy Charges', r.FrenzyChargesMax)}
+          {renderRow('Endurance Charges', r.EnduranceChargesMax)}
+        </div>
+      </div>
+
+      {/* Skill DPS breakdown */}
+      {r.SkillDPS && r.SkillDPS.length > 0 && (
+        <div className="border-b border-gray-700 last:border-b-0">
+          <div className="w-full flex items-center justify-between px-3 py-2 text-sm font-semibold text-gray-300">
+            <span>Skills</span>
+          </div>
+          <div className="px-3 pb-3 space-y-1.5">
+            {r.SkillDPS.map((skill, i) => (
+              <div key={i} className="flex justify-between items-center text-xs">
+                <span className="text-gray-400 truncate max-w-[140px]">
+                  {skill.name}
+                  {skill.trigger && <span className="text-amber-500 ml-1">({skill.trigger})</span>}
+                </span>
+                <span className="text-gray-200 font-mono">
+                  {fmt(skill.dps, 0)}
+                  {skill.count > 1 && (
+                    <span className="text-gray-500 ml-1">x{skill.count}</span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

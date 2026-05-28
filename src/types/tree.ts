@@ -265,3 +265,18 @@ export interface TreeData {
 
 }
 
+// ---- Saved Build (Phase 16.7) ----
+export interface SavedBuild {
+  id: string            // uuid
+  name: string
+  createdAt: string     // ISO date
+  updatedAt: string
+  treeVersion: string
+  selectedClassId: string
+  selectedAscendancyId: string
+  weaponSetMode: 0 | 1 | 2
+  nodeWeaponSets: Record<string, 1 | 2>
+  masterySelections: Record<string, string>
+  allocatedNodes: string[]
+}
+

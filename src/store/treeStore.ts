@@ -6,7 +6,7 @@ import { create } from 'zustand'
 
 
 
-import type { TreeData } from '@/types/tree'
+import type { TreeData, SavedBuild } from '@/types/tree'
 
 
 
@@ -728,6 +728,11 @@ interface TreeStore {
 
 
 
+  // ---- Saved Builds (Phase 16.7) ----
+  savedBuilds: SavedBuild[]
+  loadSavedBuilds: () => void
+
+
   // ---- Actions ----
 
 
@@ -974,6 +979,14 @@ interface TreeStore {
 
 
 
+  // ---- Saved Builds (Phase 16.7) ----
+  saveBuild: (name: string) => void
+  loadBuild: (id: string) => void
+  deleteBuild: (id: string) => void
+  exportBuildJSON: () => string
+  importBuildJSON: (json: string) => void
+
+
 }
 
 
@@ -1194,18 +1207,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   calcError: null,
 
-
-
-
-
-
-
-
-
-
-
-
-
+  // ---- Saved Builds (Phase 16.7) ----
+  savedBuilds: [],
 
 
   // ---- Actions ----
@@ -3185,6 +3188,133 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
   clearCalcResult: () => set({ calcResult: null, calcError: null }),
+
+  // ---- Saved Builds (Phase 16.7) ----
+  loadSavedBuilds: () => {
+    try {
+      const raw = localStorage.getItem('pob2-saved-builds')
+      if (raw) {
+        const builds = JSON.parse(raw) as SavedBuild[]
+        if (Array.isArray(builds)) {
+          set({ savedBuilds: builds })
+        }
+      }
+    } catch { /* ignore corrupt data */ }
+  },
+
+  saveBuild: (name) => {
+    const { allocatedNodes, treeVersion, selectedClassId, selectedAscendancyId,
+            weaponSetMode, nodeWeaponSets, masterySelections, savedBuilds } = get()
+    if (allocatedNodes.size === 0) return
+    const now = new Date().toISOString()
+    const build: SavedBuild = {
+      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2),
+      name,
+      createdAt: now,
+      updatedAt: now,
+      treeVersion,
+      selectedClassId,
+      selectedAscendancyId,
+      weaponSetMode,
+      nodeWeaponSets: { ...nodeWeaponSets },
+      masterySelections: { ...masterySelections },
+      allocatedNodes: [...allocatedNodes],
+    }
+    const updated = [build, ...savedBuilds]
+    set({ savedBuilds: updated })
+    try { localStorage.setItem('pob2-saved-builds', JSON.stringify(updated)) } catch {}
+  },
+
+  loadBuild: (id) => {
+    const { savedBuilds, treeData } = get()
+    const build = savedBuilds.find((b) => b.id === id)
+    if (!build) return
+    set({
+      allocatedNodes: new Set(build.allocatedNodes),
+      selectedClassId: build.selectedClassId,
+      selectedAscendancyId: build.selectedAscendancyId,
+      weaponSetMode: build.weaponSetMode,
+      nodeWeaponSets: { ...build.nodeWeaponSets },
+      masterySelections: { ...build.masterySelections },
+      undoStack: [],
+      redoStack: [],
+      calcResult: null,
+      calcError: null,
+    })
+    // Recompute availableNodes
+    if (treeData) {
+      const allocSet = new Set(build.allocatedNodes)
+      const avail = new Set<string>()
+      for (const nid of allocSet) {
+        const node = treeData.nodes[nid]
+        if (!node) continue
+        for (const outId of node.out) {
+          if (!allocSet.has(outId)) avail.add(outId)
+        }
+      }
+      set({ availableNodes: avail })
+    }
+  },
+
+  deleteBuild: (id) => {
+    const updated = get().savedBuilds.filter((b) => b.id !== id)
+    set({ savedBuilds: updated })
+    try { localStorage.setItem('pob2-saved-builds', JSON.stringify(updated)) } catch {}
+  },
+
+  exportBuildJSON: () => {
+    const { allocatedNodes, treeVersion, selectedClassId, selectedAscendancyId,
+            weaponSetMode, nodeWeaponSets, masterySelections } = get()
+    return JSON.stringify({
+      name: 'PoB2 Build',
+      exportedAt: new Date().toISOString(),
+      treeVersion,
+      selectedClassId,
+      selectedAscendancyId,
+      weaponSetMode,
+      nodeWeaponSets,
+      masterySelections,
+      allocatedNodes: [...allocatedNodes],
+    }, null, 2)
+  },
+
+  importBuildJSON: (json: string) => {
+    try {
+      const build = JSON.parse(json) as Record<string, unknown>
+      const { treeData } = get()
+      const nodes = build.allocatedNodes as string[]
+      if (!nodes || !Array.isArray(nodes)) {
+        throw new Error('Invalid build: missing allocatedNodes')
+      }
+      const allocSet = new Set<string>(nodes)
+      set({
+        allocatedNodes: allocSet,
+        selectedClassId: (build.selectedClassId as string) || get().selectedClassId,
+        selectedAscendancyId: (build.selectedAscendancyId as string) || get().selectedAscendancyId,
+        weaponSetMode: (build.weaponSetMode as 0 | 1 | 2) || 0,
+        nodeWeaponSets: (build.nodeWeaponSets as Record<string, 1 | 2>) || {},
+        masterySelections: (build.masterySelections as Record<string, string>) || {},
+        undoStack: [],
+        redoStack: [],
+        calcResult: null,
+        calcError: null,
+      })
+      // Recompute availableNodes
+      if (treeData) {
+        const avail = new Set<string>()
+        for (const nid of allocSet) {
+          const node = treeData.nodes[nid]
+          if (!node) continue
+          for (const outId of node.out) {
+            if (!allocSet.has(outId)) avail.add(outId)
+          }
+        }
+        set({ availableNodes: avail })
+      }
+    } catch (err) {
+      console.error('Failed to import build:', err)
+    }
+  },
 
 
   selectClass: (classId) => {

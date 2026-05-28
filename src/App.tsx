@@ -7,9 +7,10 @@ import { Sidebar } from '@/components/Sidebar'
 import { ImportPanel } from '@/components/ImportPanel'
 import { ExportPanel } from '@/components/ExportPanel'
 import { StatTable } from '@/components/StatTable'
+import { SaveLoadPanel } from '@/components/SaveLoadPanel'
 
 export default function App() {
-  const { treeData, loading, error, loadTreeData } = useTreeStore()
+  const { treeData, loading, error, loadTreeData, loadSavedBuilds } = useTreeStore()
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
   const encodeToHash = useTreeStore((s) => s.encodeToHash)
   const loadFromHash = useTreeStore((s) => s.loadFromHash)
@@ -17,7 +18,8 @@ export default function App() {
 
   useEffect(() => {
     loadTreeData()
-  }, [loadTreeData])
+    loadSavedBuilds()
+  }, [loadTreeData, loadSavedBuilds])
 
   // Load from URL hash on tree ready
   useEffect(() => {
@@ -73,6 +75,7 @@ export default function App() {
       <ImportPanel />
       <ExportPanel />
       <StatTable />
+      <SaveLoadPanel />
     </div>
   )
 }
