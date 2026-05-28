@@ -16,7 +16,7 @@ import { drawOrbitSprite, getOrbitState, preloadOrbitSprites, drawRingFrame } fr
 
 import type { TreeNode } from '@/types/tree'
 import { spriteLoader } from '@/engine/spriteLoader'
-import { preloadConnectors, drawLineConnectorTexture, drawArcConnectorTexture, getConnectorState, resolveConnectorTexture } from '@/engine/connectorSprites'
+import { preloadConnectors, drawConnectorQuadTexture, getConnectorState, resolveConnectorTexture } from '@/engine/connectorSprites'
 
 
 
@@ -114,11 +114,30 @@ const NODE_COLOR: Record<string, string> = {
 
 
 
-const CONNECTION_COLOR = '#444'
-
-const CONNECTION_WIDTH = 1.5
-
 const HOVER_GLOW = 'rgba(255,255,200,0.4)'
+
+function assetHalfSize(
+  size: { width?: number; height?: number } | undefined,
+  fallbackWidth: number,
+  fallbackHeight = fallbackWidth,
+  zoom: number,
+): [number, number] {
+  return [
+    (size?.width ?? fallbackWidth) * zoom,
+    (size?.height ?? fallbackHeight) * zoom,
+  ]
+}
+
+function drawCenteredAsset(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  cx: number,
+  cy: number,
+  halfWidth: number,
+  halfHeight: number,
+): void {
+  ctx.drawImage(img, cx - halfWidth, cy - halfHeight, halfWidth * 2, halfHeight * 2)
+}
 
 
 
@@ -132,101 +151,7 @@ function drawDiamond(ctx: CanvasRenderingContext2D, cx: number, cy: number, size
   ctx.closePath()
 }
 
-function drawArcConnector(
-
-  ctx: CanvasRenderingContext2D,
-
-  sx1: number,
-
-  sy1: number,
-
-  sx2: number,
-
-  sy2: number,
-
-  radius: number,
-
-  side: number,
-
-) {
-
-  const dx = sx2 - sx1
-
-  const dy = sy2 - sy1
-
-  const dist = Math.hypot(dx, dy)
-
-  if (!dist || dist >= radius * 2) {
-
-    ctx.moveTo(sx1, sy1)
-
-    ctx.lineTo(sx2, sy2)
-
-    return
-
-  }
-
-
-
-  const midX = (sx1 + sx2) / 2
-
-  const midY = (sy1 + sy2) / 2
-
-  const h = Math.sqrt(Math.max(radius * radius - (dist * dist) / 4, 0))
-
-  const nx = -dy / dist
-
-  const ny = dx / dist
-
-  const cx = midX + nx * h * side
-
-  const cy = midY + ny * h * side
-
-  const a1 = Math.atan2(sy1 - cy, sx1 - cx)
-
-  const a2 = Math.atan2(sy2 - cy, sx2 - cx)
-
-
-
-  drawCircleArc(ctx, cx, cy, radius, a1, a2)
-
-}
-
-
-
-function drawCircleArc(
-
-  ctx: CanvasRenderingContext2D,
-
-  cx: number,
-
-  cy: number,
-
-  radius: number,
-
-  a1: number,
-
-  a2: number,
-
-) {
-
-  let delta = a2 - a1
-
-  while (delta <= -Math.PI) delta += Math.PI * 2
-
-  while (delta > Math.PI) delta -= Math.PI * 2
-
-
-
-  ctx.arc(cx, cy, radius, a1, a1 + delta, delta < 0)
-
-}
-
-
-
-
-
-/**
+/** 
 
 
 
@@ -562,74 +487,6 @@ export function TreeCanvas() {
       }
     }
 
-    // ---- 8.1.5 Orbit ring guidelines ----
-
-    const orbitRadii = treeData.constants.orbitRadii as number[]
-
-    if (orbitRadii) {
-
-      ctx.strokeStyle = 'rgba(60, 60, 80, 0.25)'
-
-      ctx.lineWidth = 0.5
-
-      ctx.setLineDash([6, 12])
-
-      for (const rad of orbitRadii) {
-
-        if (rad <= 0) continue
-
-        const screenRad = rad * zoom
-
-        // Draw centered at middle of canvas (orbit centers follow groups roughly)
-
-        const cx = W / 2
-
-        const cy = H / 2
-
-        ctx.beginPath()
-
-        ctx.arc(cx, cy, screenRad, 0, Math.PI * 2)
-
-        ctx.stroke()
-
-      }
-
-      ctx.setLineDash([])
-
-    }
-
-
-
-
-
-
-
-    // ---- PSGroupBackground: texture behind each group's nodes ----
-    if (ddsReady && spriteLoader.isAvailable() && treeData.groups) {
-      const bgNames = ['PSGroupBackground1', 'PSGroupBackground2', 'PSGroupBackground3']
-      for (const bgName of bgNames) {
-        const bgInfo = spriteLoader.getByName(bgName)
-        if (!bgInfo) continue
-        const bgImg = imageCache.current.get(bgInfo.file)
-        if (!bgImg) {
-          spriteLoader.getImage(bgInfo).then((l) => { if (l) imageCache.current.set(bgInfo.file, l) })
-          continue
-        }
-        // Draw on each group center
-        for (const gid of Object.keys(treeData.groups)) {
-          const g = treeData.groups[gid]
-          if (!g) continue
-          const [gx, gy] = treeToScreen(g.x, g.y, cam, W, H)
-          const gs = bgInfo.w * zoom * 1.5
-          ctx.globalAlpha = 0.22
-          ctx.drawImage(bgImg, gx - gs / 2, gy - gs / 2, gs, gs)
-          ctx.globalAlpha = 1
-        }
-      }
-    }
-
-    // ---- Orbit ring guidelines ----
-
     const nodes = treeData.nodes
 
 
@@ -730,196 +587,23 @@ export function TreeCanvas() {
 
 
 
-      // ---- 1. Connection Lines (8.1.1: 3-layer glow) ----
-
-    const drawnEdges = new Set<string>()
-
-    for (const [id, node] of nodeList) {
-
-      const [sx1, sy1] = nodeScreenCache.get(id)!
-
-      const connections = node.connections?.length
-
-        ? node.connections
-
-        : node.out.map((outId) => ({ id: outId, orbit: 0 }))
-
-
-
-      for (const connection of connections) {
-
-        const outId = connection.id
-
-        const targetNode = nodes[outId]
-
-        if (!targetNode || targetNode.type === 'OnlyImage') continue
-
-        if (node.ascendancyName !== targetNode.ascendancyName) continue
-
-        if (node.classesStart || targetNode.classesStart) continue
-
-
-
-        // Dedupe
-
-        const edgeKey = id < outId ? `${id}-${outId}` : `${outId}-${id}`
-
-        if (drawnEdges.has(edgeKey)) continue
-
-        drawnEdges.add(edgeKey)
-
-
-
-        const toPos = nodeScreenCache.get(outId)
-
-        if (!toPos) continue
-
-        const [sx2, sy2] = toPos
-
-        const orbit = connection.orbit || 0
-
-
-
-        // Stroke path helper
-
-        const strokePath = () => {
-
-          ctx.beginPath()
-
-          ctx.moveTo(sx1, sy1)
-
-          if (orbit !== 0 && treeData.constants.orbitRadii[Math.abs(orbit)]) {
-
-            drawArcConnector(ctx, sx1, sy1, sx2, sy2, treeData.constants.orbitRadii[Math.abs(orbit)] * zoom, orbit > 0 ? 1 : -1)
-
-          } else if (node.group === targetNode.group && node.orbit === targetNode.orbit) {
-
-            const group = treeData.groups[node.group]
-
-            if (group) {
-
-              const [cx, cy] = treeToScreen(group.x, group.y, cam, W, H)
-
-              const radius = Math.hypot(sx1 - cx, sy1 - cy)
-
-              const a1 = Math.atan2(sy1 - cy, sx1 - cx)
-
-              const a2 = Math.atan2(sy2 - cy, sx2 - cx)
-
-              drawCircleArc(ctx, cx, cy, radius, a1, a2)
-
-            }
-
-          } else {
-
-            ctx.lineTo(sx2, sy2)
-
-          }
-
-        }
-
-
-
-        ctx.setLineDash([])
-
-
-
-        // Layer 1: wide outer glow (dim)
-
-        ctx.globalAlpha = 0.06
-
-        ctx.strokeStyle = CONNECTION_COLOR
-
-        ctx.lineWidth = CONNECTION_WIDTH * 5
-
-        strokePath()
-
-        ctx.stroke()
-
-
-
-        // Layer 2: mid glow (semi)
-
-        ctx.globalAlpha = 0.15
-
-        ctx.lineWidth = CONNECTION_WIDTH * 2.5
-
-        strokePath()
-
-        ctx.stroke()
-
-
-
-        // Layer 3: bright core
-
-        ctx.globalAlpha = 1
-
-        ctx.strokeStyle = '#556'
-
-        ctx.lineWidth = CONNECTION_WIDTH
-
-        strokePath()
-
-        ctx.stroke()
-
-      }
-
-    }
-
-    ctx.globalAlpha = 1
-
-    // ---- 15.11: Connector texture overlay ----
-    if (connectorsReady) {
-      const connEdges = new Set<string>()
-      for (const [id, node] of nodeList) {
-        const [sx1, sy1] = nodeScreenCache.get(id)!
-        const connections = node.connections?.length
-          ? node.connections
-          : node.out.map((outId) => ({ id: outId, orbit: 0 }))
-
-        for (const connection of connections) {
-          const outId = connection.id
-          const targetNode = nodes[outId]
-          if (!targetNode || targetNode.type === 'OnlyImage') continue
-          if (node.ascendancyName !== targetNode.ascendancyName) continue
-          if (node.classesStart || targetNode.classesStart) continue
-
-          const edgeKey = id < outId ? `${id}-${outId}` : `${outId}-${id}`
-          if (connEdges.has(edgeKey)) continue
-          connEdges.add(edgeKey)
-
-          const toPos = nodeScreenCache.get(outId)
-          if (!toPos) continue
-          const [sx2, sy2] = toPos
-          const orbit = connection.orbit || 0
-          const isAsc = !!node.ascendancyName
-
-          const state = getConnectorState(
-            allocatedNodes.has(id),
-            allocatedNodes.has(outId),
-          )
-
-          if (orbit === 0 || (node.group === targetNode.group && node.orbit === targetNode.orbit)) {
-            const img = resolveConnectorTexture(isAsc, 0, state)
-            if (img) {
-              ctx.globalAlpha = 0.5
-              drawLineConnectorTexture(ctx, img, sx1, sy1, sx2, sy2, CONNECTION_WIDTH * 8)
-              ctx.globalAlpha = 1
-            }
-          } else {
-            const img = resolveConnectorTexture(isAsc, Math.abs(orbit), state)
-            if (img) {
-              const group = treeData.groups[node.group]
-              if (group) {
-                const [cx, cy] = treeToScreen(group.x, group.y, cam, W, H)
-                const rad = treeData.constants.orbitRadii[Math.abs(orbit)] ?? 0
-                ctx.globalAlpha = 0.5
-                drawArcConnectorTexture(ctx, img, cx, cy, rad * zoom)
-                ctx.globalAlpha = 1
-              }
-            }
-          }
-        }
+    // ---- Connector texture quads ----
+    if (connectorsReady && treeData.connectors?.length) {
+      for (const connector of treeData.connectors) {
+        const state = getConnectorState(
+          allocatedNodes.has(connector.nodeId1),
+          allocatedNodes.has(connector.nodeId2),
+        )
+        const img = resolveConnectorTexture(connector.connectionArt, connector.type, state)
+        const vert = connector.vert[state] || connector.vert.Normal
+        if (!img || !vert) continue
+        const points: [number, number][] = [
+          treeToScreen(vert[0], vert[1], cam, W, H),
+          treeToScreen(vert[2], vert[3], cam, W, H),
+          treeToScreen(vert[4], vert[5], cam, W, H),
+          treeToScreen(vert[6], vert[7], cam, W, H),
+        ]
+        drawConnectorQuadTexture(ctx, img, points, connector.texCoords)
       }
     }
 
@@ -1025,10 +709,10 @@ export function TreeCanvas() {
         if (effInfo) {
           const effImg = imageCache.current.get(effInfo.file)
           if (effImg) {
-            const effSize = sr * 2.8
+            const [effW, effH] = assetHalfSize(node.targetSize?.effect, r * 1.4, r * 1.4, zoom)
             const alpha = isAllocated ? 1.0 : 0.15
             ctx.globalAlpha = alpha
-            ctx.drawImage(effImg, sx - effSize / 2, sy - effSize / 2, effSize, effSize)
+            drawCenteredAsset(ctx, effImg, sx, sy, effW, effH)
             ctx.globalAlpha = 1
           } else {
             spriteLoader.getImage(effInfo).then((loaded) => {
@@ -1067,17 +751,22 @@ export function TreeCanvas() {
 
       if (hasDds) {
         // DDS-first: draw icon with LessLuminance for unalloc
-        if (!isAllocated && !isHovered && !isSelected) {
-          ctx.globalAlpha = 0.35
-        }
         if (ddsIcon) {
-          const iconSize = Math.max(sr * 1.6, 12)
-          ctx.drawImage(ddsIcon, sx - iconSize / 2, sy - iconSize / 2, iconSize, iconSize)
+          const [iconW, iconH] = assetHalfSize(node.targetSize, r, r, zoom)
+          if (!isAllocated && !isHovered && !isSelected) {
+            ctx.filter = 'brightness(0.5)'
+          }
+          drawCenteredAsset(ctx, ddsIcon, sx, sy, iconW, iconH)
+          ctx.filter = 'none'
         }
         ctx.globalAlpha = 1
         if (ddsFrame) {
-          const frameSize = sr * 2.4
-          ctx.drawImage(ddsFrame, sx - frameSize / 2, sy - frameSize / 2, frameSize, frameSize)
+          const [frameW, frameH] = assetHalfSize(node.targetSize?.overlay, r * 1.2, r * 1.2, zoom)
+          if (!isAllocated && !isHovered && !isSelected && ['ClassStart', 'AscendClassStart'].includes(node.type)) {
+            ctx.filter = 'brightness(0.5)'
+          }
+          drawCenteredAsset(ctx, ddsFrame, sx, sy, frameW, frameH)
+          ctx.filter = 'none'
         }
       } else {
         // Fallback: pure-code circles

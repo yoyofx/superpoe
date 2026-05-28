@@ -18,6 +18,7 @@
 const BASE = '/assets/connectors/0_4'
 
 type ConnectorState = 'normal' | 'intermediate' | 'intermediateactive'
+export type ConnectorRenderState = 'Normal' | 'Intermediate' | 'Active'
 type ConnectorPrefix = 'Character' | 'CharacterAscendancy' | 'CharacterPlanned'
 
 export interface ConnectorTextureKey {
@@ -46,6 +47,10 @@ function getFilename(key: ConnectorTextureKey): string {
   return `${key.prefix}_orbit_${key.state}${key.orbit}.png`
 }
 
+function keyToUrl(key: ConnectorTextureKey): string {
+  return `${BASE}/${getFilename(key)}`
+}
+
 /**
  * Preload all connector textures for a given prefix.
  */
@@ -60,7 +65,7 @@ export async function preloadConnectors(
     for (const state of states) {
       const key: ConnectorTextureKey = { prefix, orbit, state }
       const filename = getFilename(key)
-      const url = `${BASE}/${filename}`
+      const url = keyToUrl(key)
       promises.push(
         loadImage(url).then((img) => {
           map.set(filename, img)
@@ -116,6 +121,77 @@ export function drawLineConnectorTexture(
   ctx.restore()
 }
 
+export function drawConnectorQuadTexture(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  points: [number, number][],
+  texCoords?: number[],
+): void {
+  if (points.length !== 4) return
+  if (texCoords?.length === 8) {
+    const uv: [number, number][] = [
+      [texCoords[0] * img.width, texCoords[1] * img.height],
+      [texCoords[2] * img.width, texCoords[3] * img.height],
+      [texCoords[4] * img.width, texCoords[5] * img.height],
+      [texCoords[6] * img.width, texCoords[7] * img.height],
+    ]
+    drawTexturedTriangle(ctx, img, [points[0], points[1], points[2]], [uv[0], uv[1], uv[2]])
+    drawTexturedTriangle(ctx, img, [points[0], points[2], points[3]], [uv[0], uv[2], uv[3]])
+    return
+  }
+
+  const [[x1, y1], [x2, y2], , [x4, y4]] = points
+  ctx.save()
+  ctx.beginPath()
+  ctx.moveTo(points[0][0], points[0][1])
+  ctx.lineTo(points[1][0], points[1][1])
+  ctx.lineTo(points[2][0], points[2][1])
+  ctx.lineTo(points[3][0], points[3][1])
+  ctx.closePath()
+  ctx.clip()
+  ctx.transform((x2 - x1) / img.width, (y2 - y1) / img.width, (x4 - x1) / img.height, (y4 - y1) / img.height, x1, y1)
+  ctx.drawImage(img, 0, 0)
+  ctx.restore()
+}
+
+function drawTexturedTriangle(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  dst: [[number, number], [number, number], [number, number]],
+  src: [[number, number], [number, number], [number, number]],
+): void {
+  const [[x0, y0], [x1, y1], [x2, y2]] = dst
+  const [[u0, v0], [u1, v1], [u2, v2]] = src
+  const denom = u0 * (v1 - v2) + u1 * (v2 - v0) + u2 * (v0 - v1)
+  if (Math.abs(denom) < 0.0001) return
+
+  const a = (x0 * (v1 - v2) + x1 * (v2 - v0) + x2 * (v0 - v1)) / denom
+  const c = (x0 * (u2 - u1) + x1 * (u0 - u2) + x2 * (u1 - u0)) / denom
+  const e = (
+    x0 * (u1 * v2 - u2 * v1) +
+    x1 * (u2 * v0 - u0 * v2) +
+    x2 * (u0 * v1 - u1 * v0)
+  ) / denom
+  const b = (y0 * (v1 - v2) + y1 * (v2 - v0) + y2 * (v0 - v1)) / denom
+  const d = (y0 * (u2 - u1) + y1 * (u0 - u2) + y2 * (u1 - u0)) / denom
+  const f = (
+    y0 * (u1 * v2 - u2 * v1) +
+    y1 * (u2 * v0 - u0 * v2) +
+    y2 * (u0 * v1 - u1 * v0)
+  ) / denom
+
+  ctx.save()
+  ctx.beginPath()
+  ctx.moveTo(x0, y0)
+  ctx.lineTo(x1, y1)
+  ctx.lineTo(x2, y2)
+  ctx.closePath()
+  ctx.clip()
+  ctx.transform(a, b, c, d, e, f)
+  ctx.drawImage(img, 0, 0)
+  ctx.restore()
+}
+
 /**
  * Draw an arc connector texture centered on the orbit group.
  */
@@ -138,24 +214,53 @@ export function drawArcConnectorTexture(
 }
 
 export function getConnectorImage(key: ConnectorTextureKey): HTMLImageElement | undefined {
-  const filename = getFilename(key)
-  return imageCache.get(filename)
+  return imageCache.get(keyToUrl(key))
 }
 
 export function getConnectorState(
   node1Allocated: boolean,
   node2Allocated: boolean,
-): ConnectorState {
-  if (node1Allocated && node2Allocated) return 'intermediateactive'
-  if (node1Allocated || node2Allocated) return 'intermediate'
-  return 'normal'
+): ConnectorRenderState {
+  if (node1Allocated && node2Allocated) return 'Active'
+  if (node1Allocated || node2Allocated) return 'Intermediate'
+  return 'Normal'
 }
 
 export function resolveConnectorTexture(
-  ascendancy: boolean,
-  orbit: number,
-  state: ConnectorState,
+  connectionArt: string | boolean,
+  type: string | number,
+  state: ConnectorRenderState,
 ): HTMLImageElement | undefined {
-  const prefix: ConnectorPrefix = ascendancy ? 'CharacterAscendancy' : 'Character'
-  return getConnectorImage({ prefix, orbit, state })
+  const prefix: ConnectorPrefix = typeof connectionArt === 'string'
+    ? normalizePrefix(connectionArt)
+    : connectionArt ? 'CharacterAscendancy' : 'Character'
+  const orbit = typeof type === 'number' ? type : parseConnectorOrbit(type)
+  return getConnectorImage({ prefix, orbit, state: mapState(state) })
+}
+
+function normalizePrefix(value: string): ConnectorPrefix {
+  if (value === 'CharacterAscendancy' || value === 'CharacterPlanned') return value
+  return 'Character'
+}
+
+function parseConnectorOrbit(type: string): number {
+  if (type === 'LineConnector') return 0
+  const match = /^Orbit(\d+)$/.exec(type)
+  const orbit = match ? Number(match[1]) : 0
+  if (orbit === 1) return 9
+  if (orbit === 2) return 8
+  if (orbit === 3) return 6
+  if (orbit === 4) return 5
+  if (orbit === 5) return 4
+  if (orbit === 6) return 3
+  if (orbit === 7) return 7
+  if (orbit === 8) return 2
+  if (orbit === 9) return 1
+  return orbit
+}
+
+function mapState(state: ConnectorRenderState): ConnectorState {
+  if (state === 'Active') return 'intermediateactive'
+  if (state === 'Intermediate') return 'intermediate'
+  return 'normal'
 }

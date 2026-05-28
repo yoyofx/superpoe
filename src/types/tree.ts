@@ -134,6 +134,16 @@ export interface TreeGroup {
     nodes: string[]   // node IDs belonging to this group
 }
 
+export interface TreeAssetSize {
+  width: number
+  height: number
+}
+
+export interface TreeNodeTargetSize extends TreeAssetSize {
+  effect?: TreeAssetSize
+  overlay?: TreeAssetSize
+}
+
 
 
 // ---- Node Types ----
@@ -221,12 +231,26 @@ export interface TreeNode {
     // Visual DDS sprite fields (from tree.json, precomputed by gen_tree_data.py)
     activeEffectImage?: string   // DDS asset for glow effect
     connectionArt?: string       // DDS asset for connection line sprite
-    nodeOverlay?: Record<string, string>  // {alloc, path, unalloc} frame names
+  nodeOverlay?: Record<string, string>  // {alloc, path, unalloc} frame names
+  targetSize?: TreeNodeTargetSize
+  angle?: number
 }
 
 export interface TreeConnection {
   id: string
   orbit: number
+}
+
+export type ConnectorStateName = 'Normal' | 'Intermediate' | 'Active'
+
+export interface TreeConnectorQuad {
+  nodeId1: string
+  nodeId2: string
+  ascendancyName?: string
+  connectionArt: string
+  type: string
+  texCoords: number[]
+  vert: Record<ConnectorStateName, number[]>
 }
 
 
@@ -259,6 +283,8 @@ export interface TreeData {
 
     /** additional art info (optional) */
   connectionArt?: Record<string, unknown>
+
+  connectors?: TreeConnectorQuad[]
 
   /** type-default overlay frames: {Keystone: {alloc,path,unalloc}, ...} */
   nodeOverlay?: Record<string, Record<string, string>>
