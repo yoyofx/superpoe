@@ -775,6 +775,10 @@ SimpleGraphic 的能力包括：纹理加载、纹理四边形绘制、自由四
 
 `public/data/tree-web-0_4.json` 是 Web 端生成产物，不是原生游戏文件。原生输入仍然是 `sources/src/TreeData/0_4/tree.json` / `tree.lua` 和连接线 PNG；游戏更新后应重新跑 `python scripts/gen_tree_data.py 0_4`，不要手改生成后的 JSON。
 
+当前升华显示采用运行时投影：外圈默认显示所有职业的升华背景图，当前选中的职业升华背景、节点和内部 connector 会投影到职业中心区域，投影半径受职业起始节点距离约束，避免中心升华盘越过职业起点。这个处理只影响 Canvas 绘制和 hover/click 命中，不改 `tree-web-0_4.json` 中的原始节点坐标，也不会复制节点数据。
+
+个别节点缺线的根因是 connector 生成阶段曾跳过所有带 `classesStart` 的连接，导致职业起点到升华起点、职业起点附近节点的原生连接没有进入 `connectors[]`。现在 `gen_tree_data.py` 只跳过两端都有且不同 `ascendancyName` 的跨升华连接，保留职业起点相关边，并继续用原生 `BuildConnector()` 逻辑生成贴图四边形。
+
 缩小时出现明显毛边，放大后消失，属于 Canvas 2D minification 采样问题：Canvas 不会像 WebGL 一样自动生成 mipmap，高分辨率 PNG/WebP 在小尺寸下会直接重采样，容易把 alpha 边缘和细线采成锯齿。当前前端通过运行时 mipmap 缓存处理：`imageMipmaps.ts` 为纹理生成 1/2、1/4、1/8 等离屏层，背景、节点 DDS、orbit/ring 精灵和 connector quad 在缩小时优先从更接近目标尺寸的 mip 层绘制，同时保持 `imageSmoothingQuality = 'high'`。
 
 缩小时卡顿主要来自可见元素数量暴增和常驻 RAF 重绘。当前前端已改为按需单帧渲染：状态变化、资源加载和 resize 才调度 `scheduleRender()`；connector 绘制前做 viewport 裁剪；低 zoom 下 connector 使用简化线，节点跳过 frame/effect 等昂贵细节。交互命中仍基于完整 tree data，不因视觉降级丢失数据。

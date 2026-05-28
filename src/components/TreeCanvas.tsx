@@ -14,7 +14,7 @@ import { drawOrbitSprite, getOrbitState, preloadOrbitSprites, drawRingFrame } fr
 
 
 
-import type { TreeNode } from '@/types/tree'
+import type { AscendancyClass, TreeConnectorQuad, TreeData, TreeNode } from '@/types/tree'
 import { spriteLoader } from '@/engine/spriteLoader'
 import { preloadConnectors, drawConnectorQuadTexture, getConnectorState, resolveConnectorTexture } from '@/engine/connectorSprites'
 import { applyCanvasImageQuality, drawImageMipped, prepareMipmaps } from '@/engine/imageMipmaps'
@@ -122,6 +122,93 @@ const CONNECTOR_TEXTURE_MIN_ZOOM = 0.16
 const NODE_DETAIL_MIN_ZOOM = 0.12
 
 const CONNECTOR_CULL_MARGIN = 160
+
+const ASCENDANCY_CENTER_MARGIN = 120
+
+interface AscendancyProjection {
+  ascendancyName: string
+  sourceX: number
+  sourceY: number
+  targetX: number
+  targetY: number
+  scale: number
+}
+
+function matchesAscendancy(asc: AscendancyClass, id: string): boolean {
+  return asc.id === id || asc.name === id
+}
+
+function getSelectedAscendancyProjection(
+  treeData: TreeData,
+  selectedClassId: string,
+  selectedAscendancyId: string,
+): AscendancyProjection | null {
+  const cls = treeData.constants.classes?.[selectedClassId]
+  const ascendancy = cls?.ascendancies?.find((asc) => matchesAscendancy(asc, selectedAscendancyId))
+  if (!cls?.background || !ascendancy?.background) return null
+
+  const startNode = cls.startNodeId ? treeData.nodes[cls.startNodeId] : undefined
+  if (!startNode) return null
+
+  const targetX = cls.background.x
+  const targetY = cls.background.y
+  const sourceX = ascendancy.background.x
+  const sourceY = ascendancy.background.y
+  const maxRadius = Object.values(treeData.nodes).reduce((max, node) => {
+    if (node.ascendancyName !== ascendancy.name) return max
+    return Math.max(max, Math.hypot(node.x - sourceX, node.y - sourceY))
+  }, Math.max(ascendancy.background.width, ascendancy.background.height) / 2)
+  const boundaryRadius = Math.max(
+    1,
+    Math.hypot(startNode.x - targetX, startNode.y - targetY) - ASCENDANCY_CENTER_MARGIN,
+  )
+  const scale = maxRadius > 0 ? Math.min(1, boundaryRadius / maxRadius) : 1
+
+  return {
+    ascendancyName: ascendancy.name,
+    sourceX,
+    sourceY,
+    targetX,
+    targetY,
+    scale,
+  }
+}
+
+function projectPoint(x: number, y: number, projection: AscendancyProjection): [number, number] {
+  return [
+    projection.targetX + (x - projection.sourceX) * projection.scale,
+    projection.targetY + (y - projection.sourceY) * projection.scale,
+  ]
+}
+
+function getRenderTreePoint(node: TreeNode, projection: AscendancyProjection | null): [number, number] {
+  if (projection && node.ascendancyName === projection.ascendancyName) {
+    return projectPoint(node.x, node.y, projection)
+  }
+  return [node.x, node.y]
+}
+
+function shouldProjectConnector(connector: TreeConnectorQuad, projection: AscendancyProjection | null): boolean {
+  return !!projection && connector.ascendancyName === projection.ascendancyName
+}
+
+function buildScreenLineQuad(
+  from: [number, number],
+  to: [number, number],
+  halfWidth: number,
+): [number, number][] {
+  const dx = to[0] - from[0]
+  const dy = to[1] - from[1]
+  const dist = Math.hypot(dx, dy) || 1
+  const nx = -dy / dist * halfWidth
+  const ny = dx / dist * halfWidth
+  return [
+    [from[0] - nx, from[1] - ny],
+    [from[0] + nx, from[1] + ny],
+    [to[0] + nx, to[1] + ny],
+    [to[0] - nx, to[1] - ny],
+  ]
+}
 
 function assetHalfSize(
   size: { width?: number; height?: number } | undefined,
@@ -369,6 +456,11 @@ export function TreeCanvas() {
     const dpr = window.devicePixelRatio || 1
 
     const cam = { offsetX, offsetY, zoom }
+    const selectedAscendancyProjection = getSelectedAscendancyProjection(
+      treeData,
+      selectedClassId,
+      selectedAscendancyId,
+    )
 
 
 
@@ -478,16 +570,18 @@ export function TreeCanvas() {
       }
     }
 
-    // ---- Class Background (center art) ----
+    // ---- Class/selected ascendancy background (center art) ----
     if (ddsReady && spriteLoader.isAvailable() && clsData2?.background?.image) {
-      const clsBg = clsData2.background
-      const info = spriteLoader.getByName(clsBg.image)
+      const selectedAsc = clsData2.ascendancies?.find((asc) => matchesAscendancy(asc, selectedAscendancyId))
+      const centerBg = selectedAsc?.background || clsData2.background
+      const info = spriteLoader.getByName(centerBg.image)
       if (info) {
         const img = imageCache.current.get(info.file)
         if (img) {
-          const [cx, cy] = treeToScreen(clsBg.x, clsBg.y, cam, W, H)
-          const cw = clsBg.width * zoom
-          const ch = clsBg.height * zoom
+          const [cx, cy] = treeToScreen(clsData2.background.x, clsData2.background.y, cam, W, H)
+          const centerScale = selectedAscendancyProjection?.scale ?? 1
+          const cw = centerBg.width * centerScale * zoom
+          const ch = centerBg.height * centerScale * zoom
           ctx.globalAlpha = 0.8
           drawImageMipped(ctx, img, cx - cw / 2, cy - ch / 2, cw, ch)
           ctx.globalAlpha = 1
@@ -497,11 +591,10 @@ export function TreeCanvas() {
       }
     }
 
-    // ---- Ascendancy Background Textures (only for selected class) ----
-    if (ddsReady && spriteLoader.isAvailable() && selectedClassId && treeData.constants.classes) {
-      const clsData = treeData.constants.classes[selectedClassId]
-      if (clsData?.ascendancies) {
-        for (const asc of clsData.ascendancies) {
+    // ---- Ascendancy Background Textures ----
+    if (ddsReady && spriteLoader.isAvailable() && treeData.constants.classes) {
+      for (const clsData of Object.values(treeData.constants.classes)) {
+        for (const asc of clsData.ascendancies || []) {
           const bg = asc.background
           if (!bg) continue
           const info = spriteLoader.getByName(bg.image)
@@ -514,8 +607,8 @@ export function TreeCanvas() {
           const [bgx, bgy] = treeToScreen(bg.x, bg.y, cam, W, H)
           const bgw = bg.width * zoom
           const bgh = bg.height * zoom
-          const isSelected = asc.id === selectedAscendancyId || asc.name === selectedAscendancyId
-          ctx.globalAlpha = isSelected ? 0.8 : 0.18
+          const isSelected = clsData === clsData2 && matchesAscendancy(asc, selectedAscendancyId)
+          ctx.globalAlpha = isSelected ? 0.55 : 0.18
           drawImageMipped(ctx, img, bgx - bgw / 2, bgy - bgh / 2, bgw, bgh)
           ctx.globalAlpha = 1
         }
@@ -554,7 +647,8 @@ export function TreeCanvas() {
 
 
 
-      const [sx, sy] = treeToScreen(node.x, node.y, cam, W, H)
+      const [renderX, renderY] = getRenderTreePoint(node, selectedAscendancyProjection)
+      const [sx, sy] = treeToScreen(renderX, renderY, cam, W, H)
 
 
 
@@ -639,26 +733,57 @@ export function TreeCanvas() {
         )
         const vert = connector.vert[state] || connector.vert.Normal
         if (!vert) continue
-        const points: [number, number][] = [
-          treeToScreen(vert[0], vert[1], cam, W, H),
-          treeToScreen(vert[2], vert[3], cam, W, H),
-          treeToScreen(vert[4], vert[5], cam, W, H),
-          treeToScreen(vert[6], vert[7], cam, W, H),
-        ]
+        const projectConnector = shouldProjectConnector(connector, selectedAscendancyProjection)
+        const node1 = treeData.nodes[connector.nodeId1]
+        const node2 = treeData.nodes[connector.nodeId2]
+        const selectedAscendancyName = selectedAscendancyProjection?.ascendancyName
+        const mixedProjectedConnector = projectConnector
+          && node1
+          && node2
+          && !(node1.ascendancyName === selectedAscendancyName && node2.ascendancyName === selectedAscendancyName)
+        let points: [number, number][]
+        if (mixedProjectedConnector) {
+          const from = getRenderTreePoint(node1, selectedAscendancyProjection)
+          const to = getRenderTreePoint(node2, selectedAscendancyProjection)
+          points = buildScreenLineQuad(
+            treeToScreen(from[0], from[1], cam, W, H),
+            treeToScreen(to[0], to[1], cam, W, H),
+            Math.max(0.5, zoom * 2),
+          )
+        } else {
+          const p1 = projectConnector ? projectPoint(vert[0], vert[1], selectedAscendancyProjection!) : [vert[0], vert[1]]
+          const p2 = projectConnector ? projectPoint(vert[2], vert[3], selectedAscendancyProjection!) : [vert[2], vert[3]]
+          const p3 = projectConnector ? projectPoint(vert[4], vert[5], selectedAscendancyProjection!) : [vert[4], vert[5]]
+          const p4 = projectConnector ? projectPoint(vert[6], vert[7], selectedAscendancyProjection!) : [vert[6], vert[7]]
+          points = [
+            treeToScreen(p1[0], p1[1], cam, W, H),
+            treeToScreen(p2[0], p2[1], cam, W, H),
+            treeToScreen(p3[0], p3[1], cam, W, H),
+            treeToScreen(p4[0], p4[1], cam, W, H),
+          ]
+        }
         if (!pointsIntersectViewport(points, W, H, CONNECTOR_CULL_MARGIN)) continue
 
-        if (useTextureConnectors) {
+        if (useTextureConnectors && !mixedProjectedConnector) {
           const img = resolveConnectorTexture(connector.connectionArt, connector.type, state)
           if (!img) continue
           drawConnectorQuadTexture(ctx, img, points, connector.texCoords)
         } else {
           const active = state === 'Active'
           const intermediate = state === 'Intermediate'
+          if (useTextureConnectors) {
+            ctx.strokeStyle = 'rgba(116, 126, 148, 0.55)'
+            ctx.lineWidth = Math.max(0.5, zoom * 2.5)
+            ctx.setLineDash([])
+          }
           ctx.globalAlpha = active ? 0.75 : intermediate ? 0.55 : 0.28
           ctx.beginPath()
           ctx.moveTo((points[0][0] + points[1][0]) / 2, (points[0][1] + points[1][1]) / 2)
           ctx.lineTo((points[2][0] + points[3][0]) / 2, (points[2][1] + points[3][1]) / 2)
           ctx.stroke()
+          if (useTextureConnectors) {
+            ctx.globalAlpha = 1
+          }
         }
       }
       if (!useTextureConnectors) {
@@ -1258,6 +1383,11 @@ export function TreeCanvas() {
 
 
       const [tx, ty] = screenToTree(sx, sy, cam, rect.width, rect.height)
+      const selectedAscendancyProjection = getSelectedAscendancyProjection(
+        treeData,
+        selectedClassId,
+        selectedAscendancyId,
+      )
 
 
 
@@ -1277,11 +1407,13 @@ export function TreeCanvas() {
 
 
 
-        const dx = node.x - tx
+        const [renderX, renderY] = getRenderTreePoint(node, selectedAscendancyProjection)
+
+        const dx = renderX - tx
 
 
 
-        const dy = node.y - ty
+        const dy = renderY - ty
 
 
 
@@ -1317,7 +1449,7 @@ export function TreeCanvas() {
 
 
 
-    [panBy, offsetX, offsetY, zoom, treeData, setHoveredNode, setMousePos],
+    [panBy, offsetX, offsetY, zoom, treeData, selectedClassId, selectedAscendancyId, setHoveredNode, setMousePos],
 
 
 

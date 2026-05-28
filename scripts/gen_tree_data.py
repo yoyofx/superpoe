@@ -178,9 +178,9 @@ def build_connectors(
                 continue
             if node.get("id") == other.get("id"):
                 continue
-            if node.get("ascendancyName") != other.get("ascendancyName"):
-                continue
-            if node.get("classesStart") is not None or other.get("classesStart") is not None:
+            node_ascendancy = node.get("ascendancyName")
+            other_ascendancy = other.get("ascendancyName")
+            if node_ascendancy and other_ascendancy and node_ascendancy != other_ascendancy:
                 continue
 
             built = build_connector(node, other, connection, groups, orbit_radii, connection_art, connector_art_sizes)
@@ -198,15 +198,16 @@ def build_connector(
     connection_art: dict,
     connector_art_sizes: dict[str, dict[str, dict[str, int]]],
 ) -> list[dict]:
+    ascendancy_name = node1.get("ascendancyName") or node2.get("ascendancyName") or ""
     art_prefix = (
         node1.get("connectionArt")
         or node2.get("connectionArt")
-        or connection_art.get("ascendancy" if node1.get("ascendancyName") else "default", "Character")
+        or connection_art.get("ascendancy" if ascendancy_name else "default", "Character")
     )
     connector = {
         "nodeId1": node1["id"],
         "nodeId2": node2["id"],
-        "ascendancyName": node1.get("ascendancyName", ""),
+        "ascendancyName": ascendancy_name,
         "connectionArt": art_prefix,
         "type": "",
         "texCoords": [],
