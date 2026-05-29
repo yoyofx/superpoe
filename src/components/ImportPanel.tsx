@@ -72,13 +72,28 @@ export function ImportPanel({ embedded = false }: ImportPanelProps) {
 
 
 
-      const data = await resp.json()
+      const text = await resp.text()
+      let data: {
+        error?: string
+        nodes?: string[]
+        nodeWeaponSets?: Record<string, 1 | 2>
+        treeVersion?: string
+        classId?: string
+        ascendClassId?: string
+      } = {}
+      if (text) {
+        try {
+          data = JSON.parse(text)
+        } catch {
+          data = { error: `Import API returned a non-JSON response: HTTP ${resp.status}` }
+        }
+      }
 
 
 
       if (!resp.ok || data.error) {
 
-        setError(data.error || `HTTP ${resp.status}`)
+        setError(data.error || `Import API returned an empty response: HTTP ${resp.status}`)
 
         setLoading(false)
 
@@ -92,7 +107,11 @@ export function ImportPanel({ embedded = false }: ImportPanelProps) {
 
       if (nodeIds.length > 0) {
 
-        importAllocatedNodes(nodeIds, data.nodeWeaponSets || {})
+        await importAllocatedNodes(nodeIds, data.nodeWeaponSets || {}, {
+          treeVersion: data.treeVersion,
+          classId: data.classId,
+          ascendClassId: data.ascendClassId,
+        })
 
       }
 

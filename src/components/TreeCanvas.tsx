@@ -17,7 +17,7 @@ import { drawOrbitSprite, getOrbitState, preloadOrbitSprites, drawRingFrame } fr
 import type { AscendancyClass, TreeConnectorQuad, TreeData, TreeNode } from '@/types/tree'
 import { getSpriteLoader } from '@/engine/spriteLoader'
 import type { SpriteInfo } from '@/engine/spriteLoader'
-import { preloadConnectors, drawConnectorQuadTexture, getConnectorState, resolveConnectorTexture } from '@/engine/connectorSprites'
+import { preloadConnectors, drawConnectorQuadTexture, getConnectorState, modulateConnectorTexture, resolveConnectorTexture } from '@/engine/connectorSprites'
 import { applyCanvasImageQuality, drawImageMipped, drawImageMippedSource, prepareMipmaps } from '@/engine/imageMipmaps'
 import {
   getImplicitRootIds,
@@ -202,6 +202,12 @@ function shouldProjectConnector(connector: TreeConnectorQuad, projection: Ascend
   return !!projection && connector.ascendancyName === projection.ascendancyName
 }
 
+function isClassToAscendancyConnector(node1?: TreeNode, node2?: TreeNode): boolean {
+  if (!node1 || !node2) return false
+  return (node1.type === 'ClassStart' && node2.type === 'AscendClassStart')
+    || (node2.type === 'ClassStart' && node1.type === 'AscendClassStart')
+}
+
 function buildScreenLineQuad(
   from: [number, number],
   to: [number, number],
@@ -377,6 +383,7 @@ export function TreeCanvas() {
 
 
   const searchMatchIds = useTreeStore((s) => s.searchMatchIds)
+  const treeEditMode = useTreeStore((s) => s.treeEditMode)
   const weaponSetMode = useTreeStore((s) => s.weaponSetMode)
   const nodeWeaponSets = useTreeStore((s) => s.nodeWeaponSets)
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
@@ -495,13 +502,15 @@ export function TreeCanvas() {
     )
     const allocationContext = { treeData, selectedClassId, selectedAscendancyId }
     const implicitRoots = getImplicitRootIds(allocationContext)
-    const previewPath = getPreviewPath(
-      allocationContext,
-      allocatedNodes,
-      nodeWeaponSets,
-      hoveredNodeId,
-      weaponSetMode as AllocMode,
-    )
+    const previewPath = treeEditMode
+      ? getPreviewPath(
+        allocationContext,
+        allocatedNodes,
+        nodeWeaponSets,
+        hoveredNodeId,
+        weaponSetMode as AllocMode,
+      )
+      : new Set<string>()
 
 
 
@@ -783,6 +792,7 @@ export function TreeCanvas() {
         const node1 = treeData.nodes[connector.nodeId1]
         const node2 = treeData.nodes[connector.nodeId2]
         const selectedAscendancyName = selectedAscendancyProjection?.ascendancyName
+        if (isClassToAscendancyConnector(node1, node2)) continue
         const mixedProjectedConnector = projectConnector
           && node1
           && node2
@@ -813,31 +823,26 @@ export function TreeCanvas() {
         if (useTextureConnectors && !mixedProjectedConnector) {
           const img = resolveConnectorTexture(treeVersion, connector.connectionArt, connector.type, state)
           if (!img) continue
-          drawConnectorQuadTexture(ctx, img, points, connector.texCoords)
-        } else {
-          const active = state === 'Active'
-          const intermediate = state === 'Intermediate'
-          if (useTextureConnectors) {
-            ctx.strokeStyle = 'rgba(116, 126, 148, 0.55)'
-            ctx.lineWidth = Math.max(0.5, zoom * 2.5)
-            ctx.setLineDash([])
-          }
           const connectorMode1 = getNodeAllocMode(connector.nodeId1, nodeWeaponSets)
           const connectorMode2 = getNodeAllocMode(connector.nodeId2, nodeWeaponSets)
           const connectorMode = connectorMode1 || connectorMode2
-          if (connectorMode === 1 || connectorMode === 2) {
-            ctx.strokeStyle = WEAPON_SET_COLORS[connectorMode]
-          } else if (previewConnector && weaponSetMode > 0) {
-            ctx.strokeStyle = WEAPON_SET_COLORS[weaponSetMode as 1 | 2]
-          }
+          const previewMode = previewConnector && treeEditMode && weaponSetMode > 0
+            ? weaponSetMode as 1 | 2
+            : 0
+          const overlayMode = connectorMode || previewMode
+          const drawImg = overlayMode === 1 || overlayMode === 2
+            ? modulateConnectorTexture(img, WEAPON_SET_COLORS[overlayMode])
+            : img
+          drawConnectorQuadTexture(ctx, drawImg, points, connector.texCoords)
+        } else {
+          if (useTextureConnectors) continue
+          const active = state === 'Active'
+          const intermediate = state === 'Intermediate'
           ctx.globalAlpha = active ? 0.75 : intermediate ? 0.55 : 0.28
           ctx.beginPath()
           ctx.moveTo((points[0][0] + points[1][0]) / 2, (points[0][1] + points[1][1]) / 2)
           ctx.lineTo((points[2][0] + points[3][0]) / 2, (points[2][1] + points[3][1]) / 2)
           ctx.stroke()
-          if (useTextureConnectors) {
-            ctx.globalAlpha = 1
-          }
         }
       }
       if (!useTextureConnectors) {
@@ -926,9 +931,8 @@ export function TreeCanvas() {
 
 
       const allocMode = getNodeAllocMode(id, nodeWeaponSets)
-      const modeColor = allocMode === 1 || allocMode === 2 ? WEAPON_SET_COLORS[allocMode] : null
 
-      const color = isAllocated ? (modeColor ?? '#4A9EFF') : (NODE_COLOR[node.type] ?? '#888')
+      const color = isAllocated ? '#4A9EFF' : (NODE_COLOR[node.type] ?? '#888')
 
       const baseColor = color
       const useNodeDetails = zoom >= NODE_DETAIL_MIN_ZOOM
@@ -1019,7 +1023,7 @@ export function TreeCanvas() {
       } else {
         // Fallback: pure-code circles
         if (isAllocated) {
-          ctx.shadowColor = modeColor ?? '#4A9EFF'
+          ctx.shadowColor = '#4A9EFF'
           ctx.shadowBlur = 12 * zoom
         } else if (isHovered || isSelected) {
           ctx.shadowColor = HOVER_GLOW
@@ -1064,7 +1068,7 @@ export function TreeCanvas() {
 
         ctx.arc(sx, sy, sr + 1 * zoom, 0, Math.PI * 2)
 
-        ctx.strokeStyle = modeColor ?? '#A0D4FF'
+        ctx.strokeStyle = '#A0D4FF'
 
         ctx.lineWidth = 2 * zoom
 
@@ -1078,7 +1082,7 @@ export function TreeCanvas() {
 
         ctx.arc(sx, sy, sr + 1 * zoom, 0, Math.PI * 2)
 
-        ctx.strokeStyle = isPreview && weaponSetMode > 0 ? WEAPON_SET_COLORS[weaponSetMode as 1 | 2] : '#4ADE80'
+        ctx.strokeStyle = '#4ADE80'
 
         ctx.lineWidth = 2.5 * zoom
 
@@ -1150,7 +1154,7 @@ export function TreeCanvas() {
 
     }
 
-  }, [treeData, offsetX, offsetY, zoom, hoveredNodeId, selectedNodeId, allocatedNodes, availableNodes, nodeWeaponSets, weaponSetMode, searchMatchIds, selectedClassId, selectedAscendancyId, ddsReady, connectorsReady, cacheLoadedImage])
+  }, [treeData, offsetX, offsetY, zoom, hoveredNodeId, selectedNodeId, allocatedNodes, availableNodes, nodeWeaponSets, treeEditMode, weaponSetMode, searchMatchIds, selectedClassId, selectedAscendancyId, ddsReady, connectorsReady, cacheLoadedImage])
 
   useEffect(() => {
     renderRef.current = render
@@ -1562,13 +1566,13 @@ export function TreeCanvas() {
 
 
 
-                // Click on a node to allocate/deallocate; path rules decide whether it can change.
+                // Edit mode gates allocation changes; browsing clicks only select nodes.
 
       if (hoveredNodeId) {
 
 
 
-        toggleNode(hoveredNodeId)
+        if (treeEditMode) toggleNode(hoveredNodeId)
 
 
 
@@ -1588,7 +1592,7 @@ export function TreeCanvas() {
 
 
 
-    [hoveredNodeId, setSelectedNode, toggleNode],
+    [hoveredNodeId, setSelectedNode, toggleNode, treeEditMode],
 
 
 

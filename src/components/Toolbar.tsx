@@ -22,6 +22,8 @@ export function Toolbar() {
   const selectClass = useTreeStore((s) => s.selectClass)
   const selectAscendancy = useTreeStore((s) => s.selectAscendancy)
   const weaponSetMode = useTreeStore((s) => s.weaponSetMode)
+  const treeEditMode = useTreeStore((s) => s.treeEditMode)
+  const setTreeEditMode = useTreeStore((s) => s.setTreeEditMode)
   const setWeaponSetMode = useTreeStore((s) => s.setWeaponSetMode)
   const setSearchQuery = useTreeStore((s) => s.setSearchQuery)
   const setTreeVersion = useTreeStore((s) => s.setTreeVersion)
@@ -143,14 +145,29 @@ export function Toolbar() {
         </select>
       )}
 
-      {/* Weapon Set toggle */}
-      <div className="flex items-center gap-0.5 bg-gray-800 rounded-md border border-gray-600 overflow-hidden" title="Weapon Set">
+      {/* Tree edit and weapon set mode */}
+      <div className={`flex items-center gap-0.5 rounded-md border overflow-hidden ${
+        treeEditMode ? 'bg-gray-800 border-amber-500/70' : 'bg-gray-900 border-gray-600'
+      }`} title="Passive tree edit mode and weapon set">
+        <button onClick={() => setTreeEditMode(!treeEditMode)}
+          className={`px-2 py-1 text-[10px] font-semibold transition-colors ${
+            treeEditMode ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
+          }`}>Edit</button>
         <button onClick={() => setWeaponSetMode(0)}
-          className={`px-2 py-1 text-[10px] font-medium transition-colors ${weaponSetMode===0?'bg-amber-600 text-white':'text-gray-400 hover:text-gray-200'}`}>Both</button>
+          disabled={!treeEditMode}
+          className={`px-2 py-1 text-[10px] font-medium transition-colors ${
+            weaponSetMode===0 && treeEditMode ? 'bg-amber-700 text-white' : 'text-gray-400 hover:text-gray-200 disabled:text-gray-600 disabled:hover:text-gray-600'
+          }`}>Both</button>
         <button onClick={() => setWeaponSetMode(1)}
-          className={`px-2 py-1 text-[10px] font-medium transition-colors ${weaponSetMode===1?'bg-red-700 text-white':'text-gray-400 hover:text-gray-200'}`}>Set1</button>
+          disabled={!treeEditMode}
+          className={`px-2 py-1 text-[10px] font-medium transition-colors ${
+            weaponSetMode===1 && treeEditMode ? 'bg-red-700 text-white' : 'text-gray-400 hover:text-gray-200 disabled:text-gray-600 disabled:hover:text-gray-600'
+          }`}>Set1</button>
         <button onClick={() => setWeaponSetMode(2)}
-          className={`px-2 py-1 text-[10px] font-medium transition-colors ${weaponSetMode===2?'bg-green-700 text-white':'text-gray-400 hover:text-gray-200'}`}>Set2</button>
+          disabled={!treeEditMode}
+          className={`px-2 py-1 text-[10px] font-medium transition-colors ${
+            weaponSetMode===2 && treeEditMode ? 'bg-green-700 text-white' : 'text-gray-400 hover:text-gray-200 disabled:text-gray-600 disabled:hover:text-gray-600'
+          }`}>Set2</button>
       </div>
 
       {/* Divider */}

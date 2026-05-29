@@ -22,6 +22,7 @@ const FALLBACK_VERSION = '0_4'
 type ConnectorState = 'normal' | 'intermediate' | 'intermediateactive'
 export type ConnectorRenderState = 'Normal' | 'Intermediate' | 'Active'
 type ConnectorPrefix = 'Character' | 'CharacterAscendancy' | 'CharacterPlanned'
+type DrawableConnectorImage = HTMLImageElement | HTMLCanvasElement | OffscreenCanvas
 
 export interface ConnectorTextureKey {
   prefix: ConnectorPrefix
@@ -31,6 +32,7 @@ export interface ConnectorTextureKey {
 
 const imageCache = new Map<string, HTMLImageElement>()
 const resolvedUrlCache = new Map<string, string>()
+const modulatedConnectorCache = new WeakMap<HTMLImageElement, Map<string, DrawableConnectorImage>>()
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   const cached = imageCache.get(src)
@@ -141,7 +143,7 @@ export function drawLineConnectorTexture(
 
 export function drawConnectorQuadTexture(
   ctx: CanvasRenderingContext2D,
-  img: HTMLImageElement,
+  img: DrawableConnectorImage,
   points: [number, number][],
   texCoords?: number[],
 ): void {
@@ -266,6 +268,59 @@ export function getConnectorImage(version: string, key: ConnectorTextureKey): HT
   const primary = keyToUrl(version, key)
   const src = resolvedUrlCache.get(primary) || primary
   return imageCache.get(src)
+}
+
+function parseHexColor(hex: string): [number, number, number] {
+  const raw = hex.startsWith('#') ? hex.slice(1) : hex
+  const value = parseInt(raw.length === 3
+    ? raw.split('').map((c) => c + c).join('')
+    : raw, 16)
+  return [
+    ((value >> 16) & 0xff) / 255,
+    ((value >> 8) & 0xff) / 255,
+    (value & 0xff) / 255,
+  ]
+}
+
+export function modulateConnectorTexture(img: HTMLImageElement, color: string, strength = 0.45): DrawableConnectorImage {
+  let colorCache = modulatedConnectorCache.get(img)
+  if (!colorCache) {
+    colorCache = new Map<string, DrawableConnectorImage>()
+    modulatedConnectorCache.set(img, colorCache)
+  }
+  const cacheKey = `${color}:${strength}`
+  const cached = colorCache.get(cacheKey)
+  if (cached) return cached
+
+  const width = img.naturalWidth || img.width
+  const height = img.naturalHeight || img.height
+  const canvas = typeof OffscreenCanvas !== 'undefined'
+    ? new OffscreenCanvas(width, height)
+    : document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+
+  const ctx = canvas.getContext('2d')
+  if (!ctx) return img
+  ctx.clearRect(0, 0, width, height)
+  ctx.drawImage(img, 0, 0)
+
+  const pixels = ctx.getImageData(0, 0, width, height)
+  const [r, g, b] = parseHexColor(color)
+  for (let i = 0; i < pixels.data.length; i += 4) {
+    if (pixels.data[i + 3] === 0) continue
+    const alpha = pixels.data[i + 3] / 255
+    const localStrength = strength * Math.min(1, Math.max(0, (alpha - 0.25) / 0.75))
+    const luminance = Math.max(pixels.data[i], pixels.data[i + 1], pixels.data[i + 2])
+    pixels.data[i] = Math.round(pixels.data[i] * (1 - localStrength) + luminance * r * localStrength)
+    pixels.data[i + 1] = Math.round(pixels.data[i + 1] * (1 - localStrength) + luminance * g * localStrength)
+    pixels.data[i + 2] = Math.round(pixels.data[i + 2] * (1 - localStrength) + luminance * b * localStrength)
+  }
+  ctx.putImageData(pixels, 0, 0)
+
+  prepareMipmaps(canvas)
+  colorCache.set(cacheKey, canvas)
+  return canvas
 }
 
 export function getConnectorState(

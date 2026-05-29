@@ -21,8 +21,8 @@ export interface AllocationPath {
 }
 
 export const WEAPON_SET_COLORS: Record<1 | 2, string> = {
-  1: '#DD0022',
-  2: '#33FF77',
+  1: '#FF1744',
+  2: '#00FF7F',
 }
 
 export function getNodeAllocMode(id: string, nodeWeaponSets: NodeWeaponSets): AllocMode {

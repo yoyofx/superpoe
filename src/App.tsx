@@ -3,7 +3,6 @@ import { useTreeStore } from '@/store/treeStore'
 import { TreeCanvas } from '@/components/TreeCanvas'
 import { Toolbar } from '@/components/Toolbar'
 import { NodeTooltip } from '@/components/NodeTooltip'
-import { Sidebar } from '@/components/Sidebar'
 import { StatTable } from '@/components/StatTable'
 
 export default function App() {
@@ -67,7 +66,6 @@ export default function App() {
     <div className="w-screen h-screen relative">
       <TreeCanvas />
       <Toolbar />
-      <Sidebar />
       <NodeTooltip />
       <StatTable />
     </div>

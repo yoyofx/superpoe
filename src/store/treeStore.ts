@@ -294,6 +294,7 @@ interface TreeStore {
 
 
   allocatedNodes: Set<string>
+  treeEditMode: boolean
   weaponSetMode: 0 | 1 | 2
   nodeWeaponSets: Record<string, 1 | 2>
   masterySelections: Record<string, string>
@@ -528,7 +529,11 @@ interface TreeStore {
 
 
 
-  importAllocatedNodes: (ids: string[], nodeWeaponSets?: NodeWeaponSets) => void
+  importAllocatedNodes: (
+    ids: string[],
+    nodeWeaponSets?: NodeWeaponSets,
+    options?: { treeVersion?: string; classId?: string; ascendClassId?: string },
+  ) => void | Promise<void>
 
 
 
@@ -553,6 +558,7 @@ interface TreeStore {
 
 
   toggleNode: (id: string) => void
+  setTreeEditMode: (enabled: boolean) => void
   setWeaponSetMode: (mode: 0 | 1 | 2) => void
   selectMastery: (nodeId: string, effectId: string) => void
   cancelMastery: () => void
@@ -827,6 +833,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
   allocatedNodes: new Set(),
+  treeEditMode: false,
   weaponSetMode: 0 as 0 | 1 | 2,
   nodeWeaponSets: {} as Record<string, 1 | 2>,
   masterySelections: {} as Record<string, string>,
@@ -1464,7 +1471,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      set({ searchMatchIds: [] })
+      set({ searchMatchIds: [], selectedNodeId: null })
 
 
 
@@ -1512,7 +1519,14 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      if (node.name.toLowerCase().includes(lower)) {
+      const haystack = [
+        id,
+        node.name,
+        node.type,
+        ...(node.stats || []),
+      ].join('\n').toLowerCase()
+
+      if (haystack.includes(lower)) {
 
 
 
@@ -1552,7 +1566,13 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-    set({ searchMatchIds: matches })
+    const firstMatch = matches[0]
+    const firstNode = firstMatch ? treeData.nodes[firstMatch] : null
+    set({
+      searchMatchIds: matches,
+      selectedNodeId: firstMatch || null,
+      ...(firstNode ? { offsetX: -firstNode.x, offsetY: -firstNode.y } : {}),
+    })
 
 
 
@@ -1576,7 +1596,28 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-  importAllocatedNodes: (ids: string[], importedWeaponSets: NodeWeaponSets = {}) => {
+  importAllocatedNodes: async (ids: string[], importedWeaponSets: NodeWeaponSets = {}, options = {}) => {
+    const current = get()
+    if (options.treeVersion && options.treeVersion !== current.treeVersion) {
+      set({ treeVersion: options.treeVersion })
+      await get().loadTreeData()
+    }
+
+    const state = get()
+    const tree = state.treeData
+    if (tree && options.classId && tree.constants.classes[options.classId]) {
+      const classData = tree.constants.classes[options.classId]
+      const ascendancy = classData.ascendancies.find((asc) => (
+        asc.id === options.ascendClassId
+        || asc.name === options.ascendClassId
+        || asc.internalId === options.ascendClassId
+      )) || classData.ascendancies[0]
+      set({
+        selectedClassId: options.classId,
+        selectedAscendancyId: ascendancy?.id || ascendancy?.name || '',
+      })
+    }
+
     const ctx = getAllocationContext(get())
     const next = new Set<string>()
     for (const id of ids) {
@@ -1647,6 +1688,10 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   setWeaponSetMode: (mode) => {
     set({ weaponSetMode: mode })
+  },
+
+  setTreeEditMode: (enabled) => {
+    set({ treeEditMode: enabled })
   },
 
   toggleNode: (id: string) => {
