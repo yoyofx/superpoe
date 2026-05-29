@@ -3,13 +3,17 @@ import { inflateSync } from 'zlib'
 import { XMLParser } from 'fast-xml-parser'
 
 type NodeWeaponSets = Record<string, 1 | 2>
+type NodeAttributeSelections = Record<string, 1 | 2 | 3>
 
 interface DecodeResult {
   nodes: string[]
   nodeWeaponSets: NodeWeaponSets
+  nodeAttributeSelections: NodeAttributeSelections
   treeVersion: string
   classId: string
   ascendClassId: string
+  classInternalId: string
+  ascendancyInternalId: string
   specs: unknown[]
 }
 
@@ -31,10 +35,18 @@ function collectSpec(spec: Record<string, unknown>, result: DecodeResult) {
   for (const id of parseIds(firstNode(spec.WeaponSet1)?.nodes)) result.nodeWeaponSets[id] = 1
   for (const id of parseIds(firstNode(spec.WeaponSet2)?.nodes)) result.nodeWeaponSets[id] = 2
 
+  const overrides = firstNode(spec.Overrides)
+  const attributeOverride = firstNode(overrides?.AttributeOverride)
+  for (const id of parseIds(attributeOverride?.strNodes)) result.nodeAttributeSelections[id] = 1
+  for (const id of parseIds(attributeOverride?.dexNodes)) result.nodeAttributeSelections[id] = 2
+  for (const id of parseIds(attributeOverride?.intNodes)) result.nodeAttributeSelections[id] = 3
+
   result.specs.push({
     treeVersion: spec.treeVersion || '',
     classId: spec.classId || '',
     ascendClassId: spec.ascendClassId || '',
+    classInternalId: spec.classInternalId || '',
+    ascendancyInternalId: spec.ascendancyInternalId || '',
     nodeCount: ids.length,
   })
 
@@ -42,6 +54,8 @@ function collectSpec(spec: Record<string, unknown>, result: DecodeResult) {
     result.treeVersion = String(spec.treeVersion || '')
     result.classId = String(spec.classId || '')
     result.ascendClassId = String(spec.ascendClassId || '')
+    result.classInternalId = String(spec.classInternalId || '')
+    result.ascendancyInternalId = String(spec.ascendancyInternalId || '')
   }
 }
 
@@ -50,7 +64,7 @@ export async function buildDecodeRoute(fastify: FastifyInstance) {
   const xmlParser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '',
-    isArray: (name) => ['Spec', 'WeaponSet1', 'WeaponSet2'].includes(name),
+    isArray: (name) => ['Spec', 'WeaponSet1', 'WeaponSet2', 'Overrides', 'AttributeOverride'].includes(name),
   })
 
   fastify.post<{ Body: { code?: string } }>(
@@ -76,9 +90,12 @@ export async function buildDecodeRoute(fastify: FastifyInstance) {
         const result: DecodeResult = {
           nodes: [],
           nodeWeaponSets: {},
+          nodeAttributeSelections: {},
           treeVersion: '',
           classId: '',
           ascendClassId: '',
+          classInternalId: '',
+          ascendancyInternalId: '',
           specs: [],
         }
 

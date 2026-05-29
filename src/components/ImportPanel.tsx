@@ -1,5 +1,7 @@
 import { useState } from 'react'
+import { inflate } from 'pako'
 
+import { decodeBuildCodeXml, parseAttributeSelectionsFromXml } from '@/engine/attributeNodes'
 import { useTreeStore } from '@/store/treeStore'
 
 interface ImportPanelProps {
@@ -77,9 +79,12 @@ export function ImportPanel({ embedded = false }: ImportPanelProps) {
         error?: string
         nodes?: string[]
         nodeWeaponSets?: Record<string, 1 | 2>
+        nodeAttributeSelections?: Record<string, 1 | 2 | 3>
         treeVersion?: string
         classId?: string
         ascendClassId?: string
+        classInternalId?: string
+        ascendancyInternalId?: string
       } = {}
       if (text) {
         try {
@@ -104,13 +109,18 @@ export function ImportPanel({ embedded = false }: ImportPanelProps) {
 
 
       const nodeIds: string[] = data.nodes || []
+      const nodeAttributeSelections = Object.keys(data.nodeAttributeSelections || {}).length > 0
+        ? data.nodeAttributeSelections || {}
+        : parseAttributeSelectionsFromXml(decodeBuildCodeXml(trimmed, inflate))
 
       if (nodeIds.length > 0) {
 
         await importAllocatedNodes(nodeIds, data.nodeWeaponSets || {}, {
           treeVersion: data.treeVersion,
-          classId: data.classId,
-          ascendClassId: data.ascendClassId,
+          classId: data.classInternalId || data.classId,
+          ascendClassId: data.ascendancyInternalId || data.ascendClassId,
+          importedBuildCode: trimmed,
+          nodeAttributeSelections,
         })
 
       }

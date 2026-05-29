@@ -1,9 +1,34 @@
 import { useState, useCallback } from 'react'
 
 import { useTreeStore } from '@/store/treeStore'
+import type { AscendancyClass, TreeData } from '@/types/tree'
 
 interface ExportPanelProps {
   embedded?: boolean
+}
+
+function getEncodeClassPayload(
+  treeData: TreeData | null,
+  selectedClassId: string,
+  selectedAscendancyId: string,
+) {
+  const cls = treeData?.constants.classes[selectedClassId]
+  const ascendancy: AscendancyClass | undefined = cls?.ascendancies.find((asc) => (
+    asc.id === selectedAscendancyId
+    || asc.name === selectedAscendancyId
+    || asc.internalId === selectedAscendancyId
+  ))
+  const ascendancyIndex = cls && ascendancy ? cls.ascendancies.indexOf(ascendancy) : -1
+  return {
+    classId: selectedClassId,
+    ascendClassId: ascendancyIndex >= 0
+      ? String(ascendancyIndex + 1)
+      : selectedAscendancyId,
+    classInternalId: cls?.integerId != null ? String(cls.integerId) : undefined,
+    ascendancyInternalId: ascendancy?.internalId,
+    className: cls?.name || cls?.displayName,
+    ascendancyName: ascendancy?.name || ascendancy?.displayName || ascendancy?.id,
+  }
 }
 
 
@@ -28,7 +53,11 @@ export function ExportPanel({ embedded = false }: ExportPanelProps) {
 
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
   const nodeWeaponSets = useTreeStore((s) => s.nodeWeaponSets)
+  const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
   const treeVersion = useTreeStore((s) => s.treeVersion)
+  const selectedClassId = useTreeStore((s) => s.selectedClassId)
+  const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
+  const treeData = useTreeStore((s) => s.treeData)
 
   const nodeCount = allocatedNodes.size
 
@@ -45,6 +74,7 @@ export function ExportPanel({ embedded = false }: ExportPanelProps) {
     setCode('')
 
     try {
+      const classPayload = getEncodeClassPayload(treeData, selectedClassId, selectedAscendancyId)
 
       const resp = await fetch('/api/code/encode', {
 
@@ -57,8 +87,15 @@ export function ExportPanel({ embedded = false }: ExportPanelProps) {
           nodes: [...allocatedNodes],
 
           nodeWeaponSets,
+          nodeAttributeSelections,
 
           treeVersion,
+          classId: classPayload.classId,
+          ascendClassId: classPayload.ascendClassId,
+          classInternalId: classPayload.classInternalId,
+          ascendancyInternalId: classPayload.ascendancyInternalId,
+          className: classPayload.className,
+          ascendancyName: classPayload.ascendancyName,
 
         }),
 
@@ -86,7 +123,16 @@ export function ExportPanel({ embedded = false }: ExportPanelProps) {
 
     }
 
-  }, [allocatedNodes, nodeCount, nodeWeaponSets, treeVersion])
+  }, [
+    allocatedNodes,
+    nodeCount,
+    nodeWeaponSets,
+    nodeAttributeSelections,
+    treeVersion,
+    selectedClassId,
+    selectedAscendancyId,
+    treeData,
+  ])
 
 
 

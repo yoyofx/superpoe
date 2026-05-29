@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useTreeStore } from '@/store/treeStore'
 import { TreePixiCanvas } from '@/components/TreePixiCanvas'
 import { Toolbar } from '@/components/Toolbar'
@@ -6,8 +6,14 @@ import { NodeTooltip } from '@/components/NodeTooltip'
 import { StatTable } from '@/components/StatTable'
 
 export default function App() {
+  const hashLoadedRef = useRef(false)
   const { treeData, loading, error, loadTreeData, loadSavedBuilds } = useTreeStore()
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
+  const nodeWeaponSets = useTreeStore((s) => s.nodeWeaponSets)
+  const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
+  const treeVersion = useTreeStore((s) => s.treeVersion)
+  const selectedClassId = useTreeStore((s) => s.selectedClassId)
+  const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
   const encodeToHash = useTreeStore((s) => s.encodeToHash)
   const loadFromHash = useTreeStore((s) => s.loadFromHash)
   const treeLoaded = !!treeData
@@ -22,14 +28,20 @@ export default function App() {
     if (treeLoaded && window.location.hash) {
       const hash = window.location.hash.slice(1)
       if (hash) {
-        loadFromHash(hash)
+        void Promise.resolve(loadFromHash(hash)).finally(() => {
+          hashLoadedRef.current = true
+        })
+      } else {
+        hashLoadedRef.current = true
       }
+    } else if (treeLoaded) {
+      hashLoadedRef.current = true
     }
-  }, [treeLoaded])
+  }, [treeLoaded, loadFromHash])
 
   // Update URL hash when allocations change (debounced)
   useEffect(() => {
-    if (!treeLoaded) return
+    if (!treeLoaded || !hashLoadedRef.current) return
     const timer = setTimeout(() => {
       const hash = encodeToHash()
       const current = window.location.hash.slice(1)
@@ -42,7 +54,16 @@ export default function App() {
       }
     }, 500)
     return () => clearTimeout(timer)
-  }, [allocatedNodes, treeLoaded, encodeToHash])
+  }, [
+    allocatedNodes,
+    nodeWeaponSets,
+    nodeAttributeSelections,
+    treeVersion,
+    selectedClassId,
+    selectedAscendancyId,
+    treeLoaded,
+    encodeToHash,
+  ])
 
   if (loading) {
     return (

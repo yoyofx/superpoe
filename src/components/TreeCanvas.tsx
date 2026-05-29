@@ -3,6 +3,7 @@ import { useRef, useEffect, useCallback, useState } from 'react'
 
 
 import { useTreeStore } from '@/store/treeStore'
+import { getAttributeNodeDisplay } from '@/engine/attributeNodes'
 
 
 
@@ -386,6 +387,7 @@ export function TreeCanvas() {
   const treeEditMode = useTreeStore((s) => s.treeEditMode)
   const weaponSetMode = useTreeStore((s) => s.weaponSetMode)
   const nodeWeaponSets = useTreeStore((s) => s.nodeWeaponSets)
+  const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
 
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
@@ -976,8 +978,9 @@ export function TreeCanvas() {
       let ddsIconInfo: SpriteInfo | null = null
       let ddsFrameInfo: SpriteInfo | null = null
       if (ddsReady && spriteLoader.isAvailable()) {
-        if (node.icon) {
-          const info = spriteLoader.getByIconPath(node.icon)
+        const displayNode = getAttributeNodeDisplay(node, nodeAttributeSelections[id])
+        if (displayNode.icon) {
+          const info = spriteLoader.getByIconPath(displayNode.icon)
           if (info) {
             ddsIconInfo = info
             ddsIcon = imageCache.current.get(info.file) || null
@@ -1154,7 +1157,7 @@ export function TreeCanvas() {
 
     }
 
-  }, [treeData, offsetX, offsetY, zoom, hoveredNodeId, selectedNodeId, allocatedNodes, availableNodes, nodeWeaponSets, treeEditMode, weaponSetMode, searchMatchIds, selectedClassId, selectedAscendancyId, ddsReady, connectorsReady, cacheLoadedImage])
+  }, [treeData, offsetX, offsetY, zoom, hoveredNodeId, selectedNodeId, allocatedNodes, availableNodes, nodeWeaponSets, nodeAttributeSelections, treeEditMode, weaponSetMode, searchMatchIds, selectedClassId, selectedAscendancyId, ddsReady, connectorsReady, cacheLoadedImage])
 
   useEffect(() => {
     renderRef.current = render

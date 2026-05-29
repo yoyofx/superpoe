@@ -67,6 +67,38 @@ describe('API Integration Tests', () => {
     expect(decoded.nodeWeaponSets).toEqual(nodeWeaponSets)
   })
 
+  it('5.3.1c encode/decode round-trip: attribute overrides', async () => {
+    const nodes = ['722', '10131', '8569']
+    const nodeAttributeSelections = { '722': 1, '10131': 2, '8569': 3 } as Record<string, 1 | 2 | 3>
+    const encRes = await app.inject({
+      method: 'POST', url: '/api/code/encode',
+      payload: {
+        nodes,
+        nodeAttributeSelections,
+        treeVersion: '0_5',
+        classId: '3',
+        ascendClassId: '1',
+        classInternalId: '7',
+        ascendancyInternalId: 'Sorceress1'
+      }
+    })
+    expect(encRes.statusCode).toBe(200)
+    const { code } = encRes.json()
+
+    const decRes = await app.inject({
+      method: 'POST', url: '/api/build/decode',
+      payload: { code }
+    })
+    expect(decRes.statusCode).toBe(200)
+    const decoded = decRes.json()
+    expect(decoded.nodes.sort()).toEqual(nodes.sort())
+    expect(decoded.nodeAttributeSelections).toEqual(nodeAttributeSelections)
+    expect(decoded.classId).toBe('3')
+    expect(decoded.ascendClassId).toBe('1')
+    expect(decoded.classInternalId).toBe('7')
+    expect(decoded.ascendancyInternalId).toBe('Sorceress1')
+  })
+
   it('5.3.2 empty nodes -> encode 400', async () => {
     const res = await app.inject({
       method: 'POST', url: '/api/code/encode',

@@ -8,6 +8,10 @@ import { create } from 'zustand'
 
 import type { TreeData, SavedBuild } from '@/types/tree'
 import {
+  cleanAttributeSelections,
+  type NodeAttributeSelections,
+} from '@/engine/attributeNodes'
+import {
   allocateNode,
   buildAvailableAndDepends,
   deallocateNode,
@@ -65,6 +69,7 @@ interface Snapshot {
   allocatedNodes: string[]
   availableNodes: string[]
   nodeWeaponSets: NodeWeaponSets
+  nodeAttributeSelections: NodeAttributeSelections
 }
 
 const MAX_UNDO = 50
@@ -97,11 +102,69 @@ function snapshotFromState(
   allocatedNodes: Set<string>,
   availableNodes: Set<string>,
   nodeWeaponSets: NodeWeaponSets,
+  nodeAttributeSelections: NodeAttributeSelections,
 ): Snapshot {
   return {
     allocatedNodes: [...allocatedNodes],
     availableNodes: [...availableNodes],
     nodeWeaponSets: { ...nodeWeaponSets },
+    nodeAttributeSelections: { ...nodeAttributeSelections },
+  }
+}
+
+function defaultAttributeSelections(
+  treeData: TreeData | undefined,
+  allocatedNodes: Set<string>,
+  existing: NodeAttributeSelections = {},
+): NodeAttributeSelections {
+  return cleanAttributeSelections(treeData?.nodes, allocatedNodes, existing)
+}
+
+function findClassEntry(treeData: TreeData | undefined, classId: string | undefined): [string, TreeData['constants']['classes'][string]] | null {
+  if (!treeData || !classId) return null
+  const classes = treeData.constants.classes || {}
+  if (classes[classId]) return [classId, classes[classId]]
+  return Object.entries(classes).find(([, cls]) => (
+    String(cls.integerId) === classId
+    || cls.name === classId
+    || cls.displayName === classId
+  )) || null
+}
+
+function findAscendancyId(
+  classData: TreeData['constants']['classes'][string] | undefined,
+  ascendClassId: string | undefined,
+): string {
+  if (!classData) return ''
+  const ascendancy = classData.ascendancies.find((asc) => (
+    asc.id === ascendClassId
+    || asc.name === ascendClassId
+    || asc.internalId === ascendClassId
+  )) || classData.ascendancies[0]
+  return ascendancy?.id || ascendancy?.name || ''
+}
+
+function getEncodeClassPayload(
+  treeData: TreeData | undefined,
+  selectedClassId: string,
+  selectedAscendancyId: string,
+) {
+  const cls = treeData?.constants.classes[selectedClassId]
+  const ascendancy = cls?.ascendancies.find((asc) => (
+    asc.id === selectedAscendancyId
+    || asc.name === selectedAscendancyId
+    || asc.internalId === selectedAscendancyId
+  ))
+  const ascendancyIndex = cls && ascendancy ? cls.ascendancies.indexOf(ascendancy) : -1
+  return {
+    classId: selectedClassId,
+    ascendClassId: ascendancyIndex >= 0
+      ? String(ascendancyIndex + 1)
+      : selectedAscendancyId,
+    classInternalId: cls?.integerId != null ? String(cls.integerId) : undefined,
+    ascendancyInternalId: ascendancy?.internalId,
+    className: cls?.name || cls?.displayName,
+    ascendancyName: ascendancy?.name || ascendancy?.displayName || ascendancy?.id,
   }
 }
 
@@ -174,6 +237,8 @@ interface TreeStore {
 
 
   selectedAscendancyId: string
+
+  importedBuildCode: string | null
 
 
 
@@ -297,6 +362,7 @@ interface TreeStore {
   treeEditMode: boolean
   weaponSetMode: 0 | 1 | 2
   nodeWeaponSets: Record<string, 1 | 2>
+  nodeAttributeSelections: NodeAttributeSelections
   masterySelections: Record<string, string>
   pendingMasteryNode: string | null
   specs: Array<{ id: string; title: string; nodes: string[] }>
@@ -532,7 +598,13 @@ interface TreeStore {
   importAllocatedNodes: (
     ids: string[],
     nodeWeaponSets?: NodeWeaponSets,
-    options?: { treeVersion?: string; classId?: string; ascendClassId?: string },
+    options?: {
+      treeVersion?: string
+      classId?: string
+      ascendClassId?: string
+      importedBuildCode?: string
+      nodeAttributeSelections?: NodeAttributeSelections
+    },
   ) => void | Promise<void>
 
 
@@ -628,7 +700,7 @@ interface TreeStore {
 
 
 
-  loadFromHash: (hash: string) => void
+  loadFromHash: (hash: string) => void | Promise<void>
 
 
 
@@ -754,6 +826,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   selectedAscendancyId: 'Stormweaver',
 
+  importedBuildCode: null,
+
 
 
 
@@ -836,6 +910,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
   treeEditMode: false,
   weaponSetMode: 0 as 0 | 1 | 2,
   nodeWeaponSets: {} as Record<string, 1 | 2>,
+  nodeAttributeSelections: {} as NodeAttributeSelections,
   masterySelections: {} as Record<string, string>,
   pendingMasteryNode: null,
   specs: [{ id: 'default', title: 'Tree 1', nodes: [] }],
@@ -999,6 +1074,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
         get().allocatedNodes,
         get().nodeWeaponSets,
       )
+      const nextAttributeSelections = defaultAttributeSelections(data, rebuilt.allocatedNodes, get().nodeAttributeSelections)
       set({
         treeData: data,
         selectedClassId: nextClassId,
@@ -1007,6 +1083,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
         allocatedNodes: rebuilt.allocatedNodes,
         availableNodes: rebuilt.availableNodes,
         nodeWeaponSets: rebuilt.nodeWeaponSets,
+        nodeAttributeSelections: nextAttributeSelections,
       })
 
 
@@ -1192,6 +1269,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
       nodeWeaponSets: {},
+      nodeAttributeSelections: {},
 
 
 
@@ -1607,16 +1685,12 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
     const state = get()
     const tree = state.treeData
-    if (tree && options.classId && tree.constants.classes[options.classId]) {
-      const classData = tree.constants.classes[options.classId]
-      const ascendancy = classData.ascendancies.find((asc) => (
-        asc.id === options.ascendClassId
-        || asc.name === options.ascendClassId
-        || asc.internalId === options.ascendClassId
-      )) || classData.ascendancies[0]
+    const classEntry = findClassEntry(tree || undefined, options.classId)
+    if (classEntry) {
+      const [resolvedClassId, classData] = classEntry
       set({
-        selectedClassId: options.classId,
-        selectedAscendancyId: ascendancy?.id || ascendancy?.name || '',
+        selectedClassId: resolvedClassId,
+        selectedAscendancyId: findAscendancyId(classData, options.ascendClassId),
       })
     }
 
@@ -1627,10 +1701,17 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       if (node && node.type !== 'ClassStart' && node.type !== 'AscendClassStart') next.add(id)
     }
     const rebuilt = recomputeAllocationState(ctx, next, importedWeaponSets)
+    const nextAttributeSelections = defaultAttributeSelections(
+      ctx?.treeData,
+      rebuilt.allocatedNodes,
+      options.nodeAttributeSelections,
+    )
     set({
       allocatedNodes: rebuilt.allocatedNodes,
       availableNodes: rebuilt.availableNodes,
       nodeWeaponSets: rebuilt.nodeWeaponSets,
+      nodeAttributeSelections: nextAttributeSelections,
+      importedBuildCode: options.importedBuildCode || null,
       undoStack: [],
       redoStack: [],
     })
@@ -1640,6 +1721,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     allocatedNodes: new Set(),
     availableNodes: new Set(),
     nodeWeaponSets: {},
+    nodeAttributeSelections: {},
+    importedBuildCode: null,
     undoStack: [],
     redoStack: [],
   }),
@@ -1702,48 +1785,57 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     if (!ctx) return
 
     const allocated = new Set(state.allocatedNodes)
-    const snap = snapshotFromState(allocated, state.availableNodes, state.nodeWeaponSets)
+    const snap = snapshotFromState(allocated, state.availableNodes, state.nodeWeaponSets, state.nodeAttributeSelections)
     const next = allocated.has(id)
       ? deallocateNode(ctx, allocated, state.nodeWeaponSets, id)
       : allocateNode(ctx, allocated, state.nodeWeaponSets, id, state.weaponSetMode)
+    const nextAttributeSelections = defaultAttributeSelections(
+      ctx.treeData,
+      next.allocatedNodes,
+      state.nodeAttributeSelections,
+    )
 
     const changed = next.allocatedNodes.size !== state.allocatedNodes.size
       || next.availableNodes.size !== state.availableNodes.size
       || JSON.stringify(next.nodeWeaponSets) !== JSON.stringify(state.nodeWeaponSets)
+      || JSON.stringify(nextAttributeSelections) !== JSON.stringify(state.nodeAttributeSelections)
     if (!changed) return
 
     set((s) => ({
       allocatedNodes: next.allocatedNodes,
       availableNodes: next.availableNodes,
       nodeWeaponSets: next.nodeWeaponSets,
+      nodeAttributeSelections: nextAttributeSelections,
       undoStack: [...s.undoStack.slice(-MAX_UNDO + 1), snap],
       redoStack: [],
     }))
   },
 
   undo: () => {
-    const { undoStack, allocatedNodes, availableNodes, nodeWeaponSets } = get()
+    const { undoStack, allocatedNodes, availableNodes, nodeWeaponSets, nodeAttributeSelections } = get()
     if (undoStack.length === 0) return
     const snap = undoStack[undoStack.length - 1]
-    const curSnap = snapshotFromState(allocatedNodes, availableNodes, nodeWeaponSets)
+    const curSnap = snapshotFromState(allocatedNodes, availableNodes, nodeWeaponSets, nodeAttributeSelections)
     set({
       allocatedNodes: new Set(snap.allocatedNodes),
       availableNodes: new Set(snap.availableNodes),
       nodeWeaponSets: { ...snap.nodeWeaponSets },
+      nodeAttributeSelections: { ...snap.nodeAttributeSelections },
       undoStack: undoStack.slice(0, -1),
       redoStack: [...get().redoStack, curSnap],
     })
   },
 
   redo: () => {
-    const { redoStack, allocatedNodes, availableNodes, nodeWeaponSets } = get()
+    const { redoStack, allocatedNodes, availableNodes, nodeWeaponSets, nodeAttributeSelections } = get()
     if (redoStack.length === 0) return
     const snap = redoStack[redoStack.length - 1]
-    const curSnap = snapshotFromState(allocatedNodes, availableNodes, nodeWeaponSets)
+    const curSnap = snapshotFromState(allocatedNodes, availableNodes, nodeWeaponSets, nodeAttributeSelections)
     set({
       allocatedNodes: new Set(snap.allocatedNodes),
       availableNodes: new Set(snap.availableNodes),
       nodeWeaponSets: { ...snap.nodeWeaponSets },
+      nodeAttributeSelections: { ...snap.nodeAttributeSelections },
       redoStack: redoStack.slice(0, -1),
       undoStack: [...get().undoStack, curSnap],
     })
@@ -1784,19 +1876,36 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
   encodeToHash: () => {
     const ids = [...get().allocatedNodes].sort()
     if (ids.length === 0) return ''
-    const nodeWeaponSets = get().nodeWeaponSets
-    const payload = Object.keys(nodeWeaponSets).length > 0
-      ? JSON.stringify({ nodes: ids, nodeWeaponSets })
-      : ids.join(',')
+    const state = get()
+    const nodeWeaponSets = state.nodeWeaponSets
+    const nodeAttributeSelections = defaultAttributeSelections(
+      state.treeData || undefined,
+      state.allocatedNodes,
+      state.nodeAttributeSelections,
+    )
+    const classPayload = getEncodeClassPayload(
+      state.treeData || undefined,
+      state.selectedClassId,
+      state.selectedAscendancyId,
+    )
+    const payload = JSON.stringify({
+      nodes: ids,
+      nodeWeaponSets,
+      nodeAttributeSelections,
+      treeVersion: state.treeVersion,
+      classId: classPayload.classId,
+      ascendClassId: classPayload.ascendClassId,
+      classInternalId: classPayload.classInternalId,
+      ascendancyInternalId: classPayload.ascendancyInternalId,
+    })
     const bytes = new TextEncoder().encode(payload)
     let binary = ''
     for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
     return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
   },
 
-  loadFromHash: (hash: string) => {
-    const ctx = getAllocationContext(get())
-    if (!ctx || !hash) return
+  loadFromHash: async (hash: string) => {
+    if (!hash) return
     try {
       const base64 = hash.replace(/-/g, '+').replace(/_/g, '/')
       const binary = atob(base64)
@@ -1805,19 +1914,52 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       const str = new TextDecoder().decode(bytes)
       let ids: string[] = []
       let nodeWeaponSets: NodeWeaponSets = {}
+      let nodeAttributeSelections: NodeAttributeSelections = {}
+      let treeVersion: string | undefined
+      let classId: string | undefined
+      let ascendClassId: string | undefined
       if (str.trim().startsWith('{')) {
-        const payload = JSON.parse(str) as { nodes?: string[]; nodeWeaponSets?: NodeWeaponSets }
+        const payload = JSON.parse(str) as {
+          nodes?: string[]
+          nodeWeaponSets?: NodeWeaponSets
+          nodeAttributeSelections?: NodeAttributeSelections
+          treeVersion?: string
+          classId?: string
+          ascendClassId?: string
+        }
         ids = Array.isArray(payload.nodes) ? payload.nodes : []
         nodeWeaponSets = payload.nodeWeaponSets || {}
+        nodeAttributeSelections = payload.nodeAttributeSelections || {}
+        treeVersion = payload.treeVersion
+        classId = payload.classId
+        ascendClassId = payload.ascendClassId
       } else {
         ids = str.split(',').filter(Boolean)
       }
       if (ids.length > 0) {
+        const state = get()
+        if (treeVersion && treeVersion !== state.treeVersion) {
+          set({ treeVersion })
+          await get().loadTreeData()
+        }
+        const loaded = get()
+        const classEntry = findClassEntry(loaded.treeData || undefined, classId)
+        if (classEntry) {
+          const [resolvedClassId, classData] = classEntry
+          set({
+            selectedClassId: resolvedClassId,
+            selectedAscendancyId: findAscendancyId(classData, ascendClassId),
+          })
+        }
+        const ctx = getAllocationContext(get())
+        if (!ctx) return
         const rebuilt = recomputeAllocationState(ctx, new Set(ids), nodeWeaponSets)
+        const nextAttributeSelections = defaultAttributeSelections(ctx.treeData, rebuilt.allocatedNodes, nodeAttributeSelections)
         set({
           allocatedNodes: rebuilt.allocatedNodes,
           availableNodes: rebuilt.availableNodes,
           nodeWeaponSets: rebuilt.nodeWeaponSets,
+          nodeAttributeSelections: nextAttributeSelections,
           undoStack: [],
           redoStack: [],
         })
@@ -1851,7 +1993,16 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-    const { allocatedNodes, nodeWeaponSets, treeVersion, calcLoading } = get()
+    const {
+      allocatedNodes,
+      nodeWeaponSets,
+      nodeAttributeSelections,
+      treeVersion,
+      selectedClassId,
+      selectedAscendancyId,
+      treeData,
+      calcLoading,
+    } = get()
 
 
 
@@ -1892,6 +2043,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
     try {
+      const classPayload = getEncodeClassPayload(treeData || undefined, selectedClassId, selectedAscendancyId)
 
 
 
@@ -1941,6 +2093,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
           nodes: [...allocatedNodes],
           nodeWeaponSets,
+          nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
+          baseCode: get().importedBuildCode || undefined,
 
 
 
@@ -1949,6 +2103,12 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
           treeVersion,
+          classId: classPayload.classId,
+          ascendClassId: classPayload.ascendClassId,
+          classInternalId: classPayload.classInternalId,
+          ascendancyInternalId: classPayload.ascendancyInternalId,
+          className: classPayload.className,
+          ascendancyName: classPayload.ascendancyName,
 
 
 
@@ -2229,7 +2389,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   saveBuild: (name) => {
     const { allocatedNodes, treeVersion, selectedClassId, selectedAscendancyId,
-            weaponSetMode, nodeWeaponSets, masterySelections, savedBuilds } = get()
+            weaponSetMode, nodeWeaponSets, nodeAttributeSelections, masterySelections, savedBuilds, treeData, importedBuildCode } = get()
     if (allocatedNodes.size === 0) return
     const now = new Date().toISOString()
     const build: SavedBuild = {
@@ -2240,8 +2400,10 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       treeVersion,
       selectedClassId,
       selectedAscendancyId,
+      importedBuildCode,
       weaponSetMode,
       nodeWeaponSets: { ...nodeWeaponSets },
+      nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
       masterySelections: { ...masterySelections },
       allocatedNodes: [...allocatedNodes],
     }
@@ -2260,13 +2422,20 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       selectedAscendancyId: build.selectedAscendancyId,
     } : null
     const rebuilt = recomputeAllocationState(ctx, new Set(build.allocatedNodes), build.nodeWeaponSets || {})
+    const nodeAttributeSelections = defaultAttributeSelections(
+      treeData || undefined,
+      rebuilt.allocatedNodes,
+      build.nodeAttributeSelections || {},
+    )
     set({
       allocatedNodes: rebuilt.allocatedNodes,
       availableNodes: rebuilt.availableNodes,
       selectedClassId: build.selectedClassId,
       selectedAscendancyId: build.selectedAscendancyId,
+      importedBuildCode: build.importedBuildCode || null,
       weaponSetMode: build.weaponSetMode,
       nodeWeaponSets: rebuilt.nodeWeaponSets,
+      nodeAttributeSelections,
       masterySelections: { ...build.masterySelections },
       undoStack: [],
       redoStack: [],
@@ -2283,15 +2452,17 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   exportBuildJSON: () => {
     const { allocatedNodes, treeVersion, selectedClassId, selectedAscendancyId,
-            weaponSetMode, nodeWeaponSets, masterySelections } = get()
+            weaponSetMode, nodeWeaponSets, nodeAttributeSelections, masterySelections, treeData, importedBuildCode } = get()
     return JSON.stringify({
       name: 'PoB2 Build',
       exportedAt: new Date().toISOString(),
       treeVersion,
       selectedClassId,
       selectedAscendancyId,
+      importedBuildCode,
       weaponSetMode,
       nodeWeaponSets,
+      nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
       masterySelections,
       allocatedNodes: [...allocatedNodes],
     }, null, 2)
@@ -2313,13 +2484,20 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
         new Set<string>(nodes),
         (build.nodeWeaponSets as NodeWeaponSets) || {},
       )
+      const nodeAttributeSelections = defaultAttributeSelections(
+        treeData || undefined,
+        rebuilt.allocatedNodes,
+        (build.nodeAttributeSelections as NodeAttributeSelections) || {},
+      )
       set({
         allocatedNodes: rebuilt.allocatedNodes,
         availableNodes: rebuilt.availableNodes,
         selectedClassId,
         selectedAscendancyId,
+        importedBuildCode: (build.importedBuildCode as string | null) || null,
         weaponSetMode: (build.weaponSetMode as 0 | 1 | 2) || 0,
         nodeWeaponSets: rebuilt.nodeWeaponSets,
+        nodeAttributeSelections,
         masterySelections: (build.masterySelections as Record<string, string>) || {},
         undoStack: [],
         redoStack: [],
@@ -2365,6 +2543,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       availableNodes: new Set(),
 
       nodeWeaponSets: {},
+      nodeAttributeSelections: {},
 
 
       undoStack: [],
@@ -2390,10 +2569,16 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       selectedAscendancyId: ascendancyId,
     } : null
     const rebuilt = recomputeAllocationState(ctx, state.allocatedNodes, state.nodeWeaponSets)
+    const nodeAttributeSelections = defaultAttributeSelections(
+      state.treeData || undefined,
+      rebuilt.allocatedNodes,
+      state.nodeAttributeSelections,
+    )
     set({
       selectedAscendancyId: ascendancyId,
       availableNodes: rebuilt.availableNodes,
       nodeWeaponSets: rebuilt.nodeWeaponSets,
+      nodeAttributeSelections,
     })
   },
 

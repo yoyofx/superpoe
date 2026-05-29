@@ -515,6 +515,27 @@ def generate(
             node_data["stats"] = stats
             stats_total += 1
 
+        options = node.get("options")
+        option_items: list[tuple[str, Any]] = []
+        if isinstance(options, dict):
+            option_items = [(str(opt_key), opt) for opt_key, opt in options.items()]
+        elif isinstance(options, list):
+            option_items = [(str(idx + 1), opt) for idx, opt in enumerate(options)]
+
+        if option_items:
+            normalized_options: dict[str, dict[str, Any]] = {}
+            for opt_key, opt in option_items:
+                if not isinstance(opt, dict):
+                    continue
+                normalized_options[opt_key] = {
+                    "id": opt.get("id"),
+                    "name": opt.get("name", ""),
+                    "icon": opt.get("icon", ""),
+                    "stats": opt.get("stats", []),
+                }
+            if normalized_options:
+                node_data["options"] = normalized_options
+
         # Normalize text fields that may be string or string[] -> always string[]
         TEXT_ARRAY_KEYS = [
             "spc", "masteryEffect",

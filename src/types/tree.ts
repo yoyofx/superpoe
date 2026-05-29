@@ -144,6 +144,13 @@ export interface TreeNodeTargetSize extends TreeAssetSize {
   overlay?: TreeAssetSize
 }
 
+export interface TreeNodeOption {
+  id?: number | string
+  name: string
+  icon: string
+  stats: string[]
+}
+
 
 
 // ---- Node Types ----
@@ -206,7 +213,7 @@ export interface TreeNode {
 
   isSwitchable?: boolean
 
-  options?: Record<string, number>
+  options?: Record<number, TreeNodeOption>
 
 
 
@@ -218,6 +225,7 @@ export interface TreeNode {
   isJewelSocket?: boolean
 
   isMastery?: boolean
+  isAttribute?: boolean
 
   masteryEffect?: number
 
@@ -300,8 +308,10 @@ export interface SavedBuild {
   treeVersion: string
   selectedClassId: string
   selectedAscendancyId: string
+  importedBuildCode?: string | null
   weaponSetMode: 0 | 1 | 2
   nodeWeaponSets: Record<string, 1 | 2>
+  nodeAttributeSelections: Record<string, 1 | 2 | 3>
   masterySelections: Record<string, string>
   allocatedNodes: string[]
 }

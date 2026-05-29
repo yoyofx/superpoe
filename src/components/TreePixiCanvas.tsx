@@ -9,6 +9,7 @@ import {
   Texture,
 } from 'pixi.js'
 import { screenToTree } from '@/engine/coordinate'
+import { getAttributeNodeDisplay } from '@/engine/attributeNodes'
 import { getConnectorState } from '@/engine/connectorSprites'
 import {
   getImplicitRootIds,
@@ -201,6 +202,7 @@ export function TreePixiCanvas() {
   const treeEditMode = useTreeStore((s) => s.treeEditMode)
   const weaponSetMode = useTreeStore((s) => s.weaponSetMode)
   const nodeWeaponSets = useTreeStore((s) => s.nodeWeaponSets)
+  const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
@@ -540,8 +542,9 @@ export function TreePixiCanvas() {
           }
 
           let drewSprite = false
-          if (node.icon) {
-            const iconInfo = spriteLoader.getByIconPath(node.icon)
+          const displayNode = getAttributeNodeDisplay(node, nodeAttributeSelections[id])
+          if (displayNode.icon) {
+            const iconInfo = spriteLoader.getByIconPath(displayNode.icon)
             if (iconInfo) {
               const tex = requestSpriteTexture(iconInfo, requestRender)
               if (tex) {
@@ -603,7 +606,7 @@ export function TreePixiCanvas() {
     void spriteLoader.init().then(() => {
       if (token === renderTokenRef.current) render()
     })
-  }, [pixiReady, textureRenderTick, resizeTick, treeData, treeVersion, previewNodeId, selectedNodeId, searchMatchIds, treeEditMode, weaponSetMode, nodeWeaponSets, selectedClassId, selectedAscendancyId, allocatedNodes, availableNodes, requestRender])
+  }, [pixiReady, textureRenderTick, resizeTick, treeData, treeVersion, previewNodeId, selectedNodeId, searchMatchIds, treeEditMode, weaponSetMode, nodeWeaponSets, nodeAttributeSelections, selectedClassId, selectedAscendancyId, allocatedNodes, availableNodes, requestRender])
 
   useEffect(() => {
     const hoverLayer = hoverLayerRef.current

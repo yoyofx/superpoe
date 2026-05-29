@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { getAttributeNodeDisplay } from '@/engine/attributeNodes'
 import { useTreeStore } from '@/store/treeStore'
 
 const HOVER_OFFSET = 14
@@ -31,12 +32,14 @@ export function NodeTooltip() {
   const hoveredNodeId = useTreeStore((s) => s.hoveredNodeId)
   const mouseX = useTreeStore((s) => s.mouseX)
   const mouseY = useTreeStore((s) => s.mouseY)
+  const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
 
   const pos = useMemo(() => clampTooltip(mouseX, mouseY), [mouseX, mouseY])
 
   if (!hoveredNodeId || !treeData) return null
   const node = treeData.nodes[hoveredNodeId]
   if (!node) return null
+  const displayNode = getAttributeNodeDisplay(node, nodeAttributeSelections[hoveredNodeId])
 
   const prefix = headerPrefix(node.type, node.ascendancyName)
   const flavourLines = Array.isArray(node.flavourText)
@@ -63,7 +66,7 @@ export function NodeTooltip() {
             backgroundSize: `${HEADER_TILE_W}px ${HEADER_H}px`,
           }}
         >
-          {node.name}
+          {displayNode.name}
         </div>
         <img
           className="shrink-0"
@@ -74,9 +77,9 @@ export function NodeTooltip() {
       </div>
 
       <div className="border-x border-b border-[#6a5540] bg-[#070707]/95 px-4 py-3 font-serif text-[13px] leading-snug">
-        {node.stats?.length ? (
+        {displayNode.stats?.length ? (
           <div className="space-y-1 text-[#c8c4ba]">
-            {node.stats.map((stat, i) => <div key={i}>{stat}</div>)}
+            {displayNode.stats.map((stat, i) => <div key={i}>{stat}</div>)}
           </div>
         ) : null}
 

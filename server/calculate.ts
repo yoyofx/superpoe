@@ -26,6 +26,24 @@ interface CalcOutput {
   error?: string
 }
 
+function parseLuaJsonOutput(stdout: string): CalcOutput {
+  const text = stdout.trim()
+  try {
+    return JSON.parse(text)
+  } catch {
+    const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+    for (let i = lines.length - 1; i >= 0; i -= 1) {
+      if (!lines[i].startsWith('{')) continue
+      try {
+        return JSON.parse(lines[i])
+      } catch {
+        // Keep scanning in case a log line also starts with a brace.
+      }
+    }
+    throw new Error('No JSON object found in Lua output')
+  }
+}
+
 function callLuaJITCalc(xml: string): Promise<CalcOutput> {
   return new Promise((resolve) => {
     const child = spawn(LUAJIT, [CALC_SCRIPT, '--stdin'], {
@@ -53,12 +71,13 @@ function callLuaJITCalc(xml: string): Promise<CalcOutput> {
         return
       }
       try {
-        const result = JSON.parse(stdout.trim())
+        const result = parseLuaJsonOutput(stdout)
         resolve(result)
-      } catch {
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
         resolve({
           success: false,
-          error: `Parse error: ${stdout.slice(0, 300)}`,
+          error: `Parse error: ${msg}: ${stdout.slice(0, 300)}`,
         })
       }
     })
@@ -154,7 +173,9 @@ export async function calcRoute(fastify: FastifyInstance) {
         const parser = new XMLParser({ ignoreAttributes: false })
         const root = parser.parse(xmlText)
         const specNodes =
-          root?.PathOfBuilding2?.Build?.Tree?.Spec?.['@_nodes'] || ''
+          root?.PathOfBuilding2?.Tree?.Spec?.['@_nodes']
+          || root?.PathOfBuilding2?.Build?.Tree?.Spec?.['@_nodes']
+          || ''
         const nodeCount = specNodes ? specNodes.split(',').length : 0
 
         // Run calculation
