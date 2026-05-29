@@ -127,9 +127,9 @@ const NODE_COLOR: Record<string, string> = {
 
 const HOVER_GLOW = 'rgba(255,255,200,0.4)'
 
-const CONNECTOR_TEXTURE_MIN_ZOOM = 0.16
+const CONNECTOR_TEXTURE_MIN_ZOOM = 0.1
 
-const NODE_DETAIL_MIN_ZOOM = 0.12
+const NODE_DETAIL_MIN_ZOOM = 0.1
 
 const CONNECTOR_CULL_MARGIN = 160
 

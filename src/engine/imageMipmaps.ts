@@ -18,7 +18,7 @@ const MIN_MIP_SIZE = 32
 
 const MAX_MIP_LEVELS = 8
 
-const MIP_SHARPNESS_BIAS = 1.6
+const MIP_SHARPNESS_BIAS = 1.25
 
 function imageSize(image: MipSource): { width: number; height: number } {
   if (image instanceof HTMLImageElement) {
