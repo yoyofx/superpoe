@@ -103,12 +103,14 @@ npm run test:lua
 - `server/`：Fastify API，用于校验和计算。
 - `scripts/`：Python/Lua 预处理脚本和测试辅助脚本。
 - `sources/`：PoB2 上游源码目录，建议用 submodule 管理。
-- `public/assets/`：复制或生成出来的运行时美术资源。
+- `public/assets/`：复制或生成出来的运行时美术资源，浏览器会直接从这里加载。
 - `public/data/`：生成后的 Web 天赋树数据和翻译数据。
 - `docs/`：研究记录、渲染分析和任务历史。
 
 ## 说明
 
 Web 天赋树渲染使用从 PoB2 上游数据生成出来的中间数据，不直接修改上游 `sources/` 文件。游戏或 PoB2 上游数据更新后，应重新运行对应 pipeline，而不是手改生成后的 JSON 或贴图产物。
+
+`public/assets/dds/`、`public/assets/connectors/`、`public/assets/orbit/` 和 `public/assets/ui/` 是前端运行时资源，需要随仓库提交。这样新机器只要拉取仓库、安装依赖并启动前端，就能看到天赋节点、边框、背景、连线和 tooltip 资源；不需要为了正常显示先准备 `sources/` 或运行资源生成 pipeline。`sources/` 只在更新上游数据或重新生成资源时需要。
 
 前端会优先按当前树版本加载 `public/assets/dds/{version}`、`public/assets/orbit/{version}` 和 `public/assets/connectors/{version}`。如果新版本资源尚未完整生成，会回退到 `0_4` 资源或 Canvas fallback 绘制；这个回退只影响贴图视觉，不会改变 `tree-web-{version}.json` 中的节点、坐标、连线关系和天赋数据。
