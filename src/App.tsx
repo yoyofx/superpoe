@@ -4,10 +4,7 @@ import { TreeCanvas } from '@/components/TreeCanvas'
 import { Toolbar } from '@/components/Toolbar'
 import { NodeTooltip } from '@/components/NodeTooltip'
 import { Sidebar } from '@/components/Sidebar'
-import { ImportPanel } from '@/components/ImportPanel'
-import { ExportPanel } from '@/components/ExportPanel'
 import { StatTable } from '@/components/StatTable'
-import { SaveLoadPanel } from '@/components/SaveLoadPanel'
 
 export default function App() {
   const { treeData, loading, error, loadTreeData, loadSavedBuilds } = useTreeStore()
@@ -72,10 +69,7 @@ export default function App() {
       <Toolbar />
       <Sidebar />
       <NodeTooltip />
-      <ImportPanel />
-      <ExportPanel />
       <StatTable />
-      <SaveLoadPanel />
     </div>
   )
 }

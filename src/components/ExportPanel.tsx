@@ -2,6 +2,10 @@ import { useState, useCallback } from 'react'
 
 import { useTreeStore } from '@/store/treeStore'
 
+interface ExportPanelProps {
+  embedded?: boolean
+}
+
 
 
 /**
@@ -10,7 +14,7 @@ import { useTreeStore } from '@/store/treeStore'
 
  */
 
-export function ExportPanel() {
+export function ExportPanel({ embedded = false }: ExportPanelProps) {
 
   const [code, setCode] = useState('')
 
@@ -146,9 +150,13 @@ export function ExportPanel() {
 
 
 
+  const panelClass = embedded
+    ? 'w-[360px] bg-[#0d0d1a]/95 backdrop-blur rounded-lg border border-gray-700 p-3 shadow-xl'
+    : 'absolute bottom-4 left-4 z-20 bg-[#0d0d1a]/90 backdrop-blur rounded-lg border border-gray-700 p-3 w-80 shadow-xl'
+
   return (
 
-    <div className="absolute bottom-4 left-4 z-20 bg-[#0d0d1a]/90 backdrop-blur rounded-lg border border-gray-700 p-3 w-80 shadow-xl">
+    <div className={panelClass}>
 
       <div className="flex items-center justify-between mb-2">
 

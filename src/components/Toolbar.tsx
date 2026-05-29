@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useState } from 'react'
 import { DEFAULT_ZOOM, FALLBACK_TREE_VERSIONS, loadTreeVersions, MAX_ZOOM, MIN_ZOOM, useTreeStore } from '@/store/treeStore'
+import { ExportPanel } from '@/components/ExportPanel'
+import { ImportPanel } from '@/components/ImportPanel'
+import { SaveLoadPanel } from '@/components/SaveLoadPanel'
+
+type ToolbarMenu = 'export' | 'import' | 'builds' | null
 
 /**
  * Toolbar - top toolbar with search and zoom controls
@@ -24,6 +29,7 @@ export function Toolbar() {
   const treeData = useTreeStore((s) => s.treeData)
 
   const [versions, setVersions] = useState<string[]>(FALLBACK_TREE_VERSIONS)
+  const [activeMenu, setActiveMenu] = useState<ToolbarMenu>(null)
 
   useEffect(() => {
     loadTreeVersions().then(setVersions).catch(() => setVersions(FALLBACK_TREE_VERSIONS))
@@ -51,11 +57,22 @@ export function Toolbar() {
   }, [treeData])
 
   const zoomPct = Math.round(zoom * 100)
+  const toggleMenu = useCallback((menu: Exclude<ToolbarMenu, null>) => {
+    setActiveMenu((current) => current === menu ? null : menu)
+  }, [])
+
+  const menuButtonClass = (menu: Exclude<ToolbarMenu, null>) => (
+    `px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors ${
+      activeMenu === menu
+        ? 'bg-blue-700 text-white border-blue-500'
+        : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border-gray-600'
+    }`
+  )
 
   return (
-    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40
-                    flex items-center gap-2 bg-gray-900/90 border border-gray-700
-                    rounded-lg px-3 py-2 shadow-lg">
+    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40">
+      <div className="flex items-center gap-2 bg-gray-900/90 border border-gray-700
+                      rounded-lg px-3 py-2 shadow-lg">
       {/* Search */}
       <div className="relative">
         <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500"
@@ -139,6 +156,32 @@ export function Toolbar() {
       {/* Divider */}
       <div className="w-px h-5 bg-gray-700" />
 
+      {/* Menus */}
+      <button
+        onClick={() => toggleMenu('export')}
+        className={menuButtonClass('export')}
+        title="Export PoB2 build code"
+      >
+        Export
+      </button>
+      <button
+        onClick={() => toggleMenu('import')}
+        className={menuButtonClass('import')}
+        title="Import PoB2 build code"
+      >
+        Import
+      </button>
+      <button
+        onClick={() => toggleMenu('builds')}
+        className={menuButtonClass('builds')}
+        title="Save and load builds"
+      >
+        Builds
+      </button>
+
+      {/* Divider */}
+      <div className="w-px h-5 bg-gray-700" />
+
       {/* Calculate button */}
       <button
         onClick={runCalculation}
@@ -198,6 +241,15 @@ export function Toolbar() {
       >
         +
       </button>
+      </div>
+
+      {activeMenu && (
+        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2">
+          {activeMenu === 'export' && <ExportPanel embedded />}
+          {activeMenu === 'import' && <ImportPanel embedded />}
+          {activeMenu === 'builds' && <SaveLoadPanel embedded />}
+        </div>
+      )}
     </div>
   )
 }

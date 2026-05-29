@@ -2,6 +2,10 @@ import { useState } from 'react'
 
 import { useTreeStore } from '@/store/treeStore'
 
+interface ImportPanelProps {
+  embedded?: boolean
+}
+
 
 
 /**
@@ -14,7 +18,7 @@ import { useTreeStore } from '@/store/treeStore'
 
  */
 
-export function ImportPanel() {
+export function ImportPanel({ embedded = false }: ImportPanelProps) {
 
   const [code, setCode] = useState('')
 
@@ -144,9 +148,13 @@ export function ImportPanel() {
 
 
 
+  const panelClass = embedded
+    ? 'w-[420px] bg-[#0d0d1a]/95 backdrop-blur rounded-lg border border-gray-700 p-4 shadow-xl'
+    : 'absolute bottom-4 right-4 z-20 bg-[#0d0d1a]/90 backdrop-blur rounded-lg border border-gray-700 p-4 w-96 shadow-xl'
+
   return (
 
-    <div className="absolute bottom-4 right-4 z-20 bg-[#0d0d1a]/90 backdrop-blur rounded-lg border border-gray-700 p-4 w-96 shadow-xl">
+    <div className={panelClass}>
 
       <div className="flex items-center justify-between mb-2">
 
