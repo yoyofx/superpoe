@@ -48,15 +48,48 @@ npm run dev
 npm run build
 ```
 
-新机器初始化资源管线依赖：
+新机器如果只是运行现有前端，不需要先跑资源管线：`public/` 下的运行时数据和贴图已经随仓库提交。只有更新 `sources/`、生成新版本天赋树数据或重新生成贴图时，才需要安装下面的资源管线依赖。
 
-```bash
+Windows / PowerShell 初始化资源管线依赖：
+
+```powershell
 npm install
 python -m pip install -r requirements.txt
 npm run pipeline:check
 ```
 
-资源管线还需要能运行 `luajit`，用于把 `sources/src/TreeData/{version}/tree.lua` 转成 JSON。如果 `luajit` 不在 PATH，可以设置 `LUAJIT_PATH` 指向本机的 `luajit.exe`。旧版 DDS/BC7 资源解码需要 `texconv.exe`；本仓库已包含 `scripts/texconv.exe`，新版 `0_5+` 的 WebP atlas 管线通常不依赖它。
+`requirements.txt` 会安装 `Pillow` 和 `zstandard`。资源管线还需要能运行 `luajit`，用于把 `sources/src/TreeData/{version}/tree.lua` 转成 JSON。Windows 推荐用 `winget` 安装已验证可用的 LuaJIT 包：
+
+```powershell
+winget install --id DEVCOM.LuaJIT
+```
+
+安装后重新打开终端，并验证 LuaJIT：
+
+```powershell
+luajit -e "print(_VERSION); print(jit and jit.version or 'no jit table')"
+```
+
+如果 `luajit` 不在 PATH，可以在当前 PowerShell 终端设置 `LUAJIT_PATH`：
+
+```powershell
+$env:LUAJIT_PATH="C:\Users\<user>\AppData\Local\Programs\LuaJIT\bin\luajit.exe"
+```
+
+也可以写入用户级永久环境变量，之后重新打开终端：
+
+```powershell
+[Environment]::SetEnvironmentVariable("LUAJIT_PATH", "C:\Users\<user>\AppData\Local\Programs\LuaJIT\bin\luajit.exe", "User")
+```
+
+依赖安装完成后再检查并生成资源：
+
+```powershell
+npm run pipeline:check
+npm run pipeline:all -- 0_5
+```
+
+如果 Tree Data 阶段失败，优先检查 `luajit` 是否可执行、`sources/runtime/lua/dkjson.lua` 是否存在，以及 `sources/src/TreeData/{version}/tree.lua` 是否存在。旧版 DDS/BC7 资源解码需要 `texconv.exe`；本仓库已包含 `scripts/texconv.exe`，新版 `0_5+` 的 WebP atlas 管线通常不依赖它。
 
 资源和数据管线：
 
