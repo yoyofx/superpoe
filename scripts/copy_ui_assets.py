@@ -66,6 +66,7 @@ def copy_assets(web_dir: Path, dry_run: bool = False) -> int:
 
     for pattern in ASSET_PATTERNS:
         pattern_lower = pattern.lower()
+        copy_all_matches = "passiveheader" in pattern_lower
         for src_path in sorted(src_dir.iterdir()):
             if not src_path.is_file():
                 continue
@@ -78,7 +79,8 @@ def copy_assets(web_dir: Path, dry_run: bool = False) -> int:
                     if not dst.exists() or src_path.stat().st_mtime > dst.stat().st_mtime:
                         shutil.copy2(src_path, dst)
                 count += 1
-                break
+                if not copy_all_matches:
+                    break
 
     if dry_run:
         print(f"\nWould copy {count} files to public/assets/ui/")

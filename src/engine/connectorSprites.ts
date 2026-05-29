@@ -17,7 +17,7 @@
 
 import { drawImageMipped, getMippedImage, prepareMipmaps } from './imageMipmaps'
 
-const BASE = '/assets/connectors/0_4'
+const FALLBACK_VERSION = '0_4'
 
 type ConnectorState = 'normal' | 'intermediate' | 'intermediateactive'
 export type ConnectorRenderState = 'Normal' | 'Intermediate' | 'Active'
@@ -30,6 +30,7 @@ export interface ConnectorTextureKey {
 }
 
 const imageCache = new Map<string, HTMLImageElement>()
+const resolvedUrlCache = new Map<string, string>()
 
 function loadImage(src: string): Promise<HTMLImageElement> {
   const cached = imageCache.get(src)
@@ -50,14 +51,27 @@ function getFilename(key: ConnectorTextureKey): string {
   return `${key.prefix}_orbit_${key.state}${key.orbit}.png`
 }
 
-function keyToUrl(key: ConnectorTextureKey): string {
-  return `${BASE}/${getFilename(key)}`
+function keyToUrl(version: string, key: ConnectorTextureKey): string {
+  return `/assets/connectors/${version}/${getFilename(key)}`
+}
+
+async function loadImageWithFallback(primary: string, fallback: string): Promise<HTMLImageElement> {
+  try {
+    const img = await loadImage(primary)
+    resolvedUrlCache.set(primary, primary)
+    return img
+  } catch {
+    const img = await loadImage(fallback)
+    resolvedUrlCache.set(primary, fallback)
+    return img
+  }
 }
 
 /**
  * Preload all connector textures for a given prefix.
  */
 export async function preloadConnectors(
+  version: string = FALLBACK_VERSION,
   prefix: ConnectorPrefix = 'Character'
 ): Promise<Map<string, HTMLImageElement>> {
   const states: ConnectorState[] = ['normal', 'intermediate', 'intermediateactive']
@@ -68,9 +82,10 @@ export async function preloadConnectors(
     for (const state of states) {
       const key: ConnectorTextureKey = { prefix, orbit, state }
       const filename = getFilename(key)
-      const url = keyToUrl(key)
+      const primary = keyToUrl(version, key)
+      const fallback = keyToUrl(FALLBACK_VERSION, key)
       promises.push(
-        loadImage(url).then((img) => {
+        loadImageWithFallback(primary, fallback).then((img) => {
           map.set(filename, img)
         }).catch(() => {
           // ignore missing
@@ -247,8 +262,10 @@ export function drawArcConnectorTexture(
   )
 }
 
-export function getConnectorImage(key: ConnectorTextureKey): HTMLImageElement | undefined {
-  return imageCache.get(keyToUrl(key))
+export function getConnectorImage(version: string, key: ConnectorTextureKey): HTMLImageElement | undefined {
+  const primary = keyToUrl(version, key)
+  const src = resolvedUrlCache.get(primary) || primary
+  return imageCache.get(src)
 }
 
 export function getConnectorState(
@@ -261,6 +278,7 @@ export function getConnectorState(
 }
 
 export function resolveConnectorTexture(
+  version: string,
   connectionArt: string | boolean,
   type: string | number,
   state: ConnectorRenderState,
@@ -269,7 +287,7 @@ export function resolveConnectorTexture(
     ? normalizePrefix(connectionArt)
     : connectionArt ? 'CharacterAscendancy' : 'Character'
   const orbit = typeof type === 'number' ? type : parseConnectorOrbit(type)
-  return getConnectorImage({ prefix, orbit, state: mapState(state) })
+  return getConnectorImage(version, { prefix, orbit, state: mapState(state) })
 }
 
 function normalizePrefix(value: string): ConnectorPrefix {

@@ -24,6 +24,8 @@ Usage:
 
 import json
 import math
+import os
+import subprocess
 import struct
 import sys
 from pathlib import Path
@@ -387,10 +389,30 @@ def generate(
     tree_version: str = "0_4",
 ) -> dict:
     """Main generation function, returns generated data for verification"""
+    input_path_obj = Path(input_path)
     out_path = Path(output_path)
 
-    print(f"[gen_tree_data] Reading: {input_path}")
-    with open(input_path, "r", encoding="utf-8") as f:
+    if not input_path_obj.exists() and input_path_obj.name == "tree.json":
+        lua_path = input_path_obj.with_suffix(".lua")
+        if lua_path.exists():
+            print(f"[gen_tree_data] tree.json missing; converting: {lua_path}")
+            converter = Path(__file__).resolve().parent / "tree_lua_to_json.py"
+            cache_dir = Path(__file__).resolve().parent.parent / ".cache" / "tree-json"
+            cache_dir.mkdir(parents=True, exist_ok=True)
+            converted_json = cache_dir / f"tree-{tree_version}.json"
+            result = subprocess.run(
+                [sys.executable, str(converter), str(lua_path), str(converted_json)],
+                cwd=str(Path(__file__).resolve().parent.parent),
+                capture_output=True,
+                text=True,
+                env=os.environ.copy(),
+            )
+            if result.returncode != 0:
+                raise RuntimeError(result.stderr.strip() or result.stdout.strip())
+            input_path_obj = converted_json
+
+    print(f"[gen_tree_data] Reading: {input_path_obj}")
+    with open(input_path_obj, "r", encoding="utf-8") as f:
         tree = json.load(f)
 
     # Extract constants

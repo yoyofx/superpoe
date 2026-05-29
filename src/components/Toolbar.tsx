@@ -1,5 +1,5 @@
-import { useCallback } from 'react'
-import { DEFAULT_ZOOM, MAX_ZOOM, MIN_ZOOM, useTreeStore } from '@/store/treeStore'
+import { useCallback, useEffect, useState } from 'react'
+import { DEFAULT_ZOOM, FALLBACK_TREE_VERSIONS, loadTreeVersions, MAX_ZOOM, MIN_ZOOM, useTreeStore } from '@/store/treeStore'
 
 /**
  * Toolbar - top toolbar with search and zoom controls
@@ -23,7 +23,11 @@ export function Toolbar() {
   const runCalculation = useTreeStore((s) => s.runCalculation)
   const treeData = useTreeStore((s) => s.treeData)
 
-  const VERSIONS = ['0_4', '0_3', '0_2', '0_1']
+  const [versions, setVersions] = useState<string[]>(FALLBACK_TREE_VERSIONS)
+
+  useEffect(() => {
+    loadTreeVersions().then(setVersions).catch(() => setVersions(FALLBACK_TREE_VERSIONS))
+  }, [])
 
   const classes = treeData?.constants?.classes
   const classEntries = classes ? Object.entries(classes) : []
@@ -87,7 +91,7 @@ export function Toolbar() {
                    cursor-pointer"
         title="Tree version"
       >
-        {VERSIONS.map((v) => (
+        {versions.map((v) => (
           <option key={v} value={v}>{v.replace('_', '.')}</option>
         ))}
       </select>

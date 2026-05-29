@@ -66,6 +66,8 @@ def main():
     ap.add_argument('--skip-orbit', action='store_true', help='Skip orbit PNG copy')
     ap.add_argument('--skip-ui', action='store_true', help='Skip UI assets copy')
     ap.add_argument('--skip-tree', action='store_true', help='Skip tree data generation')
+    ap.add_argument('--skip-backfill', action='store_true', help='Skip copying missing assets from fallback version')
+    ap.add_argument('--fallback-version', default='0_4', help='Asset fallback version used for backfill')
     ap.add_argument('--dry-run', action='store_true', help='List steps without running')
     args = ap.parse_args()
     
@@ -78,9 +80,12 @@ def main():
         sys.exit(1)
     
     steps = [
+        ("Prepare Fallback Version Assets",
+         ['backfill_version_assets.py', version, '--fallback-version', args.fallback_version],
+         args.skip_backfill),
         ("Tree Data (tree-web.json)", 
-         ['gen_tree_data.py', '--tree-json', str(tree_data_dir / 'tree.json'), 
-          '--output', str(WEB_DIR / 'public' / 'data' / f'tree-web-{version}.json')],
+         ['gen_tree_data.py', version, str(tree_data_dir / 'tree.json'),
+          str(WEB_DIR / 'public' / 'data' / f'tree-web-{version}.json')],
          args.skip_tree),
         ("Orbit PNGs",
          ['copy_orbit_png.py', '--source', str(tree_data_dir),
@@ -95,6 +100,12 @@ def main():
           '--output', str(WEB_DIR / 'public' / 'assets' / 'dds'),
           '--version', version],
          args.skip_dds),
+        ("Backfill Missing Version Assets",
+         ['backfill_version_assets.py', version, '--fallback-version', args.fallback_version],
+         args.skip_backfill),
+        ("Tree Version Manifest",
+         ['update_tree_versions.py', version],
+         args.skip_tree),
     ]
     
     if args.dry_run:

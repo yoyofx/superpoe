@@ -7,6 +7,13 @@ import { create } from 'zustand'
 
 
 import type { TreeData, SavedBuild } from '@/types/tree'
+import {
+  allocateNode,
+  buildAvailableAndDepends,
+  deallocateNode,
+  type AllocationContext,
+  type NodeWeaponSets,
+} from '@/engine/passiveAllocation'
 
 
 
@@ -19,6 +26,24 @@ import type { CalcResult, CalcApiResponse } from '@/types/calc'
 export const MIN_ZOOM = 0.2
 export const DEFAULT_ZOOM = 0.2
 export const MAX_ZOOM = 0.5
+export const FALLBACK_TREE_VERSIONS = ['0_5', '0_4', '0_3', '0_2', '0_1']
+export const DEFAULT_TREE_VERSION = FALLBACK_TREE_VERSIONS[0]
+
+let treeVersionsPromise: Promise<string[]> | null = null
+
+export async function loadTreeVersions(): Promise<string[]> {
+  if (treeVersionsPromise) return treeVersionsPromise
+  treeVersionsPromise = fetch('/data/tree-versions.json')
+    .then(async (resp) => {
+      if (!resp.ok) return FALLBACK_TREE_VERSIONS
+      const versions = await resp.json()
+      return Array.isArray(versions) && versions.every((v) => typeof v === 'string')
+        ? versions
+        : FALLBACK_TREE_VERSIONS
+    })
+    .catch(() => FALLBACK_TREE_VERSIONS)
+  return treeVersionsPromise
+}
 
 
 
@@ -36,387 +61,49 @@ export const MAX_ZOOM = 0.5
 
 // ---- Snapshot for undo/redo ----
 
-
-
-
-
-
-
 interface Snapshot {
-
-
-
-
-
-
-
   allocatedNodes: string[]
-
-
-
-
-
-
-
   availableNodes: string[]
-
-
-
-
-
-
-
+  nodeWeaponSets: NodeWeaponSets
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 const MAX_UNDO = 50
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ---- Connectivity helpers ----
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-function findConnected(treeData: TreeData, allocated: Set<string>): Set<string> {
-
-
-
-
-
-
-
-  const visited = new Set<string>()
-
-
-
-
-
-
-
-  const queue: string[] = []
-
-
-
-
-
-
-
-  for (const [id, node] of Object.entries(treeData.nodes)) {
-
-
-
-
-
-
-
-    if (allocated.has(id) && (node.type === 'ClassStart' || node.type === 'AscendClassStart')) {
-
-
-
-
-
-
-
-      queue.push(id); visited.add(id)
-
-
-
-
-
-
-
-    }
-
-
-
-
-
-
-
+function getAllocationContext(state: Pick<TreeStore, 'treeData' | 'selectedClassId' | 'selectedAscendancyId'>): AllocationContext | null {
+  if (!state.treeData) return null
+  return {
+    treeData: state.treeData,
+    selectedClassId: state.selectedClassId,
+    selectedAscendancyId: state.selectedAscendancyId,
   }
-
-
-
-
-
-
-
-  if (queue.length === 0) return new Set(allocated)
-
-
-
-
-
-
-
-  while (queue.length > 0) {
-
-
-
-
-
-
-
-    const cur = queue.shift()!
-
-
-
-
-
-
-
-    const node = treeData.nodes[cur]
-
-
-
-
-
-
-
-    if (!node) continue
-
-
-
-
-
-
-
-    for (const outId of node.out) {
-
-
-
-
-
-
-
-      if (!visited.has(outId) && allocated.has(outId)) {
-
-
-
-
-
-
-
-        visited.add(outId); queue.push(outId)
-
-
-
-
-
-
-
-      }
-
-
-
-
-
-
-
-    }
-
-
-
-
-
-
-
-  }
-
-
-
-
-
-
-
-  return visited
-
-
-
-
-
-
-
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-function computeAvailable(treeData: TreeData, allocated: Set<string>): Set<string> {
-
-
-
-
-
-
-
-  const avail = new Set<string>()
-
-
-
-
-
-
-
-  for (const id of allocated) {
-
-
-
-
-
-
-
-    const node = treeData.nodes[id]
-
-
-
-
-
-
-
-    if (!node) continue
-
-
-
-
-
-
-
-    for (const outId of node.out) {
-
-
-
-
-
-
-
-      if (!allocated.has(outId)) avail.add(outId)
-
-
-
-
-
-
-
+function recomputeAllocationState(
+  ctx: AllocationContext | null,
+  allocatedNodes: Set<string>,
+  nodeWeaponSets: NodeWeaponSets,
+) {
+  if (!ctx) {
+    return {
+      allocatedNodes,
+      availableNodes: new Set<string>(),
+      nodeWeaponSets,
     }
-
-
-
-
-
-
-
   }
-
-
-
-
-
-
-
-  return avail
-
-
-
-
-
-
-
+  return buildAvailableAndDepends(ctx, allocatedNodes, nodeWeaponSets)
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-function snapshotFromSets(a: Set<string>, b: Set<string>): Snapshot {
-
-
-
-
-
-
-
-  return { allocatedNodes: [...a], availableNodes: [...b] }
-
-
-
-
-
-
-
+function snapshotFromState(
+  allocatedNodes: Set<string>,
+  availableNodes: Set<string>,
+  nodeWeaponSets: NodeWeaponSets,
+): Snapshot {
+  return {
+    allocatedNodes: [...allocatedNodes],
+    availableNodes: [...availableNodes],
+    nodeWeaponSets: { ...nodeWeaponSets },
+  }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 // ============================================================
 
@@ -841,7 +528,7 @@ interface TreeStore {
 
 
 
-  importAllocatedNodes: (ids: string[]) => void
+  importAllocatedNodes: (ids: string[], nodeWeaponSets?: NodeWeaponSets) => void
 
 
 
@@ -1047,7 +734,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-  treeVersion: '0_4',
+  treeVersion: DEFAULT_TREE_VERSION,
 
 
 
@@ -1280,6 +967,19 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
       const data: TreeData = await resp.json()
+      const classes = data.constants.classes || {}
+      const selectedClassExists = !!classes[get().selectedClassId]
+      const nextClassId = selectedClassExists
+        ? get().selectedClassId
+        : (Object.keys(classes)[0] || '')
+      const classData = classes[nextClassId]
+      const selectedAscExists = classData?.ascendancies?.some((asc) => (
+        asc.id === get().selectedAscendancyId || asc.name === get().selectedAscendancyId
+      ))
+      const firstAsc = classData?.ascendancies?.[0]
+      const nextAscendancyId = selectedAscExists
+        ? get().selectedAscendancyId
+        : (firstAsc?.id || firstAsc?.name || '')
 
 
 
@@ -1287,7 +987,20 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      set({ treeData: data, loading: false })
+      const rebuilt = recomputeAllocationState(
+        { treeData: data, selectedClassId: nextClassId, selectedAscendancyId: nextAscendancyId },
+        get().allocatedNodes,
+        get().nodeWeaponSets,
+      )
+      set({
+        treeData: data,
+        selectedClassId: nextClassId,
+        selectedAscendancyId: nextAscendancyId,
+        loading: false,
+        allocatedNodes: rebuilt.allocatedNodes,
+        availableNodes: rebuilt.availableNodes,
+        nodeWeaponSets: rebuilt.nodeWeaponSets,
+      })
 
 
 
@@ -1439,7 +1152,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      loading: true,
+      loading: false,
 
 
 
@@ -1464,6 +1177,14 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
       availableNodes: new Set(),
+
+
+
+
+
+
+
+      nodeWeaponSets: {},
 
 
 
@@ -1855,133 +1576,30 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-  importAllocatedNodes: (ids: string[]) => {
-
-
-
-
-
-
-
-    const { treeData } = get()
-
-
-
-
-
-
-
-    set((state) => {
-
-
-
-
-
-
-
-      const next = new Set(state.allocatedNodes)
-
-
-
-
-
-
-
-      for (const id of ids) next.add(id)
-
-
-
-
-
-
-
-      const avail = treeData ? computeAvailable(treeData, next) : new Set<string>()
-
-
-
-
-
-
-
-      return { allocatedNodes: next, availableNodes: avail }
-
-
-
-
-
-
-
+  importAllocatedNodes: (ids: string[], importedWeaponSets: NodeWeaponSets = {}) => {
+    const ctx = getAllocationContext(get())
+    const next = new Set<string>()
+    for (const id of ids) {
+      const node = ctx?.treeData.nodes[id]
+      if (node && node.type !== 'ClassStart' && node.type !== 'AscendClassStart') next.add(id)
+    }
+    const rebuilt = recomputeAllocationState(ctx, next, importedWeaponSets)
+    set({
+      allocatedNodes: rebuilt.allocatedNodes,
+      availableNodes: rebuilt.availableNodes,
+      nodeWeaponSets: rebuilt.nodeWeaponSets,
+      undoStack: [],
+      redoStack: [],
     })
-
-
-
-
-
-
-
   },
 
-
-
-
-
-
-
   clearAllocatedNodes: () => set({
-
-
-
-
-
-
-
     allocatedNodes: new Set(),
-
-
-
-
-
-
-
     availableNodes: new Set(),
-
-
-
-
-
-
-
+    nodeWeaponSets: {},
     undoStack: [],
-
-
-
-
-
-
-
     redoStack: [],
-
-
-
-
-
-
-
   }),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   // === Phase 3.1: Node toggle & undo/redo ===
 
@@ -2032,452 +1650,57 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
   },
 
   toggleNode: (id: string) => {
-
-
-
-
-
-
-
-    const { treeData, allocatedNodes, availableNodes } = get()
-
-
-
-
-
-
-
-    if (!treeData) return
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    const allocated = new Set(allocatedNodes)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    if (allocated.has(id)) {
-
-
-
-
-
-
-
-      // DEALLOCATE: save snapshot, remove node, prune orphans
-
-
-
-
-
-
-
-      const snap = snapshotFromSets(allocated, availableNodes)
-
-
-
-
-
-
-
-      set((s) => ({
-
-
-
-
-
-
-
-        undoStack: [...s.undoStack.slice(-MAX_UNDO + 1), snap],
-
-
-
-
-
-
-
-        redoStack: [],
-
-
-
-
-
-
-
-      }))
-
-
-
-
-
-
-
-      allocated.delete(id)
-
-
-
-
-
-
-
-      const connected = findConnected(treeData, allocated)
-
-
-
-
-
-
-
-      const avail = computeAvailable(treeData, connected)
-
-
-
-
-
-
-
-      set({ allocatedNodes: connected, availableNodes: avail })
-
-
-
-
-
-
-
-    } else if (availableNodes.has(id)) {
-
-
-
-
-
-
-
-      // ALLOCATE: save snapshot, add node
-
-
-
-
-
-
-
-      const snap = snapshotFromSets(allocated, availableNodes)
-
-
-
-
-
-
-
-      set((s) => ({
-
-
-
-
-
-
-
-        undoStack: [...s.undoStack.slice(-MAX_UNDO + 1), snap],
-
-
-
-
-
-
-
-        redoStack: [],
-
-
-
-
-
-
-
-      }))
-
-
-
-
-
-
-
-      allocated.add(id)
-
-
-
-
-
-
-
-      const avail = computeAvailable(treeData, allocated)
-
-
-
-
-
-
-
-      set({ allocatedNodes: allocated, availableNodes: avail })
-
-
-
-
-
-
-
-    }
-
-
-
-
-
-
-
+    const state = get()
+    const ctx = getAllocationContext(state)
+    if (!ctx) return
+
+    const allocated = new Set(state.allocatedNodes)
+    const snap = snapshotFromState(allocated, state.availableNodes, state.nodeWeaponSets)
+    const next = allocated.has(id)
+      ? deallocateNode(ctx, allocated, state.nodeWeaponSets, id)
+      : allocateNode(ctx, allocated, state.nodeWeaponSets, id, state.weaponSetMode)
+
+    const changed = next.allocatedNodes.size !== state.allocatedNodes.size
+      || next.availableNodes.size !== state.availableNodes.size
+      || JSON.stringify(next.nodeWeaponSets) !== JSON.stringify(state.nodeWeaponSets)
+    if (!changed) return
+
+    set((s) => ({
+      allocatedNodes: next.allocatedNodes,
+      availableNodes: next.availableNodes,
+      nodeWeaponSets: next.nodeWeaponSets,
+      undoStack: [...s.undoStack.slice(-MAX_UNDO + 1), snap],
+      redoStack: [],
+    }))
   },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   undo: () => {
-
-
-
-
-
-
-
-    const { undoStack, allocatedNodes, availableNodes } = get()
-
-
-
-
-
-
-
+    const { undoStack, allocatedNodes, availableNodes, nodeWeaponSets } = get()
     if (undoStack.length === 0) return
-
-
-
-
-
-
-
     const snap = undoStack[undoStack.length - 1]
-
-
-
-
-
-
-
-    const curSnap = snapshotFromSets(allocatedNodes, availableNodes)
-
-
-
-
-
-
-
+    const curSnap = snapshotFromState(allocatedNodes, availableNodes, nodeWeaponSets)
     set({
-
-
-
-
-
-
-
       allocatedNodes: new Set(snap.allocatedNodes),
-
-
-
-
-
-
-
       availableNodes: new Set(snap.availableNodes),
-
-
-
-
-
-
-
+      nodeWeaponSets: { ...snap.nodeWeaponSets },
       undoStack: undoStack.slice(0, -1),
-
-
-
-
-
-
-
       redoStack: [...get().redoStack, curSnap],
-
-
-
-
-
-
-
     })
-
-
-
-
-
-
-
   },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   redo: () => {
-
-
-
-
-
-
-
-    const { redoStack, allocatedNodes, availableNodes } = get()
-
-
-
-
-
-
-
+    const { redoStack, allocatedNodes, availableNodes, nodeWeaponSets } = get()
     if (redoStack.length === 0) return
-
-
-
-
-
-
-
     const snap = redoStack[redoStack.length - 1]
-
-
-
-
-
-
-
-    const curSnap = snapshotFromSets(allocatedNodes, availableNodes)
-
-
-
-
-
-
-
+    const curSnap = snapshotFromState(allocatedNodes, availableNodes, nodeWeaponSets)
     set({
-
-
-
-
-
-
-
       allocatedNodes: new Set(snap.allocatedNodes),
-
-
-
-
-
-
-
       availableNodes: new Set(snap.availableNodes),
-
-
-
-
-
-
-
+      nodeWeaponSets: { ...snap.nodeWeaponSets },
       redoStack: redoStack.slice(0, -1),
-
-
-
-
-
-
-
       undoStack: [...get().undoStack, curSnap],
-
-
-
-
-
-
-
     })
-
-
-
-
-
-
-
   },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   getAllocatedIds: () => [...get().allocatedNodes],
 
@@ -2512,300 +1735,50 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
   encodeToHash: () => {
-
-
-
-
-
-
-
     const ids = [...get().allocatedNodes].sort()
-
-
-
-
-
-
-
     if (ids.length === 0) return ''
-
-
-
-
-
-
-
-    // Compact: comma-separated, then base64url
-
-
-
-
-
-
-
-    const str = ids.join(',')
-
-
-
-
-
-
-
-    const bytes = new TextEncoder().encode(str)
-
-
-
-
-
-
-
-    // Use btoa with manual base64url
-
-
-
-
-
-
-
+    const nodeWeaponSets = get().nodeWeaponSets
+    const payload = Object.keys(nodeWeaponSets).length > 0
+      ? JSON.stringify({ nodes: ids, nodeWeaponSets })
+      : ids.join(',')
+    const bytes = new TextEncoder().encode(payload)
     let binary = ''
-
-
-
-
-
-
-
-    for (let i = 0; i < bytes.length; i++) {
-
-
-
-
-
-
-
-      binary += String.fromCharCode(bytes[i])
-
-
-
-
-
-
-
-    }
-
-
-
-
-
-
-
+    for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
     return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-
-
-
-
-
-
-
   },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   loadFromHash: (hash: string) => {
-
-
-
-
-
-
-
-    const { treeData } = get()
-
-
-
-
-
-
-
-    if (!treeData || !hash) return
-
-
-
-
-
-
-
+    const ctx = getAllocationContext(get())
+    if (!ctx || !hash) return
     try {
-
-
-
-
-
-
-
-      // Decode base64url
-
-
-
-
-
-
-
       const base64 = hash.replace(/-/g, '+').replace(/_/g, '/')
-
-
-
-
-
-
-
       const binary = atob(base64)
-
-
-
-
-
-
-
       const bytes = new Uint8Array(binary.length)
-
-
-
-
-
-
-
-      for (let i = 0; i < binary.length; i++) {
-
-
-
-
-
-
-
-        bytes[i] = binary.charCodeAt(i)
-
-
-
-
-
-
-
-      }
-
-
-
-
-
-
-
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
       const str = new TextDecoder().decode(bytes)
-
-
-
-
-
-
-
-      const ids = str.split(',').filter(Boolean)
-
-
-
-
-
-
-
-      if (ids.length > 0) {
-
-
-
-
-
-
-
-        const next = new Set(ids)
-
-
-
-
-
-
-
-        const avail = computeAvailable(treeData, next)
-
-
-
-
-
-
-
-        set({ allocatedNodes: next, availableNodes: avail, undoStack: [], redoStack: [] })
-
-
-
-
-
-
-
+      let ids: string[] = []
+      let nodeWeaponSets: NodeWeaponSets = {}
+      if (str.trim().startsWith('{')) {
+        const payload = JSON.parse(str) as { nodes?: string[]; nodeWeaponSets?: NodeWeaponSets }
+        ids = Array.isArray(payload.nodes) ? payload.nodes : []
+        nodeWeaponSets = payload.nodeWeaponSets || {}
+      } else {
+        ids = str.split(',').filter(Boolean)
       }
-
-
-
-
-
-
-
+      if (ids.length > 0) {
+        const rebuilt = recomputeAllocationState(ctx, new Set(ids), nodeWeaponSets)
+        set({
+          allocatedNodes: rebuilt.allocatedNodes,
+          availableNodes: rebuilt.availableNodes,
+          nodeWeaponSets: rebuilt.nodeWeaponSets,
+          undoStack: [],
+          redoStack: [],
+        })
+      }
     } catch {
-
-
-
-
-
-
-
       // Ignore invalid hash
-
-
-
-
-
-
-
     }
-
-
-
-
-
-
-
   },
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   // === Phase 7: Build calculation ===
 
@@ -2831,7 +1804,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-    const { allocatedNodes, treeVersion, calcLoading } = get()
+    const { allocatedNodes, nodeWeaponSets, treeVersion, calcLoading } = get()
 
 
 
@@ -2920,6 +1893,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
           nodes: [...allocatedNodes],
+          nodeWeaponSets,
 
 
 
@@ -3233,31 +2207,25 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     const { savedBuilds, treeData } = get()
     const build = savedBuilds.find((b) => b.id === id)
     if (!build) return
+    const ctx = treeData ? {
+      treeData,
+      selectedClassId: build.selectedClassId,
+      selectedAscendancyId: build.selectedAscendancyId,
+    } : null
+    const rebuilt = recomputeAllocationState(ctx, new Set(build.allocatedNodes), build.nodeWeaponSets || {})
     set({
-      allocatedNodes: new Set(build.allocatedNodes),
+      allocatedNodes: rebuilt.allocatedNodes,
+      availableNodes: rebuilt.availableNodes,
       selectedClassId: build.selectedClassId,
       selectedAscendancyId: build.selectedAscendancyId,
       weaponSetMode: build.weaponSetMode,
-      nodeWeaponSets: { ...build.nodeWeaponSets },
+      nodeWeaponSets: rebuilt.nodeWeaponSets,
       masterySelections: { ...build.masterySelections },
       undoStack: [],
       redoStack: [],
       calcResult: null,
       calcError: null,
     })
-    // Recompute availableNodes
-    if (treeData) {
-      const allocSet = new Set(build.allocatedNodes)
-      const avail = new Set<string>()
-      for (const nid of allocSet) {
-        const node = treeData.nodes[nid]
-        if (!node) continue
-        for (const outId of node.out) {
-          if (!allocSet.has(outId)) avail.add(outId)
-        }
-      }
-      set({ availableNodes: avail })
-    }
   },
 
   deleteBuild: (id) => {
@@ -3290,31 +2258,27 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       if (!nodes || !Array.isArray(nodes)) {
         throw new Error('Invalid build: missing allocatedNodes')
       }
-      const allocSet = new Set<string>(nodes)
+      const selectedClassId = (build.selectedClassId as string) || get().selectedClassId
+      const selectedAscendancyId = (build.selectedAscendancyId as string) || get().selectedAscendancyId
+      const ctx = treeData ? { treeData, selectedClassId, selectedAscendancyId } : null
+      const rebuilt = recomputeAllocationState(
+        ctx,
+        new Set<string>(nodes),
+        (build.nodeWeaponSets as NodeWeaponSets) || {},
+      )
       set({
-        allocatedNodes: allocSet,
-        selectedClassId: (build.selectedClassId as string) || get().selectedClassId,
-        selectedAscendancyId: (build.selectedAscendancyId as string) || get().selectedAscendancyId,
+        allocatedNodes: rebuilt.allocatedNodes,
+        availableNodes: rebuilt.availableNodes,
+        selectedClassId,
+        selectedAscendancyId,
         weaponSetMode: (build.weaponSetMode as 0 | 1 | 2) || 0,
-        nodeWeaponSets: (build.nodeWeaponSets as Record<string, 1 | 2>) || {},
+        nodeWeaponSets: rebuilt.nodeWeaponSets,
         masterySelections: (build.masterySelections as Record<string, string>) || {},
         undoStack: [],
         redoStack: [],
         calcResult: null,
         calcError: null,
       })
-      // Recompute availableNodes
-      if (treeData) {
-        const avail = new Set<string>()
-        for (const nid of allocSet) {
-          const node = treeData.nodes[nid]
-          if (!node) continue
-          for (const outId of node.out) {
-            if (!allocSet.has(outId)) avail.add(outId)
-          }
-        }
-        set({ availableNodes: avail })
-      }
     } catch (err) {
       console.error('Failed to import build:', err)
     }
@@ -3353,6 +2317,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
       availableNodes: new Set(),
 
+      nodeWeaponSets: {},
+
 
       undoStack: [],
 
@@ -3370,11 +2336,18 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
   selectAscendancy: (ascendancyId) => {
-
-
-    set({ selectedAscendancyId: ascendancyId })
-
-
+    const state = get()
+    const ctx = state.treeData ? {
+      treeData: state.treeData,
+      selectedClassId: state.selectedClassId,
+      selectedAscendancyId: ascendancyId,
+    } : null
+    const rebuilt = recomputeAllocationState(ctx, state.allocatedNodes, state.nodeWeaponSets)
+    set({
+      selectedAscendancyId: ascendancyId,
+      availableNodes: rebuilt.availableNodes,
+      nodeWeaponSets: rebuilt.nodeWeaponSets,
+    })
   },
 
 

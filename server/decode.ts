@@ -2,20 +2,55 @@ import { FastifyInstance } from 'fastify'
 import { inflateSync } from 'zlib'
 import { XMLParser } from 'fast-xml-parser'
 
-/**
- * POST /api/build/decode
- *
- * Body: { code: "<PoB2 export code>" }
- * Response: { nodes: string[], treeVersion: string, classId: string, ascendClassId: string }
- *
- * Decode flow:
- *   code ¡ú replace-_ with +/ ¡ú base64 decode ¡ú zlib inflate ¡ú XML parse ¡ú extract Spec nodes
- */
+type NodeWeaponSets = Record<string, 1 | 2>
+
+interface DecodeResult {
+  nodes: string[]
+  nodeWeaponSets: NodeWeaponSets
+  treeVersion: string
+  classId: string
+  ascendClassId: string
+  specs: unknown[]
+}
+
+function parseIds(value: unknown): string[] {
+  return typeof value === 'string'
+    ? value.split(',').map((s) => s.trim()).filter(Boolean)
+    : []
+}
+
+function firstNode(value: unknown): Record<string, unknown> | undefined {
+  if (Array.isArray(value)) return value[0] as Record<string, unknown> | undefined
+  return value as Record<string, unknown> | undefined
+}
+
+function collectSpec(spec: Record<string, unknown>, result: DecodeResult) {
+  const ids = parseIds(spec.nodes)
+  result.nodes.push(...ids)
+
+  for (const id of parseIds(firstNode(spec.WeaponSet1)?.nodes)) result.nodeWeaponSets[id] = 1
+  for (const id of parseIds(firstNode(spec.WeaponSet2)?.nodes)) result.nodeWeaponSets[id] = 2
+
+  result.specs.push({
+    treeVersion: spec.treeVersion || '',
+    classId: spec.classId || '',
+    ascendClassId: spec.ascendClassId || '',
+    nodeCount: ids.length,
+  })
+
+  if (!result.treeVersion) {
+    result.treeVersion = String(spec.treeVersion || '')
+    result.classId = String(spec.classId || '')
+    result.ascendClassId = String(spec.ascendClassId || '')
+  }
+}
+
+/** POST /api/build/decode */
 export async function buildDecodeRoute(fastify: FastifyInstance) {
   const xmlParser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '',
-    isArray: (name) => ['Spec'].includes(name),
+    isArray: (name) => ['Spec', 'WeaponSet1', 'WeaponSet2'].includes(name),
   })
 
   fastify.post<{ Body: { code?: string } }>(
@@ -28,16 +63,9 @@ export async function buildDecodeRoute(fastify: FastifyInstance) {
       }
 
       try {
-        // Step 1: restore base64 alphabet (+/ from -_)
         const base64 = code.trim().replace(/-/g, '+').replace(/_/g, '/')
-
-        // Step 2: base64 decode ¡ú Buffer
         const deflated = Buffer.from(base64, 'base64')
-
-        // Step 3: zlib inflate
         const xmlText = inflateSync(deflated).toString('utf-8')
-
-        // Step 4: parse XML
         const parsed = xmlParser.parse(xmlText)
         const root = parsed.PathOfBuilding2
 
@@ -45,87 +73,28 @@ export async function buildDecodeRoute(fastify: FastifyInstance) {
           return reply.status(400).send({ error: 'Invalid XML: missing PathOfBuilding2 root' })
         }
 
-        // Extract Spec nodes
-        const result: {
-          nodes: string[]
-          treeVersion: string
-          classId: string
-          ascendClassId: string
-          specs: unknown[]
-        } = {
+        const result: DecodeResult = {
           nodes: [],
+          nodeWeaponSets: {},
           treeVersion: '',
           classId: '',
           ascendClassId: '',
           specs: [],
         }
 
-        // Try <Build><Tree><Spec> first (PoB2 export format)
-        const buildNode = root.Build
-        const treeTab = buildNode && buildNode.Tree
-        if (!treeTab) {
-          // Fallback: <Tree> as direct child of root
-          const treeTab = root.Tree
-          if (treeTab && treeTab.Spec) {
-            const specList = Array.isArray(treeTab.Spec) ? treeTab.Spec : [treeTab.Spec]
-            for (const spec of specList) {
-              if (spec.nodes) {
-                const ids = spec.nodes
-                  .split(',')
-                  .map((s: string) => s.trim())
-                  .filter(Boolean)
-                result.nodes.push(...ids)
-                result.specs.push({
-                  treeVersion: spec.treeVersion || '',
-                  classId: spec.classId || '',
-                  ascendClassId: spec.ascendClassId || '',
-                  nodeCount: ids.length,
-                })
-              }
-            }
-          }
-        } else {
-          // Normal path: Build > Tree > Spec
-          if (treeTab.Spec) {
-            const specList = Array.isArray(treeTab.Spec) ? treeTab.Spec : [treeTab.Spec]
-            for (const spec of specList) {
-              if (spec.nodes) {
-                const ids = spec.nodes
-                  .split(',')
-                  .map((s: string) => s.trim())
-                  .filter(Boolean)
-                result.nodes.push(...ids)
-                result.specs.push({
-                  treeVersion: spec.treeVersion || '',
-                  classId: spec.classId || '',
-                  ascendClassId: spec.ascendClassId || '',
-                  nodeCount: ids.length,
-                })
-              }
-            }
+        const treeTab = root.Build?.Tree || root.Tree
+        if (treeTab?.Spec) {
+          const specList = Array.isArray(treeTab.Spec) ? treeTab.Spec : [treeTab.Spec]
+          for (const spec of specList) {
+            if (spec?.nodes) collectSpec(spec, result)
           }
         }
 
-        // Fallback: look for <Spec> as direct child of root
         if (result.nodes.length === 0 && root.Spec) {
           const specList = Array.isArray(root.Spec) ? root.Spec : [root.Spec]
           for (const spec of specList) {
-            if (spec.nodes) {
-              const ids = spec.nodes
-                .split(',')
-                .map((s: string) => s.trim())
-                .filter(Boolean)
-              result.nodes.push(...ids)
-            }
+            if (spec?.nodes) collectSpec(spec, result)
           }
-        }
-
-        // Use first spec's meta
-        if (root.Spec && root.Spec[0]) {
-          const spec = root.Spec[0]
-          result.treeVersion = spec.treeVersion || ''
-          result.classId = spec.classId || ''
-          result.ascendClassId = spec.ascendClassId || ''
         }
 
         return reply.send(result)

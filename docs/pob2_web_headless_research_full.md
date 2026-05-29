@@ -781,6 +781,10 @@ SimpleGraphic 的能力包括：纹理加载、纹理四边形绘制、自由四
 
 缩小时出现明显毛边，放大后消失，属于 Canvas 2D minification 采样问题：Canvas 不会像 WebGL 一样自动生成 mipmap，高分辨率 PNG/WebP 在小尺寸下会直接重采样，容易把 alpha 边缘和细线采成锯齿。当前前端通过运行时 mipmap 缓存处理：`imageMipmaps.ts` 为纹理生成 1/2、1/4、1/8 等离屏层，背景、节点 DDS、orbit/ring 精灵和 connector quad 在缩小时优先从更接近目标尺寸的 mip 层绘制，同时保持 `imageSmoothingQuality = 'high'`。
 
+天赋盘交互需要参考原版 `PassiveSpec.lua` 和 `PassiveTreeView.lua`，不能只做单节点 toggle。当前 Web 版按原版 allocMode 思路处理：职业起点和当前升华起点作为运行时隐式根参与寻路但不导出；点击未分配节点会补齐到根的最短有效路径；点击已分配节点会移除该节点并剪掉不再连到根的依赖分支。武器 1/2 使用 `nodeWeaponSets` 保存节点分配模式，并在连接线、节点 overlay、hover path preview 中使用原版 `NEGATIVE` / `POSITIVE` 色系。
+
+Tooltip 继续使用 React div 浮层，而不是 Canvas 文本绘制。视觉资源改为引用 `sources/src/Assets` 中的原版 passive header 三段图，`copy_ui_assets.py` 会复制 `normal/notable/keystone/ascendancy/jewel/oracle*passiveheader` 的 `left/middle/right` 文件到 `public/assets/ui`，再由 `NodeTooltip.tsx` 用三段背景拼出原版风格标题栏。
+
 缩小时卡顿主要来自可见元素数量暴增和常驻 RAF 重绘。当前前端已改为按需单帧渲染：状态变化、资源加载和 resize 才调度 `scheduleRender()`；connector 绘制前做 viewport 裁剪；低 zoom 下 connector 使用简化线，节点跳过 frame/effect 等昂贵细节。交互命中仍基于完整 tree data，不因视觉降级丢失数据。
 
 ### 24.9 LessLuminance

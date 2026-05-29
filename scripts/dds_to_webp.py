@@ -16,6 +16,7 @@ import subprocess
 import tempfile
 import shutil
 from parse_ddscoords import parse_ddscoords
+from tree_lua_to_json import convert as convert_tree_lua_to_json
 
 # === BC1 (DXT1) Decoder (Pure Python) ===
 
@@ -259,6 +260,9 @@ class DDSPipeline:
     def run(self):
         """Run the full pipeline."""
         print(f"\n=== DDS Pipeline v{self.version} ===")
+
+        if self._run_spritecoords_pipeline():
+            return
         
         # Step 1: Parse tree.lua ddsCoords
         self.log("Step 1: Parsing ddsCoords from tree.lua...")
@@ -385,6 +389,77 @@ class DDSPipeline:
         else:
             print(f"  texconv: NOT FOUND (BC7 files skipped)")
         print(f"  Output: {self.output_dir}")
+
+    def _run_spritecoords_pipeline(self):
+        """Use the 0_5+ spriteCoords WebP atlas format when present."""
+        tree_lua = self.tree_data_dir / 'tree.lua'
+        if not tree_lua.exists():
+            return False
+
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_json = Path(tmp) / 'tree.json'
+            try:
+                convert_tree_lua_to_json(tree_lua, tmp_json)
+                with open(tmp_json, 'r', encoding='utf-8') as f:
+                    tree = json.load(f)
+            except Exception as e:
+                self.log(f"WARNING: unable to inspect spriteCoords: {e}")
+                return False
+
+        sprite_coords = tree.get('spriteCoords') or {}
+        if not sprite_coords:
+            return False
+
+        self.log("Step 1: Found spriteCoords WebP atlas data")
+        atlas_dir = self.output_dir / 'atlases'
+        atlas_dir.mkdir(parents=True, exist_ok=True)
+
+        copied = 0
+        missing = 0
+        sprite_index = {}
+        for atlas_name, assets in sprite_coords.items():
+            src = self.tree_data_dir / atlas_name
+            dst = atlas_dir / atlas_name
+            if src.exists():
+                if not dst.exists() or src.stat().st_mtime_ns != dst.stat().st_mtime_ns or src.stat().st_size != dst.stat().st_size:
+                    shutil.copy2(src, dst)
+                    copied += 1
+            else:
+                missing += 1
+                self.log(f"  WARNING: atlas {atlas_name} not found")
+                continue
+
+            if not isinstance(assets, dict):
+                continue
+            for asset_name, rect in assets.items():
+                if not isinstance(rect, dict):
+                    continue
+                try:
+                    sprite_index[asset_name] = {
+                        'file': f"assets/dds/{self.version}/atlases/{atlas_name}",
+                        'x': int(rect.get('x', 0)),
+                        'y': int(rect.get('y', 0)),
+                        'w': int(rect.get('w', 0)),
+                        'h': int(rect.get('h', 0)),
+                    }
+                except (TypeError, ValueError):
+                    continue
+
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        index_path = self.output_dir / 'sprite-index.json'
+        with open(index_path, 'w', encoding='utf-8') as f:
+            json.dump(sprite_index, f, ensure_ascii=False, indent=2)
+
+        self.sprite_index = sprite_index
+        self.stats['total'] = len(sprite_index)
+        self.stats['success'] = len(sprite_index)
+        self.stats['failed'] = missing
+
+        print(f"\n=== Sprite Atlas Pipeline Complete ===")
+        print(f"  Atlases copied: {copied}, missing: {missing}")
+        print(f"  Sprite index entries: {len(sprite_index)}")
+        print(f"  Output: {self.output_dir}")
+        return True
     
     def _safe_filename(self, name):
         safe = name.replace('Art/2DArt/', '').replace('/', '_')

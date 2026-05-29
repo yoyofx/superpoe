@@ -47,6 +47,26 @@ describe('API Integration Tests', () => {
     expect(decoded.nodes.sort()).toEqual(nodes.sort())
   })
 
+  it('5.3.1b encode/decode round-trip: weapon sets', async () => {
+    const nodes = ['61419', '65413', '10131']
+    const nodeWeaponSets = { '61419': 1, '10131': 2 } as Record<string, 1 | 2>
+    const encRes = await app.inject({
+      method: 'POST', url: '/api/code/encode',
+      payload: { nodes, nodeWeaponSets, treeVersion: '0_4' }
+    })
+    expect(encRes.statusCode).toBe(200)
+    const { code } = encRes.json()
+
+    const decRes = await app.inject({
+      method: 'POST', url: '/api/build/decode',
+      payload: { code }
+    })
+    expect(decRes.statusCode).toBe(200)
+    const decoded = decRes.json()
+    expect(decoded.nodes.sort()).toEqual(nodes.sort())
+    expect(decoded.nodeWeaponSets).toEqual(nodeWeaponSets)
+  })
+
   it('5.3.2 empty nodes -> encode 400', async () => {
     const res = await app.inject({
       method: 'POST', url: '/api/code/encode',

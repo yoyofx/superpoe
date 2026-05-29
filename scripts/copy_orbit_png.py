@@ -40,10 +40,10 @@ ORBIT_PNG_PATTERNS = [
 ]
 
 
-def copy_orbit_pngs(tree_version: str, web_dir: Path) -> int:
+def copy_orbit_pngs(tree_version: str, web_dir: Path, source: Path | None = None, output: Path | None = None) -> int:
     """Copy orbit PNGs for a single tree version. Returns number of files copied."""
-    src_dir = web_dir / "sources" / "src" / "TreeData" / tree_version
-    dst_dir = web_dir / "public" / "assets" / "orbit" / tree_version
+    src_dir = source or (web_dir / "sources" / "src" / "TreeData" / tree_version)
+    dst_dir = output or (web_dir / "public" / "assets" / "orbit" / tree_version)
 
     if not src_dir.is_dir():
         print(f"  [skip] TreeData/{tree_version}/ not found")
@@ -51,40 +51,60 @@ def copy_orbit_pngs(tree_version: str, web_dir: Path) -> int:
 
     dst_dir.mkdir(parents=True, exist_ok=True)
 
-    count = 0
+    found = 0
+    copied = 0
     for pattern in ORBIT_PNG_PATTERNS:
         for orbit_idx in range(10):  # 0..9
             filename = f"{pattern}{orbit_idx}.png"
             src = src_dir / filename
             if src.exists():
+                found += 1
                 dst = dst_dir / filename
                 if not dst.exists() or src.stat().st_mtime > dst.stat().st_mtime:
                     shutil.copy2(src, dst)
-                    count += 1
+                    copied += 1
 
-    if count:
-        print(f"  [ok] TreeData/{tree_version}/ -> public/assets/orbit/{tree_version}/ ({count} PNGs)")
+    if found:
+        print(f"  [ok] TreeData/{tree_version}/ -> public/assets/orbit/{tree_version}/ ({found} PNGs, {copied} copied)")
     else:
         print(f"  [warn] TreeData/{tree_version}/: no orbit PNGs found")
-    return count
+    return found
 
 
 def main():
+    import argparse
+
     web_dir = Path(__file__).resolve().parent.parent
+    ap = argparse.ArgumentParser(description="Copy orbit PNG sprites")
+    ap.add_argument("versions", nargs="*", help="Tree versions to copy")
+    ap.add_argument("--all", action="store_true", help="Copy all available versions")
+    ap.add_argument("--source", help="Source TreeData directory")
+    ap.add_argument("--output", help="Output orbit directory")
+    args = ap.parse_args()
 
-    args = sys.argv[1:]
+    if args.source:
+        source = Path(args.source)
+        tree_version = source.name
+        total = copy_orbit_pngs(
+            tree_version,
+            web_dir,
+            source=source,
+            output=Path(args.output) if args.output else None,
+        )
+        print(f"\nDone: {total} orbit PNG files copied to web/public/assets/orbit/")
+        return
 
-    if not args:
+    if not args.versions and not args.all:
         versions = ["0_4"]
-    elif args == ["--all"]:
+    elif args.all:
         # Discover all TreeData/*/ directories
         tree_data_dir = web_dir / "sources" / "src" / "TreeData"
         versions = sorted(
             d.name for d in tree_data_dir.iterdir()
-            if d.is_dir() and (d / "tree.json").exists()
+            if d.is_dir() and ((d / "tree.json").exists() or (d / "tree.lua").exists())
         )
     else:
-        versions = args
+        versions = args.versions
 
     total = 0
     for ver in versions:

@@ -6,7 +6,7 @@ PoB2 Web Tree 是一个基于 React + Canvas 2D 的 PoE2 天赋树查看/编辑�
 
 - `sources/` 来源于 [PathOfBuildingCommunity/PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)，用于预处理脚本、Headless 校验和计算。
 - `public/data/Translate/` 来源于 PoeCharm2，用于 Web 端翻译数据。
-- `public/data/tree-web-0_4.json` 是 Web 端生成产物，不是原生游戏文件，也不是 PoB2 上游文件。需要从 `sources/src/TreeData/0_4/tree.json` 重新生成时，运行 `npm run pipeline:tree`。
+- `public/data/tree-web-{version}.json` 是 Web 端生成产物，不是原生游戏文件，也不是 PoB2 上游文件。需要从 `sources/src/TreeData/{version}/tree.lua` / `tree.json` 重新生成时，运行 `npm run pipeline:all -- {version}`。
 
 ### 将 `sources/` 作为 Git Submodule
 
@@ -65,6 +65,8 @@ npm run pipeline:all
 npm run pipeline:all -- 0_5
 ```
 
+该命令会生成 `public/data/tree-web-0_5.json`，复制/生成对应版本资源，并更新 `public/data/tree-versions.json`。前端版本下拉读取这个 manifest，因此后续新增 `0_6`、`0_7` 时不需要手改前端版本列表。
+
 不传版本号时默认处理 `0_4`：
 
 ```bash
@@ -97,3 +99,5 @@ npm run test:lua
 ## 说明
 
 Web 天赋树渲染使用从 PoB2 上游数据生成出来的中间数据，不直接修改上游 `sources/` 文件。游戏或 PoB2 上游数据更新后，应重新运行对应 pipeline，而不是手改生成后的 JSON 或贴图产物。
+
+前端会优先按当前树版本加载 `public/assets/dds/{version}`、`public/assets/orbit/{version}` 和 `public/assets/connectors/{version}`。如果新版本资源尚未完整生成，会回退到 `0_4` 资源或 Canvas fallback 绘制；这个回退只影响贴图视觉，不会改变 `tree-web-{version}.json` 中的节点、坐标、连线关系和天赋数据。

@@ -4,6 +4,8 @@
  */
 export interface SpriteInfo {
   file: string;
+  x?: number;
+  y?: number;
   w: number;
   h: number;
 }
@@ -15,12 +17,14 @@ export interface SpriteIndex {
 class SpriteLoader {
   private index: SpriteIndex | null = null;
   private images: Map<string, HTMLImageElement> = new Map();
-  private baseUrl: string;
   private loaded = false;
   private loadPromise: Promise<void> | null = null;
+  private readonly version: string;
+  private readonly fallbackVersion: string;
 
-  constructor(version: string = '0_4') {
-    this.baseUrl = `/assets/dds/${version}`;
+  constructor(version: string = '0_4', fallbackVersion: string = '0_4') {
+    this.version = version;
+    this.fallbackVersion = fallbackVersion;
   }
 
   async init(): Promise<void> {
@@ -32,18 +36,31 @@ class SpriteLoader {
   }
 
   private async _load(): Promise<void> {
-    try {
-      const resp = await fetch(`${this.baseUrl}/sprite-index.json`);
-      if (!resp.ok) {
-        console.warn('Sprite index not found, using fallback rendering');
-        return;
+    const primary = await this.loadIndex(this.version);
+    if (primary && Object.keys(primary).length > 0) {
+      this.index = primary;
+      console.log(`SpriteLoader(${this.version}): loaded index with ${Object.keys(primary).length} entries`);
+    } else if (this.version !== this.fallbackVersion) {
+      const fallback = await this.loadIndex(this.fallbackVersion);
+      if (fallback && Object.keys(fallback).length > 0) {
+        this.index = fallback;
+        console.warn(`SpriteLoader(${this.version}): falling back to ${this.fallbackVersion}`);
       }
-      this.index = await resp.json();
-      console.log(`SpriteLoader: loaded index with ${Object.keys(this.index || {}).length} entries`);
-    } catch (e) {
-      console.warn('Failed to load sprite index:', e);
+    }
+    if (!this.index) {
+      console.warn(`SpriteLoader(${this.version}): sprite index not found, using fallback rendering`);
     }
     this.loaded = true;
+  }
+
+  private async loadIndex(version: string): Promise<SpriteIndex | null> {
+    try {
+      const resp = await fetch(`/assets/dds/${version}/sprite-index.json`);
+      if (!resp.ok) return null;
+      return await resp.json();
+    } catch {
+      return null;
+    }
   }
 
   getAsset(name: string): SpriteInfo | null {
@@ -74,14 +91,24 @@ class SpriteLoader {
   /** Get asset info by icon path from tree.json (e.g. "Art/2DArt/SkillIcons/passives/plusattribute.dds") */
   getByIconPath(iconPath: string): SpriteInfo | null {
     if (!this.index) return null;
-    // Try exact match first
-    if (this.index[iconPath]) return this.index[iconPath];
-    // Try without .dds extension
-    if (iconPath.endsWith('.dds')) {
-      const withoutExt = iconPath.slice(0, -4);
-      if (this.index[withoutExt]) return this.index[withoutExt];
+    for (const candidate of this.getIconCandidates(iconPath)) {
+      if (this.index[candidate]) return this.index[candidate];
     }
     return null;
+  }
+
+  private getIconCandidates(iconPath: string): string[] {
+    const candidates = new Set<string>();
+    candidates.add(iconPath);
+    const extMatch = iconPath.match(/\.(dds|png|webp)$/i);
+    if (extMatch) {
+      const withoutExt = iconPath.slice(0, -extMatch[0].length);
+      candidates.add(withoutExt);
+      candidates.add(`${withoutExt}.dds`);
+      candidates.add(`${withoutExt}.png`);
+      candidates.add(`${withoutExt}.webp`);
+    }
+    return [...candidates];
   }
 
   /** Direct name lookup (for frame names, effect names, etc.) */
@@ -100,5 +127,17 @@ class SpriteLoader {
   }
 }
 
-// Singleton
-export const spriteLoader = new SpriteLoader('0_4');
+const loaderCache = new Map<string, SpriteLoader>();
+
+export function getSpriteLoader(version: string): SpriteLoader {
+  const key = version || '0_4';
+  let loader = loaderCache.get(key);
+  if (!loader) {
+    loader = new SpriteLoader(key);
+    loaderCache.set(key, loader);
+  }
+  return loader;
+}
+
+// Backward-compatible default loader for older call sites.
+export const spriteLoader = getSpriteLoader('0_4');

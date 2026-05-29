@@ -15,9 +15,19 @@ import { drawOrbitSprite, getOrbitState, preloadOrbitSprites, drawRingFrame } fr
 
 
 import type { AscendancyClass, TreeConnectorQuad, TreeData, TreeNode } from '@/types/tree'
-import { spriteLoader } from '@/engine/spriteLoader'
+import { getSpriteLoader } from '@/engine/spriteLoader'
+import type { SpriteInfo } from '@/engine/spriteLoader'
 import { preloadConnectors, drawConnectorQuadTexture, getConnectorState, resolveConnectorTexture } from '@/engine/connectorSprites'
-import { applyCanvasImageQuality, drawImageMipped, prepareMipmaps } from '@/engine/imageMipmaps'
+import { applyCanvasImageQuality, drawImageMipped, drawImageMippedSource, prepareMipmaps } from '@/engine/imageMipmaps'
+import {
+  getImplicitRootIds,
+  getNodeAllocMode,
+  getPreviewPath,
+  isConnectorActiveForModes,
+  isEffectivelyAllocated,
+  WEAPON_SET_COLORS,
+  type AllocMode,
+} from '@/engine/passiveAllocation'
 
 
 
@@ -233,6 +243,33 @@ function drawCenteredAsset(
   drawImageMipped(ctx, img, cx - halfWidth, cy - halfHeight, halfWidth * 2, halfHeight * 2)
 }
 
+function drawCenteredSprite(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement | HTMLCanvasElement | OffscreenCanvas,
+  info: SpriteInfo,
+  cx: number,
+  cy: number,
+  halfWidth: number,
+  halfHeight: number,
+): void {
+  if (typeof info.x === 'number' && typeof info.y === 'number') {
+    drawImageMippedSource(
+      ctx,
+      img,
+      info.x,
+      info.y,
+      info.w,
+      info.h,
+      cx - halfWidth,
+      cy - halfHeight,
+      halfWidth * 2,
+      halfHeight * 2,
+    )
+    return
+  }
+  drawCenteredAsset(ctx, img, cx, cy, halfWidth, halfHeight)
+}
+
 function pointsIntersectViewport(
   points: [number, number][],
   width: number,
@@ -302,27 +339,7 @@ export function TreeCanvas() {
   const renderRef = useRef<() => void>(() => {})
   const [ddsReady, setDdsReady] = useState(false)
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map())
-
-
-
-  // 8.2.2: Preload orbit sprites on mount
-  useEffect(() => {
-    preloadOrbitSprites().catch(console.warn)
-  }, [])
-
-  // Initialize DDS sprite loader
-  useEffect(() => {
-    spriteLoader.init().then(() => setDdsReady(true)).catch(console.warn)
-  }, [])
-
-  // 15.11: Preload connector textures
   const [connectorsReady, setConnectorsReady] = useState(false)
-  useEffect(() => {
-    Promise.all([
-      preloadConnectors('Character'),
-      preloadConnectors('CharacterAscendancy'),
-    ]).then(() => setConnectorsReady(true)).catch(console.warn)
-  }, [])
 
 
 
@@ -335,6 +352,7 @@ export function TreeCanvas() {
 
 
   const treeData = useTreeStore((s) => s.treeData)
+  const treeVersion = useTreeStore((s) => s.treeVersion)
 
 
 
@@ -395,6 +413,20 @@ export function TreeCanvas() {
 
 
   const toggleNode = useTreeStore((s) => s.toggleNode)
+
+  const spriteLoader = getSpriteLoader(treeVersion)
+
+  useEffect(() => {
+    setDdsReady(false)
+    setConnectorsReady(false)
+    imageCache.current.clear()
+    preloadOrbitSprites(treeVersion).catch(console.warn)
+    spriteLoader.init().then(() => setDdsReady(true)).catch(console.warn)
+    Promise.all([
+      preloadConnectors(treeVersion, 'Character'),
+      preloadConnectors(treeVersion, 'CharacterAscendancy'),
+    ]).then(() => setConnectorsReady(true)).catch(console.warn)
+  }, [spriteLoader, treeVersion])
 
 
 
@@ -460,6 +492,15 @@ export function TreeCanvas() {
       treeData,
       selectedClassId,
       selectedAscendancyId,
+    )
+    const allocationContext = { treeData, selectedClassId, selectedAscendancyId }
+    const implicitRoots = getImplicitRootIds(allocationContext)
+    const previewPath = getPreviewPath(
+      allocationContext,
+      allocatedNodes,
+      nodeWeaponSets,
+      hoveredNodeId,
+      weaponSetMode as AllocMode,
     )
 
 
@@ -533,7 +574,7 @@ export function TreeCanvas() {
           const bgw = 2000 * zoom
           const bgh = 2000 * zoom
           ctx.globalAlpha = 0.35
-          drawImageMipped(ctx, bgImg, cx - bgw / 2, cy - bgh / 2, bgw, bgh)
+          drawCenteredSprite(ctx, bgImg, bgInfo, cx, cy, bgw / 2, bgh / 2)
           ctx.globalAlpha = 1
         } else {
           spriteLoader.getImage(bgInfo).then((loaded) => cacheLoadedImage(bgInfo.file, loaded))
@@ -561,7 +602,7 @@ export function TreeCanvas() {
           ctx.translate(cx, cy)
           ctx.rotate(angleRad)
           ctx.globalAlpha = 0.5
-          drawImageMipped(ctx, activeImg, -aw / 2, -ah / 2, aw, ah)
+          drawCenteredSprite(ctx, activeImg, activeInfo, 0, 0, aw / 2, ah / 2)
           ctx.globalAlpha = 1
           ctx.restore()
         } else {
@@ -583,7 +624,7 @@ export function TreeCanvas() {
           const cw = centerBg.width * centerScale * zoom
           const ch = centerBg.height * centerScale * zoom
           ctx.globalAlpha = 0.8
-          drawImageMipped(ctx, img, cx - cw / 2, cy - ch / 2, cw, ch)
+          drawCenteredSprite(ctx, img, info, cx, cy, cw / 2, ch / 2)
           ctx.globalAlpha = 1
         } else {
           spriteLoader.getImage(info).then((loaded) => cacheLoadedImage(info.file, loaded))
@@ -609,7 +650,7 @@ export function TreeCanvas() {
           const bgh = bg.height * zoom
           const isSelected = clsData === clsData2 && matchesAscendancy(asc, selectedAscendancyId)
           ctx.globalAlpha = isSelected ? 0.55 : 0.18
-          drawImageMipped(ctx, img, bgx - bgw / 2, bgy - bgh / 2, bgw, bgh)
+          drawCenteredSprite(ctx, img, info, bgx, bgy, bgw / 2, bgh / 2)
           ctx.globalAlpha = 1
         }
       }
@@ -692,7 +733,7 @@ export function TreeCanvas() {
 
     for (const [, node] of nodeList) {
 
-      if (allocatedNodes.has(node.id)) {
+      if (isEffectivelyAllocated(node.id, allocatedNodes, implicitRoots)) {
 
         allocPerOrbit.set(node.orbit, (allocPerOrbit.get(node.orbit) ?? 0) + 1)
 
@@ -710,7 +751,7 @@ export function TreeCanvas() {
 
       const r = NODE_RADIUS[node.type] ?? 9
 
-      drawOrbitSprite(ctx, node.orbit, state, sx, sy, 0, r, zoom)
+      drawOrbitSprite(ctx, treeVersion, node.orbit, state, sx, sy, 0, r, zoom)
 
     }
 
@@ -727,10 +768,15 @@ export function TreeCanvas() {
         ctx.setLineDash([])
       }
       for (const connector of treeData.connectors) {
-        const state = getConnectorState(
-          allocatedNodes.has(connector.nodeId1),
-          allocatedNodes.has(connector.nodeId2),
+        const activeConnector = isConnectorActiveForModes(
+          connector.nodeId1,
+          connector.nodeId2,
+          allocatedNodes,
+          implicitRoots,
+          nodeWeaponSets,
         )
+        const previewConnector = !activeConnector && previewPath.has(connector.nodeId1) && previewPath.has(connector.nodeId2)
+        const state = activeConnector ? 'Active' : getConnectorState(previewConnector, false)
         const vert = connector.vert[state] || connector.vert.Normal
         if (!vert) continue
         const projectConnector = shouldProjectConnector(connector, selectedAscendancyProjection)
@@ -765,7 +811,7 @@ export function TreeCanvas() {
         if (!pointsIntersectViewport(points, W, H, CONNECTOR_CULL_MARGIN)) continue
 
         if (useTextureConnectors && !mixedProjectedConnector) {
-          const img = resolveConnectorTexture(connector.connectionArt, connector.type, state)
+          const img = resolveConnectorTexture(treeVersion, connector.connectionArt, connector.type, state)
           if (!img) continue
           drawConnectorQuadTexture(ctx, img, points, connector.texCoords)
         } else {
@@ -775,6 +821,14 @@ export function TreeCanvas() {
             ctx.strokeStyle = 'rgba(116, 126, 148, 0.55)'
             ctx.lineWidth = Math.max(0.5, zoom * 2.5)
             ctx.setLineDash([])
+          }
+          const connectorMode1 = getNodeAllocMode(connector.nodeId1, nodeWeaponSets)
+          const connectorMode2 = getNodeAllocMode(connector.nodeId2, nodeWeaponSets)
+          const connectorMode = connectorMode1 || connectorMode2
+          if (connectorMode === 1 || connectorMode === 2) {
+            ctx.strokeStyle = WEAPON_SET_COLORS[connectorMode]
+          } else if (previewConnector && weaponSetMode > 0) {
+            ctx.strokeStyle = WEAPON_SET_COLORS[weaponSetMode as 1 | 2]
           }
           ctx.globalAlpha = active ? 0.75 : intermediate ? 0.55 : 0.28
           ctx.beginPath()
@@ -853,11 +907,15 @@ export function TreeCanvas() {
 
 
 
-      const isAllocated = allocatedNodes.has(id)
+      const isAllocated = isEffectivelyAllocated(id, allocatedNodes, implicitRoots)
 
 
 
-      const isAvailable = !isAllocated && availableNodes.has(id)
+      const isPreview = !isAllocated && previewPath.has(id)
+
+
+
+      const isAvailable = !isAllocated && (availableNodes.has(id) || isPreview)
 
 
 
@@ -867,7 +925,10 @@ export function TreeCanvas() {
 
 
 
-      const color = isAllocated ? '#4A9EFF' : (NODE_COLOR[node.type] ?? '#888')
+      const allocMode = getNodeAllocMode(id, nodeWeaponSets)
+      const modeColor = allocMode === 1 || allocMode === 2 ? WEAPON_SET_COLORS[allocMode] : null
+
+      const color = isAllocated ? (modeColor ?? '#4A9EFF') : (NODE_COLOR[node.type] ?? '#888')
 
       const baseColor = color
       const useNodeDetails = zoom >= NODE_DETAIL_MIN_ZOOM
@@ -897,7 +958,7 @@ export function TreeCanvas() {
             const [effW, effH] = assetHalfSize(node.targetSize?.effect, r * 1.4, r * 1.4, zoom)
             const alpha = isAllocated ? 1.0 : 0.15
             ctx.globalAlpha = alpha
-            drawCenteredAsset(ctx, effImg, sx, sy, effW, effH)
+            drawCenteredSprite(ctx, effImg, effInfo, sx, sy, effW, effH)
             ctx.globalAlpha = 1
           } else {
             spriteLoader.getImage(effInfo).then((loaded) => cacheLoadedImage(effInfo.file, loaded))
@@ -908,10 +969,13 @@ export function TreeCanvas() {
       // Check if DDS sprite is available for this node
       let ddsIcon: HTMLImageElement | null = null
       let ddsFrame: HTMLImageElement | null = null
+      let ddsIconInfo: SpriteInfo | null = null
+      let ddsFrameInfo: SpriteInfo | null = null
       if (ddsReady && spriteLoader.isAvailable()) {
         if (node.icon) {
           const info = spriteLoader.getByIconPath(node.icon)
           if (info) {
+            ddsIconInfo = info
             ddsIcon = imageCache.current.get(info.file) || null
             if (!ddsIcon) spriteLoader.getImage(info).then((l) => cacheLoadedImage(info.file, l))
           }
@@ -924,6 +988,7 @@ export function TreeCanvas() {
           if (fn) {
             const fi = spriteLoader.getByName(fn)
             if (fi) {
+              ddsFrameInfo = fi
               ddsFrame = imageCache.current.get(fi.file) || null
               if (!ddsFrame) spriteLoader.getImage(fi).then((l) => cacheLoadedImage(fi.file, l))
             }
@@ -934,27 +999,27 @@ export function TreeCanvas() {
 
       if (hasDds) {
         // DDS-first: draw icon with LessLuminance for unalloc
-        if (ddsIcon) {
+        if (ddsIcon && ddsIconInfo) {
           const [iconW, iconH] = assetHalfSize(node.targetSize, r, r, zoom)
           if (!isAllocated && !isHovered && !isSelected) {
             ctx.filter = 'brightness(0.5)'
           }
-          drawCenteredAsset(ctx, ddsIcon, sx, sy, iconW, iconH)
+          drawCenteredSprite(ctx, ddsIcon, ddsIconInfo, sx, sy, iconW, iconH)
           ctx.filter = 'none'
         }
         ctx.globalAlpha = 1
-        if (useNodeDetails && ddsFrame) {
+        if (useNodeDetails && ddsFrame && ddsFrameInfo) {
           const [frameW, frameH] = assetHalfSize(node.targetSize?.overlay, r * 1.2, r * 1.2, zoom)
           if (!isAllocated && !isHovered && !isSelected && ['ClassStart', 'AscendClassStart'].includes(node.type)) {
             ctx.filter = 'brightness(0.5)'
           }
-          drawCenteredAsset(ctx, ddsFrame, sx, sy, frameW, frameH)
+          drawCenteredSprite(ctx, ddsFrame, ddsFrameInfo, sx, sy, frameW, frameH)
           ctx.filter = 'none'
         }
       } else {
         // Fallback: pure-code circles
         if (isAllocated) {
-          ctx.shadowColor = '#4A9EFF'
+          ctx.shadowColor = modeColor ?? '#4A9EFF'
           ctx.shadowBlur = 12 * zoom
         } else if (isHovered || isSelected) {
           ctx.shadowColor = HOVER_GLOW
@@ -999,7 +1064,7 @@ export function TreeCanvas() {
 
         ctx.arc(sx, sy, sr + 1 * zoom, 0, Math.PI * 2)
 
-        ctx.strokeStyle = '#A0D4FF'
+        ctx.strokeStyle = modeColor ?? '#A0D4FF'
 
         ctx.lineWidth = 2 * zoom
 
@@ -1013,7 +1078,7 @@ export function TreeCanvas() {
 
         ctx.arc(sx, sy, sr + 1 * zoom, 0, Math.PI * 2)
 
-        ctx.strokeStyle = '#4ADE80'
+        ctx.strokeStyle = isPreview && weaponSetMode > 0 ? WEAPON_SET_COLORS[weaponSetMode as 1 | 2] : '#4ADE80'
 
         ctx.lineWidth = 2.5 * zoom
 
@@ -1085,7 +1150,7 @@ export function TreeCanvas() {
 
     }
 
-  }, [treeData, offsetX, offsetY, zoom, hoveredNodeId, selectedNodeId, allocatedNodes, availableNodes, searchMatchIds, selectedClassId, selectedAscendancyId, ddsReady, connectorsReady, cacheLoadedImage])
+  }, [treeData, offsetX, offsetY, zoom, hoveredNodeId, selectedNodeId, allocatedNodes, availableNodes, nodeWeaponSets, weaponSetMode, searchMatchIds, selectedClassId, selectedAscendancyId, ddsReady, connectorsReady, cacheLoadedImage])
 
   useEffect(() => {
     renderRef.current = render
@@ -1497,9 +1562,9 @@ export function TreeCanvas() {
 
 
 
-                // Click on available or allocated node to toggle
+                // Click on a node to allocate/deallocate; path rules decide whether it can change.
 
-      if (hoveredNodeId && (availableNodes.has(hoveredNodeId) || allocatedNodes.has(hoveredNodeId))) {
+      if (hoveredNodeId) {
 
 
 
@@ -1523,7 +1588,7 @@ export function TreeCanvas() {
 
 
 
-    [hoveredNodeId, setSelectedNode, availableNodes, allocatedNodes, toggleNode],
+    [hoveredNodeId, setSelectedNode, toggleNode],
 
 
 
