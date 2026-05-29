@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useTreeStore } from '@/store/treeStore'
-import { TreeCanvas } from '@/components/TreeCanvas'
+import { TreePixiCanvas } from '@/components/TreePixiCanvas'
 import { Toolbar } from '@/components/Toolbar'
 import { NodeTooltip } from '@/components/NodeTooltip'
 import { StatTable } from '@/components/StatTable'
@@ -64,7 +64,7 @@ export default function App() {
 
   return (
     <div className="w-screen h-screen relative">
-      <TreeCanvas />
+      <TreePixiCanvas />
       <Toolbar />
       <NodeTooltip />
       <StatTable />

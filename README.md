@@ -1,6 +1,12 @@
 # PoB2 Web Tree
 
-PoB2 Web Tree 是一个基于 React + Canvas 2D 的 PoE2 天赋树查看/编辑原型。项目使用 Path of Building 2 的天赋树数据，生成 Web 端可直接使用的数据和贴图资源，并提供天赋盘渲染、缩放/平移、节点交互、构筑导入导出，以及 Fastify/LuaJIT 计算接口。
+## 渲染层
+
+前端天赋盘主渲染层已迁移到 PixiJS 8。PixiJS 是 WebGL/WebGPU 2D renderer，不是 Three.js 这类 3D 场景引擎；本项目仍按 PoB2 原生 2D 天赋盘数据绘制背景、节点、orbit 和 connector quad。
+
+当前实现保留 React、Zustand、tooltip、导入导出和资源生成管线，只替换原来的 Canvas 2D 绘制层。旧 `TreeCanvas` 组件暂时保留为 fallback/对照实现，默认入口使用 `TreePixiCanvas`。
+
+PoB2 Web Tree 是一个基于 React + PixiJS/WebGL 2D 的 PoE2 天赋树查看/编辑原型。项目使用 Path of Building 2 的天赋树数据，生成 Web 端可直接使用的数据和贴图资源，并提供天赋盘渲染、缩放/平移、节点交互、构筑导入导出，以及 Fastify/LuaJIT 计算接口。
 
 ## 数据来源
 
@@ -132,7 +138,7 @@ npm run test:lua
 
 ## 项目结构
 
-- `src/`：React UI、Zustand store、Canvas 天赋树渲染、贴图和连接线渲染工具。
+- `src/`：React UI、Zustand store、PixiJS 天赋树渲染、贴图和连接线渲染工具；旧 Canvas 组件保留为 fallback/对照实现。
 - `server/`：Fastify API，用于校验和计算。
 - `scripts/`：Python/Lua 预处理脚本和测试辅助脚本。
 - `sources/`：PoB2 上游源码目录，建议用 submodule 管理。

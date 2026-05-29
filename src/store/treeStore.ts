@@ -23,7 +23,7 @@ import {
 
 import type { CalcResult, CalcApiResponse } from '@/types/calc'
 
-export const MIN_ZOOM = 0.1
+export const MIN_ZOOM = 0.01
 export const DEFAULT_ZOOM = 0.2
 export const MAX_ZOOM = 0.5
 export const FALLBACK_TREE_VERSIONS = ['0_5', '0_4', '0_3', '0_2', '0_1']

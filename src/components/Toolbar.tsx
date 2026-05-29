@@ -58,6 +58,21 @@ export function Toolbar() {
     useTreeStore.setState({ zoom: DEFAULT_ZOOM, offsetX: -cx, offsetY: -cy })
   }, [treeData])
 
+  const handleZoomFit = useCallback(() => {
+    if (!treeData) return
+    const c = treeData.constants
+    const treeW = c.max_x - c.min_x
+    const treeH = c.max_y - c.min_y
+    const viewportW = window.innerWidth
+    const viewportH = window.innerHeight
+    const fitZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(viewportW / treeW, viewportH / treeH) * 0.94))
+    useTreeStore.setState({
+      zoom: fitZoom,
+      offsetX: -(c.min_x + c.max_x) / 2,
+      offsetY: -(c.min_y + c.max_y) / 2,
+    })
+  }, [treeData])
+
   const zoomPct = Math.round(zoom * 100)
   const toggleMenu = useCallback((menu: Exclude<ToolbarMenu, null>) => {
     setActiveMenu((current) => current === menu ? null : menu)
@@ -247,6 +262,16 @@ export function Toolbar() {
         title="Reset zoom"
       >
         {zoomPct}%
+      </button>
+
+      <button
+        onClick={handleZoomFit}
+        className="px-2 h-7 flex items-center justify-center rounded-md
+                   bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] font-semibold
+                   border border-gray-600 transition-colors"
+        title="Fit whole passive tree"
+      >
+        Fit
       </button>
 
       <button
