@@ -9,6 +9,11 @@ node_modules/
 dist/
 tsconfig.tsbuildinfo
 
+# Frontend runtime files. Everything under public/ is served by the app and
+# must be committed so fresh checkouts do not miss tree data or images.
+!public/
+!public/**
+
 # Logs and local scratch files
 *.log
 log.txt
