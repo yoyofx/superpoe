@@ -3,20 +3,44 @@
 DDS Pipeline: zstd decompress + DDS parse + BC1/BC7 decode + WebP export
 Generates sprites for PoB2 web passive tree from game DDS assets.
 """
-import zstandard as zstd
 import struct
 import os
 import sys
 import json
 import re
 from pathlib import Path
-from PIL import Image
-from io import BytesIO
 import subprocess
 import tempfile
 import shutil
 from parse_ddscoords import parse_ddscoords
 from tree_lua_to_json import convert as convert_tree_lua_to_json
+
+Image = None
+zstd = None
+
+
+def ensure_dds_dependencies():
+    """Import optional DDS decoder dependencies only when the old DDS path is used."""
+    global Image, zstd
+    missing = []
+    if Image is None:
+        try:
+            from PIL import Image as pillow_image
+            Image = pillow_image
+        except ImportError:
+            missing.append("Pillow")
+    if zstd is None:
+        try:
+            import zstandard as zstandard_module
+            zstd = zstandard_module
+        except ImportError:
+            missing.append("zstandard")
+    if missing:
+        raise RuntimeError(
+            "Missing Python package(s): "
+            + ", ".join(missing)
+            + ". Install pipeline dependencies with: python -m pip install -r requirements.txt"
+        )
 
 # === BC1 (DXT1) Decoder (Pure Python) ===
 
@@ -249,7 +273,7 @@ class DDSPipeline:
         self.tree_data_dir = Path(tree_data_dir)
         self.output_dir = Path(output_dir) / version
         self.version = version
-        self.dctx = zstd.ZstdDecompressor()
+        self.dctx = None
         self.stats = {'total': 0, 'success': 0, 'failed': 0}
         self.sprite_index = {}  # asset_name -> {file, x, y, w, h}
         self.texconv = _find_texconv()
@@ -263,6 +287,9 @@ class DDSPipeline:
 
         if self._run_spritecoords_pipeline():
             return
+
+        ensure_dds_dependencies()
+        self.dctx = zstd.ZstdDecompressor()
         
         # Step 1: Parse tree.lua ddsCoords
         self.log("Step 1: Parsing ddsCoords from tree.lua...")

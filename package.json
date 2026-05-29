@@ -15,6 +15,7 @@
     "pipeline:ui": "python scripts/copy_ui_assets.py",
     "pipeline:connectors": "python scripts/dds_to_webp.py --connectors-only",
     "pipeline:dds": "python scripts/dds_to_webp.py",
+    "pipeline:check": "python scripts/check_pipeline_deps.py",
     "pipeline:all": "node scripts/run_pipeline_all.mjs"
   },
   "dependencies": {

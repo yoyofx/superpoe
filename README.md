@@ -48,6 +48,16 @@ npm run dev
 npm run build
 ```
 
+新机器初始化资源管线依赖：
+
+```bash
+npm install
+python -m pip install -r requirements.txt
+npm run pipeline:check
+```
+
+资源管线还需要能运行 `luajit`，用于把 `sources/src/TreeData/{version}/tree.lua` 转成 JSON。如果 `luajit` 不在 PATH，可以设置 `LUAJIT_PATH` 指向本机的 `luajit.exe`。旧版 DDS/BC7 资源解码需要 `texconv.exe`；本仓库已包含 `scripts/texconv.exe`，新版 `0_5+` 的 WebP atlas 管线通常不依赖它。
+
 资源和数据管线：
 
 ```bash
@@ -56,6 +66,7 @@ npm run pipeline:orbit
 npm run pipeline:ui
 npm run pipeline:dds
 npm run pipeline:connectors
+npm run pipeline:check
 npm run pipeline:all
 ```
 
