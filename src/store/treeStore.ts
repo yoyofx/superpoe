@@ -481,7 +481,7 @@ interface TreeStore {
 
 
 
-  zoomAt: (cx: number, cy: number, factor: number) => void
+  zoomAt: (cx: number, cy: number, factor: number, viewportW?: number, viewportH?: number) => void
 
 
 
@@ -1319,7 +1319,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-  zoomAt: (cx, cy, factor) => {
+  zoomAt: (cx, cy, factor, viewportW = window.innerWidth, viewportH = window.innerHeight) => {
 
 
 
@@ -1336,6 +1336,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
     const newZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, zoom * factor))
+    const treeX = (cx - viewportW / 2) / zoom - offsetX
+    const treeY = (cy - viewportH / 2) / zoom - offsetY
 
 
 
@@ -1351,7 +1353,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-    const newX = cx - (cx - offsetX) * (newZoom / zoom)
+    const newX = (cx - viewportW / 2) / newZoom - treeX
 
 
 
@@ -1359,7 +1361,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-    const newY = cy - (cy - offsetY) * (newZoom / zoom)
+    const newY = (cy - viewportH / 2) / newZoom - treeY
 
 
 

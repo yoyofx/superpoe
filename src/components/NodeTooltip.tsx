@@ -4,6 +4,10 @@ import { useTreeStore } from '@/store/treeStore'
 const HOVER_OFFSET = 14
 const WIDTH = 340
 const MIN_HEIGHT = 120
+const HEADER_SOURCE_W = 71
+const HEADER_SOURCE_H = 88
+const HEADER_H = 44
+const HEADER_TILE_W = HEADER_SOURCE_W * (HEADER_H / HEADER_SOURCE_H)
 
 function headerPrefix(nodeType: string, ascendancyName?: string): string {
   if (ascendancyName || nodeType === 'AscendClassStart') return 'ascendancypassiveheader'
@@ -44,15 +48,29 @@ export function NodeTooltip() {
       className="fixed z-50 pointer-events-none text-[#d7d2c5] shadow-2xl"
       style={{ left: pos.left, top: pos.top, width: WIDTH }}
     >
-      <div className="relative flex h-[42px] items-center overflow-hidden">
-        <img className="h-[42px] w-[42px] shrink-0" src={`/assets/ui/${prefix}left.png`} alt="" />
+      <div className="relative flex items-center overflow-hidden" style={{ height: HEADER_H }}>
+        <img
+          className="shrink-0"
+          src={`/assets/ui/${prefix}left.png`}
+          alt=""
+          style={{ width: HEADER_TILE_W, height: HEADER_H }}
+        />
         <div
-          className="flex h-[42px] min-w-0 flex-1 items-center justify-center bg-repeat-x px-2 text-center font-serif text-[15px] font-semibold leading-tight text-[#f4e6b8]"
-          style={{ backgroundImage: `url(/assets/ui/${prefix}middle.png)` }}
+          className="flex min-w-0 flex-1 items-center justify-center bg-repeat-x px-2 text-center font-serif text-[15px] font-semibold leading-tight text-[#f4e6b8]"
+          style={{
+            height: HEADER_H,
+            backgroundImage: `url(/assets/ui/${prefix}middle.png)`,
+            backgroundSize: `${HEADER_TILE_W}px ${HEADER_H}px`,
+          }}
         >
           {node.name}
         </div>
-        <img className="h-[42px] w-[42px] shrink-0" src={`/assets/ui/${prefix}right.png`} alt="" />
+        <img
+          className="shrink-0"
+          src={`/assets/ui/${prefix}right.png`}
+          alt=""
+          style={{ width: HEADER_TILE_W, height: HEADER_H }}
+        />
       </div>
 
       <div className="border-x border-b border-[#6a5540] bg-[#070707]/95 px-4 py-3 font-serif text-[13px] leading-snug">

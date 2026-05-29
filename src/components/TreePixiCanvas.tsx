@@ -47,14 +47,15 @@ const ORBIT_SPRITE_NODE_TYPES = new Set(['Notable', 'Keystone', 'ClassStart', 'A
 const CONNECTOR_ALPHA = {
   active: 0.82,
   preview: 0.72,
-  normal: 0.46,
+  normal: 0.56,
 }
 const ASCENDANCY_CONNECTOR_ALPHA = {
   active: 0.72,
   preview: 0.64,
-  normal: 0.38,
+  normal: 0.46,
 }
 const PIXEL_RATIO_CAP = 3
+const HOVER_RADIUS_MULTIPLIER = 1.18
 
 function getRendererResolution(): number {
   if (typeof window === 'undefined') return 1
@@ -178,6 +179,8 @@ export function TreePixiCanvas() {
   const hostRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<Application | null>(null)
   const worldLayerRef = useRef<Container | null>(null)
+  const hoverLayerRef = useRef<Container | null>(null)
+  const nodeRenderCacheRef = useRef<Map<string, { x: number; y: number; radius: number }> | null>(null)
   const renderTokenRef = useRef(0)
   const pendingTextureRenderRef = useRef<number | null>(null)
   const isDragging = useRef(false)
@@ -202,6 +205,7 @@ export function TreePixiCanvas() {
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
   const availableNodes = useTreeStore((s) => s.availableNodes)
+  const previewNodeId = treeEditMode ? hoveredNodeId : null
   const setHoveredNode = useTreeStore((s) => s.setHoveredNode)
   const setSelectedNode = useTreeStore((s) => s.setSelectedNode)
   const setMousePos = useTreeStore((s) => s.setMousePos)
@@ -222,7 +226,7 @@ export function TreePixiCanvas() {
     const app = new Application()
 
     app.init({
-      background: '#080811',
+      background: '#0b0d18',
       antialias: true,
       autoDensity: true,
       resolution: getRendererResolution(),
@@ -339,7 +343,7 @@ export function TreePixiCanvas() {
       const allocationContext = { treeData, selectedClassId, selectedAscendancyId }
       const implicitRoots = getImplicitRootIds(allocationContext)
       const previewPath = treeEditMode
-        ? getPreviewPath(allocationContext, allocatedNodes, nodeWeaponSets, hoveredNodeId, weaponSetMode as AllocMode)
+        ? getPreviewPath(allocationContext, allocatedNodes, nodeWeaponSets, previewNodeId, weaponSetMode as AllocMode)
         : new Set<string>()
 
       const screenLayer = new Container()
@@ -349,10 +353,12 @@ export function TreePixiCanvas() {
       const connectorLayer = new Container()
       const nodeLayer = new Container()
       const overlayLayer = new Container()
+      const hoverLayer = new Container()
       worldLayerRef.current = worldLayer
+      hoverLayerRef.current = hoverLayer
       updateWorldTransform(app, worldLayer, offsetX, offsetY, zoom)
       app.stage.addChild(screenLayer, worldLayer)
-      worldLayer.addChild(backgroundLayer, orbitLayer, connectorLayer, nodeLayer, overlayLayer)
+      worldLayer.addChild(backgroundLayer, orbitLayer, connectorLayer, nodeLayer, overlayLayer, hoverLayer)
 
       const starfield = new Graphics()
       const starSeed = 83791
@@ -377,7 +383,7 @@ export function TreePixiCanvas() {
           const tex = requestSpriteTexture(bgInfo, requestRender)
           if (tex) {
             const sprite = new Sprite(tex)
-            configureSprite(sprite, 0, 0, 2000, 2000, 0.35)
+            configureSprite(sprite, 0, 0, 2000, 2000, 0.48)
             backgroundLayer.addChild(sprite)
           }
         }
@@ -391,7 +397,7 @@ export function TreePixiCanvas() {
             if (tex) {
               const centerScale = selectedAscendancyProjection?.scale ?? 1
               const sprite = new Sprite(tex)
-              configureSprite(sprite, clsData.background.x, clsData.background.y, centerBg.width * centerScale, centerBg.height * centerScale, 0.8)
+              configureSprite(sprite, clsData.background.x, clsData.background.y, centerBg.width * centerScale, centerBg.height * centerScale, 0.92)
               backgroundLayer.addChild(sprite)
             }
           }
@@ -407,7 +413,7 @@ export function TreePixiCanvas() {
             if (!tex) continue
             const sprite = new Sprite(tex)
             const isSelected = cls === clsData && matchesAscendancy(asc, selectedAscendancyId)
-            configureSprite(sprite, bg.x, bg.y, bg.width, bg.height, isSelected ? 0.55 : 0.18)
+            configureSprite(sprite, bg.x, bg.y, bg.width, bg.height, isSelected ? 0.66 : 0.26)
             backgroundLayer.addChild(sprite)
           }
         }
@@ -436,7 +442,7 @@ export function TreePixiCanvas() {
         if (!tex) continue
         const sprite = new Sprite(tex)
         configureSprite(sprite, sx, sy, segWidth, segHeight)
-        if (!isAllocated && !isPreview && !isAvailable) sprite.alpha = 0.72
+        if (!isAllocated && !isPreview && !isAvailable) sprite.alpha = 0.82
         orbitLayer.addChild(sprite)
       }
 
@@ -499,7 +505,6 @@ export function TreePixiCanvas() {
       const searchSet = new Set(searchMatchIds)
       for (const [id, node] of nodeList) {
         const [sx, sy] = nodeScreenCache.get(id)!
-        const isHovered = id === hoveredNodeId
         const isSelected = id === selectedNodeId
         const isSearchMatch = searchSet.has(id)
         const isAllocated = isEffectivelyAllocated(id, allocatedNodes, implicitRoots)
@@ -542,7 +547,7 @@ export function TreePixiCanvas() {
               if (tex) {
                 const [iconW, iconH] = assetHalfSize(node.targetSize, r, r, zoom)
                 const icon = new Sprite(tex)
-                configureSprite(icon, sx, sy, iconW * 2 / zoom, iconH * 2 / zoom, !isAllocated && !isHovered && !isSelected ? 0.55 : 1)
+                configureSprite(icon, sx, sy, iconW * 2 / zoom, iconH * 2 / zoom, !isAllocated && !isSelected ? 0.68 : 1)
                 nodeLayer.addChild(icon)
                 drewSprite = true
               }
@@ -559,7 +564,7 @@ export function TreePixiCanvas() {
               if (tex) {
                 const [frameW, frameH] = assetHalfSize(node.targetSize?.overlay, r * 1.2, r * 1.2, zoom)
                 const frame = new Sprite(tex)
-                configureSprite(frame, sx, sy, frameW * 2 / zoom, frameH * 2 / zoom, !isAllocated && !isHovered && !isSelected && ['ClassStart', 'AscendClassStart'].includes(node.type) ? 0.55 : 1)
+                configureSprite(frame, sx, sy, frameW * 2 / zoom, frameH * 2 / zoom, !isAllocated && !isSelected && ['ClassStart', 'AscendClassStart'].includes(node.type) ? 0.68 : 1)
                 nodeLayer.addChild(frame)
                 drewSprite = true
               }
@@ -575,7 +580,7 @@ export function TreePixiCanvas() {
         }
 
         const overlayGraphics = new Graphics()
-        if (isAllocated && !isSelected && !isHovered) {
+        if (isAllocated && !isSelected) {
           overlayGraphics.circle(sx, sy, sr + 1).stroke({ color: 0xA0D4FF, width: 2 })
         }
         if (isAvailable) {
@@ -585,18 +590,34 @@ export function TreePixiCanvas() {
           overlayGraphics.circle(sx, sy, sr + 1.5).stroke({ color: 0xFFD700, width: 2.5 })
         } else if (isSearchMatch) {
           overlayGraphics.circle(sx, sy, sr + 1).stroke({ color: 0x60A5FA, width: 2 })
-        } else if (isHovered) {
-          overlayGraphics.circle(sx, sy, sr + 1).stroke({ color: 0xffffff, width: 1.5 })
         }
         overlayLayer.addChild(overlayGraphics)
       }
+      nodeRenderCacheRef.current = new Map(nodeList.map(([id, node]) => {
+        const [x, y] = nodeScreenCache.get(id)!
+        return [id, { x, y, radius: NODE_RADIUS[node.type] ?? 6 }]
+      }))
     }
 
     const spriteLoader = getSpriteLoader(treeVersion)
     void spriteLoader.init().then(() => {
       if (token === renderTokenRef.current) render()
     })
-  }, [pixiReady, textureRenderTick, resizeTick, treeData, treeVersion, hoveredNodeId, selectedNodeId, searchMatchIds, treeEditMode, weaponSetMode, nodeWeaponSets, selectedClassId, selectedAscendancyId, allocatedNodes, availableNodes, requestRender])
+  }, [pixiReady, textureRenderTick, resizeTick, treeData, treeVersion, previewNodeId, selectedNodeId, searchMatchIds, treeEditMode, weaponSetMode, nodeWeaponSets, selectedClassId, selectedAscendancyId, allocatedNodes, availableNodes, requestRender])
+
+  useEffect(() => {
+    const hoverLayer = hoverLayerRef.current
+    if (!pixiReady || !hoverLayer) return
+    hoverLayer.removeChildren().forEach((child) => child.destroy({ children: true }))
+    if (!hoveredNodeId) return
+    const hit = nodeRenderCacheRef.current?.get(hoveredNodeId)
+    if (!hit) return
+    const hover = new Graphics()
+    hover
+      .circle(hit.x, hit.y, hit.radius * HOVER_RADIUS_MULTIPLIER)
+      .stroke({ color: 0xffffff, width: 1.6, alpha: 0.95 })
+    hoverLayer.addChild(hover)
+  }, [pixiReady, hoveredNodeId])
 
   useEffect(() => {
     const app = appRef.current
@@ -609,7 +630,7 @@ export function TreePixiCanvas() {
     e.preventDefault()
     const rect = hostRef.current?.getBoundingClientRect()
     if (!rect) return
-    zoomAt(e.clientX - rect.left, e.clientY - rect.top, e.deltaY < 0 ? 1.15 : 0.87)
+    zoomAt(e.clientX - rect.left, e.clientY - rect.top, e.deltaY < 0 ? 1.15 : 0.87, rect.width, rect.height)
   }, [zoomAt])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {

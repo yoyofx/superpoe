@@ -1311,7 +1311,7 @@ export function TreeCanvas() {
 
 
 
-      zoomAt(cx, cy, factor)
+      zoomAt(cx, cy, factor, rect.width, rect.height)
 
 
 
