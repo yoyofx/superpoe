@@ -63,7 +63,7 @@ const ctx = (data: TreeData) => ({ treeData: data, selectedClassId: '6', selecte
 
 describe('passiveAllocation', () => {
   it('auto-allocates the path from the implicit class root', () => {
-    const data = tree({ root: node('root', ['a'], { type: 'ClassStart' }), a: node('a', ['b']), b: node('b', []) })
+    const data = tree({ root: node('root', ['a'], { type: 'ClassStart' }), a: node('a', ['b']), b: node('b', ['c']), c: node('c', []) })
     const result = allocateNode(ctx(data), new Set(), {}, 'b', 0)
     expect([...result.allocatedNodes].sort()).toEqual(['a', 'b'])
     expect(result.availableNodes.size).toBeGreaterThan(0)

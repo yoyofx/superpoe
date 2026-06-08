@@ -422,6 +422,7 @@ export function TreeCanvas() {
 
 
   const toggleNode = useTreeStore((s) => s.toggleNode)
+  const cycleAttributeNode = useTreeStore((s) => s.cycleAttributeNode)
 
   const spriteLoader = getSpriteLoader(treeVersion)
 
@@ -1348,6 +1349,8 @@ export function TreeCanvas() {
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
 
+    if (e.button !== 0) return
+
 
 
     isDragging.current = true
@@ -1538,6 +1541,7 @@ export function TreeCanvas() {
 
 
     (e: React.MouseEvent) => {
+      if (e.button !== 0) return
 
 
 
@@ -1599,6 +1603,16 @@ export function TreeCanvas() {
 
 
 
+  )
+
+  const handleContextMenu = useCallback(
+    (e: React.MouseEvent) => {
+      e.preventDefault()
+      isDragging.current = false
+      if (!treeEditMode || !hoveredNodeId) return
+      cycleAttributeNode(hoveredNodeId)
+    },
+    [cycleAttributeNode, hoveredNodeId, treeEditMode],
   )
 
 
@@ -1716,6 +1730,8 @@ export function TreeCanvas() {
 
 
       onMouseUp={handleMouseUp}
+
+      onContextMenu={handleContextMenu}
 
 
 

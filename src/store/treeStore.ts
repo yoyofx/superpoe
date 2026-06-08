@@ -9,6 +9,7 @@ import { create } from 'zustand'
 import type { TreeData, SavedBuild } from '@/types/tree'
 import {
   cleanAttributeSelections,
+  nextAttributeSelection,
   type NodeAttributeSelections,
 } from '@/engine/attributeNodes'
 import {
@@ -630,6 +631,7 @@ interface TreeStore {
 
 
   toggleNode: (id: string) => void
+  cycleAttributeNode: (id: string) => void
   setTreeEditMode: (enabled: boolean) => void
   setWeaponSetMode: (mode: 0 | 1 | 2) => void
   selectMastery: (nodeId: string, effectId: string) => void
@@ -1806,6 +1808,30 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       availableNodes: next.availableNodes,
       nodeWeaponSets: next.nodeWeaponSets,
       nodeAttributeSelections: nextAttributeSelections,
+      undoStack: [...s.undoStack.slice(-MAX_UNDO + 1), snap],
+      redoStack: [],
+    }))
+  },
+
+  cycleAttributeNode: (id: string) => {
+    const state = get()
+    const ctx = getAllocationContext(state)
+    const node = ctx?.treeData.nodes[id]
+    if (!ctx || !node?.isAttribute || !state.allocatedNodes.has(id)) return
+
+    const nextSelection = nextAttributeSelection(state.nodeAttributeSelections[id])
+    const snap = snapshotFromState(
+      state.allocatedNodes,
+      state.availableNodes,
+      state.nodeWeaponSets,
+      state.nodeAttributeSelections,
+    )
+
+    set((s) => ({
+      nodeAttributeSelections: {
+        ...s.nodeAttributeSelections,
+        [id]: nextSelection,
+      },
       undoStack: [...s.undoStack.slice(-MAX_UNDO + 1), snap],
       redoStack: [],
     }))

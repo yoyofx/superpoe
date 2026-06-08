@@ -214,6 +214,7 @@ export function TreePixiCanvas() {
   const panBy = useTreeStore((s) => s.panBy)
   const zoomAt = useTreeStore((s) => s.zoomAt)
   const toggleNode = useTreeStore((s) => s.toggleNode)
+  const cycleAttributeNode = useTreeStore((s) => s.cycleAttributeNode)
 
   useEffect(() => {
     cameraRef.current = { offsetX, offsetY, zoom }
@@ -637,6 +638,7 @@ export function TreePixiCanvas() {
   }, [zoomAt])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return
     isDragging.current = true
     lastPos.current = { x: e.clientX, y: e.clientY }
   }, [])
@@ -669,6 +671,7 @@ export function TreePixiCanvas() {
   }, [panBy, offsetX, offsetY, zoom, treeData, selectedClassId, selectedAscendancyId, hoveredNodeId, setHoveredNode, setMousePos])
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    if (e.button !== 0) return
     if (isDragging.current) {
       const moved = Math.abs(e.clientX - lastPos.current.x) > 3 || Math.abs(e.clientY - lastPos.current.y) > 3
       isDragging.current = false
@@ -677,6 +680,13 @@ export function TreePixiCanvas() {
     if (hoveredNodeId && treeEditMode) toggleNode(hoveredNodeId)
     setSelectedNode(hoveredNodeId)
   }, [hoveredNodeId, setSelectedNode, toggleNode, treeEditMode])
+
+  const handleContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    isDragging.current = false
+    if (!treeEditMode || !hoveredNodeId) return
+    cycleAttributeNode(hoveredNodeId)
+  }, [cycleAttributeNode, hoveredNodeId, treeEditMode])
 
   const handleMouseLeave = useCallback(() => {
     isDragging.current = false
@@ -691,6 +701,7 @@ export function TreePixiCanvas() {
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
+      onContextMenu={handleContextMenu}
       onMouseLeave={handleMouseLeave}
     />
   )

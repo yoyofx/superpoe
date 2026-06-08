@@ -7,6 +7,12 @@ export function normalizeAttributeSelection(value: unknown): AttributeSelection 
   return value === 1 || value === 2 || value === 3 ? value : null
 }
 
+export function nextAttributeSelection(current?: AttributeSelection): AttributeSelection {
+  if (current === 1) return 2
+  if (current === 2) return 3
+  return 1
+}
+
 export function getAttributeNodeDisplay(
   node: TreeNode,
   selection?: AttributeSelection,
