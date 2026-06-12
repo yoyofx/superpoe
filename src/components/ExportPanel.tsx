@@ -1,34 +1,11 @@
 import { useState, useCallback } from 'react'
 
 import { useTreeStore } from '@/store/treeStore'
-import type { AscendancyClass, TreeData } from '@/types/tree'
+import { useTranslation } from '@/i18n/useTranslation'
+import { encodeBuildCode, getEncodeClassPayload } from '@/engine/buildCode'
 
 interface ExportPanelProps {
   embedded?: boolean
-}
-
-function getEncodeClassPayload(
-  treeData: TreeData | null,
-  selectedClassId: string,
-  selectedAscendancyId: string,
-) {
-  const cls = treeData?.constants.classes[selectedClassId]
-  const ascendancy: AscendancyClass | undefined = cls?.ascendancies.find((asc) => (
-    asc.id === selectedAscendancyId
-    || asc.name === selectedAscendancyId
-    || asc.internalId === selectedAscendancyId
-  ))
-  const ascendancyIndex = cls && ascendancy ? cls.ascendancies.indexOf(ascendancy) : -1
-  return {
-    classId: selectedClassId,
-    ascendClassId: ascendancyIndex >= 0
-      ? String(ascendancyIndex + 1)
-      : selectedAscendancyId,
-    classInternalId: cls?.integerId != null ? String(cls.integerId) : undefined,
-    ascendancyInternalId: ascendancy?.internalId,
-    className: cls?.name || cls?.displayName,
-    ascendancyName: ascendancy?.name || ascendancy?.displayName || ascendancy?.id,
-  }
 }
 
 
@@ -40,6 +17,7 @@ function getEncodeClassPayload(
  */
 
 export function ExportPanel({ embedded = false }: ExportPanelProps) {
+  const { t } = useTranslation()
 
   const [code, setCode] = useState('')
 
@@ -75,43 +53,14 @@ export function ExportPanel({ embedded = false }: ExportPanelProps) {
 
     try {
       const classPayload = getEncodeClassPayload(treeData, selectedClassId, selectedAscendancyId)
-
-      const resp = await fetch('/api/code/encode', {
-
-        method: 'POST',
-
-        headers: { 'Content-Type': 'application/json' },
-
-        body: JSON.stringify({
-
-          nodes: [...allocatedNodes],
-
-          nodeWeaponSets,
-          nodeAttributeSelections,
-
-          treeVersion,
-          classId: classPayload.classId,
-          ascendClassId: classPayload.ascendClassId,
-          classInternalId: classPayload.classInternalId,
-          ascendancyInternalId: classPayload.ascendancyInternalId,
-          className: classPayload.className,
-          ascendancyName: classPayload.ascendancyName,
-
-        }),
-
+      const result = encodeBuildCode({
+        nodes: [...allocatedNodes],
+        nodeWeaponSets,
+        nodeAttributeSelections,
+        treeVersion,
+        ...classPayload,
       })
-
-      const data = await resp.json()
-
-      if (!resp.ok || data.error) {
-
-        setError(data.error || `HTTP ${resp.status}`)
-
-      } else {
-
-        setCode(data.code || '')
-
-      }
+      setCode(result.code || '')
 
     } catch (err: unknown) {
 
@@ -206,7 +155,7 @@ export function ExportPanel({ embedded = false }: ExportPanelProps) {
 
       <div className="flex items-center justify-between mb-2">
 
-        <h3 className="text-xs font-semibold text-gray-300 uppercase">Export</h3>
+        <h3 className="text-xs font-semibold text-gray-300 uppercase">{t('export.title')}</h3>
 
         <span className="text-xs text-gray-500">{nodeCount} nodes</span>
 
@@ -248,7 +197,7 @@ export function ExportPanel({ embedded = false }: ExportPanelProps) {
 
             >
 
-              {copied ? 'Copied!' : 'Copy'}
+              {copied ? t('export.copied') : t('export.copy')}
 
             </button>
 
@@ -260,7 +209,7 @@ export function ExportPanel({ embedded = false }: ExportPanelProps) {
 
             >
 
-              Download
+              {t('export.download')}
 
             </button>
 
@@ -274,7 +223,7 @@ export function ExportPanel({ embedded = false }: ExportPanelProps) {
 
           <p className="text-xs text-gray-500">
 
-            Generate PoB2 import code from allocated nodes
+            {t('export.hint')}
 
           </p>
 
@@ -288,7 +237,7 @@ export function ExportPanel({ embedded = false }: ExportPanelProps) {
 
           >
 
-            {loading ? 'Encoding...' : 'Generate Export Code'}
+            {loading ? t('export.encoding') : t('export.generate')}
 
           </button>
 

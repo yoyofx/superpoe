@@ -6,7 +6,9 @@
 
 当前实现保留 React、Zustand、tooltip、导入导出和资源生成管线，只替换原来的 Canvas 2D 绘制层。旧 `TreeCanvas` 组件暂时保留为 fallback/对照实现，默认入口使用 `TreePixiCanvas`。
 
-PoB2 Web Tree 是一个基于 React + PixiJS/WebGL 2D 的 PoE2 天赋树查看/编辑原型。项目使用 Path of Building 2 的天赋树数据，生成 Web 端可直接使用的数据和贴图资源，并提供天赋盘渲染、缩放/平移、节点交互、构筑导入导出，以及 Fastify/LuaJIT 计算接口。
+PoB2 Web Tree 是一个基于 React + PixiJS/WebGL 2D 的 PoE2 天赋树查看/编辑原型。项目使用 Path of Building 2 的天赋树数据，生成 Web 端可直接使用的数据和贴图资源，并提供天赋盘渲染、缩放/平移、节点交互、构筑导入导出和计算入口。
+
+导入/导出 PoB2 build code 已在前端完成，不需要 Fastify 后端。计算正在迁移到前端 Web Worker + PoB Lua bundle：`public/pob-lua/` 是从 `sources/src` 生成的浏览器只读 Lua 文件包。当前 worker 使用 `wasmoon` Lua 5.4 WASM 加一层 LuaJIT/PoB 兼容补丁运行；这是因为当前 PoB2 上游 Lua 已使用 `goto`，不能直接跑在 PUC Lua 5.1 WASM 上。需要和旧 LuaJIT 后端对照调试时，可以显式设置 `VITE_CALC_BACKEND_FALLBACK=true`。如果后续要求计算结果和桌面 PoB 完全逐位一致，仍建议继续推进 LuaJIT WASM 或专门的 PoB Lua 预处理方案。
 
 ## 数据来源
 
@@ -105,9 +107,12 @@ npm run pipeline:orbit
 npm run pipeline:ui
 npm run pipeline:dds
 npm run pipeline:connectors
+npm run pipeline:lua
 npm run pipeline:check
 npm run pipeline:all
 ```
+
+`npm run pipeline:lua` 会从 `sources/src` 和 `sources/runtime/lua` 生成 `public/pob-lua/`。这个目录供浏览器计算 worker 懒加载，不直接修改 `sources/`。如果上游 PoB2 Lua 文件更新，重新运行该命令即可刷新前端 Lua bundle。
 
 全量更新指定天赋树版本时，使用 `pipeline:all` 并在 `--` 后传版本号。例如未来上游出现 `0_5` 后：
 
@@ -133,17 +138,19 @@ npm run pipeline:all -- 0_5 --dry-run
 
 ```bash
 npm run test:server
+npm run test:client-calc
 npm run test:lua
 ```
 
 ## 项目结构
 
 - `src/`：React UI、Zustand store、PixiJS 天赋树渲染、贴图和连接线渲染工具；旧 Canvas 组件保留为 fallback/对照实现。
-- `server/`：Fastify API，用于校验和计算。
+- `server/`：Fastify API，用于开发期校验和旧 LuaJIT 计算对照；前端正常导入/导出不依赖它。
 - `scripts/`：Python/Lua 预处理脚本和测试辅助脚本。
 - `sources/`：PoB2 上游源码目录，建议用 submodule 管理。
 - `public/assets/`：复制或生成出来的运行时美术资源，浏览器会直接从这里加载。
 - `public/data/`：生成后的 Web 天赋树数据和翻译数据。
+- `public/pob-lua/`：从 PoB2 `sources/src` 生成的前端 Lua 运行时资源包，供计算 worker 懒加载。
 - `docs/`：研究记录、渲染分析和任务历史。
 
 ## 说明

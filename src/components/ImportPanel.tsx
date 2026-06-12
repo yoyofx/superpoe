@@ -1,8 +1,7 @@
 import { useState } from 'react'
-import { inflate } from 'pako'
-
-import { decodeBuildCodeXml, parseAttributeSelectionsFromXml } from '@/engine/attributeNodes'
 import { useTreeStore } from '@/store/treeStore'
+import { useTranslation } from '@/i18n/useTranslation'
+import { decodeBuildCode } from '@/engine/buildCode'
 
 interface ImportPanelProps {
   embedded?: boolean
@@ -16,11 +15,12 @@ interface ImportPanelProps {
 
  *
 
- * 输入 PoB2 的 export code → POST /api/build/decode → 高亮已分配节点
+ * 输入 PoB2 的 export code -> 前端解码 -> 高亮已分配节点
 
  */
 
 export function ImportPanel({ embedded = false }: ImportPanelProps) {
+  const { t } = useTranslation()
 
   const [code, setCode] = useState('')
 
@@ -61,57 +61,9 @@ export function ImportPanel({ embedded = false }: ImportPanelProps) {
 
 
     try {
-
-      const resp = await fetch('/api/build/decode', {
-
-        method: 'POST',
-
-        headers: { 'Content-Type': 'application/json' },
-
-        body: JSON.stringify({ code: trimmed }),
-
-      })
-
-
-
-      const text = await resp.text()
-      let data: {
-        error?: string
-        nodes?: string[]
-        nodeWeaponSets?: Record<string, 1 | 2>
-        nodeAttributeSelections?: Record<string, 1 | 2 | 3>
-        treeVersion?: string
-        classId?: string
-        ascendClassId?: string
-        classInternalId?: string
-        ascendancyInternalId?: string
-      } = {}
-      if (text) {
-        try {
-          data = JSON.parse(text)
-        } catch {
-          data = { error: `Import API returned a non-JSON response: HTTP ${resp.status}` }
-        }
-      }
-
-
-
-      if (!resp.ok || data.error) {
-
-        setError(data.error || `Import API returned an empty response: HTTP ${resp.status}`)
-
-        setLoading(false)
-
-        return
-
-      }
-
-
-
+      const data = decodeBuildCode(trimmed)
       const nodeIds: string[] = data.nodes || []
-      const nodeAttributeSelections = Object.keys(data.nodeAttributeSelections || {}).length > 0
-        ? data.nodeAttributeSelections || {}
-        : parseAttributeSelectionsFromXml(decodeBuildCodeXml(trimmed, inflate))
+      const nodeAttributeSelections = data.nodeAttributeSelections || {}
 
       if (nodeIds.length > 0) {
 
@@ -187,7 +139,7 @@ export function ImportPanel({ embedded = false }: ImportPanelProps) {
 
       <div className="flex items-center justify-between mb-2">
 
-        <h3 className="text-sm font-semibold text-gray-300">Import PoB2 Build Code</h3>
+        <h3 className="text-sm font-semibold text-gray-300">{t('import.title')}</h3>
 
         <button
 
@@ -197,7 +149,7 @@ export function ImportPanel({ embedded = false }: ImportPanelProps) {
 
         >
 
-          Clear
+          {t('import.clear')}
 
         </button>
 
@@ -221,7 +173,7 @@ export function ImportPanel({ embedded = false }: ImportPanelProps) {
 
         onKeyDown={handleKeyDown}
 
-        placeholder="Paste PoB2 export code..."
+        placeholder={t('import.placeholder')}
 
         rows={3}
 
@@ -243,7 +195,7 @@ export function ImportPanel({ embedded = false }: ImportPanelProps) {
 
         >
 
-          {loading ? 'Decoding...' : 'Import'}
+          {loading ? t('import.decoding') : t('import.button')}
 
         </button>
 
@@ -253,7 +205,7 @@ export function ImportPanel({ embedded = false }: ImportPanelProps) {
 
           <span className="text-xs text-green-400">
 
-            {result.nodeCount} nodes loaded
+            {t('import.nodesLoaded', { count: result.nodeCount })}
 
           </span>
 

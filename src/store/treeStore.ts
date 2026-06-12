@@ -7,6 +7,9 @@ import { create } from 'zustand'
 
 
 import type { TreeData, SavedBuild } from '@/types/tree'
+import { getLocalizedSearchText, loadTranslations, type Language } from '@/i18n/translationLoader'
+import { encodeBuildCode, getEncodeClassPayload } from '@/engine/buildCode'
+import { calculateBuild } from '@/engine/pobLuaClient'
 import {
   cleanAttributeSelections,
   nextAttributeSelection,
@@ -33,6 +36,8 @@ export const DEFAULT_ZOOM = 0.2
 export const MAX_ZOOM = 0.5
 export const FALLBACK_TREE_VERSIONS = ['0_5', '0_4', '0_3', '0_2', '0_1']
 export const DEFAULT_TREE_VERSION = FALLBACK_TREE_VERSIONS[0]
+const DEFAULT_LANGUAGE: Language = 'en'
+const LANGUAGE_STORAGE_KEY = 'pob2-language'
 
 let treeVersionsPromise: Promise<string[]> | null = null
 
@@ -144,29 +149,10 @@ function findAscendancyId(
   )) || classData.ascendancies[0]
   return ascendancy?.id || ascendancy?.name || ''
 }
-
-function getEncodeClassPayload(
-  treeData: TreeData | undefined,
-  selectedClassId: string,
-  selectedAscendancyId: string,
-) {
-  const cls = treeData?.constants.classes[selectedClassId]
-  const ascendancy = cls?.ascendancies.find((asc) => (
-    asc.id === selectedAscendancyId
-    || asc.name === selectedAscendancyId
-    || asc.internalId === selectedAscendancyId
-  ))
-  const ascendancyIndex = cls && ascendancy ? cls.ascendancies.indexOf(ascendancy) : -1
-  return {
-    classId: selectedClassId,
-    ascendClassId: ascendancyIndex >= 0
-      ? String(ascendancyIndex + 1)
-      : selectedAscendancyId,
-    classInternalId: cls?.integerId != null ? String(cls.integerId) : undefined,
-    ascendancyInternalId: ascendancy?.internalId,
-    className: cls?.name || cls?.displayName,
-    ascendancyName: ascendancy?.name || ascendancy?.displayName || ascendancy?.id,
-  }
+function getInitialLanguage(): Language {
+  if (typeof localStorage === 'undefined') return DEFAULT_LANGUAGE
+  const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY)
+  return saved === 'zh-rCN' || saved === 'en' ? saved : DEFAULT_LANGUAGE
 }
 
 // ============================================================
@@ -226,6 +212,8 @@ interface TreeStore {
 
 
   treeVersion: string
+  language: Language
+  translationRevision: number
 
 
 
@@ -581,6 +569,7 @@ interface TreeStore {
 
 
   setSearchQuery: (q: string) => void
+  setLanguage: (language: Language) => void
 
 
 
@@ -815,6 +804,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
   treeVersion: DEFAULT_TREE_VERSION,
+  language: getInitialLanguage(),
+  translationRevision: 0,
 
 
 
@@ -1529,6 +1520,19 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
+  setLanguage: (language) => {
+    try {
+      localStorage.setItem(LANGUAGE_STORAGE_KEY, language)
+    } catch {
+      // Ignore storage failures in private mode or restricted environments.
+    }
+    set({ language })
+    void loadTranslations(language).finally(() => {
+      set((state) => ({ translationRevision: state.translationRevision + 1 }))
+      get().performSearch(get().searchQuery)
+    })
+  },
+
   performSearch: (q) => {
 
 
@@ -1537,7 +1541,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-    const { treeData } = get()
+    const { treeData, language } = get()
 
 
 
@@ -1601,12 +1605,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      const haystack = [
-        id,
-        node.name,
-        node.type,
-        ...(node.stats || []),
-      ].join('\n').toLowerCase()
+      const haystack = `${id}\n${node.type}\n${getLocalizedSearchText(node, language)}`
 
       if (haystack.includes(lower)) {
 
@@ -2077,118 +2076,14 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      // Step 1: Encode nodes via /api/code/encode
-
-
-
-
-
-
-
-      const encodeResp = await fetch('/api/code/encode', {
-
-
-
-
-
-
-
-        method: 'POST',
-
-
-
-
-
-
-
-        headers: { 'Content-Type': 'application/json' },
-
-
-
-
-
-
-
-        body: JSON.stringify({
-
-
-
-
-
-
-
-          nodes: [...allocatedNodes],
-          nodeWeaponSets,
-          nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
-          baseCode: get().importedBuildCode || undefined,
-
-
-
-
-
-
-
-          treeVersion,
-          classId: classPayload.classId,
-          ascendClassId: classPayload.ascendClassId,
-          classInternalId: classPayload.classInternalId,
-          ascendancyInternalId: classPayload.ascendancyInternalId,
-          className: classPayload.className,
-          ascendancyName: classPayload.ascendancyName,
-
-
-
-
-
-
-
-        }),
-
-
-
-
-
-
-
+      const encodeData = encodeBuildCode({
+        nodes: [...allocatedNodes],
+        nodeWeaponSets,
+        nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
+        baseCode: get().importedBuildCode || undefined,
+        treeVersion,
+        ...classPayload,
       })
-
-
-
-
-
-
-
-      const encodeData = await encodeResp.json()
-
-
-
-
-
-
-
-      if (!encodeResp.ok || encodeData.error) {
-
-
-
-
-
-
-
-        throw new Error(encodeData.error || `Encode failed: HTTP ${encodeResp.status}`)
-
-
-
-
-
-
-
-      }
-
-
-
-
-
-
 
       const code = encodeData.code || ''
 
@@ -2230,78 +2125,10 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      // Step 2: Calculate via /api/build/calculate
+      const calcData: CalcApiResponse = await calculateBuild({ code, xml: encodeData.xml })
 
-
-
-
-
-
-
-      const calcResp = await fetch('/api/build/calculate', {
-
-
-
-
-
-
-
-        method: 'POST',
-
-
-
-
-
-
-
-        headers: { 'Content-Type': 'application/json' },
-
-
-
-
-
-
-
-        body: JSON.stringify({ code }),
-
-
-
-
-
-
-
-      })
-
-
-
-
-
-
-
-      const calcData: CalcApiResponse = await calcResp.json()
-
-
-
-
-
-
-
-      if (!calcResp.ok || !calcData.success || calcData.error) {
-
-
-
-
-
-
-
-        throw new Error(calcData.error || `Calculate failed: HTTP ${calcResp.status}`)
-
-
-
-
-
-
-
+      if (!calcData.success || calcData.error) {
+        throw new Error(calcData.error || 'Calculate failed')
       }
 
 

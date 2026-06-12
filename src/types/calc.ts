@@ -1,4 +1,4 @@
-/** Phase 6-7: Calculation result from LuaJIT backend */
+/** Calculation result returned by the front-end PoB Lua worker or dev fallback backend. */
 export interface CalcResult {
   // Attributes
   Str: number
@@ -56,7 +56,7 @@ export interface CalcResult {
   SkillDPS?: Array<{ name: string; dps: number; count: number; trigger?: string; skillPart?: string }>
 }
 
-/** API response from POST /api/build/calculate or /api/build/import-and-calc */
+/** Calculation response shape shared by the front-end worker and legacy backend. */
 export interface CalcApiResponse {
   success: boolean
   data?: CalcResult
