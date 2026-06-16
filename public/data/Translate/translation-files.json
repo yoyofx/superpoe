@@ -1,0 +1,40 @@
+{
+  "ko-KR": [
+    "GUI.csv",
+    "TreeTab.csv",
+    "Unsorted.csv",
+    "passiveTree.csv",
+    "statDescriptions.csv",
+    "superpoe_tree_supplement.csv",
+    "tree_dn.csv",
+    "tree_rt.csv",
+    "tree_sd.csv"
+  ],
+  "zh-rCN": [
+    "Data.csv",
+    "GUI.csv",
+    "PassiveTreeView.csv",
+    "Query_Mod.csv",
+    "Tree.csv",
+    "TreeTab.csv",
+    "Unsorted.csv",
+    "Z.csv",
+    "passiveTree.csv",
+    "statDescriptions.csv",
+    "superpoe_tree_supplement.csv",
+    "tree_dn.csv",
+    "tree_rt.csv",
+    "tree_sd.csv"
+  ],
+  "zh-rTW": [
+    "GUI.csv",
+    "Query_Mod.csv",
+    "Z.csv",
+    "passiveTree.csv",
+    "statDescriptions.csv",
+    "superpoe_tree_supplement.csv",
+    "tree_dn.csv",
+    "tree_rt.csv",
+    "tree_sd.csv"
+  ]
+}

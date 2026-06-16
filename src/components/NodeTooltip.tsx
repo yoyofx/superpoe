@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import { getAttributeNodeDisplay } from '@/engine/attributeNodes'
+import { getLocalizedNodeDisplay } from '@/i18n/translationLoader'
 import { useTreeStore } from '@/store/treeStore'
 
 const HOVER_OFFSET = 14
@@ -33,6 +34,8 @@ export function NodeTooltip() {
   const mouseX = useTreeStore((s) => s.mouseX)
   const mouseY = useTreeStore((s) => s.mouseY)
   const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
+  const language = useTreeStore((s) => s.language)
+  useTreeStore((s) => s.translationRevision)
 
   const pos = useMemo(() => clampTooltip(mouseX, mouseY), [mouseX, mouseY])
 
@@ -40,11 +43,13 @@ export function NodeTooltip() {
   const node = treeData.nodes[hoveredNodeId]
   if (!node) return null
   const displayNode = getAttributeNodeDisplay(node, nodeAttributeSelections[hoveredNodeId])
+  const localizedNode = getLocalizedNodeDisplay(
+    { ...node, name: displayNode.name, stats: displayNode.stats },
+    language,
+  )
 
   const prefix = headerPrefix(node.type, node.ascendancyName)
-  const flavourLines = Array.isArray(node.flavourText)
-    ? node.flavourText
-    : node.flavourText ? [node.flavourText] : []
+  const flavourLines = localizedNode.flavourText || []
 
   return (
     <div
@@ -66,7 +71,7 @@ export function NodeTooltip() {
             backgroundSize: `${HEADER_TILE_W}px ${HEADER_H}px`,
           }}
         >
-          {displayNode.name}
+          {localizedNode.name}
         </div>
         <img
           className="shrink-0"
@@ -77,9 +82,9 @@ export function NodeTooltip() {
       </div>
 
       <div className="border-x border-b border-[#6a5540] bg-[#070707]/95 px-4 py-3 font-serif text-[13px] leading-snug">
-        {displayNode.stats?.length ? (
+        {localizedNode.stats?.length ? (
           <div className="space-y-1 text-[#c8c4ba]">
-            {displayNode.stats.map((stat, i) => <div key={i}>{stat}</div>)}
+            {localizedNode.stats.map((stat, i) => <div key={i}>{stat}</div>)}
           </div>
         ) : null}
 

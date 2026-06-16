@@ -1,76 +1,10 @@
 import { useCallback } from 'react'
 import { useTreeStore } from '@/store/treeStore'
+import type { Language } from '@/i18n/translationLoader'
 
-// ---- Translation tables ----
-type Lang = 'en' | 'zh'
+type Translations = Record<string, string>
 
-interface Translations {
-  'toolbar.search': string
-  'toolbar.calc': string
-  'toolbar.calculating': string
-  'toolbar.class': string
-  'toolbar.ascendancy': string
-  'toolbar.version': string
-  'toolbar.weaponSet': string
-  'toolbar.zoomIn': string
-  'toolbar.zoomOut': string
-  'toolbar.zoomReset': string
-  'import.title': string
-  'import.placeholder': string
-  'import.button': string
-  'import.decoding': string
-  'import.nodesLoaded': string
-  'export.title': string
-  'export.generate': string
-  'export.encoding': string
-  'export.copied': string
-  'export.copy': string
-  'export.download': string
-  'export.hint': string
-  'save.title': string
-  'save.name': string
-  'save.save': string
-  'save.load': string
-  'save.delete': string
-  'save.export': string
-  'save.import': string
-  'save.share': string
-  'save.shared': string
-  'save.empty': string
-  'stats.attributes': string
-  'stats.offence': string
-  'stats.defence': string
-  'stats.charges': string
-  'stats.skills': string
-  'stats.calculating': string
-  'stats.error': string
-  'stats.empty': string
-  'stats.str': string
-  'stats.dex': string
-  'stats.int': string
-  'stats.life': string
-  'stats.es': string
-  'stats.mana': string
-  'stats.level': string
-  'stats.class': string
-  'stats.ascendancy': string
-  'node.type.normal': string
-  'node.type.notable': string
-  'node.type.keystone': string
-  'node.type.jewel': string
-  'node.type.ascendancy': string
-  'node.type.classStart': string
-  'node.type.mastery': string
-  'sidebar.title': string
-  'sidebar.noNode': string
-  'sidebar.stats': string
-  'sidebar.effects': string
-  'sidebar.reminder': string
-  'loading': string
-  'error.prefix': string
-}
-
-const strings: Record<Lang, Translations> = {
+const strings: Record<Language, Translations> = {
   en: {
     'toolbar.search': 'Search nodes...',
     'toolbar.calc': 'Calc',
@@ -82,11 +16,29 @@ const strings: Record<Lang, Translations> = {
     'toolbar.zoomIn': 'Zoom in',
     'toolbar.zoomOut': 'Zoom out',
     'toolbar.zoomReset': 'Reset zoom',
+    'toolbar.zoomFit': 'Fit whole passive tree',
+    'toolbar.fit': 'Fit',
+    'toolbar.edit': 'Edit',
+    'toolbar.both': 'Both',
+    'toolbar.set1': 'Set1',
+    'toolbar.set2': 'Set2',
+    'toolbar.export': 'Export',
+    'toolbar.import': 'Import',
+    'toolbar.builds': 'Builds',
+    'toolbar.exportTitle': 'Export PoB2 build code',
+    'toolbar.importTitle': 'Import PoB2 build code',
+    'toolbar.buildsTitle': 'Save and load builds',
+    'toolbar.calcTitle': 'Calculate build stats',
+    'toolbar.calcDisabledTitle': 'Allocate nodes to calculate',
+    'toolbar.language': 'Language',
+    'toolbar.english': 'EN',
+    'toolbar.chinese': '中文',
     'import.title': 'Import Build',
     'import.placeholder': 'Paste PoB2 export code...',
     'import.button': 'Import',
     'import.decoding': 'Decoding...',
-    'import.nodesLoaded': 'nodes loaded',
+    'import.clear': 'Clear',
+    'import.nodesLoaded': '{count} nodes loaded',
     'export.title': 'Export Code',
     'export.generate': 'Generate Export Code',
     'export.encoding': 'Encoding...',
@@ -104,6 +56,9 @@ const strings: Record<Lang, Translations> = {
     'save.share': 'Share',
     'save.shared': 'Copied!',
     'save.empty': 'No saved builds yet. Save one above or import a .json file.',
+    'save.invalidFile': 'Invalid build file',
+    'save.downloadTitle': 'Download current build as .json',
+    'save.importTitle': 'Import a previously exported .json build',
     'stats.attributes': 'Attributes',
     'stats.offence': 'Offence',
     'stats.defence': 'Defence',
@@ -121,6 +76,30 @@ const strings: Record<Lang, Translations> = {
     'stats.level': 'Level',
     'stats.class': 'Class',
     'stats.ascendancy': 'Ascendancy',
+    'stats.totalDps': 'Total DPS',
+    'stats.fullDps': 'Full DPS',
+    'stats.fullDotDps': 'Full DoT DPS',
+    'stats.averageHit': 'Average Hit',
+    'stats.speed': 'Speed',
+    'stats.critChance': 'Crit Chance',
+    'stats.critMultiplier': 'Crit Multiplier',
+    'stats.armour': 'Armour',
+    'stats.evasion': 'Evasion',
+    'stats.block': 'Block',
+    'stats.spellBlock': 'Spell Block',
+    'stats.fireResist': 'Fire Resist',
+    'stats.coldResist': 'Cold Resist',
+    'stats.lightningResist': 'Lightning Resist',
+    'stats.chaosResist': 'Chaos Resist',
+    'stats.lifeRegen': 'Life Regen',
+    'stats.manaRegen': 'Mana Regen',
+    'stats.esRegen': 'ES Regen',
+    'stats.movementSpeed': 'Movement Speed',
+    'stats.actionSpeed': 'Action Speed',
+    'stats.ward': 'Ward',
+    'stats.powerCharges': 'Power Charges',
+    'stats.frenzyCharges': 'Frenzy Charges',
+    'stats.enduranceCharges': 'Endurance Charges',
     'node.type.normal': 'Normal',
     'node.type.notable': 'Notable',
     'node.type.keystone': 'Keystone',
@@ -128,92 +107,358 @@ const strings: Record<Lang, Translations> = {
     'node.type.ascendancy': 'Ascendancy',
     'node.type.classStart': 'Class Start',
     'node.type.mastery': 'Mastery',
-    'sidebar.title': 'Node Details',
-    'sidebar.noNode': 'Click a node to view details',
     'sidebar.stats': 'Stats',
-    'sidebar.effects': 'Effects',
-    'sidebar.reminder': 'Reminder',
-    'loading': 'Loading passive tree...',
+    'sidebar.connections': 'Connections',
+    'sidebar.position': 'Position',
+    'sidebar.flavourText': 'Flavour Text',
+    loading: 'Loading passive tree...',
     'error.prefix': 'Error',
   },
-  zh: {
-    'toolbar.search': '�����ڵ�...',
-    'toolbar.calc': '����',
+  'zh-rCN': {
+    'toolbar.search': '搜索节点...',
+    'toolbar.calc': '计算',
     'toolbar.calculating': '...',
-    'toolbar.class': 'ѡ��ְҵ',
-    'toolbar.ascendancy': 'ѡ������',
-    'toolbar.version': '�츳�汾',
-    'toolbar.weaponSet': '������',
-    'toolbar.zoomIn': '�Ŵ�',
-    'toolbar.zoomOut': '��С',
-    'toolbar.zoomReset': '��������',
-    'import.title': '������װ',
-    'import.placeholder': 'ճ�� PoB2 ��������...',
-    'import.button': '����',
-    'import.decoding': '������...',
-    'import.nodesLoaded': '���ڵ��Ѽ���',
-    'export.title': '��������',
-    'export.generate': '���ɵ�������',
-    'export.encoding': '������...',
-    'export.copied': '�Ѹ���!',
-    'export.copy': '����',
-    'export.download': '����',
-    'export.hint': '���ѷ���ڵ����� PoB2 �������',
-    'save.title': '�ѱ�����װ',
-    'save.name': '��װ����...',
-    'save.save': '����',
-    'save.load': '����',
-    'save.delete': 'ɾ',
-    'save.export': '���� .json',
-    'save.import': '���� .json',
-    'save.share': '����',
-    'save.shared': '�Ѹ���!',
-    'save.empty': '���ޱ������װ�����Ϸ�������� .json �ļ���',
-    'stats.attributes': '����',
-    'stats.offence': '����',
-    'stats.defence': '����',
-    'stats.charges': '������',
-    'stats.skills': '����',
-    'stats.calculating': '������...',
-    'stats.error': '�������',
-    'stats.empty': '��δ����',
-    'stats.str': '����',
-    'stats.dex': '����',
-    'stats.int': '�ǻ�',
-    'stats.life': '����',
-    'stats.es': '��������',
-    'stats.mana': 'ħ��',
-    'stats.level': '�ȼ�',
-    'stats.class': 'ְҵ',
-    'stats.ascendancy': '����',
-    'node.type.normal': '��ͨ',
-    'node.type.notable': '����',
-    'node.type.keystone': '��ʯ',
-    'node.type.jewel': '�鱦��',
-    'node.type.ascendancy': '����',
-    'node.type.classStart': 'ְҵ���',
-    'node.type.mastery': '��ͨ',
-    'sidebar.title': '�ڵ�����',
-    'sidebar.noNode': '����ڵ�鿴����',
-    'sidebar.stats': '����',
-    'sidebar.effects': 'Ч��',
-    'sidebar.reminder': '��ʾ',
-    'loading': '�����츳����...',
-    'error.prefix': '����',
+    'toolbar.class': '选择职业',
+    'toolbar.ascendancy': '选择升华',
+    'toolbar.version': '天赋版本',
+    'toolbar.weaponSet': '武器组',
+    'toolbar.zoomIn': '放大',
+    'toolbar.zoomOut': '缩小',
+    'toolbar.zoomReset': '重置缩放',
+    'toolbar.zoomFit': '适配整棵天赋树',
+    'toolbar.fit': '适配',
+    'toolbar.edit': '编辑',
+    'toolbar.both': '全部',
+    'toolbar.set1': '套装1',
+    'toolbar.set2': '套装2',
+    'toolbar.export': '导出',
+    'toolbar.import': '导入',
+    'toolbar.builds': '构筑',
+    'toolbar.exportTitle': '导出 PoB2 构筑代码',
+    'toolbar.importTitle': '导入 PoB2 构筑代码',
+    'toolbar.buildsTitle': '保存和读取构筑',
+    'toolbar.calcTitle': '计算构筑属性',
+    'toolbar.calcDisabledTitle': '分配节点后才能计算',
+    'toolbar.language': '语言',
+    'toolbar.english': 'EN',
+    'toolbar.chinese': '中文',
+    'import.title': '导入构筑',
+    'import.placeholder': '粘贴 PoB2 导出代码...',
+    'import.button': '导入',
+    'import.decoding': '解码中...',
+    'import.clear': '清空',
+    'import.nodesLoaded': '已载入 {count} 个节点',
+    'export.title': '导出代码',
+    'export.generate': '生成导出代码',
+    'export.encoding': '编码中...',
+    'export.copied': '已复制!',
+    'export.copy': '复制',
+    'export.download': '下载',
+    'export.hint': '根据已分配节点生成 PoB2 导入代码',
+    'save.title': '已保存构筑',
+    'save.name': '构筑名称...',
+    'save.save': '保存',
+    'save.load': '读取',
+    'save.delete': '删',
+    'save.export': '导出 .json',
+    'save.import': '导入 .json',
+    'save.share': '分享',
+    'save.shared': '已复制!',
+    'save.empty': '还没有保存的构筑。可先保存一个，或导入 .json 文件。',
+    'save.invalidFile': '无效的构筑文件',
+    'save.downloadTitle': '将当前构筑下载为 .json',
+    'save.importTitle': '导入之前导出的 .json 构筑',
+    'stats.attributes': '属性',
+    'stats.offence': '攻击',
+    'stats.defence': '防御',
+    'stats.charges': '充能',
+    'stats.skills': '技能',
+    'stats.calculating': '计算中...',
+    'stats.error': '计算错误',
+    'stats.empty': '尚未计算',
+    'stats.str': '力量',
+    'stats.dex': '敏捷',
+    'stats.int': '智慧',
+    'stats.life': '生命',
+    'stats.es': '能量护盾',
+    'stats.mana': '魔力',
+    'stats.level': '等级',
+    'stats.class': '职业',
+    'stats.ascendancy': '升华',
+    'stats.totalDps': '总 DPS',
+    'stats.fullDps': '完整 DPS',
+    'stats.fullDotDps': '持续伤害 DPS',
+    'stats.averageHit': '平均击中',
+    'stats.speed': '速度',
+    'stats.critChance': '暴击率',
+    'stats.critMultiplier': '暴击倍率',
+    'stats.armour': '护甲',
+    'stats.evasion': '闪避',
+    'stats.block': '格挡',
+    'stats.spellBlock': '法术格挡',
+    'stats.fireResist': '火焰抗性',
+    'stats.coldResist': '冰霜抗性',
+    'stats.lightningResist': '闪电抗性',
+    'stats.chaosResist': '混沌抗性',
+    'stats.lifeRegen': '生命回复',
+    'stats.manaRegen': '魔力回复',
+    'stats.esRegen': '护盾回复',
+    'stats.movementSpeed': '移动速度',
+    'stats.actionSpeed': '动作速度',
+    'stats.ward': '结界',
+    'stats.powerCharges': '暴击球',
+    'stats.frenzyCharges': '狂怒球',
+    'stats.enduranceCharges': '耐力球',
+    'node.type.normal': '普通',
+    'node.type.notable': '核心',
+    'node.type.keystone': '关键天赋',
+    'node.type.jewel': '珠宝插槽',
+    'node.type.ascendancy': '升华',
+    'node.type.classStart': '职业起点',
+    'node.type.mastery': '专精',
+    'sidebar.stats': '属性',
+    'sidebar.connections': '连接',
+    'sidebar.position': '位置',
+    'sidebar.flavourText': '背景文本',
+    loading: '正在加载天赋树...',
+    'error.prefix': '错误',
+  },
+  'zh-rTW': {
+    'toolbar.search': '搜尋節點...',
+    'toolbar.calc': '計算',
+    'toolbar.calculating': '...',
+    'toolbar.class': '選擇職業',
+    'toolbar.ascendancy': '選擇昇華',
+    'toolbar.version': '天賦版本',
+    'toolbar.weaponSet': '武器組',
+    'toolbar.zoomIn': '放大',
+    'toolbar.zoomOut': '縮小',
+    'toolbar.zoomReset': '重設縮放',
+    'toolbar.zoomFit': '符合整棵天賦樹',
+    'toolbar.fit': '符合',
+    'toolbar.edit': '編輯',
+    'toolbar.both': '全部',
+    'toolbar.set1': '套裝1',
+    'toolbar.set2': '套裝2',
+    'toolbar.export': '匯出',
+    'toolbar.import': '匯入',
+    'toolbar.builds': '構築',
+    'toolbar.exportTitle': '匯出 PoB2 構築代碼',
+    'toolbar.importTitle': '匯入 PoB2 構築代碼',
+    'toolbar.buildsTitle': '儲存和讀取構築',
+    'toolbar.calcTitle': '計算構築屬性',
+    'toolbar.calcDisabledTitle': '配置節點後才能計算',
+    'toolbar.language': '語言',
+    'toolbar.english': 'English',
+    'toolbar.chinese': '中文',
+    'import.title': '匯入構築',
+    'import.placeholder': '貼上 PoB2 匯出代碼...',
+    'import.button': '匯入',
+    'import.decoding': '解碼中...',
+    'import.clear': '清除',
+    'import.nodesLoaded': '已載入 {count} 個節點',
+    'export.title': '匯出代碼',
+    'export.generate': '產生匯出代碼',
+    'export.encoding': '編碼中...',
+    'export.copied': '已複製!',
+    'export.copy': '複製',
+    'export.download': '下載',
+    'export.hint': '根據已配置節點產生 PoB2 匯入代碼',
+    'save.title': '已儲存構築',
+    'save.name': '構築名稱...',
+    'save.save': '儲存',
+    'save.load': '讀取',
+    'save.delete': '刪除',
+    'save.export': '匯出 .json',
+    'save.import': '匯入 .json',
+    'save.share': '分享',
+    'save.shared': '已複製!',
+    'save.empty': '還沒有儲存的構築。可先儲存一個，或匯入 .json 檔案。',
+    'save.invalidFile': '無效的構築檔案',
+    'save.downloadTitle': '將目前構築下載為 .json',
+    'save.importTitle': '匯入之前匯出的 .json 構築',
+    'stats.attributes': '屬性',
+    'stats.offence': '攻擊',
+    'stats.defence': '防禦',
+    'stats.charges': '充能',
+    'stats.skills': '技能',
+    'stats.calculating': '計算中...',
+    'stats.error': '計算錯誤',
+    'stats.empty': '尚未計算',
+    'stats.str': '力量',
+    'stats.dex': '敏捷',
+    'stats.int': '智慧',
+    'stats.life': '生命',
+    'stats.es': '能量護盾',
+    'stats.mana': '魔力',
+    'stats.level': '等級',
+    'stats.class': '職業',
+    'stats.ascendancy': '昇華',
+    'stats.totalDps': '總 DPS',
+    'stats.fullDps': '完整 DPS',
+    'stats.fullDotDps': '持續傷害 DPS',
+    'stats.averageHit': '平均擊中',
+    'stats.speed': '速度',
+    'stats.critChance': '暴擊率',
+    'stats.critMultiplier': '暴擊加成',
+    'stats.armour': '護甲',
+    'stats.evasion': '閃避',
+    'stats.block': '格擋',
+    'stats.spellBlock': '法術格擋',
+    'stats.fireResist': '火焰抗性',
+    'stats.coldResist': '冰霜抗性',
+    'stats.lightningResist': '閃電抗性',
+    'stats.chaosResist': '混沌抗性',
+    'stats.lifeRegen': '生命回復',
+    'stats.manaRegen': '魔力回復',
+    'stats.esRegen': '護盾回復',
+    'stats.movementSpeed': '移動速度',
+    'stats.actionSpeed': '動作速度',
+    'stats.ward': '結界',
+    'stats.powerCharges': '暴擊球',
+    'stats.frenzyCharges': '狂怒球',
+    'stats.enduranceCharges': '耐力球',
+    'node.type.normal': '普通',
+    'node.type.notable': '核心',
+    'node.type.keystone': '關鍵天賦',
+    'node.type.jewel': '珠寶插槽',
+    'node.type.ascendancy': '昇華',
+    'node.type.classStart': '職業起點',
+    'node.type.mastery': '專精',
+    'sidebar.stats': '屬性',
+    'sidebar.connections': '連線',
+    'sidebar.position': '位置',
+    'sidebar.flavourText': '背景文字',
+    loading: '正在載入天賦樹...',
+    'error.prefix': '錯誤',
+  },
+  'ko-KR': {
+    'toolbar.search': '노드 검색...',
+    'toolbar.calc': '계산',
+    'toolbar.calculating': '...',
+    'toolbar.class': '직업 선택',
+    'toolbar.ascendancy': '전직 선택',
+    'toolbar.version': '패시브 트리 버전',
+    'toolbar.weaponSet': '무기 세트',
+    'toolbar.zoomIn': '확대',
+    'toolbar.zoomOut': '축소',
+    'toolbar.zoomReset': '확대/축소 초기화',
+    'toolbar.zoomFit': '전체 패시브 트리에 맞춤',
+    'toolbar.fit': '맞춤',
+    'toolbar.edit': '편집',
+    'toolbar.both': '전체',
+    'toolbar.set1': '세트1',
+    'toolbar.set2': '세트2',
+    'toolbar.export': '내보내기',
+    'toolbar.import': '가져오기',
+    'toolbar.builds': '빌드',
+    'toolbar.exportTitle': 'PoB2 빌드 코드 내보내기',
+    'toolbar.importTitle': 'PoB2 빌드 코드 가져오기',
+    'toolbar.buildsTitle': '빌드 저장 및 불러오기',
+    'toolbar.calcTitle': '빌드 능력치 계산',
+    'toolbar.calcDisabledTitle': '계산하려면 노드를 할당하세요',
+    'toolbar.language': '언어',
+    'toolbar.english': 'English',
+    'toolbar.chinese': '中文',
+    'import.title': '빌드 가져오기',
+    'import.placeholder': 'PoB2 내보내기 코드를 붙여넣으세요...',
+    'import.button': '가져오기',
+    'import.decoding': '디코딩 중...',
+    'import.clear': '지우기',
+    'import.nodesLoaded': '{count}개 노드 불러옴',
+    'export.title': '코드 내보내기',
+    'export.generate': '내보내기 코드 생성',
+    'export.encoding': '인코딩 중...',
+    'export.copied': '복사됨!',
+    'export.copy': '복사',
+    'export.download': '다운로드',
+    'export.hint': '할당된 노드로 PoB2 가져오기 코드 생성',
+    'save.title': '저장된 빌드',
+    'save.name': '빌드 이름...',
+    'save.save': '저장',
+    'save.load': '불러오기',
+    'save.delete': '삭제',
+    'save.export': '.json 내보내기',
+    'save.import': '.json 가져오기',
+    'save.share': '공유',
+    'save.shared': '복사됨!',
+    'save.empty': '저장된 빌드가 없습니다. 위에서 저장하거나 .json 파일을 가져오세요.',
+    'save.invalidFile': '잘못된 빌드 파일',
+    'save.downloadTitle': '현재 빌드를 .json으로 다운로드',
+    'save.importTitle': '이전에 내보낸 .json 빌드 가져오기',
+    'stats.attributes': '속성',
+    'stats.offence': '공격',
+    'stats.defence': '방어',
+    'stats.charges': '충전',
+    'stats.skills': '스킬',
+    'stats.calculating': '계산 중...',
+    'stats.error': '계산 오류',
+    'stats.empty': '아직 계산하지 않음',
+    'stats.str': '힘',
+    'stats.dex': '민첩',
+    'stats.int': '지능',
+    'stats.life': '생명력',
+    'stats.es': '에너지 보호막',
+    'stats.mana': '마나',
+    'stats.level': '레벨',
+    'stats.class': '직업',
+    'stats.ascendancy': '전직',
+    'stats.totalDps': '총 DPS',
+    'stats.fullDps': '전체 DPS',
+    'stats.fullDotDps': '전체 지속 피해 DPS',
+    'stats.averageHit': '평균 명중',
+    'stats.speed': '속도',
+    'stats.critChance': '치명타 확률',
+    'stats.critMultiplier': '치명타 피해 배율',
+    'stats.armour': '방어도',
+    'stats.evasion': '회피',
+    'stats.block': '막기',
+    'stats.spellBlock': '주문 막기',
+    'stats.fireResist': '화염 저항',
+    'stats.coldResist': '냉기 저항',
+    'stats.lightningResist': '번개 저항',
+    'stats.chaosResist': '카오스 저항',
+    'stats.lifeRegen': '생명력 재생',
+    'stats.manaRegen': '마나 재생',
+    'stats.esRegen': '에너지 보호막 재생',
+    'stats.movementSpeed': '이동 속도',
+    'stats.actionSpeed': '동작 속도',
+    'stats.ward': '수호',
+    'stats.powerCharges': '권능 충전',
+    'stats.frenzyCharges': '격분 충전',
+    'stats.enduranceCharges': '인내 충전',
+    'node.type.normal': '일반',
+    'node.type.notable': '주요',
+    'node.type.keystone': '핵심노드',
+    'node.type.jewel': '주얼 슬롯',
+    'node.type.ascendancy': '전직',
+    'node.type.classStart': '직업 시작점',
+    'node.type.mastery': '숙련',
+    'sidebar.stats': '능력치',
+    'sidebar.connections': '연결',
+    'sidebar.position': '위치',
+    'sidebar.flavourText': '설명 문구',
+    loading: '패시브 트리 로딩 중...',
+    'error.prefix': '오류',
   },
 }
 
-// ---- Hook ----
+function normalizeLanguage(language: Language | 'zh' | undefined): Language {
+  if (language === 'zh') return 'zh-rCN'
+  if (language === 'zh-rCN' || language === 'zh-rTW' || language === 'ko-KR') return language
+  return 'en'
+}
+
 export function useTranslation() {
-  // Language stored in Zustand for reactivity (bonus: could be persisted)
-  const lang = useTreeStore((s) => s as { language?: Lang })?.language || 'en'
+  const lang = useTreeStore((s) => normalizeLanguage(s.language))
+  const storeSetLanguage = useTreeStore((s) => s.setLanguage)
 
   const t = useCallback(
-    (key: keyof Translations, params?: Record<string, string | number>) => {
+    (key: string, params?: Record<string, string | number>) => {
       let text = strings[lang]?.[key] ?? strings.en[key] ?? key
       if (params) {
         for (const [k, v] of Object.entries(params)) {
-          text = text.replace(`{${k}}`, String(v))
+          text = text.split(`{${k}}`).join(String(v))
         }
       }
       return text
@@ -222,18 +467,17 @@ export function useTranslation() {
   )
 
   const setLanguage = useCallback(
-    (l: Lang) => {
-      useTreeStore.setState({ language: l } as Partial<ReturnType<typeof useTreeStore.getState>>)
+    (language: Language) => {
+      storeSetLanguage(language)
     },
-    [],
+    [storeSetLanguage],
   )
 
   return { t, lang, setLanguage }
 }
 
-/** Standalone translate function (outside React) */
-export function getTranslations(lang: Lang = 'en'): Translations {
-  return strings[lang] ?? strings.en
+export function getTranslations(lang: Language = 'en'): Translations {
+  return strings[normalizeLanguage(lang)]
 }
 
-export type { Lang, Translations }
+export type { Language as Lang, Translations }

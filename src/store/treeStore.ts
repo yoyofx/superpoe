@@ -7,7 +7,7 @@ import { create } from 'zustand'
 
 
 import type { TreeData, SavedBuild } from '@/types/tree'
-import { getLocalizedSearchText, loadTranslations, type Language } from '@/i18n/translationLoader'
+import { LANGUAGE_OPTIONS, getLocalizedSearchText, loadTranslations, type Language } from '@/i18n/translationLoader'
 import { encodeBuildCode, getEncodeClassPayload } from '@/engine/buildCode'
 import { calculateBuild } from '@/engine/pobLuaClient'
 import {
@@ -152,7 +152,7 @@ function findAscendancyId(
 function getInitialLanguage(): Language {
   if (typeof localStorage === 'undefined') return DEFAULT_LANGUAGE
   const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY)
-  return saved === 'zh-rCN' || saved === 'en' ? saved : DEFAULT_LANGUAGE
+  return LANGUAGE_OPTIONS.some((option) => option.value === saved) ? saved as Language : DEFAULT_LANGUAGE
 }
 
 // ============================================================
@@ -1018,6 +1018,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
     try {
+      await loadTranslations(get().language).catch(() => undefined)
 
 
 
@@ -2437,8 +2438,6 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 }))
-
-
 
 
 

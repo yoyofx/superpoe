@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback } from 'react'
 import { useTreeStore } from '@/store/treeStore'
+import { useTranslation } from '@/i18n/useTranslation'
 
 interface SaveLoadPanelProps {
   embedded?: boolean
@@ -9,6 +10,7 @@ interface SaveLoadPanelProps {
  * SaveLoadPanel - Build save/load/export/import/share (Phase 16.7 + 16.9)
  */
 export function SaveLoadPanel({ embedded = false }: SaveLoadPanelProps) {
+  const { t } = useTranslation()
   const [name, setName] = useState('')
   const [showList, setShowList] = useState(embedded)
   const [shared, setShared] = useState(false)
@@ -54,20 +56,20 @@ export function SaveLoadPanel({ embedded = false }: SaveLoadPanelProps) {
         importBuildJSON(text)
         setShowList(true)
       } catch {
-        alert('Invalid build file')
+        alert(t('save.invalidFile'))
       }
     }
     reader.readAsText(file)
     // Reset input so same file can be re-imported
     e.target.value = ''
-  }, [importBuildJSON])
+  }, [importBuildJSON, t])
 
   const content = (
     <div className="bg-gray-900/95 border border-gray-700 rounded-lg p-3
                     shadow-xl w-[360px] max-h-[520px] flex flex-col">
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-sm font-medium text-gray-200">Saved Builds</h3>
+        <h3 className="text-sm font-medium text-gray-200">{t('save.title')}</h3>
         {!embedded && (
           <button
             onClick={() => setShowList(false)}
@@ -82,7 +84,7 @@ export function SaveLoadPanel({ embedded = false }: SaveLoadPanelProps) {
           value={name}
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && handleSave()}
-          placeholder="Build name..."
+          placeholder={t('save.name')}
           className="flex-1 bg-gray-800 text-sm text-gray-200 rounded px-2 py-1
                      border border-gray-600 focus:border-blue-500 focus:outline-none
                      placeholder-gray-500"
@@ -94,7 +96,7 @@ export function SaveLoadPanel({ embedded = false }: SaveLoadPanelProps) {
                      disabled:bg-gray-700 disabled:text-gray-500
                      text-white rounded transition-colors"
         >
-          Save
+          {t('save.save')}
         </button>
       </div>
 
@@ -118,17 +120,17 @@ export function SaveLoadPanel({ embedded = false }: SaveLoadPanelProps) {
                   onClick={() => loadBuild(build.id)}
                   className="px-2 py-0.5 text-[10px] bg-green-700 hover:bg-green-600
                              text-white rounded transition-colors"
-                  title="Load"
+                  title={t('save.load')}
                 >
-                  Load
+                  {t('save.load')}
                 </button>
                 <button
                   onClick={() => deleteBuild(build.id)}
                   className="px-2 py-0.5 text-[10px] bg-red-800 hover:bg-red-700
                              text-white rounded transition-colors"
-                  title="Delete"
+                  title={t('save.delete')}
                 >
-                  Del
+                  {t('save.delete')}
                 </button>
               </div>
             </div>
@@ -136,7 +138,7 @@ export function SaveLoadPanel({ embedded = false }: SaveLoadPanelProps) {
         </div>
       ) : (
         <p className="text-xs text-gray-500 mb-2 italic">
-          No saved builds yet. Save one above or import a .json file.
+          {t('save.empty')}
         </p>
       )}
 
@@ -147,17 +149,17 @@ export function SaveLoadPanel({ embedded = false }: SaveLoadPanelProps) {
           disabled={nodeCount === 0}
           className="flex-1 px-2 py-1 text-[11px] bg-gray-700 hover:bg-gray-600
                      disabled:text-gray-600 text-gray-300 rounded transition-colors"
-          title="Download current build as .json"
+          title={t('save.downloadTitle')}
         >
-          Export .json
+          {t('save.export')}
         </button>
         <button
           onClick={() => fileRef.current?.click()}
           className="flex-1 px-2 py-1 text-[11px] bg-gray-700 hover:bg-gray-600
                      text-gray-300 rounded transition-colors"
-          title="Import a previously exported .json build"
+          title={t('save.importTitle')}
         >
-          Import .json
+          {t('save.import')}
         </button>
         <input
           ref={fileRef}
@@ -180,13 +182,13 @@ export function SaveLoadPanel({ embedded = false }: SaveLoadPanelProps) {
         className="flex items-center gap-1.5 bg-gray-900/90 border border-gray-700
                    rounded-lg px-3 py-1.5 text-sm text-gray-300 hover:text-white
                    hover:bg-gray-800 transition-colors shadow-lg"
-        title="Save / Load builds"
+        title={t('toolbar.buildsTitle')}
       >
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                 d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
         </svg>
-        Builds
+        {t('toolbar.builds')}
         {savedBuilds.length > 0 && (
           <span className="bg-blue-600 text-white text-[10px] px-1.5 py-0.5 rounded-full leading-none">
             {savedBuilds.length}

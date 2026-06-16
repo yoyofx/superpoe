@@ -300,7 +300,7 @@ export function modulateConnectorTexture(img: HTMLImageElement, color: string, s
   canvas.width = width
   canvas.height = height
 
-  const ctx = canvas.getContext('2d')
+  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D | null
   if (!ctx) return img
   ctx.clearRect(0, 0, width, height)
   ctx.drawImage(img, 0, 0)

@@ -1,0 +1,365 @@
+import type { TreeNode } from '@/types/tree'
+
+export type Language = 'en' | 'zh-rCN' | 'zh-rTW' | 'ko-KR'
+
+export const LANGUAGE_OPTIONS: Array<{ value: Language; label: string }> = [
+  { value: 'en', label: 'English' },
+  { value: 'zh-rCN', label: '简体中文' },
+  { value: 'zh-rTW', label: '繁體中文' },
+  { value: 'ko-KR', label: '한국어' },
+]
+
+const loadedLanguages = new Set<Language>()
+const dictionaries = new Map<Language, Map<string, string>>()
+const numericDictionaries = new Map<Language, Map<string, string>>()
+const templateDictionaries = new Map<Language, TranslationTemplate[]>()
+const templateKeys = new Map<Language, Set<string>>()
+
+const BASE_TRANSLATION_FILES = [
+  'tree_dn.csv',
+  'tree_sd.csv',
+  'tree_rt.csv',
+  'passiveTree.csv',
+  'statDescriptions.csv',
+  'Query_Mod.csv',
+]
+
+const EXTRA_TRANSLATION_FILES = [
+  'GUI.csv',
+  'TreeTab.csv',
+  'PassiveTreeView.csv',
+  'Tree.csv',
+  'Data.csv',
+  'Unsorted.csv',
+  'Z.csv',
+]
+
+const TRANSLATION_FILES = [...BASE_TRANSLATION_FILES, ...EXTRA_TRANSLATION_FILES]
+const TRANSLATION_MANIFEST = '/data/Translate/translation-files.json'
+
+interface TranslationTemplate {
+  pattern: RegExp
+  translated: string
+  placeholderCount: number
+}
+
+interface NumericPattern {
+  key: string
+  values: string[]
+}
+
+export interface LocalizedNodeDisplay {
+  name: string
+  stats: string[]
+  reminderText?: string[]
+  flavourText?: string[]
+  recipe?: string[]
+}
+
+function parseCsvRows(text: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let field = ''
+  let quoted = false
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i]
+    const next = text[i + 1]
+
+    if (quoted) {
+      if (char === '"' && next === '"') {
+        field += '"'
+        i += 1
+      } else if (char === '"') {
+        quoted = false
+      } else {
+        field += char
+      }
+      continue
+    }
+
+    if (char === '"') {
+      quoted = true
+    } else if (char === ',') {
+      row.push(field)
+      field = ''
+    } else if (char === '\n') {
+      row.push(field)
+      rows.push(row)
+      row = []
+      field = ''
+    } else if (char !== '\r') {
+      field += char
+    }
+  }
+
+  if (field || row.length > 0) {
+    row.push(field)
+    rows.push(row)
+  }
+
+  return rows
+}
+
+function normalizeKey(value: string): string {
+  return value.trim()
+}
+
+function normalizeDisplayTags(value: string): string {
+  return value
+    .replace(/\[([^|\]]+)\|([^\]]+)\]/g, '$2')
+    .replace(/<i>\{([^}]+)\}/g, '$1')
+    .replace(/\s+\n/g, '\n')
+    .replace(/\n\s+/g, '\n')
+    .trim()
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+function compileTemplate(source: string, translated: string): TranslationTemplate | null {
+  let pattern = '^'
+  let placeholderCount = 0
+
+  for (let i = 0; i < source.length; i += 1) {
+    const rest = source.slice(i)
+    const numbered = rest.match(/^\{(\d+)\}/)
+    if (numbered) {
+      pattern += '(.+?)'
+      placeholderCount = Math.max(placeholderCount, Number(numbered[1]) + 1)
+      i += numbered[0].length - 1
+      continue
+    }
+
+    if (source[i] === '#') {
+      pattern += '(.+?)'
+      placeholderCount += 1
+      continue
+    }
+
+    pattern += escapeRegExp(source[i])
+  }
+
+  if (placeholderCount === 0) return null
+  return {
+    pattern: new RegExp(`${pattern}$`, 'i'),
+    translated,
+    placeholderCount,
+  }
+}
+
+function compileNumericPattern(value: string): NumericPattern | null {
+  const numberPattern = /[+-]?\d+(?:\.\d+)?%?/g
+  const values = value.match(numberPattern)
+  if (!values?.length || values.length > 4 || value.length > 220) return null
+  let index = 0
+  return {
+    key: value.replace(numberPattern, () => `{${index++}}`),
+    values,
+  }
+}
+
+function addNumericEntry(dictionary: Map<string, string>, source: string, translated: string): void {
+  const sourcePattern = compileNumericPattern(source)
+  const translatedPattern = compileNumericPattern(translated)
+  if (!sourcePattern || !translatedPattern) return
+  if (sourcePattern.values.length !== translatedPattern.values.length) return
+  dictionary.set(sourcePattern.key, translatedPattern.key)
+}
+
+function applyNumericEntry(dictionary: Map<string, string> | undefined, source: string): string | null {
+  const sourcePattern = compileNumericPattern(source)
+  if (!sourcePattern) return null
+  const translatedPattern = dictionary?.get(sourcePattern.key)
+  if (!translatedPattern) return null
+  return translatedPattern.replace(/\{(\d+)\}/g, (_, index: string) => sourcePattern.values[Number(index)] ?? '')
+}
+
+function addTemplate(
+  language: Language,
+  templates: TranslationTemplate[],
+  source: string,
+  translated: string,
+  compiler: (source: string, translated: string) => TranslationTemplate | null,
+): void {
+  const key = `${source}\u0000${translated}\u0000${compiler.name}`
+  const keys = templateKeys.get(language) || new Set<string>()
+  templateKeys.set(language, keys)
+  if (keys.has(key)) return
+  const template = compiler(source, translated)
+  if (!template) return
+  keys.add(key)
+  templates.push(template)
+}
+
+function applyTemplate(template: TranslationTemplate, source: string): string | null {
+  const match = source.match(template.pattern)
+  if (!match) return null
+
+  const values = match.slice(1)
+  let nextHash = 0
+  return template.translated
+    .replace(/\{(\d+)\}/g, (_, index: string) => values[Number(index)] ?? '')
+    .replace(/#/g, () => values[nextHash++] ?? '')
+}
+
+async function getTranslationFiles(language: Language): Promise<string[]> {
+  const files = new Set(TRANSLATION_FILES)
+
+  try {
+    const response = await fetch(TRANSLATION_MANIFEST)
+    if (response.ok) {
+      const manifest = await response.json() as Partial<Record<Language, string[]>>
+      for (const file of manifest[language] || []) {
+        if (file.endsWith('.csv')) files.add(file)
+      }
+    }
+  } catch {
+    // Manifest is optional in tests and older deployments.
+  }
+
+  return [...files]
+}
+
+function addTranslationEntry(
+  dictionary: Map<string, string>,
+  templates: TranslationTemplate[],
+  language: Language,
+  source: string,
+  translated: string,
+): void {
+  const key = normalizeKey(source)
+  const displayKey = normalizeDisplayTags(key)
+  const displayTranslated = normalizeDisplayTags(translated)
+
+  dictionary.set(key, translated)
+  if (displayKey && displayTranslated) {
+    dictionary.set(displayKey, displayTranslated)
+  }
+
+  for (const [templateSource, templateTranslated] of [
+    [key, translated],
+    [displayKey, displayTranslated],
+  ] as const) {
+    addTemplate(language, templates, templateSource, templateTranslated, compileTemplate)
+  }
+}
+
+function translateText(value: string, language: Language): string {
+  if (language === 'en') return value
+  const key = normalizeKey(value)
+  const exact = dictionaries.get(language)?.get(key)
+  if (exact) return exact
+
+  const numeric = applyNumericEntry(numericDictionaries.get(language), key)
+  if (numeric) return numeric
+
+  const templates = templateDictionaries.get(language) || []
+  for (const template of templates) {
+    const translated = applyTemplate(template, key)
+    if (translated) return translated
+  }
+
+  if (key.includes('\n')) {
+    const lines = key.split('\n')
+    const translatedLines = lines.map((line) => line.trim() ? translateText(line, language) : line)
+    if (translatedLines.some((line, index) => line !== lines[index])) {
+      return translatedLines.join('\n')
+    }
+  }
+
+  return value
+}
+
+function translateList(value: string[] | undefined, language: Language): string[] | undefined {
+  if (!value) return value
+  return value.map((item) => translateText(item, language))
+}
+
+function collectText(parts: string[], value: unknown): void {
+  if (!value) return
+  if (typeof value === 'string' || typeof value === 'number') {
+    parts.push(String(value))
+    return
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item) => collectText(parts, item))
+    return
+  }
+  if (typeof value === 'object') {
+    Object.values(value).forEach((item) => collectText(parts, item))
+  }
+}
+
+export async function loadTranslations(language: Language): Promise<void> {
+  if (loadedLanguages.has(language)) return
+  if (language === 'en') {
+    loadedLanguages.add(language)
+    return
+  }
+
+  const dictionary = dictionaries.get(language) || new Map<string, string>()
+  dictionaries.set(language, dictionary)
+  const numericDictionary = numericDictionaries.get(language) || new Map<string, string>()
+  numericDictionaries.set(language, numericDictionary)
+  const templates = templateDictionaries.get(language) || []
+  templateDictionaries.set(language, templates)
+
+  const translationFiles = await getTranslationFiles(language)
+  await Promise.all(translationFiles.map(async (file) => {
+    const response = await fetch(`/data/Translate/${language}/${file}`)
+    if (!response.ok) {
+      if (response.status === 404) return
+      throw new Error(`Failed to load translation file: ${file}`)
+    }
+    const rows = parseCsvRows(await response.text())
+    for (const [source, translated] of rows) {
+      if (!source || !translated) continue
+      addTranslationEntry(dictionary, templates, language, source, translated)
+      addNumericEntry(numericDictionary, normalizeKey(source), translated)
+      addNumericEntry(numericDictionary, normalizeDisplayTags(source), normalizeDisplayTags(translated))
+    }
+  }))
+
+  loadedLanguages.add(language)
+}
+
+export function getLocalizedNodeDisplay(node: TreeNode, language: Language): LocalizedNodeDisplay {
+  return {
+    name: translateText(node.name, language),
+    stats: translateList(node.stats, language) || [],
+    reminderText: translateList(node.reminderText, language),
+    flavourText: translateList(node.flavourText, language),
+    recipe: translateList(node.recipe, language),
+  }
+}
+
+export function getLocalizedSearchText(node: TreeNode, language: Language): string {
+  const display = getLocalizedNodeDisplay(node, language)
+  const parts: string[] = []
+  collectText(parts, node.name)
+  collectText(parts, node.stats)
+  collectText(parts, node.reminderText)
+  collectText(parts, node.flavourText)
+  collectText(parts, node.recipe)
+  collectText(parts, node.options)
+  collectText(parts, display.name)
+  collectText(parts, display.stats)
+  collectText(parts, display.reminderText)
+  collectText(parts, display.flavourText)
+  collectText(parts, display.recipe)
+  return parts.join('\n').toLowerCase()
+}
+
+export function isTranslationLoaded(language: Language): boolean {
+  return loadedLanguages.has(language)
+}
+
+export function resetTranslationsForTest(): void {
+  loadedLanguages.clear()
+  dictionaries.clear()
+  numericDictionaries.clear()
+  templateDictionaries.clear()
+  templateKeys.clear()
+}

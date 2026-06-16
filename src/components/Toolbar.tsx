@@ -3,6 +3,8 @@ import { DEFAULT_ZOOM, FALLBACK_TREE_VERSIONS, loadTreeVersions, MAX_ZOOM, MIN_Z
 import { ExportPanel } from '@/components/ExportPanel'
 import { ImportPanel } from '@/components/ImportPanel'
 import { SaveLoadPanel } from '@/components/SaveLoadPanel'
+import { LANGUAGE_OPTIONS, type Language } from '@/i18n/translationLoader'
+import { useTranslation } from '@/i18n/useTranslation'
 
 type ToolbarMenu = 'export' | 'import' | 'builds' | null
 
@@ -10,6 +12,7 @@ type ToolbarMenu = 'export' | 'import' | 'builds' | null
  * Toolbar - top toolbar with search and zoom controls
  */
 export function Toolbar() {
+  const { t, lang, setLanguage } = useTranslation()
   const zoom = useTreeStore((s) => s.zoom)
   const treeVersion = useTreeStore((s) => s.treeVersion)
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
@@ -72,7 +75,6 @@ export function Toolbar() {
       offsetY: -(c.min_y + c.max_y) / 2,
     })
   }, [treeData])
-
   const zoomPct = Math.round(zoom * 100)
   const toggleMenu = useCallback((menu: Exclude<ToolbarMenu, null>) => {
     setActiveMenu((current) => current === menu ? null : menu)
@@ -99,7 +101,7 @@ export function Toolbar() {
         </svg>
         <input
           type="text"
-          placeholder="Search nodes..."
+          placeholder={t('toolbar.search')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           className="w-40 bg-gray-800 text-sm text-white rounded-md pl-8 pr-3 py-1.5
@@ -124,6 +126,7 @@ export function Toolbar() {
                    border border-gray-600 focus:border-blue-500 focus:outline-none
                    cursor-pointer"
         title="Tree version"
+        aria-label={t('toolbar.version')}
       >
         {versions.map((v) => (
           <option key={v} value={v}>{v.replace('_', '.')}</option>
@@ -138,6 +141,7 @@ export function Toolbar() {
                    border border-gray-600 focus:border-blue-500 focus:outline-none
                    cursor-pointer"
         title="Select class"
+        aria-label={t('toolbar.class')}
       >
         {classEntries.map(([id, cls]) => (
           <option key={id} value={id}>{cls.name}</option>
@@ -153,6 +157,7 @@ export function Toolbar() {
                      border border-gray-600 focus:border-blue-500 focus:outline-none
                      cursor-pointer"
           title="Select ascendancy"
+          aria-label={t('toolbar.ascendancy')}
         >
           {ascendancies.map((asc: {id?: string, name: string}) => (
             <option key={asc.id || asc.name} value={asc.id || asc.name}>{asc.name}</option>
@@ -163,26 +168,26 @@ export function Toolbar() {
       {/* Tree edit and weapon set mode */}
       <div className={`flex items-center gap-0.5 rounded-md border overflow-hidden ${
         treeEditMode ? 'bg-gray-800 border-amber-500/70' : 'bg-gray-900 border-gray-600'
-      }`} title="Passive tree edit mode and weapon set">
+      }`} title={t('toolbar.weaponSet')}>
         <button onClick={() => setTreeEditMode(!treeEditMode)}
           className={`px-2 py-1 text-[10px] font-semibold transition-colors ${
             treeEditMode ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
-          }`}>Edit</button>
+          }`}>{t('toolbar.edit')}</button>
         <button onClick={() => setWeaponSetMode(0)}
           disabled={!treeEditMode}
           className={`px-2 py-1 text-[10px] font-medium transition-colors ${
             weaponSetMode===0 && treeEditMode ? 'bg-amber-700 text-white' : 'text-gray-400 hover:text-gray-200 disabled:text-gray-600 disabled:hover:text-gray-600'
-          }`}>Both</button>
+          }`}>{t('toolbar.both')}</button>
         <button onClick={() => setWeaponSetMode(1)}
           disabled={!treeEditMode}
           className={`px-2 py-1 text-[10px] font-medium transition-colors ${
             weaponSetMode===1 && treeEditMode ? 'bg-red-700 text-white' : 'text-gray-400 hover:text-gray-200 disabled:text-gray-600 disabled:hover:text-gray-600'
-          }`}>Set1</button>
+          }`}>{t('toolbar.set1')}</button>
         <button onClick={() => setWeaponSetMode(2)}
           disabled={!treeEditMode}
           className={`px-2 py-1 text-[10px] font-medium transition-colors ${
             weaponSetMode===2 && treeEditMode ? 'bg-green-700 text-white' : 'text-gray-400 hover:text-gray-200 disabled:text-gray-600 disabled:hover:text-gray-600'
-          }`}>Set2</button>
+          }`}>{t('toolbar.set2')}</button>
       </div>
 
       {/* Divider */}
@@ -192,23 +197,23 @@ export function Toolbar() {
       <button
         onClick={() => toggleMenu('export')}
         className={menuButtonClass('export')}
-        title="Export PoB2 build code"
+        title={t('toolbar.exportTitle')}
       >
-        Export
+        {t('toolbar.export')}
       </button>
       <button
         onClick={() => toggleMenu('import')}
         className={menuButtonClass('import')}
-        title="Import PoB2 build code"
+        title={t('toolbar.importTitle')}
       >
-        Import
+        {t('toolbar.import')}
       </button>
       <button
         onClick={() => toggleMenu('builds')}
         className={menuButtonClass('builds')}
-        title="Save and load builds"
+        title={t('toolbar.buildsTitle')}
       >
-        Builds
+        {t('toolbar.builds')}
       </button>
 
       {/* Divider */}
@@ -224,7 +229,7 @@ export function Toolbar() {
                       ? 'bg-gray-800 text-gray-600 border-gray-700 cursor-not-allowed'
                       : 'bg-amber-700 hover:bg-amber-600 text-amber-100 border-amber-600'
                     }`}
-        title={allocatedNodes.size === 0 ? 'Allocate nodes to calculate' : 'Calculate build stats'}
+        title={allocatedNodes.size === 0 ? t('toolbar.calcDisabledTitle') : t('toolbar.calcTitle')}
       >
         {calcLoading ? (
           <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
@@ -238,8 +243,22 @@ export function Toolbar() {
                   d="M13 10V3L4 14h7v7l9-11h-7z" />
           </svg>
         )}
-        Calc
+        {calcLoading ? t('toolbar.calculating') : t('toolbar.calc')}
       </button>
+
+      <select
+        value={lang}
+        onChange={(event) => setLanguage(event.target.value as Language)}
+        className="h-7 bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] font-semibold
+                   rounded-md px-2 border border-gray-600 transition-colors
+                   focus:border-blue-500 focus:outline-none cursor-pointer"
+        title={t('toolbar.language')}
+        aria-label={t('toolbar.language')}
+      >
+        {LANGUAGE_OPTIONS.map((option) => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
 
       {/* Divider */}
       <div className="w-px h-5 bg-gray-700" />
@@ -250,7 +269,7 @@ export function Toolbar() {
         className="w-7 h-7 flex items-center justify-center rounded-md
                    bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-bold
                    border border-gray-600 transition-colors"
-        title="Zoom out"
+        title={t('toolbar.zoomOut')}
       >
         -
       </button>
@@ -259,7 +278,7 @@ export function Toolbar() {
         onClick={handleZoomReset}
         className="text-xs text-gray-400 min-w-[42px] text-center
                    hover:text-white transition-colors font-mono"
-        title="Reset zoom"
+        title={t('toolbar.zoomReset')}
       >
         {zoomPct}%
       </button>
@@ -269,9 +288,9 @@ export function Toolbar() {
         className="px-2 h-7 flex items-center justify-center rounded-md
                    bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] font-semibold
                    border border-gray-600 transition-colors"
-        title="Fit whole passive tree"
+        title={t('toolbar.zoomFit')}
       >
-        Fit
+        {t('toolbar.fit')}
       </button>
 
       <button
@@ -279,7 +298,7 @@ export function Toolbar() {
         className="w-7 h-7 flex items-center justify-center rounded-md
                    bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-bold
                    border border-gray-600 transition-colors"
-        title="Zoom in"
+        title={t('toolbar.zoomIn')}
       >
         +
       </button>

@@ -43,8 +43,8 @@ function createCanvas(width: number, height: number): HTMLCanvasElement | Offscr
   return canvas
 }
 
-function getContext(canvas: HTMLCanvasElement | OffscreenCanvas): CanvasRenderingContext2D | OffscreenCanvasRenderingContext2D | null {
-  const ctx = canvas.getContext('2d')
+function getContext(canvas: HTMLCanvasElement | OffscreenCanvas): CanvasRenderingContext2D | null {
+  const ctx = canvas.getContext('2d') as CanvasRenderingContext2D | null
   if (ctx) {
     ctx.imageSmoothingEnabled = true
     ctx.imageSmoothingQuality = 'high'

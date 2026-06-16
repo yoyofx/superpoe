@@ -1,28 +1,35 @@
+import { getLocalizedNodeDisplay } from '@/i18n/translationLoader'
 import { useTreeStore } from '@/store/treeStore'
+import { useTranslation } from '@/i18n/useTranslation'
 
 /**
  * Sidebar - right-side detail panel for selected node
  */
 export function Sidebar() {
+  const { t } = useTranslation()
   const treeData = useTreeStore((s) => s.treeData)
   const selectedNodeId = useTreeStore((s) => s.selectedNodeId)
   const setSelectedNode = useTreeStore((s) => s.setSelectedNode)
   const setHoveredNode = useTreeStore((s) => s.setHoveredNode)
+  const language = useTreeStore((s) => s.language)
+  useTreeStore((s) => s.translationRevision)
 
   if (!selectedNodeId || !treeData) return null
 
   const node = treeData.nodes[selectedNodeId]
   if (!node) return null
+  const displayNode = getLocalizedNodeDisplay(node, language)
 
   const typeLabel: Record<string, string> = {
-    Keystone: 'Keystone',
-    Notable: 'Notable',
-    Normal: 'Normal',
-    ClassStart: 'Class Start',
-    AscendClassStart: 'Ascend Start',
-    Mastery: 'Mastery',
-    JewelSocket: 'Jewel Socket',
-    OnlyImage: 'Decorative',
+    Keystone: t('node.type.keystone'),
+    Notable: t('node.type.notable'),
+    Normal: t('node.type.normal'),
+    ClassStart: t('node.type.classStart'),
+    AscendClassStart: t('node.type.ascendancy'),
+    Mastery: t('node.type.mastery'),
+    JewelSocket: t('node.type.jewel'),
+    Socket: t('node.type.jewel'),
+    OnlyImage: t('node.type.normal'),
   }
 
   const typeBorder: Record<string, string> = {
@@ -46,7 +53,7 @@ export function Sidebar() {
       <div className="px-4 pt-3 pb-2 flex items-start justify-between">
         <div className="min-w-0">
           <h3 className="text-sm font-semibold text-white leading-tight truncate">
-            {node.name}
+            {displayNode.name}
           </h3>
           <span className="text-xs text-gray-400 mt-0.5 block">
             {typeLabel[node.type] ?? node.type}
@@ -63,13 +70,13 @@ export function Sidebar() {
       </div>
 
       {/* Stats */}
-      {node.stats && node.stats.length > 0 && (
+      {displayNode.stats.length > 0 && (
         <div className="px-4 py-2 border-t border-gray-700/50">
           <div className="text-[11px] font-semibold text-gray-500 uppercase mb-1.5">
-            Stats
+            {t('sidebar.stats')}
           </div>
           <ul className="space-y-1">
-            {node.stats.map((stat, i) => (
+            {displayNode.stats.map((stat, i) => (
               <li
                 key={i}
                 className="text-xs text-gray-300 leading-relaxed"
@@ -86,7 +93,7 @@ export function Sidebar() {
       {/* Connections */}
       <div className="px-4 py-2 border-t border-gray-700/50">
         <div className="text-[11px] font-semibold text-gray-500 uppercase mb-1.5">
-          Connections
+          {t('sidebar.connections')}
         </div>
         <div className="text-xs text-gray-400 space-y-0.5">
           <div>Out: {node.out.length}</div>
@@ -97,7 +104,7 @@ export function Sidebar() {
       {/* Position */}
       <div className="px-4 py-2 border-t border-gray-700/50">
         <div className="text-[11px] font-semibold text-gray-500 uppercase mb-1.5">
-          Position
+          {t('sidebar.position')}
         </div>
         <div className="text-xs text-gray-500 font-mono">
           x: {node.x.toFixed(1)}, y: {node.y.toFixed(1)}
@@ -108,14 +115,14 @@ export function Sidebar() {
       </div>
 
       {/* Flavour Text */}
-      {node.flavourText && (Array.isArray(node.flavourText) ? node.flavourText : [node.flavourText]).length > 0 && (
+      {displayNode.flavourText && displayNode.flavourText.length > 0 && (
         <div className="px-4 py-2 border-t border-gray-700/50">
           <div className="text-[11px] font-semibold text-gray-500 uppercase mb-1.5">
-            Flavour Text
+            {t('sidebar.flavourText')}
           </div>
           <div className="text-xs text-gray-500 italic leading-relaxed">
-            {(Array.isArray(node.flavourText) ? node.flavourText : [node.flavourText]).map((t, i) => (
-              <div key={i}>{t}</div>
+            {displayNode.flavourText.map((line, i) => (
+              <div key={i}>{line}</div>
             ))}
           </div>
         </div>

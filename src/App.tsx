@@ -4,8 +4,10 @@ import { TreePixiCanvas } from '@/components/TreePixiCanvas'
 import { Toolbar } from '@/components/Toolbar'
 import { NodeTooltip } from '@/components/NodeTooltip'
 import { StatTable } from '@/components/StatTable'
+import { useTranslation } from '@/i18n/useTranslation'
 
 export default function App() {
+  const { t } = useTranslation()
   const hashLoadedRef = useRef(false)
   const { treeData, loading, error, loadTreeData, loadSavedBuilds } = useTreeStore()
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
@@ -68,7 +70,7 @@ export default function App() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p className="text-lg text-gray-400">Loading passive tree...</p>
+        <p className="text-lg text-gray-400">{t('loading')}</p>
       </div>
     )
   }
@@ -76,7 +78,7 @@ export default function App() {
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p className="text-lg text-red-400">Error: {error}</p>
+        <p className="text-lg text-red-400">{t('error.prefix')}: {error}</p>
       </div>
     )
   }
