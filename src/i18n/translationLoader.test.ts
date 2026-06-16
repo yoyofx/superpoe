@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import {
   LANGUAGE_OPTIONS,
   getLocalizedNodeDisplay,
@@ -28,6 +30,48 @@ const node = {
   out: [],
   in: [],
 } satisfies TreeNode
+
+function parseCsvRows(text: string): string[][] {
+  const rows: string[][] = []
+  let row: string[] = []
+  let field = ''
+  let quoted = false
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i]
+    const next = text[i + 1]
+    if (quoted) {
+      if (char === '"' && next === '"') {
+        field += '"'
+        i += 1
+      } else if (char === '"') {
+        quoted = false
+      } else {
+        field += char
+      }
+      continue
+    }
+    if (char === '"') quoted = true
+    else if (char === ',') {
+      row.push(field)
+      field = ''
+    } else if (char === '\n') {
+      row.push(field)
+      rows.push(row)
+      row = []
+      field = ''
+    } else if (char !== '\r') {
+      field += char
+    }
+  }
+
+  if (field || row.length > 0) {
+    row.push(field)
+    rows.push(row)
+  }
+
+  return rows.filter((item) => item.length >= 2 && item[0] && item[1])
+}
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -139,5 +183,14 @@ describe('translationLoader', () => {
 
     expect(isTranslationLoaded('zh-rTW')).toBe(true)
     expect(getLocalizedNodeDisplay(node, 'zh-rTW').name).toBe('能量護盾')
+  })
+
+  it('does not include partial English supplement translations', () => {
+    for (const language of ['zh-rCN', 'zh-rTW', 'ko-KR'] as const) {
+      const file = resolve(process.cwd(), `public/data/Translate/${language}/superpoe_tree_supplement.csv`)
+      const rows = parseCsvRows(readFileSync(file, 'utf8'))
+      const mixedRows = rows.filter(([, translated]) => /[A-Za-z]{2,}/.test(translated))
+      expect(mixedRows, `${language} supplement has mixed English rows`).toEqual([])
+    }
   })
 })
