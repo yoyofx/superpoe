@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { getGrantedSkillInfo } from '@/i18n/grantedSkills'
 import {
   LANGUAGE_OPTIONS,
   getLocalizedNodeDisplay,
@@ -183,6 +184,141 @@ describe('translationLoader', () => {
 
     expect(isTranslationLoaded('zh-rTW')).toBe(true)
     expect(getLocalizedNodeDisplay(node, 'zh-rTW').name).toBe('能量護盾')
+  })
+
+  it('localizes granted ascendancy skill details from node stats', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const file = url.split('/').pop() || ''
+      const rows = file === 'superpoe_tree_supplement.csv'
+        ? [
+          '"Grants Skill: Hollow Form","获得技能：空洞形态"',
+          '"Hollow Form","空洞形态"',
+          '"Attack","攻击"',
+          '"Melee, Sustained, Channelling, Meta","近战、持续、引导、元技能"',
+          '"Any Melee Martial Weapon","任意近战武术武器"',
+          '"Channel to create fleeting images of your astral self near the target location. The images perform a Socketed Melee Attack once then vanish, targeting the closest enemy if possible. The images cannot perform Channelled Skills or Conditional Skills. Consuming a Power Charge creates additional images.","引导以在目标位置附近创造短暂的星体幻影。幻影会施放一次镶嵌的近战攻击后消失。"',
+        ].join('\n')
+        : ''
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ 'zh-rCN': ['superpoe_tree_supplement.csv'] }),
+        text: async () => rows,
+      }
+    }))
+
+    await loadTranslations('zh-rCN')
+
+    const display = getLocalizedNodeDisplay({
+      ...node,
+      stats: ['Grants Skill: Hollow Form'],
+    }, 'zh-rCN')
+
+    expect(display.stats[0]).toBe('获得技能：空洞形态')
+    expect(display.grantedSkills[0]).toMatchObject({
+      skillId: 'MetaHollowFormPlayer',
+      name: '空洞形态',
+      gemType: '攻击',
+      tags: '近战、持续、引导、元技能',
+      weaponRequirements: '任意近战武术武器',
+      description: '引导以在目标位置附近创造短暂的星体幻影。幻影会施放一次镶嵌的近战攻击后消失。',
+    })
+  })
+
+  it('leaves ordinary stats unchanged when no granted skill detail exists', () => {
+    const display = getLocalizedNodeDisplay({
+      ...node,
+      stats: ['12% increased Mana Regeneration Rate'],
+    }, 'en')
+
+    expect(display.stats).toEqual(['12% increased Mana Regeneration Rate'])
+    expect(display.grantedSkills).toEqual([])
+  })
+
+  it('falls back to English granted skill details when a language has no matching translation', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ 'zh-rTW': [] }),
+      text: async () => '',
+    })))
+
+    await loadTranslations('zh-rTW')
+
+    const display = getLocalizedNodeDisplay({
+      ...node,
+      stats: ['Grants Skill: Hollow Form'],
+    }, 'zh-rTW')
+
+    expect(display.stats[0]).toBe('Grants Skill: Hollow Form')
+    expect(display.grantedSkills[0]).toMatchObject({
+      skillId: 'MetaHollowFormPlayer',
+      name: 'Hollow Form',
+    })
+  })
+
+  it('has granted skill details for every 0.5 ascendancy granted skill stat', () => {
+    const tree = JSON.parse(readFileSync(resolve(process.cwd(), 'public/data/tree-web-0_5.json'), 'utf8')) as {
+      nodes: Record<string, TreeNode>
+    }
+    const missing = Object.values(tree.nodes)
+      .filter((item) => item.ascendancyName)
+      .flatMap((item) => item.stats || [])
+      .filter((stat) => stat.startsWith('Grants Skill: '))
+      .filter((stat) => !getGrantedSkillInfo(stat))
+
+    expect(missing).toEqual([])
+  })
+
+  it('does not use syllabified supplement translations for Martial Artist key stats', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const manifestPath = resolve(process.cwd(), 'public/data/Translate/translation-files.json')
+      if (url === '/data/Translate/translation-files.json') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => JSON.parse(readFileSync(manifestPath, 'utf8')),
+          text: async () => readFileSync(manifestPath, 'utf8'),
+        }
+      }
+
+      const match = url.match(/^\/data\/Translate\/([^/]+)\/(.+)$/)
+      if (!match) {
+        return { ok: false, status: 404, text: async () => '' }
+      }
+
+      const [, language, file] = match
+      const filePath = resolve(process.cwd(), `public/data/Translate/${language}/${file}`)
+      return {
+        ok: true,
+        status: 200,
+        text: async () => readFileSync(filePath, 'utf8'),
+      }
+    }))
+
+    await loadTranslations('zh-rCN')
+
+    const martialArtistNode = {
+      ...node,
+      stats: [
+        'Grants Skill: Hollow Form',
+        'Grants Skill: Hollow Resonance',
+        'Grants Skill: Hollow Focus',
+        'Can tattoo Runes onto your body, gaining\nadditional Rune-only sockets:\n1 Helmet socket\n2 Body Armour sockets\n1 Gloves socket\n1 Boots socket',
+        'Gloves you equip have their Base Type transformed to Fists of Stone while equipped, and\ntheir Explicit Modifiers are transformed into more powerful related Modifiers',
+        'Ignore Attribute Requirements to equip Gloves',
+        'When you gain Combo, gain an additional Combo',
+        '-0.2 seconds to current Energy Shield Recharge delay per Combo expended when using Skills',
+        "100% Surpassing chance per enemy Power to gain Mountain's Teachings on Immobilising an enemy, up to a maximum of 30\nLose a Mountain's Teaching when you are Hit, or when you use or Sustain an Attack that benefits from Mountain's Teachings",
+      ],
+    }
+
+    const text = getLocalizedNodeDisplay(martialArtistNode, 'zh-rCN').stats.join('\n')
+
+    expect(text).not.toMatch(/赫奥|克阿恩|格阿伊恩|沃赫厄恩|特赫|弗弗|德厄|勒厄|姆厄|尔厄|丘乌/)
+    expect(text).toContain('获得技能：空洞形态')
+    expect(text).toContain('可以将符文纹刻在身体上')
+    expect(text).toContain('无视装备手套的属性需求')
   })
 
   it('does not include partial English supplement translations', () => {

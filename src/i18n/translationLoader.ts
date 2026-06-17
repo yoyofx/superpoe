@@ -1,4 +1,5 @@
 import type { TreeNode } from '@/types/tree'
+import { getGrantedSkillInfo } from '@/i18n/grantedSkills'
 
 export type Language = 'en' | 'zh-rCN' | 'zh-rTW' | 'ko-KR'
 
@@ -36,6 +37,8 @@ const EXTRA_TRANSLATION_FILES = [
 
 const TRANSLATION_FILES = [...BASE_TRANSLATION_FILES, ...EXTRA_TRANSLATION_FILES]
 const TRANSLATION_MANIFEST = '/data/Translate/translation-files.json'
+const ZH_CN_SUPPLEMENT_FILE = 'superpoe_tree_supplement.csv'
+const ZH_CN_SYLLABIFIED_PATTERN = /赫奥|厄勒|克阿|格阿|沃赫|特赫|弗弗|德厄|勒厄|姆厄|尔厄|丘乌|布乌|普勒|斯特|恩厄|阿勒|阿德德|阿特特/
 
 interface TranslationTemplate {
   pattern: RegExp
@@ -51,9 +54,20 @@ interface NumericPattern {
 export interface LocalizedNodeDisplay {
   name: string
   stats: string[]
+  grantedSkills: LocalizedGrantedSkill[]
   reminderText?: string[]
   flavourText?: string[]
   recipe?: string[]
+}
+
+export interface LocalizedGrantedSkill {
+  sourceStat: string
+  skillId: string
+  name: string
+  description: string
+  tags?: string
+  weaponRequirements?: string
+  gemType?: string
 }
 
 function parseCsvRows(text: string): string[][] {
@@ -246,6 +260,11 @@ function addTranslationEntry(
   }
 }
 
+function shouldSkipTranslationEntry(language: Language, file: string, translated: string): boolean {
+  if (language !== 'zh-rCN' || file !== ZH_CN_SUPPLEMENT_FILE) return false
+  return ZH_CN_SYLLABIFIED_PATTERN.test(translated)
+}
+
 function translateText(value: string, language: Language): string {
   if (language === 'en') return value
   const key = normalizeKey(value)
@@ -275,6 +294,23 @@ function translateText(value: string, language: Language): string {
 function translateList(value: string[] | undefined, language: Language): string[] | undefined {
   if (!value) return value
   return value.map((item) => translateText(item, language))
+}
+
+function localizeGrantedSkills(stats: string[] | undefined, language: Language): LocalizedGrantedSkill[] {
+  if (!stats) return []
+  return stats.flatMap((stat) => {
+    const skill = getGrantedSkillInfo(stat)
+    if (!skill) return []
+    return [{
+      sourceStat: translateText(stat, language),
+      skillId: skill.skillId,
+      name: translateText(skill.name, language),
+      description: translateText(skill.description, language),
+      tags: skill.tagString ? translateText(skill.tagString, language) : undefined,
+      weaponRequirements: skill.weaponRequirements ? translateText(skill.weaponRequirements, language) : undefined,
+      gemType: skill.gemType ? translateText(skill.gemType, language) : undefined,
+    }]
+  })
 }
 
 function collectText(parts: string[], value: unknown): void {
@@ -316,6 +352,7 @@ export async function loadTranslations(language: Language): Promise<void> {
     const rows = parseCsvRows(await response.text())
     for (const [source, translated] of rows) {
       if (!source || !translated) continue
+      if (shouldSkipTranslationEntry(language, file, translated)) continue
       addTranslationEntry(dictionary, templates, language, source, translated)
       addNumericEntry(numericDictionary, normalizeKey(source), translated)
       addNumericEntry(numericDictionary, normalizeDisplayTags(source), normalizeDisplayTags(translated))
@@ -329,6 +366,7 @@ export function getLocalizedNodeDisplay(node: TreeNode, language: Language): Loc
   return {
     name: translateText(node.name, language),
     stats: translateList(node.stats, language) || [],
+    grantedSkills: localizeGrantedSkills(node.stats, language),
     reminderText: translateList(node.reminderText, language),
     flavourText: translateList(node.flavourText, language),
     recipe: translateList(node.recipe, language),
@@ -346,6 +384,7 @@ export function getLocalizedSearchText(node: TreeNode, language: Language): stri
   collectText(parts, node.options)
   collectText(parts, display.name)
   collectText(parts, display.stats)
+  collectText(parts, display.grantedSkills)
   collectText(parts, display.reminderText)
   collectText(parts, display.flavourText)
   collectText(parts, display.recipe)

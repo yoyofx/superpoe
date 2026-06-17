@@ -50,6 +50,7 @@ export function NodeTooltip() {
 
   const prefix = headerPrefix(node.type, node.ascendancyName)
   const flavourLines = localizedNode.flavourText || []
+  const grantedSkills = localizedNode.grantedSkills || []
 
   return (
     <div
@@ -85,6 +86,22 @@ export function NodeTooltip() {
         {localizedNode.stats?.length ? (
           <div className="space-y-1 text-[#c8c4ba]">
             {localizedNode.stats.map((stat, i) => <div key={i}>{stat}</div>)}
+          </div>
+        ) : null}
+
+        {grantedSkills.length > 0 ? (
+          <div className="mt-3 space-y-2 border-t border-[#3e3429] pt-2">
+            {grantedSkills.map((skill, i) => (
+              <div key={`${skill.name}-${i}`} className="space-y-1">
+                <div className="text-[13px] font-semibold text-[#f4e6b8]">{skill.name}</div>
+                {(skill.gemType || skill.tags || skill.weaponRequirements) && (
+                  <div className="text-[11px] leading-snug text-[#8fb0d8]">
+                    {[skill.gemType, skill.tags, skill.weaponRequirements].filter(Boolean).join(' / ')}
+                  </div>
+                )}
+                <div className="text-[12px] leading-snug text-[#b9b2a4]">{skill.description}</div>
+              </div>
+            ))}
           </div>
         ) : null}
 
