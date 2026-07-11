@@ -6,7 +6,7 @@ import { SaveLoadPanel } from '@/components/SaveLoadPanel'
 import { LANGUAGE_OPTIONS, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 
-type ToolbarMenu = 'export' | 'import' | 'builds' | null
+type ToolbarMenu = 'export' | 'import' | 'builds' | 'equipment' | null
 
 /**
  * Toolbar - top toolbar with search and zoom controls
@@ -214,6 +214,16 @@ export function Toolbar() {
         title={t('toolbar.buildsTitle')}
       >
         {t('toolbar.builds')}
+      </button>
+      <button
+        onClick={() => {
+          setActiveMenu(null)
+          window.dispatchEvent(new Event('open-equipment-panel'))
+        }}
+        className={menuButtonClass('equipment')}
+        title={t('toolbar.equipmentTitle')}
+      >
+        {t('toolbar.equipment')}
       </button>
 
       {/* Divider */}

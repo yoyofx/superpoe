@@ -33,6 +33,14 @@ const EXTRA_TRANSLATION_FILES = [
   'Data.csv',
   'Unsorted.csv',
   'Z.csv',
+  'Items_Accessories.txt.csv',
+  'Items_Armour.txt.csv',
+  'Items_Flasks.txt.csv',
+  'Items_Weapons.txt.csv',
+  'Items_Jewels.txt.csv',
+  'Uniques.txt.csv',
+  'stats_words_prefix.csv',
+  'stats_words_suffix.csv',
 ]
 
 const TRANSLATION_FILES = [...BASE_TRANSLATION_FILES, ...EXTRA_TRANSLATION_FILES]
@@ -44,6 +52,7 @@ interface TranslationTemplate {
   pattern: RegExp
   translated: string
   placeholderCount: number
+  literalLength: number
 }
 
 interface NumericPattern {
@@ -160,6 +169,7 @@ function compileTemplate(source: string, translated: string): TranslationTemplat
     pattern: new RegExp(`${pattern}$`, 'i'),
     translated,
     placeholderCount,
+    literalLength: source.replace(/\{\d+\}|#/g, '').length,
   }
 }
 
@@ -291,6 +301,11 @@ function translateText(value: string, language: Language): string {
   return value
 }
 
+/** Translate game-provided names and stat lines using the loaded PoB dictionaries. */
+export function translateGameText(value: string, language: Language): string {
+  return translateText(value, language)
+}
+
 function translateList(value: string[] | undefined, language: Language): string[] | undefined {
   if (!value) return value
   return value.map((item) => translateText(item, language))
@@ -358,6 +373,8 @@ export async function loadTranslations(language: Language): Promise<void> {
       addNumericEntry(numericDictionary, normalizeDisplayTags(source), normalizeDisplayTags(translated))
     }
   }))
+
+  templates.sort((a, b) => b.literalLength - a.literalLength || a.placeholderCount - b.placeholderCount)
 
   loadedLanguages.add(language)
 }

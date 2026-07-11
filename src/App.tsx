@@ -1,19 +1,23 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useTreeStore } from '@/store/treeStore'
 import { TreePixiCanvas } from '@/components/TreePixiCanvas'
 import { Toolbar } from '@/components/Toolbar'
 import { NodeTooltip } from '@/components/NodeTooltip'
 import { StatTable } from '@/components/StatTable'
 import { useTranslation } from '@/i18n/useTranslation'
+import { EquipmentPanel } from '@/components/EquipmentPanel'
+import { writePersistedImportedBuild } from '@/engine/buildPersistence'
 
 export default function App() {
   const { t } = useTranslation()
   const hashLoadedRef = useRef(false)
+  const [equipmentOpen, setEquipmentOpen] = useState(false)
   const { treeData, loading, error, loadTreeData, loadSavedBuilds } = useTreeStore()
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
   const nodeWeaponSets = useTreeStore((s) => s.nodeWeaponSets)
   const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
   const treeVersion = useTreeStore((s) => s.treeVersion)
+  const importedBuildCode = useTreeStore((s) => s.importedBuildCode)
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
   const encodeToHash = useTreeStore((s) => s.encodeToHash)
@@ -24,6 +28,17 @@ export default function App() {
     loadTreeData()
     loadSavedBuilds()
   }, [loadTreeData, loadSavedBuilds])
+
+  useEffect(() => {
+    const open = () => setEquipmentOpen(true)
+    const close = () => setEquipmentOpen(false)
+    window.addEventListener('open-equipment-panel', open)
+    window.addEventListener('close-equipment-panel', close)
+    return () => {
+      window.removeEventListener('open-equipment-panel', open)
+      window.removeEventListener('close-equipment-panel', close)
+    }
+  }, [])
 
   // Load from URL hash on tree ready
   useEffect(() => {
@@ -54,6 +69,7 @@ export default function App() {
           window.history.replaceState(null, '', window.location.pathname)
         }
       }
+      if (importedBuildCode) writePersistedImportedBuild(localStorage, hash, importedBuildCode)
     }, 500)
     return () => clearTimeout(timer)
   }, [
@@ -65,6 +81,7 @@ export default function App() {
     selectedAscendancyId,
     treeLoaded,
     encodeToHash,
+    importedBuildCode,
   ])
 
   if (loading) {
@@ -91,6 +108,7 @@ export default function App() {
       <Toolbar />
       <NodeTooltip />
       <StatTable />
+      {equipmentOpen && <EquipmentPanel />}
     </div>
   )
 }

@@ -10,6 +10,7 @@ import type { TreeData, SavedBuild } from '@/types/tree'
 import { LANGUAGE_OPTIONS, getLocalizedSearchText, loadTranslations, type Language } from '@/i18n/translationLoader'
 import { encodeBuildCode, getEncodeClassPayload } from '@/engine/buildCode'
 import { calculateBuild } from '@/engine/pobLuaClient'
+import { clearPersistedImportedBuild, getInitialImportedBuildCode } from '@/engine/buildPersistence'
 import {
   cleanAttributeSelections,
   nextAttributeSelection,
@@ -819,7 +820,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   selectedAscendancyId: 'Stormweaver',
 
-  importedBuildCode: null,
+  importedBuildCode: getInitialImportedBuildCode(),
 
 
 
@@ -1719,15 +1720,18 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     })
   },
 
-  clearAllocatedNodes: () => set({
-    allocatedNodes: new Set(),
-    availableNodes: new Set(),
-    nodeWeaponSets: {},
-    nodeAttributeSelections: {},
-    importedBuildCode: null,
-    undoStack: [],
-    redoStack: [],
-  }),
+  clearAllocatedNodes: () => {
+    clearPersistedImportedBuild(localStorage)
+    set({
+      allocatedNodes: new Set(),
+      availableNodes: new Set(),
+      nodeWeaponSets: {},
+      nodeAttributeSelections: {},
+      importedBuildCode: null,
+      undoStack: [],
+      redoStack: [],
+    })
+  },
 
   // === Phase 3.1: Node toggle & undo/redo ===
 
@@ -1952,13 +1956,15 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
           treeVersion?: string
           classId?: string
           ascendClassId?: string
+          classInternalId?: string
+          ascendancyInternalId?: string
         }
         ids = Array.isArray(payload.nodes) ? payload.nodes : []
         nodeWeaponSets = payload.nodeWeaponSets || {}
         nodeAttributeSelections = payload.nodeAttributeSelections || {}
         treeVersion = payload.treeVersion
-        classId = payload.classId
-        ascendClassId = payload.ascendClassId
+        classId = payload.classInternalId || payload.classId
+        ascendClassId = payload.ascendancyInternalId || payload.ascendClassId
       } else {
         ids = str.split(',').filter(Boolean)
       }
@@ -2438,8 +2444,5 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 }))
-
-
-
 
 

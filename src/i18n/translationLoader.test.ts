@@ -9,6 +9,7 @@ import {
   isTranslationLoaded,
   loadTranslations,
   resetTranslationsForTest,
+  translateGameText,
 } from '@/i18n/translationLoader'
 import type { TreeNode } from '@/types/tree'
 
@@ -127,6 +128,23 @@ describe('translationLoader', () => {
       ...node,
       stats: ['-4% to all Elemental Resistances'],
     }, 'zh-rCN').stats[0]).toBe('-4% 所有元素抗性')
+  })
+
+  it('prefers specific item stat templates over broad placeholders', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      const file = url.split('/').pop() || ''
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ 'zh-rCN': [] }),
+        text: async () => file === 'statDescriptions.csv'
+          ? '"{0}","{0}"\n"Has {0} Charm Slots","具有 {0} 个咒符位"\n'
+          : '',
+      }
+    }))
+
+    await loadTranslations('zh-rCN')
+    expect(translateGameText('Has 2 Charm Slots', 'zh-rCN')).toBe('具有 2 个咒符位')
   })
 
   it('falls back to translating multi-line passive text line by line', async () => {
