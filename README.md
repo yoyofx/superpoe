@@ -1,5 +1,27 @@
 # PoB2 Web Tree
 
+## Electron 桌面版
+
+桌面版保留现有 React、PixiJS、Web Worker 和 WASM Lua 计算路径，不启动本地 HTTP API。
+Electron main process 仅负责受限的系统能力；当前包含 WeGame 分享导入：renderer 通过 preload IPC 请求 main process，main process 调用 PoE2DB 并返回完整 PoB code。
+
+开发运行：
+
+```powershell
+npm install
+npm run dev:electron
+```
+
+打包桌面安装程序：
+
+```powershell
+npm run dist:electron
+```
+
+首次安装依赖时，Electron 会下载与当前平台对应的 Chromium runtime。若下载被网络策略阻断，需要配置可访问 Electron 发布包的网络或镜像后重新执行 `npm install`。
+
+浏览器模式仍可使用 `npm run dev`，但不会显示 WeGame 自动导入入口；可继续使用普通 PoB code 导入。
+
 ## 渲染层
 
 前端天赋盘主渲染层已迁移到 PixiJS 8。PixiJS 是 WebGL/WebGPU 2D renderer，不是 Three.js 这类 3D 场景引擎；本项目仍按 PoB2 原生 2D 天赋盘数据绘制背景、节点、orbit 和 connector quad。

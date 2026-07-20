@@ -2,12 +2,14 @@ import { useCallback, useEffect, useState } from 'react'
 import { DEFAULT_ZOOM, FALLBACK_TREE_VERSIONS, loadTreeVersions, MAX_ZOOM, MIN_ZOOM, useTreeStore } from '@/store/treeStore'
 import { ExportPanel } from '@/components/ExportPanel'
 import { ImportPanel } from '@/components/ImportPanel'
+import { Poe2dbImportPanel } from '@/components/Poe2dbImportPanel'
+import { isPoe2dbDesktopImportAvailable } from '@/engine/poe2dbImport'
 import { SaveLoadPanel } from '@/components/SaveLoadPanel'
 import { LANGUAGE_OPTIONS, type Language } from '@/i18n/translationLoader'
 import { translateGameText } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 
-type ToolbarMenu = 'export' | 'import' | 'builds' | 'equipment' | null
+type ToolbarMenu = 'export' | 'import' | 'wegame' | 'builds' | 'equipment' | null
 
 /**
  * Toolbar - top toolbar with search and zoom controls
@@ -37,6 +39,7 @@ export function Toolbar() {
 
   const [versions, setVersions] = useState<string[]>(FALLBACK_TREE_VERSIONS)
   const [activeMenu, setActiveMenu] = useState<ToolbarMenu>(null)
+  const hasDesktopWeGameImport = isPoe2dbDesktopImportAvailable()
 
   useEffect(() => {
     loadTreeVersions().then(setVersions).catch(() => setVersions(FALLBACK_TREE_VERSIONS))
@@ -223,6 +226,13 @@ export function Toolbar() {
       >
         {t('toolbar.import')}
       </button>
+      {hasDesktopWeGameImport && <button
+        onClick={() => toggleMenu('wegame')}
+        className={menuButtonClass('wegame')}
+        title={t('toolbar.wegameImportTitle')}
+      >
+        {t('toolbar.wegameImport')}
+      </button>}
       <button
         onClick={() => toggleMenu('builds')}
         className={menuButtonClass('builds')}
@@ -333,6 +343,7 @@ export function Toolbar() {
         <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2">
           {activeMenu === 'export' && <ExportPanel embedded />}
           {activeMenu === 'import' && <ImportPanel embedded />}
+          {activeMenu === 'wegame' && <Poe2dbImportPanel embedded />}
           {activeMenu === 'builds' && <SaveLoadPanel embedded />}
         </div>
       )}

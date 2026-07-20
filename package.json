@@ -3,9 +3,15 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "main": "dist-electron/electron/main.js",
   "scripts": {
     "dev": "vite",
     "dev:server": "tsx server/index.ts",
+    "build:electron:main": "tsc -p tsconfig.electron.json",
+    "dev:electron:main": "npm run build:electron:main && wait-on http://127.0.0.1:3000 && electron .",
+    "dev:electron": "concurrently -k \"npm run dev\" \"cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:3000 npm run dev:electron:main\"",
+    "build:electron": "cross-env ELECTRON_BUILD=true npm run build && npm run build:electron:main",
+    "dist:electron": "npm run build:electron && electron-builder",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test:server": "vitest run",
@@ -20,6 +26,21 @@
     "pipeline:lua": "python scripts/build_pob_lua_bundle.py",
     "pipeline:translations": "python scripts/sync_poecharm_translations.py",
     "pipeline:all": "node scripts/run_pipeline_all.mjs"
+  },
+  "build": {
+    "appId": "com.yoyofx.superpoe",
+    "productName": "SuperPoE",
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "build"
+    },
+    "win": {
+      "target": "nsis"
+    }
   },
   "dependencies": {
     "fast-xml-parser": "^5.8.0",
@@ -37,11 +58,16 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.16",
     "tsx": "^4.22.3",
     "typescript": "~5.6.3",
     "vite": "^6.0.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.7",
+    "wait-on": "^9.0.10"
   }
 }

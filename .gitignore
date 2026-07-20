@@ -7,6 +7,7 @@ node_modules/
 
 # Build output
 dist/
+dist-electron/
 tsconfig.tsbuildinfo
 
 # Frontend runtime files. Everything under public/ is served by the app and
