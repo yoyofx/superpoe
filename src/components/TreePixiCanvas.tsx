@@ -33,7 +33,7 @@ import {
 import {
   getRenderTreePoint,
   getSelectedAscendancyProjection,
-  isClassToAscendancyConnector,
+  isExternalAscendancyConnector,
   matchesAscendancy,
   NODE_COLOR,
   NODE_RADIUS,
@@ -381,16 +381,6 @@ export function TreePixiCanvas() {
 
       const clsData = selectedClassId ? treeData.constants.classes?.[selectedClassId] : undefined
       if (spriteLoader.isAvailable()) {
-        const bgInfo = spriteLoader.getByName('BGTree')
-        if (bgInfo) {
-          const tex = requestSpriteTexture(bgInfo, requestRender)
-          if (tex) {
-            const sprite = new Sprite(tex)
-            configureSprite(sprite, 0, 0, 2000, 2000, 0.48)
-            backgroundLayer.addChild(sprite)
-          }
-        }
-
         const selectedAsc = clsData?.ascendancies?.find((asc) => matchesAscendancy(asc, selectedAscendancyId))
         const centerBg = selectedAsc?.background || clsData?.background
         if (clsData?.background && centerBg?.image) {
@@ -398,11 +388,35 @@ export function TreePixiCanvas() {
           if (info) {
             const tex = requestSpriteTexture(info, requestRender)
             if (tex) {
-              const centerScale = selectedAscendancyProjection?.scale ?? 1
               const sprite = new Sprite(tex)
-              configureSprite(sprite, clsData.background.x, clsData.background.y, centerBg.width * centerScale, centerBg.height * centerScale, 0.92)
+              const backgroundSize = selectedAscendancyProjection?.backgroundSize ?? centerBg.width
+              configureSprite(sprite, clsData.background.x, clsData.background.y, backgroundSize, backgroundSize, 0.92)
               backgroundLayer.addChild(sprite)
             }
+          }
+        }
+
+        if (clsData?.background) {
+          const activeInfo = spriteLoader.getByName('BGTreeActive')
+          const activeTexture = activeInfo ? requestSpriteTexture(activeInfo, requestRender) : null
+          if (activeTexture) {
+            const startNode = clsData.startNodeId ? treeData.nodes[clsData.startNodeId] : undefined
+            const sprite = new Sprite(activeTexture)
+            const frameSize = selectedAscendancyProjection?.frameSize ?? 2000
+            configureSprite(sprite, clsData.background.x, clsData.background.y, frameSize, frameSize, 0.8)
+            if (startNode) {
+              sprite.rotation = Math.PI / 2 + Math.atan2(startNode.y - clsData.background.y, startNode.x - clsData.background.x)
+            }
+            backgroundLayer.addChild(sprite)
+          }
+
+          const treeInfo = spriteLoader.getByName('BGTree')
+          const treeTexture = treeInfo ? requestSpriteTexture(treeInfo, requestRender) : null
+          if (treeTexture) {
+            const sprite = new Sprite(treeTexture)
+            const frameSize = selectedAscendancyProjection?.frameSize ?? 2000
+            configureSprite(sprite, clsData.background.x, clsData.background.y, frameSize, frameSize, 0.9)
+            backgroundLayer.addChild(sprite)
           }
         }
 
@@ -455,7 +469,7 @@ export function TreePixiCanvas() {
         for (const connector of treeData.connectors) {
           const node1 = treeData.nodes[connector.nodeId1]
           const node2 = treeData.nodes[connector.nodeId2]
-          if (isClassToAscendancyConnector(node1, node2)) continue
+          if (isExternalAscendancyConnector(node1, node2)) continue
           const activeConnector = isConnectorActiveForModes(connector.nodeId1, connector.nodeId2, allocatedNodes, implicitRoots, nodeWeaponSets)
           const previewConnector = !activeConnector && previewPath.has(connector.nodeId1) && previewPath.has(connector.nodeId2)
           if (isPlannedConnector(connector.connectionArt) && !activeConnector && !previewConnector) continue

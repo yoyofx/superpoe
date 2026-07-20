@@ -182,6 +182,11 @@ def build_connectors(
                 continue
             node_ascendancy = node.get("ascendancyName")
             other_ascendancy = other.get("ascendancyName")
+            # Ascendancy boards are rendered independently from the class tree.
+            # Keep their raw node links for allocation, but do not emit a visual
+            # connector across the two coordinate domains.
+            if bool(node_ascendancy) != bool(other_ascendancy):
+                continue
             if node_ascendancy and other_ascendancy and node_ascendancy != other_ascendancy:
                 continue
 

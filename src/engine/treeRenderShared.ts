@@ -22,7 +22,8 @@ export const NODE_COLOR: Record<string, string> = {
   Socket: '#888',
 }
 
-const ASCENDANCY_CENTER_MARGIN = 120
+const ASCENDANCY_CENTER_MARGIN = 300
+const BGTREE_VISIBLE_DIAMETER_RATIO = 0.8
 
 export interface AscendancyProjection {
   ascendancyName: string
@@ -31,6 +32,8 @@ export interface AscendancyProjection {
   targetX: number
   targetY: number
   scale: number
+  backgroundSize: number
+  frameSize: number
 }
 
 export function matchesAscendancy(asc: AscendancyClass, id: string): boolean {
@@ -57,10 +60,8 @@ export function getSelectedAscendancyProjection(
     if (node.ascendancyName !== ascendancy.name) return max
     return Math.max(max, Math.hypot(node.x - sourceX, node.y - sourceY))
   }, Math.max(ascendancy.background.width, ascendancy.background.height) / 2)
-  const boundaryRadius = Math.max(
-    1,
-    Math.hypot(startNode.x - targetX, startNode.y - targetY) - ASCENDANCY_CENTER_MARGIN,
-  )
+  const startRadius = Math.hypot(startNode.x - targetX, startNode.y - targetY)
+  const boundaryRadius = Math.max(1, startRadius - ASCENDANCY_CENTER_MARGIN)
   const scale = maxRadius > 0 ? Math.min(1, boundaryRadius / maxRadius) : 1
 
   return {
@@ -70,6 +71,8 @@ export function getSelectedAscendancyProjection(
     targetX,
     targetY,
     scale,
+    backgroundSize: startRadius * 2,
+    frameSize: (startRadius * 2) / BGTREE_VISIBLE_DIAMETER_RATIO,
   }
 }
 
@@ -91,8 +94,7 @@ export function shouldProjectConnector(connector: TreeConnectorQuad, projection:
   return !!projection && connector.ascendancyName === projection.ascendancyName
 }
 
-export function isClassToAscendancyConnector(node1?: TreeNode, node2?: TreeNode): boolean {
+export function isExternalAscendancyConnector(node1?: TreeNode, node2?: TreeNode): boolean {
   if (!node1 || !node2) return false
-  return (node1.type === 'ClassStart' && node2.type === 'AscendClassStart')
-    || (node2.type === 'ClassStart' && node1.type === 'AscendClassStart')
+  return Boolean(node1.ascendancyName) !== Boolean(node2.ascendancyName)
 }
