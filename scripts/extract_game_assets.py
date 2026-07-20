@@ -13,6 +13,7 @@ import subprocess
 import sys
 import os
 import time
+import json
 from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).parent
@@ -67,11 +68,20 @@ def main():
     ap.add_argument('--skip-ui', action='store_true', help='Skip UI assets copy')
     ap.add_argument('--skip-tree', action='store_true', help='Skip tree data generation')
     ap.add_argument('--skip-backfill', action='store_true', help='Skip copying missing assets from fallback version')
-    ap.add_argument('--fallback-version', default='0_4', help='Asset fallback version used for backfill')
+    ap.add_argument('--fallback-version', help='Asset fallback version used for backfill (defaults to newest existing version)')
     ap.add_argument('--dry-run', action='store_true', help='List steps without running')
     args = ap.parse_args()
     
     version = args.version
+    fallback_version = args.fallback_version
+    if not fallback_version:
+        manifest_path = WEB_DIR / 'public' / 'data' / 'tree-versions.json'
+        try:
+            existing_versions = json.loads(manifest_path.read_text(encoding='utf-8'))
+            fallback_version = next((item for item in existing_versions if isinstance(item, str) and item != version), None)
+        except (OSError, json.JSONDecodeError):
+            fallback_version = None
+    fallback_version = fallback_version or '0_4'
     tree_data_dir = SOURCES_DIR / 'TreeData' / version
     
     if not tree_data_dir.exists() and not args.dry_run:
@@ -81,7 +91,7 @@ def main():
     
     steps = [
         ("Prepare Fallback Version Assets",
-         ['backfill_version_assets.py', version, '--fallback-version', args.fallback_version],
+         ['backfill_version_assets.py', version, '--fallback-version', fallback_version],
          args.skip_backfill),
         ("Tree Data (tree-web.json)", 
          ['gen_tree_data.py', version, str(tree_data_dir / 'tree.json'),
@@ -101,7 +111,7 @@ def main():
           '--version', version],
          args.skip_dds),
         ("Backfill Missing Version Assets",
-         ['backfill_version_assets.py', version, '--fallback-version', args.fallback_version],
+         ['backfill_version_assets.py', version, '--fallback-version', fallback_version],
          args.skip_backfill),
         ("Tree Version Manifest",
          ['update_tree_versions.py', version],

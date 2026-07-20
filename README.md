@@ -107,7 +107,7 @@ npm run pipeline:all
 npm run pipeline:all -- 0_5
 ```
 
-该命令会生成 `public/data/tree-web-0_5.json`，复制/生成对应版本资源，并更新 `public/data/tree-versions.json`。前端版本下拉读取这个 manifest，因此后续新增 `0_6`、`0_7` 时不需要手改前端版本列表。
+该命令会生成 `public/data/tree-web-0_5.json`，复制/生成对应版本资源，并更新 `public/data/tree-versions.json`。前端版本下拉读取这个 manifest；资源管线只保留最新两个版本，生成 `0_6` 后会自动清理 `0_4` 及更早版本的 `tree-web` 数据、DDS、orbit 和 connector 运行资产。
 
 不传版本号时默认处理 `0_4`：
 

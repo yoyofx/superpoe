@@ -4,6 +4,7 @@ import { ExportPanel } from '@/components/ExportPanel'
 import { ImportPanel } from '@/components/ImportPanel'
 import { SaveLoadPanel } from '@/components/SaveLoadPanel'
 import { LANGUAGE_OPTIONS, type Language } from '@/i18n/translationLoader'
+import { translateGameText } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 
 type ToolbarMenu = 'export' | 'import' | 'builds' | 'equipment' | null
@@ -144,7 +145,7 @@ export function Toolbar() {
         aria-label={t('toolbar.class')}
       >
         {classEntries.map(([id, cls]) => (
-          <option key={id} value={id}>{cls.name}</option>
+          <option key={id} value={id}>{translateGameText(cls.displayName || cls.name, lang)}</option>
         ))}
       </select>
 
@@ -159,8 +160,10 @@ export function Toolbar() {
           title="Select ascendancy"
           aria-label={t('toolbar.ascendancy')}
         >
-          {ascendancies.map((asc: {id?: string, name: string}) => (
-            <option key={asc.id || asc.name} value={asc.id || asc.name}>{asc.name}</option>
+          {ascendancies.map((asc) => (
+            <option key={asc.id || asc.name} value={asc.id || asc.name}>
+              {translateGameText(asc.displayName || asc.name, lang)}
+            </option>
           ))}
         </select>
       )}

@@ -575,6 +575,7 @@ function normalizeLanguage(language: Language | 'zh' | undefined): Language {
 
 export function useTranslation() {
   const lang = useTreeStore((s) => normalizeLanguage(s.language))
+  const translationRevision = useTreeStore((s) => s.translationRevision)
   const storeSetLanguage = useTreeStore((s) => s.setLanguage)
 
   const t = useCallback(
@@ -587,7 +588,7 @@ export function useTranslation() {
       }
       return text
     },
-    [lang],
+    [lang, translationRevision],
   )
 
   const setLanguage = useCallback(
