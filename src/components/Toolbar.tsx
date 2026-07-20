@@ -19,7 +19,7 @@ export function Toolbar() {
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
   const searchQuery = useTreeStore((s) => s.searchQuery)
-  const searchMatchIds = useTreeStore((s) => s.searchMatchIds)
+  const searchMatchCount = useTreeStore((s) => s.searchMatchCount)
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
   const calcLoading = useTreeStore((s) => s.calcLoading)
   const setZoom = useTreeStore((s) => s.setZoom)
@@ -30,6 +30,7 @@ export function Toolbar() {
   const setTreeEditMode = useTreeStore((s) => s.setTreeEditMode)
   const setWeaponSetMode = useTreeStore((s) => s.setWeaponSetMode)
   const setSearchQuery = useTreeStore((s) => s.setSearchQuery)
+  const performSearch = useTreeStore((s) => s.performSearch)
   const setTreeVersion = useTreeStore((s) => s.setTreeVersion)
   const runCalculation = useTreeStore((s) => s.runCalculation)
   const treeData = useTreeStore((s) => s.treeData)
@@ -40,6 +41,11 @@ export function Toolbar() {
   useEffect(() => {
     loadTreeVersions().then(setVersions).catch(() => setVersions(FALLBACK_TREE_VERSIONS))
   }, [])
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => performSearch(searchQuery), 180)
+    return () => window.clearTimeout(timer)
+  }, [performSearch, searchQuery])
 
   const classes = treeData?.constants?.classes
   const classEntries = classes ? Object.entries(classes) : []
@@ -105,13 +111,19 @@ export function Toolbar() {
           placeholder={t('toolbar.search')}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') performSearch(searchQuery)
+          }}
           className="w-40 bg-gray-800 text-sm text-white rounded-md pl-8 pr-3 py-1.5
                      border border-gray-600 focus:border-blue-500 focus:outline-none
                      placeholder-gray-500"
         />
         {searchQuery && (
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500">
-            {searchMatchIds.length}
+          <span
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500"
+            title="Matching passive nodes"
+          >
+            {searchMatchCount}
           </span>
         )}
       </div>

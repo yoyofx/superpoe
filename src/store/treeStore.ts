@@ -11,6 +11,7 @@ import { LANGUAGE_OPTIONS, getLocalizedSearchText, loadTranslations, type Langua
 import { encodeBuildCode, getEncodeClassPayload } from '@/engine/buildCode'
 import { calculateBuild } from '@/engine/pobLuaClient'
 import { clearPersistedImportedBuild, getInitialImportedBuildCode } from '@/engine/buildPersistence'
+import { getRenderTreePoint, getSelectedAscendancyProjection } from '@/engine/treeRenderShared'
 import {
   cleanAttributeSelections,
   nextAttributeSelection,
@@ -41,6 +42,29 @@ const DEFAULT_LANGUAGE: Language = 'en'
 const LANGUAGE_STORAGE_KEY = 'pob2-language'
 
 let treeVersionsPromise: Promise<string[]> | null = null
+const searchIndexCache = new WeakMap<TreeData, Map<string, Array<[string, string]>>>()
+
+function getSearchIndex(treeData: TreeData, language: Language, translationRevision: number): Array<[string, string]> {
+  const cacheKey = `${language}:${translationRevision}`
+  let indexes = searchIndexCache.get(treeData)
+  if (!indexes) {
+    indexes = new Map()
+    searchIndexCache.set(treeData, indexes)
+  }
+  const cached = indexes.get(cacheKey)
+  if (cached) return cached
+
+  const index = Object.entries(treeData.nodes)
+    // Decorative nodes have text in the upstream data, but cannot be focused,
+    // highlighted, or allocated in the interactive tree.
+    .filter(([, node]) => node.type !== 'OnlyImage')
+    .map(([id, node]) => [
+      id,
+      `${id}\n${node.type}\n${getLocalizedSearchText(node, language)}`,
+    ]) as Array<[string, string]>
+  indexes.set(cacheKey, index)
+  return index
+}
 
 export async function loadTreeVersions(): Promise<string[]> {
   if (treeVersionsPromise) return treeVersionsPromise
@@ -389,6 +413,7 @@ interface TreeStore {
 
 
   searchMatchIds: string[]
+  searchMatchCount: number
 
 
 
@@ -893,6 +918,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
   searchMatchIds: [],
+  searchMatchCount: 0,
 
 
 
@@ -1506,7 +1532,6 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-    get().performSearch(q)
 
 
 
@@ -1543,7 +1568,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-    const { treeData, language } = get()
+    const { treeData, language, translationRevision, selectedClassId, selectedAscendancyId } = get()
 
 
 
@@ -1559,7 +1584,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      set({ searchMatchIds: [], selectedNodeId: null })
+      set({ searchMatchIds: [], searchMatchCount: 0, selectedNodeId: null })
 
 
 
@@ -1592,6 +1617,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
     const matches: string[] = []
+    let matchCount = 0
 
 
 
@@ -1599,15 +1625,13 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-    for (const [id, node] of Object.entries(treeData.nodes)) {
+    for (const [id, haystack] of getSearchIndex(treeData, language, translationRevision)) {
 
 
 
 
 
 
-
-      const haystack = `${id}\n${node.type}\n${getLocalizedSearchText(node, language)}`
 
       if (haystack.includes(lower)) {
 
@@ -1617,7 +1641,9 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-        matches.push(id)
+        matchCount += 1
+        // Keep the visual overlay bounded; the toolbar reports the complete count.
+        if (matches.length < 100) matches.push(id)
 
 
 
@@ -1633,7 +1659,6 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      if (matches.length >= 100) break
 
 
 
@@ -1651,10 +1676,13 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
     const firstMatch = matches[0]
     const firstNode = firstMatch ? treeData.nodes[firstMatch] : null
+    const projection = getSelectedAscendancyProjection(treeData, selectedClassId, selectedAscendancyId)
+    const [focusX, focusY] = firstNode ? getRenderTreePoint(firstNode, projection) : [0, 0]
     set({
       searchMatchIds: matches,
+      searchMatchCount: matchCount,
       selectedNodeId: firstMatch || null,
-      ...(firstNode ? { offsetX: -firstNode.x, offsetY: -firstNode.y } : {}),
+      ...(firstNode ? { offsetX: -focusX, offsetY: -focusY } : {}),
     })
 
 

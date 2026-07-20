@@ -15,6 +15,7 @@ const dictionaries = new Map<Language, Map<string, string>>()
 const numericDictionaries = new Map<Language, Map<string, string>>()
 const templateDictionaries = new Map<Language, TranslationTemplate[]>()
 const templateKeys = new Map<Language, Set<string>>()
+const searchTextCaches = new Map<Language, WeakMap<TreeNode, string>>()
 
 const TRANSLATION_MANIFEST = '/data/Translate/translation-files.json'
 
@@ -367,22 +368,42 @@ export function getLocalizedNodeDisplay(node: TreeNode, language: Language): Loc
   }
 }
 
+/**
+ * Search indexes every passive node at once. Template translation is useful for
+ * tooltip display, but testing every translation template for every stat line
+ * makes the first query block the UI. Exact and numeric dictionary entries
+ * cover the searchable game text while keeping index construction bounded.
+ */
+function translateSearchText(value: string, language: Language): string {
+  if (language === 'en') return value
+  const key = normalizeKey(value)
+  const dictionary = dictionaries.get(language)
+  const exact = dictionary?.get(key) || dictionary?.get(normalizeDisplayTags(key))
+  if (exact) return exact
+  return applyNumericEntry(numericDictionaries.get(language), key) || value
+}
+
 export function getLocalizedSearchText(node: TreeNode, language: Language): string {
-  const display = getLocalizedNodeDisplay(node, language)
-  const parts: string[] = []
-  collectText(parts, node.name)
-  collectText(parts, node.stats)
-  collectText(parts, node.reminderText)
-  collectText(parts, node.flavourText)
-  collectText(parts, node.recipe)
-  collectText(parts, node.options)
-  collectText(parts, display.name)
-  collectText(parts, display.stats)
-  collectText(parts, display.grantedSkills)
-  collectText(parts, display.reminderText)
-  collectText(parts, display.flavourText)
-  collectText(parts, display.recipe)
-  return parts.join('\n').toLowerCase()
+  const canCache = language === 'en' || loadedLanguages.has(language)
+  const cache = canCache ? (searchTextCaches.get(language) || new WeakMap<TreeNode, string>()) : undefined
+  if (cache && !searchTextCaches.has(language)) searchTextCaches.set(language, cache)
+  const cached = cache?.get(node)
+  if (cached) return cached
+
+  const sourceParts: string[] = []
+  collectText(sourceParts, node.name)
+  collectText(sourceParts, node.stats)
+  collectText(sourceParts, node.reminderText)
+  collectText(sourceParts, node.flavourText)
+  collectText(sourceParts, node.recipe)
+  collectText(sourceParts, node.options)
+
+  const translatedParts = language === 'en'
+    ? []
+    : sourceParts.map((part) => translateSearchText(part, language))
+  const result = [...sourceParts, ...translatedParts].join('\n').toLowerCase()
+  cache?.set(node, result)
+  return result
 }
 
 export function isTranslationLoaded(language: Language): boolean {
@@ -395,4 +416,5 @@ export function resetTranslationsForTest(): void {
   numericDictionaries.clear()
   templateDictionaries.clear()
   templateKeys.clear()
+  searchTextCaches.clear()
 }

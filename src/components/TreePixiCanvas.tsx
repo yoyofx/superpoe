@@ -180,6 +180,7 @@ export function TreePixiCanvas() {
   const hostRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<Application | null>(null)
   const worldLayerRef = useRef<Container | null>(null)
+  const interactionLayerRef = useRef<Container | null>(null)
   const hoverLayerRef = useRef<Container | null>(null)
   const nodeRenderCacheRef = useRef<Map<string, { x: number; y: number; radius: number }> | null>(null)
   const renderTokenRef = useRef(0)
@@ -190,6 +191,7 @@ export function TreePixiCanvas() {
   const [pixiReady, setPixiReady] = useState(false)
   const [textureRenderTick, setTextureRenderTick] = useState(0)
   const [resizeTick, setResizeTick] = useState(0)
+  const [nodeRenderRevision, setNodeRenderRevision] = useState(0)
 
   const treeData = useTreeStore((s) => s.treeData)
   const treeVersion = useTreeStore((s) => s.treeVersion)
@@ -356,12 +358,14 @@ export function TreePixiCanvas() {
       const connectorLayer = new Container()
       const nodeLayer = new Container()
       const overlayLayer = new Container()
+      const interactionLayer = new Container()
       const hoverLayer = new Container()
       worldLayerRef.current = worldLayer
+      interactionLayerRef.current = interactionLayer
       hoverLayerRef.current = hoverLayer
       updateWorldTransform(app, worldLayer, offsetX, offsetY, zoom)
       app.stage.addChild(screenLayer, worldLayer)
-      worldLayer.addChild(backgroundLayer, orbitLayer, connectorLayer, nodeLayer, overlayLayer, hoverLayer)
+      worldLayer.addChild(backgroundLayer, orbitLayer, connectorLayer, nodeLayer, overlayLayer, interactionLayer, hoverLayer)
 
       const starfield = new Graphics()
       const starSeed = 83791
@@ -519,11 +523,8 @@ export function TreePixiCanvas() {
         connectorLayer.addChild(fallbackLines)
       }
 
-      const searchSet = new Set(searchMatchIds)
       for (const [id, node] of nodeList) {
         const [sx, sy] = nodeScreenCache.get(id)!
-        const isSelected = id === selectedNodeId
-        const isSearchMatch = searchSet.has(id)
         const isAllocated = isEffectivelyAllocated(id, allocatedNodes, implicitRoots)
         const isPreview = !isAllocated && previewPath.has(id)
         const isAvailable = !isAllocated && (availableNodes.has(id) || isPreview)
@@ -565,7 +566,7 @@ export function TreePixiCanvas() {
               if (tex) {
                 const [iconW, iconH] = assetHalfSize(node.targetSize, r, r, zoom)
                 const icon = new Sprite(tex)
-                configureSprite(icon, sx, sy, iconW * 2 / zoom, iconH * 2 / zoom, !isAllocated && !isSelected ? 0.68 : 1)
+                configureSprite(icon, sx, sy, iconW * 2 / zoom, iconH * 2 / zoom, !isAllocated ? 0.68 : 1)
                 nodeLayer.addChild(icon)
                 drewSprite = true
               }
@@ -582,7 +583,7 @@ export function TreePixiCanvas() {
               if (tex) {
                 const [frameW, frameH] = assetHalfSize(node.targetSize?.overlay, r * 1.2, r * 1.2, zoom)
                 const frame = new Sprite(tex)
-                configureSprite(frame, sx, sy, frameW * 2 / zoom, frameH * 2 / zoom, !isAllocated && !isSelected && ['ClassStart', 'AscendClassStart'].includes(node.type) ? 0.68 : 1)
+                configureSprite(frame, sx, sy, frameW * 2 / zoom, frameH * 2 / zoom, !isAllocated && ['ClassStart', 'AscendClassStart'].includes(node.type) ? 0.68 : 1)
                 nodeLayer.addChild(frame)
                 drewSprite = true
               }
@@ -598,16 +599,11 @@ export function TreePixiCanvas() {
         }
 
         const overlayGraphics = new Graphics()
-        if (isAllocated && !isSelected) {
+        if (isAllocated) {
           overlayGraphics.circle(sx, sy, sr + 1).stroke({ color: 0xA0D4FF, width: 2 })
         }
         if (isAvailable) {
           overlayGraphics.circle(sx, sy, sr + 1).stroke({ color: 0x4ADE80, width: 2.5 })
-        }
-        if (isSelected) {
-          overlayGraphics.circle(sx, sy, sr + 1.5).stroke({ color: 0xFFD700, width: 2.5 })
-        } else if (isSearchMatch) {
-          overlayGraphics.circle(sx, sy, sr + 1).stroke({ color: 0x60A5FA, width: 2 })
         }
         overlayLayer.addChild(overlayGraphics)
       }
@@ -615,13 +611,47 @@ export function TreePixiCanvas() {
         const [x, y] = nodeScreenCache.get(id)!
         return [id, { x, y, radius: NODE_RADIUS[node.type] ?? 6 }]
       }))
+      setNodeRenderRevision((revision) => revision + 1)
     }
 
     const spriteLoader = getSpriteLoader(treeVersion)
     void spriteLoader.init().then(() => {
       if (token === renderTokenRef.current) render()
     })
-  }, [pixiReady, textureRenderTick, resizeTick, treeData, treeVersion, previewNodeId, selectedNodeId, searchMatchIds, treeEditMode, weaponSetMode, nodeWeaponSets, nodeAttributeSelections, selectedClassId, selectedAscendancyId, allocatedNodes, availableNodes, requestRender])
+  }, [pixiReady, textureRenderTick, resizeTick, treeData, treeVersion, previewNodeId, treeEditMode, weaponSetMode, nodeWeaponSets, nodeAttributeSelections, selectedClassId, selectedAscendancyId, allocatedNodes, availableNodes, requestRender])
+
+  useEffect(() => {
+    const interactionLayer = interactionLayerRef.current
+    if (!pixiReady || !interactionLayer) return
+
+    interactionLayer.removeChildren().forEach((child) => child.destroy({ children: true }))
+    const cache = nodeRenderCacheRef.current
+    if (!cache) return
+
+    const highlights = new Graphics()
+    const searchRadius = 10 / zoom
+    const searchStrokeWidth = 2.5 / zoom
+    for (const id of searchMatchIds) {
+      if (id === selectedNodeId) continue
+      const hit = cache.get(id)
+      if (!hit) continue
+      highlights
+        .circle(hit.x, hit.y, hit.radius + searchRadius)
+        .fill({ color: 0x2F9BFF, alpha: 0.18 })
+        .stroke({ color: 0x60A5FA, width: searchStrokeWidth, alpha: 0.98 })
+    }
+
+    if (selectedNodeId) {
+      const hit = cache.get(selectedNodeId)
+      if (hit) {
+        highlights
+          .circle(hit.x, hit.y, hit.radius + 13 / zoom)
+          .fill({ color: 0xFFD700, alpha: 0.18 })
+          .stroke({ color: 0xFFD700, width: 3 / zoom, alpha: 1 })
+      }
+    }
+    interactionLayer.addChild(highlights)
+  }, [pixiReady, searchMatchIds, selectedNodeId, nodeRenderRevision, zoom])
 
   useEffect(() => {
     const hoverLayer = hoverLayerRef.current
@@ -707,16 +737,60 @@ export function TreePixiCanvas() {
     setHoveredNode(null)
   }, [setHoveredNode])
 
+  const handleSearchMarkerClick = useCallback((id: string) => {
+    if (treeEditMode) toggleNode(id)
+    setSelectedNode(id)
+  }, [setSelectedNode, toggleNode, treeEditMode])
+
+  const searchProjection = treeData
+    ? getSelectedAscendancyProjection(treeData, selectedClassId, selectedAscendancyId)
+    : null
+  const searchMarkers = treeData && typeof window !== 'undefined'
+    ? searchMatchIds.flatMap((id) => {
+      const node = treeData.nodes[id]
+      if (!node || node.type === 'OnlyImage') return []
+      const [x, y] = getRenderTreePoint(node, searchProjection)
+      return [{
+        id,
+        left: (x + offsetX) * zoom + window.innerWidth / 2,
+        top: (y + offsetY) * zoom + window.innerHeight / 2,
+        selected: id === selectedNodeId,
+      }]
+    })
+    : []
+
   return (
-    <div
-      ref={hostRef}
-      className="fixed inset-0 cursor-grab active:cursor-grabbing"
-      onWheel={handleWheel}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onContextMenu={handleContextMenu}
-      onMouseLeave={handleMouseLeave}
-    />
+    <>
+      <div
+        ref={hostRef}
+        className="fixed inset-0 cursor-grab active:cursor-grabbing"
+        onWheel={handleWheel}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onContextMenu={handleContextMenu}
+        onMouseLeave={handleMouseLeave}
+      />
+      <div className="pointer-events-none fixed inset-0 z-10">
+        {searchMarkers.map((marker) => {
+          const size = marker.selected ? 34 : 24
+          return (
+            <div
+              key={marker.id}
+              className={marker.selected
+                ? 'pointer-events-auto absolute cursor-pointer rounded-full border-[3px] border-amber-300 bg-amber-300/20 shadow-[0_0_16px_rgba(251,191,36,0.95)]'
+                : 'pointer-events-auto absolute cursor-pointer rounded-full border-2 border-sky-400 bg-sky-400/15 shadow-[0_0_10px_rgba(96,165,250,0.8)]'}
+              style={{
+                width: size,
+                height: size,
+                left: marker.left - size / 2,
+                top: marker.top - size / 2,
+              }}
+              onClick={() => handleSearchMarkerClick(marker.id)}
+            />
+          )
+        })}
+      </div>
+    </>
   )
 }
