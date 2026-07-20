@@ -36,6 +36,7 @@ export function ExportPanel({ embedded = false }: ExportPanelProps) {
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
   const treeData = useTreeStore((s) => s.treeData)
+  const importedBuildCode = useTreeStore((s) => s.importedBuildCode)
 
   const nodeCount = allocatedNodes.size
 
@@ -58,6 +59,7 @@ export function ExportPanel({ embedded = false }: ExportPanelProps) {
         nodeWeaponSets,
         nodeAttributeSelections,
         treeVersion,
+        baseCode: importedBuildCode || undefined,
         ...classPayload,
       })
       setCode(result.code || '')
@@ -81,6 +83,7 @@ export function ExportPanel({ embedded = false }: ExportPanelProps) {
     selectedClassId,
     selectedAscendancyId,
     treeData,
+    importedBuildCode,
   ])
 
 

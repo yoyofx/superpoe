@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Application,
   Container,
@@ -21,6 +21,7 @@ import {
   type AllocMode,
 } from '@/engine/passiveAllocation'
 import { getSpriteLoader } from '@/engine/spriteLoader'
+import { decodeBuildCode, type NodeJewels } from '@/engine/buildCode'
 import type { SpriteInfo } from '@/engine/spriteLoader'
 import {
   preloadPixiConnectors,
@@ -41,7 +42,7 @@ import {
   shouldProjectConnector,
 } from '@/engine/treeRenderShared'
 import { useTreeStore } from '@/store/treeStore'
-import type { TreeNode } from '@/types/tree'
+import type { TreeConnectorQuad, TreeNode } from '@/types/tree'
 
 const FALLBACK_VERSION = '0_4'
 const ORBIT_SPRITE_NODE_TYPES = new Set(['Notable', 'Keystone', 'ClassStart', 'AscendClassStart'])
@@ -57,6 +58,19 @@ const ASCENDANCY_CONNECTOR_ALPHA = {
 }
 const PIXEL_RATIO_CAP = 3
 const HOVER_RADIUS_MULTIPLIER = 1.18
+const HIT_GRID_CELL_SIZE = 280
+const PREVIEW_CACHE_LIMIT = 256
+
+interface NodeHit {
+  id: string
+  x: number
+  y: number
+  radius: number
+}
+
+function hitGridKey(x: number, y: number): string {
+  return `${Math.floor(x / HIT_GRID_CELL_SIZE)}:${Math.floor(y / HIT_GRID_CELL_SIZE)}`
+}
 
 function getRendererResolution(): number {
   if (typeof window === 'undefined') return 1
@@ -72,6 +86,23 @@ function resizeRendererToHost(app: Application, host: HTMLElement): void {
 
 function hexToNumber(hex: string): number {
   return Number.parseInt(hex.replace('#', ''), 16)
+}
+
+function jewelColor(jewel: NodeJewels[string]): number {
+  const type = `${jewel.name} ${jewel.baseType}`.toLowerCase()
+  if (type.includes('crimson')) return 0xE13A3A
+  if (type.includes('viridian') || type.includes('emerald')) return 0x36C46A
+  if (type.includes('cobalt') || type.includes('sapphire')) return 0x3E8BEB
+  if (type.includes('prismatic')) return 0xF0D06A
+  if (type.includes('timeless')) return 0xA86BE0
+  if (type.includes('abyss')) return 0x6B5CD6
+  return 0xB45DE8
+}
+
+function jewelSpriteName(jewel: NodeJewels[string]): string {
+  return jewel.rarity === 'UNIQUE' && jewel.name !== 'Grand Spectrum'
+    ? jewel.name
+    : jewel.baseType
 }
 
 function assetHalfSize(
@@ -180,9 +211,18 @@ export function TreePixiCanvas() {
   const hostRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<Application | null>(null)
   const worldLayerRef = useRef<Container | null>(null)
+  const previewConnectorLayerRef = useRef<Container | null>(null)
+  const previewNodeLayerRef = useRef<Container | null>(null)
   const interactionLayerRef = useRef<Container | null>(null)
   const hoverLayerRef = useRef<Container | null>(null)
-  const nodeRenderCacheRef = useRef<Map<string, { x: number; y: number; radius: number }> | null>(null)
+  const nodeRenderCacheRef = useRef<Map<string, NodeHit> | null>(null)
+  const nodeHitGridRef = useRef<Map<string, NodeHit[]> | null>(null)
+  const connectorsByNodeRef = useRef<Map<string, TreeConnectorQuad[]> | null>(null)
+  const previewPathCacheRef = useRef(new Map<string, Set<string>>())
+  const previewCacheScopeRef = useRef('')
+  const pendingHoverPointerRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null)
+  const hoverFrameRef = useRef<number | null>(null)
+  const hoveredNodeIdRef = useRef<string | null>(null)
   const renderTokenRef = useRef(0)
   const pendingTextureRenderRef = useRef<number | null>(null)
   const isDragging = useRef(false)
@@ -205,11 +245,27 @@ export function TreePixiCanvas() {
   const weaponSetMode = useTreeStore((s) => s.weaponSetMode)
   const nodeWeaponSets = useTreeStore((s) => s.nodeWeaponSets)
   const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
+  const importedBuildCode = useTreeStore((s) => s.importedBuildCode)
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
   const availableNodes = useTreeStore((s) => s.availableNodes)
   const previewNodeId = treeEditMode ? hoveredNodeId : null
+  const passiveJewels = useMemo(() => {
+    if (!importedBuildCode) return {} as NodeJewels
+    try {
+      return decodeBuildCode(importedBuildCode).nodeJewels
+    } catch {
+      return {} as NodeJewels
+    }
+  }, [importedBuildCode])
+  const previewCacheScope = [
+    treeVersion,
+    selectedClassId,
+    selectedAscendancyId,
+    [...allocatedNodes].sort().join(','),
+    Object.entries(nodeWeaponSets).sort(([a], [b]) => a.localeCompare(b)).map(([id, mode]) => `${id}:${mode}`).join(','),
+  ].join('|')
   const setHoveredNode = useTreeStore((s) => s.setHoveredNode)
   const setSelectedNode = useTreeStore((s) => s.setSelectedNode)
   const setMousePos = useTreeStore((s) => s.setMousePos)
@@ -221,6 +277,10 @@ export function TreePixiCanvas() {
   useEffect(() => {
     cameraRef.current = { offsetX, offsetY, zoom }
   }, [offsetX, offsetY, zoom])
+
+  useEffect(() => {
+    hoveredNodeIdRef.current = hoveredNodeId
+  }, [hoveredNodeId])
 
   useEffect(() => {
     let destroyed = false
@@ -268,6 +328,10 @@ export function TreePixiCanvas() {
       if (pendingTextureRenderRef.current != null) {
         window.cancelAnimationFrame(pendingTextureRenderRef.current)
         pendingTextureRenderRef.current = null
+      }
+      if (hoverFrameRef.current != null) {
+        window.cancelAnimationFrame(hoverFrameRef.current)
+        hoverFrameRef.current = null
       }
     }
   }, [])
@@ -347,25 +411,38 @@ export function TreePixiCanvas() {
       const selectedAscendancyProjection = getSelectedAscendancyProjection(treeData, selectedClassId, selectedAscendancyId)
       const allocationContext = { treeData, selectedClassId, selectedAscendancyId }
       const implicitRoots = getImplicitRootIds(allocationContext)
-      const previewPath = treeEditMode
-        ? getPreviewPath(allocationContext, allocatedNodes, nodeWeaponSets, previewNodeId, weaponSetMode as AllocMode)
-        : new Set<string>()
 
       const screenLayer = new Container()
       const worldLayer = new Container()
       const backgroundLayer = new Container()
       const orbitLayer = new Container()
       const connectorLayer = new Container()
+      const previewConnectorLayer = new Container()
       const nodeLayer = new Container()
       const overlayLayer = new Container()
+      const jewelLayer = new Container()
+      const previewNodeLayer = new Container()
       const interactionLayer = new Container()
       const hoverLayer = new Container()
       worldLayerRef.current = worldLayer
+      previewConnectorLayerRef.current = previewConnectorLayer
+      previewNodeLayerRef.current = previewNodeLayer
       interactionLayerRef.current = interactionLayer
       hoverLayerRef.current = hoverLayer
       updateWorldTransform(app, worldLayer, offsetX, offsetY, zoom)
       app.stage.addChild(screenLayer, worldLayer)
-      worldLayer.addChild(backgroundLayer, orbitLayer, connectorLayer, nodeLayer, overlayLayer, interactionLayer, hoverLayer)
+      worldLayer.addChild(
+        backgroundLayer,
+        orbitLayer,
+        connectorLayer,
+        previewConnectorLayer,
+        nodeLayer,
+        overlayLayer,
+        jewelLayer,
+        previewNodeLayer,
+        interactionLayer,
+        hoverLayer,
+      )
 
       const starfield = new Graphics()
       const starSeed = 83791
@@ -453,17 +530,16 @@ export function TreePixiCanvas() {
         if (!ORBIT_SPRITE_NODE_TYPES.has(node.type)) continue
         const [sx, sy] = nodeScreenCache.get(id)!
         const isAllocated = isEffectivelyAllocated(id, allocatedNodes, implicitRoots)
-        const isPreview = !isAllocated && previewPath.has(id)
-        const isAvailable = !isAllocated && (availableNodes.has(id) || isPreview)
+        const isAvailable = !isAllocated && availableNodes.has(id)
         const r = NODE_RADIUS[node.type] ?? 9
         const segWidth = r * 5
         const segHeight = r * 1.5
         const sourceWidth = segWidth
-        const tex = requestOrbitSegmentTexture(treeVersion, node.orbit, getOrbitTextureState(isAllocated, isAvailable, isPreview), sourceWidth, requestRender)
+        const tex = requestOrbitSegmentTexture(treeVersion, node.orbit, getOrbitTextureState(isAllocated, isAvailable, false), sourceWidth, requestRender)
         if (!tex) continue
         const sprite = new Sprite(tex)
         configureSprite(sprite, sx, sy, segWidth, segHeight)
-        if (!isAllocated && !isPreview && !isAvailable) sprite.alpha = 0.82
+        if (!isAllocated && !isAvailable) sprite.alpha = 0.82
         orbitLayer.addChild(sprite)
       }
 
@@ -475,9 +551,8 @@ export function TreePixiCanvas() {
           const node2 = treeData.nodes[connector.nodeId2]
           if (isExternalAscendancyConnector(node1, node2)) continue
           const activeConnector = isConnectorActiveForModes(connector.nodeId1, connector.nodeId2, allocatedNodes, implicitRoots, nodeWeaponSets)
-          const previewConnector = !activeConnector && previewPath.has(connector.nodeId1) && previewPath.has(connector.nodeId2)
-          if (isPlannedConnector(connector.connectionArt) && !activeConnector && !previewConnector) continue
-          const state = activeConnector ? 'Active' : getConnectorState(previewConnector, false)
+          if (isPlannedConnector(connector.connectionArt) && !activeConnector) continue
+          const state = activeConnector ? 'Active' : getConnectorState(false, false)
           const vert = connector.vert[state] || connector.vert.Normal
           if (!vert) continue
           const projectConnector = shouldProjectConnector(connector, selectedAscendancyProjection)
@@ -510,14 +585,13 @@ export function TreePixiCanvas() {
             const connectorMode1 = getNodeAllocMode(connector.nodeId1, nodeWeaponSets)
             const connectorMode2 = getNodeAllocMode(connector.nodeId2, nodeWeaponSets)
             const connectorMode = connectorMode1 || connectorMode2
-            const previewMode = previewConnector && treeEditMode && weaponSetMode > 0 ? weaponSetMode as 1 | 2 : 0
-            const overlayMode = activeConnector ? connectorMode : previewMode
+            const overlayMode = activeConnector ? connectorMode : 0
             const tint = overlayMode === 1 || overlayMode === 2 ? hexToNumber(WEAPON_SET_COLORS[overlayMode]) : undefined
             const mesh = makeConnectorMesh(texture, points, connector.texCoords, tint)
-            mesh.alpha = connectorAlpha(connector.connectionArt, activeConnector, previewConnector)
+            mesh.alpha = connectorAlpha(connector.connectionArt, activeConnector, false)
             connectorLayer.addChild(mesh)
           } else if (!useTextureConnectors) {
-            drawFallbackConnector(fallbackLines, points, state === 'Active', state === 'Intermediate')
+            drawFallbackConnector(fallbackLines, points, state === 'Active', false)
           }
         }
         connectorLayer.addChild(fallbackLines)
@@ -526,8 +600,7 @@ export function TreePixiCanvas() {
       for (const [id, node] of nodeList) {
         const [sx, sy] = nodeScreenCache.get(id)!
         const isAllocated = isEffectivelyAllocated(id, allocatedNodes, implicitRoots)
-        const isPreview = !isAllocated && previewPath.has(id)
-        const isAvailable = !isAllocated && (availableNodes.has(id) || isPreview)
+        const isAvailable = !isAllocated && availableNodes.has(id)
         const r = NODE_RADIUS[node.type] ?? 6
         const sr = r
         const useNodeDetails = true
@@ -607,10 +680,55 @@ export function TreePixiCanvas() {
         }
         overlayLayer.addChild(overlayGraphics)
       }
-      nodeRenderCacheRef.current = new Map(nodeList.map(([id, node]) => {
+
+      for (const [id, jewel] of Object.entries(passiveJewels)) {
+        const node = treeData.nodes[id]
+        const point = nodeScreenCache.get(id)
+        if (!node || !point || !isEffectivelyAllocated(id, allocatedNodes, implicitRoots)) continue
+        const radius = (NODE_RADIUS[node.type] ?? 9) * 0.92
+        const spriteInfo = spriteLoader.getByName(jewelSpriteName(jewel))
+        const spriteTexture = spriteInfo ? requestSpriteTexture(spriteInfo, requestRender) : null
+        if (spriteTexture) {
+          const [width, height] = assetHalfSize(node.targetSize?.overlay, radius, radius, zoom)
+          const sprite = new Sprite(spriteTexture)
+          configureSprite(sprite, point[0], point[1], width * 2 / zoom, height * 2 / zoom)
+          jewelLayer.addChild(sprite)
+          continue
+        }
+        const gem = new Graphics()
+        gem
+          .circle(point[0], point[1], radius)
+          .fill({ color: jewelColor(jewel), alpha: 0.96 })
+        gem
+          .circle(point[0], point[1], radius + 2)
+          .stroke({ color: 0xFFF3C4, width: 1.5, alpha: 0.95 })
+        gem
+          .circle(point[0] - radius * 0.25, point[1] - radius * 0.3, Math.max(1.5, radius * 0.22))
+          .fill({ color: 0xFFFFFF, alpha: 0.8 })
+        jewelLayer.addChild(gem)
+      }
+      const nodeRenderCache = new Map<string, NodeHit>()
+      const nodeHitGrid = new Map<string, NodeHit[]>()
+      for (const [id, node] of nodeList) {
         const [x, y] = nodeScreenCache.get(id)!
-        return [id, { x, y, radius: NODE_RADIUS[node.type] ?? 6 }]
-      }))
+        const hit = { id, x, y, radius: NODE_RADIUS[node.type] ?? 6 }
+        nodeRenderCache.set(id, hit)
+        const key = hitGridKey(x, y)
+        const bucket = nodeHitGrid.get(key)
+        if (bucket) bucket.push(hit)
+        else nodeHitGrid.set(key, [hit])
+      }
+      nodeRenderCacheRef.current = nodeRenderCache
+      nodeHitGridRef.current = nodeHitGrid
+      const connectorsByNode = new Map<string, TreeConnectorQuad[]>()
+      for (const connector of treeData.connectors ?? []) {
+        for (const id of [connector.nodeId1, connector.nodeId2]) {
+          const list = connectorsByNode.get(id)
+          if (list) list.push(connector)
+          else connectorsByNode.set(id, [connector])
+        }
+      }
+      connectorsByNodeRef.current = connectorsByNode
       setNodeRenderRevision((revision) => revision + 1)
     }
 
@@ -618,7 +736,90 @@ export function TreePixiCanvas() {
     void spriteLoader.init().then(() => {
       if (token === renderTokenRef.current) render()
     })
-  }, [pixiReady, textureRenderTick, resizeTick, treeData, treeVersion, previewNodeId, treeEditMode, weaponSetMode, nodeWeaponSets, nodeAttributeSelections, selectedClassId, selectedAscendancyId, allocatedNodes, availableNodes, requestRender])
+  }, [pixiReady, textureRenderTick, resizeTick, treeData, treeVersion, nodeWeaponSets, nodeAttributeSelections, passiveJewels, selectedClassId, selectedAscendancyId, allocatedNodes, availableNodes, requestRender])
+
+  useEffect(() => {
+    const connectorLayer = previewConnectorLayerRef.current
+    const nodeLayer = previewNodeLayerRef.current
+    if (!pixiReady || !connectorLayer || !nodeLayer) return
+
+    connectorLayer.removeChildren().forEach((child) => child.destroy({ children: true }))
+    nodeLayer.removeChildren().forEach((child) => child.destroy({ children: true }))
+    if (!treeData || !treeEditMode || !previewNodeId) return
+
+    if (previewCacheScopeRef.current !== previewCacheScope) {
+      previewPathCacheRef.current.clear()
+      previewCacheScopeRef.current = previewCacheScope
+    }
+
+    const cacheKey = `${weaponSetMode}:${previewNodeId}`
+    let previewPath = previewPathCacheRef.current.get(cacheKey)
+    if (!previewPath) {
+      const context = { treeData, selectedClassId, selectedAscendancyId }
+      previewPath = getPreviewPath(context, allocatedNodes, nodeWeaponSets, previewNodeId, weaponSetMode as AllocMode)
+      previewPathCacheRef.current.set(cacheKey, previewPath)
+      if (previewPathCacheRef.current.size > PREVIEW_CACHE_LIMIT) {
+        const oldestKey = previewPathCacheRef.current.keys().next().value
+        if (oldestKey) previewPathCacheRef.current.delete(oldestKey)
+      }
+    }
+    if (previewPath.size === 0) return
+
+    const nodeCache = nodeRenderCacheRef.current
+    const connectorsByNode = connectorsByNodeRef.current
+    if (!nodeCache || !connectorsByNode) return
+
+    const roots = getImplicitRootIds({ treeData, selectedClassId, selectedAscendancyId })
+    const previewColor = weaponSetMode === 1 || weaponSetMode === 2
+      ? hexToNumber(WEAPON_SET_COLORS[weaponSetMode])
+      : 0x7DD3FC
+    const previewLines = new Graphics()
+    const drawnConnectors = new Set<TreeConnectorQuad>()
+
+    for (const id of previewPath) {
+      for (const connector of connectorsByNode.get(id) ?? []) {
+        if (drawnConnectors.has(connector)) continue
+        drawnConnectors.add(connector)
+        const node1 = treeData.nodes[connector.nodeId1]
+        const node2 = treeData.nodes[connector.nodeId2]
+        if (isExternalAscendancyConnector(node1, node2)) continue
+        const node1InPath = previewPath.has(connector.nodeId1)
+        const node2InPath = previewPath.has(connector.nodeId2)
+        const node1Active = isEffectivelyAllocated(connector.nodeId1, allocatedNodes, roots)
+        const node2Active = isEffectivelyAllocated(connector.nodeId2, allocatedNodes, roots)
+        if (!((node1InPath && (node2InPath || node2Active)) || (node2InPath && (node1InPath || node1Active)))) continue
+        const from = nodeCache.get(connector.nodeId1)
+        const to = nodeCache.get(connector.nodeId2)
+        if (!from || !to) continue
+        previewLines.moveTo(from.x, from.y).lineTo(to.x, to.y)
+      }
+    }
+    previewLines.stroke({ color: previewColor, width: 5, alpha: 0.9 })
+    connectorLayer.addChild(previewLines)
+
+    const previewNodes = new Graphics()
+    for (const id of previewPath) {
+      const hit = nodeCache.get(id)
+      if (!hit) continue
+      previewNodes
+        .circle(hit.x, hit.y, hit.radius + 5)
+        .fill({ color: previewColor, alpha: 0.18 })
+        .stroke({ color: previewColor, width: 2.5, alpha: 0.98 })
+    }
+    nodeLayer.addChild(previewNodes)
+  }, [
+    pixiReady,
+    treeData,
+    treeEditMode,
+    previewNodeId,
+    previewCacheScope,
+    weaponSetMode,
+    selectedClassId,
+    selectedAscendancyId,
+    allocatedNodes,
+    nodeWeaponSets,
+    nodeRenderRevision,
+  ])
 
   useEffect(() => {
     const interactionLayer = interactionLayerRef.current
@@ -699,6 +900,47 @@ export function TreePixiCanvas() {
       return
     }
     if (!treeData) return
+
+    if (treeEditMode) {
+      pendingHoverPointerRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+        width: rect.width,
+        height: rect.height,
+      }
+      if (hoverFrameRef.current != null) return
+
+      hoverFrameRef.current = window.requestAnimationFrame(() => {
+        hoverFrameRef.current = null
+        const pointer = pendingHoverPointerRef.current
+        const hitGrid = nodeHitGridRef.current
+        if (!pointer || !hitGrid) return
+
+        const [tx, ty] = screenToTree(pointer.x, pointer.y, { offsetX, offsetY, zoom }, pointer.width, pointer.height)
+        const maxDistance = 30 / zoom
+        const minCellX = Math.floor((tx - maxDistance) / HIT_GRID_CELL_SIZE)
+        const maxCellX = Math.floor((tx + maxDistance) / HIT_GRID_CELL_SIZE)
+        const minCellY = Math.floor((ty - maxDistance) / HIT_GRID_CELL_SIZE)
+        const maxCellY = Math.floor((ty + maxDistance) / HIT_GRID_CELL_SIZE)
+        let closest: string | null = null
+        let closestDist = maxDistance
+
+        for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+          for (let cellY = minCellY; cellY <= maxCellY; cellY += 1) {
+            for (const hit of hitGrid.get(`${cellX}:${cellY}`) ?? []) {
+              const distance = Math.hypot(hit.x - tx, hit.y - ty)
+              if (distance < closestDist) {
+                closestDist = distance
+                closest = hit.id
+              }
+            }
+          }
+        }
+        if (closest !== hoveredNodeIdRef.current) setHoveredNode(closest)
+      })
+      return
+    }
+
     const [tx, ty] = screenToTree(e.clientX - rect.left, e.clientY - rect.top, { offsetX, offsetY, zoom }, rect.width, rect.height)
     const selectedAscendancyProjection = getSelectedAscendancyProjection(treeData, selectedClassId, selectedAscendancyId)
     let closest: string | null = null
@@ -712,7 +954,7 @@ export function TreePixiCanvas() {
       }
     }
     if (closest !== hoveredNodeId) setHoveredNode(closest)
-  }, [panBy, offsetX, offsetY, zoom, treeData, selectedClassId, selectedAscendancyId, hoveredNodeId, setHoveredNode, setMousePos])
+  }, [panBy, offsetX, offsetY, zoom, treeData, treeEditMode, selectedClassId, selectedAscendancyId, hoveredNodeId, setHoveredNode, setMousePos])
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     if (e.button !== 0) return
@@ -734,6 +976,11 @@ export function TreePixiCanvas() {
 
   const handleMouseLeave = useCallback(() => {
     isDragging.current = false
+    pendingHoverPointerRef.current = null
+    if (hoverFrameRef.current != null) {
+      window.cancelAnimationFrame(hoverFrameRef.current)
+      hoverFrameRef.current = null
+    }
     setHoveredNode(null)
   }, [setHoveredNode])
 

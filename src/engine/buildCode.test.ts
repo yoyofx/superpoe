@@ -54,4 +54,48 @@ describe('front-end build code encode/decode', () => {
     expect(decoded.treeVersion).toBe('0_5')
     expect(decoded.xml).toContain('className="Sorceress"')
   })
+
+  it('round-trips passive tree jewels', () => {
+    const encoded = encodeBuildCode({
+      nodes: ['32763', '21984'],
+      treeVersion: '0_5',
+      nodeJewels: {
+        '32763': {
+          itemId: '22',
+          name: 'Entropy Stone',
+          baseType: 'Emerald',
+          rarity: 'RARE',
+          lines: ['6% increased Attack Speed'],
+        },
+      },
+    })
+
+    expect(encoded.xml).toContain('<Socket nodeId="32763" itemId="22"/>')
+    expect(decodeBuildCode(encoded.code).nodeJewels).toEqual({
+      '32763': {
+        itemId: '22',
+        name: 'Unknown Jewel',
+        baseType: '',
+        rarity: 'NORMAL',
+        lines: [],
+      },
+    })
+  })
+
+  it('keeps passive jewel socket mappings when replacing an imported tree', () => {
+    const base = encodeBuildCode({
+      nodes: ['32763'],
+      treeVersion: '0_5',
+      nodeJewels: {
+        '32763': { itemId: '22', name: 'Entropy Stone', baseType: 'Emerald', rarity: 'RARE', lines: [] },
+      },
+    })
+    const updated = encodeBuildCode({
+      nodes: ['32763', '21984'],
+      treeVersion: '0_5',
+      baseCode: base.code,
+    })
+
+    expect(decodeBuildCode(updated.code).nodeJewels['32763']?.itemId).toBe('22')
+  })
 })

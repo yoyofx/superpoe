@@ -14,6 +14,16 @@ export interface EncodeClassPayload {
   ascendancyName?: string
 }
 
+export interface PassiveJewel {
+  itemId: string
+  name: string
+  baseType: string
+  rarity: string
+  lines: string[]
+}
+
+export type NodeJewels = Record<string, PassiveJewel>
+
 export interface EncodeBuildCodeInput extends Partial<EncodeClassPayload> {
   nodes: string[]
   treeVersion?: string
@@ -21,6 +31,7 @@ export interface EncodeBuildCodeInput extends Partial<EncodeClassPayload> {
   baseCode?: string
   nodeWeaponSets?: NodeWeaponSets
   nodeAttributeSelections?: NodeAttributeSelections
+  nodeJewels?: NodeJewels
 }
 
 export interface EncodeBuildCodeResult {
@@ -34,6 +45,7 @@ export interface DecodeBuildCodeResult {
   nodes: string[]
   nodeWeaponSets: NodeWeaponSets
   nodeAttributeSelections: NodeAttributeSelections
+  nodeJewels: NodeJewels
   treeVersion: string
   classId: string
   ascendClassId: string
@@ -106,6 +118,30 @@ function parseIds(value: string | undefined): string[] {
   return value ? value.split(',').map((id) => id.trim()).filter(Boolean) : []
 }
 
+function parsePassiveJewelItems(xml: string): Record<string, PassiveJewel> {
+  const items: Record<string, PassiveJewel> = {}
+  const itemRe = /<Item\b([^>]*)>([\s\S]*?)<\/Item>/gi
+  let match: RegExpExecArray | null
+  while ((match = itemRe.exec(xml))) {
+    const itemId = parseAttrs(match[1]).id
+    if (!itemId) continue
+    const lines = match[2]
+      .replace(/<[^>]+>/g, '')
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+    const rarity = lines[0]?.replace(/^Rarity:\s*/i, '') || 'NORMAL'
+    items[itemId] = {
+      itemId,
+      name: lines[1] || 'Unknown Jewel',
+      baseType: lines[2] || '',
+      rarity,
+      lines: lines.slice(3),
+    }
+  }
+  return items
+}
+
 function weaponSetNodes(nodes: string[], nodeWeaponSets: NodeWeaponSets | undefined, mode: 1 | 2): string {
   if (!nodeWeaponSets) return ''
   const nodeSet = new Set(nodes)
@@ -131,6 +167,16 @@ function attributeOverrideXml(
   return `      <AttributeOverride strNodes="${xmlAttr(lists[1].join(','))}" dexNodes="${xmlAttr(lists[2].join(','))}" intNodes="${xmlAttr(lists[3].join(','))}"/>`
 }
 
+function jewelSocketsXml(nodeJewels: NodeJewels | undefined): string[] {
+  const sockets = Object.entries(nodeJewels || {})
+    .filter(([nodeId, jewel]) => Boolean(nodeId && jewel?.itemId))
+    .sort(([nodeIdA], [nodeIdB]) => nodeIdA.localeCompare(nodeIdB, undefined, { numeric: true }))
+    .map(([nodeId, jewel]) => `        <Socket nodeId="${xmlAttr(nodeId)}" itemId="${xmlAttr(jewel.itemId)}"/>`)
+  return sockets.length
+    ? ['      <Sockets>', ...sockets, '      </Sockets>']
+    : ['      <Sockets/>']
+}
+
 function buildTreeXml(params: {
   treeVersion: string
   classId: string
@@ -141,6 +187,7 @@ function buildTreeXml(params: {
   nodeStr: string
   ws1: string
   ws2: string
+  nodeJewels?: NodeJewels
   attributeOverride: string
 }): string {
   const specAttrs = [
@@ -157,7 +204,7 @@ function buildTreeXml(params: {
   const children = [
     params.ws1 ? `      <WeaponSet1 nodes="${xmlAttr(params.ws1)}"/>` : '',
     params.ws2 ? `      <WeaponSet2 nodes="${xmlAttr(params.ws2)}"/>` : '',
-    '      <Sockets/>',
+    ...jewelSocketsXml(params.nodeJewels),
     params.attributeOverride ? '      <Overrides>' : '',
     params.attributeOverride,
     params.attributeOverride ? '      </Overrides>' : '',
@@ -216,6 +263,7 @@ export function encodeBuildCode(input: EncodeBuildCodeInput): EncodeBuildCodeRes
   const ws1 = weaponSetNodes(input.nodes, input.nodeWeaponSets, 1)
   const ws2 = weaponSetNodes(input.nodes, input.nodeWeaponSets, 2)
   const attributeOverride = attributeOverrideXml(input.nodes, input.nodeAttributeSelections)
+  const nodeJewels = input.nodeJewels ?? (input.baseCode ? decodeBuildCode(input.baseCode).nodeJewels : {})
   const treeXml = buildTreeXml({
     treeVersion,
     classId: input.classId || '',
@@ -226,6 +274,7 @@ export function encodeBuildCode(input: EncodeBuildCodeInput): EncodeBuildCodeRes
     nodeStr,
     ws1,
     ws2,
+    nodeJewels,
     attributeOverride,
   })
 
@@ -258,6 +307,7 @@ export function decodeBuildCode(code: string): DecodeBuildCodeResult {
     nodes: [],
     nodeWeaponSets: {},
     nodeAttributeSelections: {},
+    nodeJewels: {},
     treeVersion: '',
     classId: '',
     ascendClassId: '',
@@ -267,6 +317,7 @@ export function decodeBuildCode(code: string): DecodeBuildCodeResult {
     xml,
   }
 
+  const itemMap = parsePassiveJewelItems(xml)
   const specRe = /<Spec\b([^>]*)>([\s\S]*?)<\/Spec>|<Spec\b([^>]*)\/>/gi
   let match: RegExpExecArray | null
   while ((match = specRe.exec(xml))) {
@@ -286,6 +337,25 @@ export function decodeBuildCode(code: string): DecodeBuildCodeResult {
     for (const id of parseIds(overrideAttrs.strNodes)) result.nodeAttributeSelections[id] = 1
     for (const id of parseIds(overrideAttrs.dexNodes)) result.nodeAttributeSelections[id] = 2
     for (const id of parseIds(overrideAttrs.intNodes)) result.nodeAttributeSelections[id] = 3
+
+    const sockets = body.match(/<Sockets\b[^>]*>([\s\S]*?)<\/Sockets>|<Sockets\b[^>]*\/>/i)
+    if (sockets?.[1]) {
+      const socketRe = /<Socket\b([^>]*)\/?>/gi
+      let socketMatch: RegExpExecArray | null
+      while ((socketMatch = socketRe.exec(sockets[1]))) {
+        const socketAttrs = parseAttrs(socketMatch[1])
+        const nodeId = socketAttrs.nodeId
+        const itemId = socketAttrs.itemId
+        if (!nodeId || !itemId) continue
+        result.nodeJewels[nodeId] = itemMap[itemId] || {
+          itemId,
+          name: 'Unknown Jewel',
+          baseType: '',
+          rarity: 'NORMAL',
+          lines: [],
+        }
+      }
+    }
 
     const specSummary = {
       treeVersion: attrs.treeVersion || '',
