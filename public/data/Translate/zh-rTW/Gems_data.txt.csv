@@ -329,7 +329,7 @@ Punishment,懲戒
 "Queen's Demand",女王之慾
 "Rage Vortex",盛怒漩渦
 "Rain of Arrows",箭雨
-"Rain Of Blades",刀雨
+"Rain Of Blades",刀刃之雨
 "Raise Spectre",喚醒幽魂
 "Raise Spiders",異蛛復甦
 "Raise Zombie",殭屍復甦
@@ -671,7 +671,7 @@ Sit!,坐下！
 "Galvanic Arrow of Surging",電流箭矢．波動
 "Bladefall of Volleys",虛空刀雨．齊射
 "Bladefall of Impaling",虛空刀雨．穿刺
-"Frost Bomb of Instability",寒霜爆．不穩定
+"Frost Bomb of Instability",寒霜爆．不定
 "Frost Bomb of Forthcoming",寒霜爆．來臨
 "Summon Stone Golem of Hordes",召喚巨石魔像．部落
 "Summon Stone Golem of Safeguarding",召喚巨石魔像．保安
@@ -773,15 +773,15 @@ Affliction,禁咒
 Pacify,平靜
 Ravenous,貪婪
 "Elemental Hit of the Spectrum",元素打擊．光譜
-"Ice Shot of Penetration",穿透之冰霜射擊
+"Ice Shot of Penetration","冰霜射擊 ．穿透"
 "Incinerate of Expanse",燒毀．蔓延
 "Incinerate of Venting",燒毀．通風
-"Kinetic Blast of Clustering",聚集之力量爆破
-"Summon Holy Relic of Conviction",信念之召喚聖物
-"Artillery Ballista of Cross Strafe",交叉掃射之火砲砲塔
-"Artillery Ballista of Focus Fire",集火之火砲砲塔
-"Poisonous Concoction of Bouncing",彈炸之毒藥
-"Tornado of Elemental Turbulence",元素湍流之龍捲風
+"Kinetic Blast of Clustering",力量爆破．聚集
+"Summon Holy Relic of Conviction",召喚聖物．信念
+"Artillery Ballista of Cross Strafe","火砲砲塔 ．掃射"
+"Artillery Ballista of Focus Fire","火砲砲塔 ．集火"
+"Poisonous Concoction of Bouncing","毒藥 ．彈炸"
+"Tornado of Elemental Turbulence","龍捲風 ．湍流"
 "Transform into Mimic",變形成寶箱
 Automation,自動化
 "Call to Arms",武裝召喚
@@ -973,7 +973,7 @@ Meditate,冥想
 Punch,正拳
 "Quarterstaff Strike",細杖打擊
 "Raging Spirits",憤怒狂靈
-"Raise Shield",展開護盾
+"Raise Shield",舉盾
 Rampage,暴怒
 "Rapid Assault",極速進攻
 "Rapid Shot",疾射
@@ -1421,7 +1421,7 @@ Future-Past,未來昔日
 "Heart of Ice",冰雪之心
 "His Dark Horizon",他的黑暗視界
 "His Foul Emergence",他的惡臭降臨
-"His Grave Command",他的緊急命令
+"His Grave Command",他的死墓命令
 "His Scattering Calamity",他的散布災禍
 "His Vile Intrusion",他的惡毒入侵
 "His Winnowing Flame",他的飛舞烈焰
@@ -1478,7 +1478,7 @@ Icicles,碎霜彈幕
 "Ignition Blast",燃炎爆
 "Kinetic Anomaly",力量反常
 "Kinetic Flux",力量流束
-"Kinetic Fusillade",力量齊射
+"Kinetic Fusillade",力量猛射
 "Kinetic Rain",力量驟雨
 "Kinetic Rain of Impact",力量驟雨．衝擊
 "Living Lightning Zap",活躍閃電電擊
@@ -1504,7 +1504,7 @@ Icicles,碎霜彈幕
 "Spectral Helix of Trarthus",特拉特斯靈體旋武
 "Spectral Shield Throw of Trarthus",特拉特斯盾靈投擲
 "Spectral Throw of Trarthus",特拉特斯靈體投擲
-Starfall,星空殞落
+Starfall,星墜
 "Storm Call of Trarthus",特拉特斯風暴呼喚
 "Summon Living Lightning",召喚活躍閃電
 "Summon Shaper Memory",召喚塑界者的記憶
@@ -1590,3 +1590,112 @@ Shred,裂碎
 "Walking Calamity",行走災厄
 "Wing Blast",翅翼猛襲
 "Wolf Pack",召喚惡狼
+"Blazing Glare",熾炎灼視
+"Bursting Toad","爆裂蟾蜍
+"
+"Caustic Retribution",酸蝕報復
+"Ceaseless Flesh",無休血肉
+"Charged Dash of Projection",雷霆衝鋒．投射
+Cinders,餘灰燼矢
+"Creeping Frost of Floes",寒霜滲透．浮冰
+"Divine Blast",神聖爆破
+Fissure,"裂隙之擊 "
+"Flamethrower Trap of Stability",噴火陷阱．穩定
+Foulgrasp,穢邪攫取
+"Frost Wall of Encroachment",冰牆．侵襲
+"Holy Hammers",神聖之錘
+"Holy Strike",神聖打擊
+"Holy Sweep",神聖橫掃
+"Kinetic Fusillade of Detonation",力量猛射．引爆
+Mesmerize,催眠指令
+"Orb of Storms of Squalls",風暴漩渦．颮風
+"Return to Mirage Portal",蜃景回歸
+"Rings of Light",聖芒之環
+"Searing Bond of Detonation",灼熱連結．引爆
+"Shield of Light",聖光盾擊
+"Shock Nova of Procession",閃電新星．行進
+"Shockwave Totem of Authority",震波圖騰．威權
+"Siphoning Trap of Pain",虹吸陷阱．苦痛
+"Static Strike of Gathering Lightning",充能打擊．聚雷
+"Storm Burst of Repulsion",風爆．排斥
+"Summon Hiveborn",召喚巢裔
+"Suspend in Time",時禁凝滯
+"Tears of Rot",腐朽淚滴
+"Void Shockwave",虛空震波
+Voidstorm,虛空風暴
+"Animus Exchange",意志轉換
+"Animus Splinters",意志裂片
+"Archon of Chayula",夏烏拉統治者
+"Azmerian Swarms",阿茲莫里群落
+"Azmerian Wolf",阿茲莫里巨狼
+"Bitter Dead",苦澀衰亡
+"Blood Explosion",鮮血爆炸
+"Charge Regulation",充能調節
+"Chayula's Will",夏烏拉之志
+"Coiling Bolts",寂纏彈
+"Concussive Runes",震盪符文
+"Conductive Runes",導電符文
+"Corrupted Cry",汙染戰吼
+"Crushing Fear",死懼碎擊
+"Dark Consequences",黑暗業報
+"Detonate Living",活體引爆
+"Embrace The Fall",夜殞之擁
+"Eternal Hunt",永恆狩獵
+"Eternal March",永恆行軍
+"Explosive Transmutation",爆炸轉化
+"Falling Blade",墜落刀刃
+"Fist of Kalguur",卡爾葛之拳
+"Fragment Self",破碎仿身
+"Fragments of the Past",往昔碎片
+"Frostflame Nova",霜火新星
+"Gelid Palm",冰冽掌
+Grenade,爆彈投擲
+"Grim Pillars",恐怖之柱
+"Harbinger of Madness",神諭之狂
+"Herald of the Royal Queen",女皇之捷
+"Hollow Focus",空無專注
+"Hollow Form",空無型態
+"Hollow Resonance",空無共鳴
+"Hollow Shell",空無披甲
+"Kinetic Bash",動力猛擊
+Leylines,地脈
+"Mad Flight",狂亂翱翔
+"Manifest Rune",幻化符文
+"Midnight Zenith",午夜天頂
+"Mirror Breaker",狂鴉碎裂
+"Mist Raven",迷霧渡鴉
+"Molten Shower",熔火噴濺
+"Nature's Exchange",自然交換
+"Powered by Verisium",維里西姆強化
+"Primal Bounty",原始賞金
+"Profane Decay",瀆神衰敗
+Refutation,駁斥
+"Remnants of Kalguur",卡爾葛之痕
+Repulsion,推斥
+"Repulsion Wave",推斥波動
+"Righteous Descent",神翼懲降
+"Rite of Restoration",新生之儀
+Roar,怒吼
+"Runeforged Blades",符鍛刀刃
+"Runic Reprieve",符文喘息
+"Sanguine Revelry",腥紅狂歡
+Skyfall,天墜
+Slam,重擊
+"Smash to Smithereens",轟碎重擊
+"Soaring Midnight",午夜飛掠
+"Spiraling Conspiracy",邪鴉旋纏
+"Spirit Vessel",魂靈容器
+"Starborn Onslaught",星裔猛襲
+"The Stars Answer",群星回應
+"Transmutation Explosion",轉化爆炸
+"Triskelion Cascade",三曲爆發
+"Twisted Pact",扭曲契約
+"Verisium Manifestations",維里西姆顯化
+"Virtuous Barrier",高尚禦盾
+"Vivid Stampede",靈現奔竄
+"Voltaic Barrier",伏打電盾
+"Voltaic Fulmination",伏打轟鳴
+"Wardbound Minions",戰縛召喚物
+"Wild Protector",荒野守護
+"Wildwood's Gifts",荒林禮贈
+"Winged Entropy",亂翼侵蝕

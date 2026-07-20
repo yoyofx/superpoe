@@ -8,8 +8,8 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SOURCE = ROOT / "sources" / "src"
-DEFAULT_RUNTIME = ROOT / "sources" / "runtime" / "lua"
+DEFAULT_SOURCE = ROOT / "upstreams" / "PathOfBuilding-PoE2" / "src"
+DEFAULT_RUNTIME = ROOT / "upstreams" / "PathOfBuilding-PoE2" / "runtime" / "lua"
 DEFAULT_OUT = ROOT / "public" / "pob-lua"
 
 INCLUDE_DIRS = [
@@ -84,8 +84,8 @@ def copy_bundle(source: Path, runtime: Path, out: Path) -> dict:
 
     manifest = {
         "version": "0_5",
-        "source": "sources/src",
-        "runtime": "sources/runtime/lua",
+        "source": "upstreams/PathOfBuilding-PoE2/src",
+        "runtime": "upstreams/PathOfBuilding-PoE2/runtime/lua",
         "fileCount": len(entries),
         "totalBytes": sum(entry["size"] for entry in entries),
         "files": sorted(entries, key=lambda entry: entry["path"].lower()),

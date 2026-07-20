@@ -44,6 +44,14 @@ export const GRANTED_SKILLS: Record<string, GrantedSkillInfo> = {
     tagString: 'Spell, AoE, Trigger, Lightning, Cold, Fire, Duration, Conditional, Storm',
     gemType: 'Buff',
   },
+  'Archon of Chayula': {
+    skill: 'Archon of Chayula',
+    skillId: 'ArchonOfChayulaPlayer',
+    name: 'Archon of Chayula',
+    description: 'Build Glory by dealing Chaos damage to enemies. When you have maximum Glory, you can entreat the Dreamer to inhabit you, briefly becoming his Archon.',
+    tagString: 'Buff, Duration, Conditional',
+    gemType: 'Buff',
+  },
   'Bleeding Concoction': {
     skill: 'Bleeding Concoction',
     skillId: 'BleedingConcoctionPlayer',

@@ -1,5 +1,5 @@
 # External resources (not committed, copy on setup)
-sources/
+upstreams/
 Builds/
 
 # Dependencies

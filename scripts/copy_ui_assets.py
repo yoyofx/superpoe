@@ -51,7 +51,7 @@ ASSET_PATTERNS = [
 
 def copy_assets(web_dir: Path, dry_run: bool = False) -> int:
     """Copy matching assets from Assets/ to web/public/assets/ui/. Returns count."""
-    src_dir = web_dir / "sources" / "src" / "Assets"
+    src_dir = web_dir / "upstreams" / "PathOfBuilding-PoE2" / "src" / "Assets"
     dst_dir = web_dir / "public" / "assets" / "ui"
 
     if not src_dir.is_dir():

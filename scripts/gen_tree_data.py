@@ -676,7 +676,7 @@ def main():
         tree_version = args[0]
         actual_args = args[1:]
 
-    default_input = web_dir / "sources" / "src" / "TreeData" / tree_version / "tree.json"
+    default_input = web_dir / "upstreams" / "PathOfBuilding-PoE2" / "src" / "TreeData" / tree_version / "tree.json"
     default_output = web_dir / "public" / "data" / f"tree-web-{tree_version}.json"
 
     input_path = actual_args[0] if len(actual_args) > 0 else str(default_input)

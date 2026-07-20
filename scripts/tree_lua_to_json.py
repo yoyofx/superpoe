@@ -10,7 +10,7 @@ from pathlib import Path
 
 def convert(input_path: Path, output_path: Path) -> None:
     web_dir = Path(__file__).resolve().parent.parent
-    lua_path = str(web_dir / "sources" / "runtime" / "lua").replace("\\", "/")
+    lua_path = str(web_dir / "upstreams" / "PathOfBuilding-PoE2" / "runtime" / "lua").replace("\\", "/")
     input_lua = str(input_path).replace("\\", "/")
     output_json = str(output_path).replace("\\", "/")
     lua_script = f"""
@@ -45,4 +45,3 @@ if __name__ == "__main__":
     except Exception as exc:
         print(f"[tree_lua_to_json] {exc}", file=sys.stderr)
         sys.exit(1)
-

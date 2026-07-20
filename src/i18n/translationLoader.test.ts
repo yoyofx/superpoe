@@ -33,6 +33,27 @@ const node = {
   in: [],
 } satisfies TreeNode
 
+const TEST_TRANSLATION_FILES = [
+  'tree_dn.csv',
+  'tree_sd.csv',
+  'tree_rt.csv',
+  'passiveTree.csv',
+  'statDescriptions.csv',
+  'Query_Mod.csv',
+  'Gems_data.txt.csv',
+]
+
+function testManifest() {
+  return {
+    schemaVersion: 1,
+    languages: {
+      'zh-rCN': TEST_TRANSLATION_FILES,
+      'zh-rTW': TEST_TRANSLATION_FILES,
+      'ko-KR': TEST_TRANSLATION_FILES,
+    },
+  }
+}
+
 function parseCsvRows(text: string): string[][] {
   const rows: string[][] = []
   let row: string[] = []
@@ -92,6 +113,9 @@ describe('translationLoader', () => {
     }
 
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/data/Translate/translation-files.json') {
+        return { ok: true, status: 200, json: async () => testManifest(), text: async () => JSON.stringify(testManifest()) }
+      }
       const file = url.split('/').pop() || ''
       return {
         ok: true,
@@ -113,6 +137,9 @@ describe('translationLoader', () => {
 
   it('reuses numeric translation patterns for matching stat lines', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/data/Translate/translation-files.json') {
+        return { ok: true, status: 200, json: async () => testManifest(), text: async () => JSON.stringify(testManifest()) }
+      }
       const file = url.split('/').pop() || ''
       return {
         ok: true,
@@ -132,6 +159,9 @@ describe('translationLoader', () => {
 
   it('prefers specific item stat templates over broad placeholders', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/data/Translate/translation-files.json') {
+        return { ok: true, status: 200, json: async () => testManifest(), text: async () => JSON.stringify(testManifest()) }
+      }
       const file = url.split('/').pop() || ''
       return {
         ok: true,
@@ -149,6 +179,9 @@ describe('translationLoader', () => {
 
   it('falls back to translating multi-line passive text line by line', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/data/Translate/translation-files.json') {
+        return { ok: true, status: 200, json: async () => testManifest(), text: async () => JSON.stringify(testManifest()) }
+      }
       const file = url.split('/').pop() || ''
       const rows = file === 'statDescriptions.csv'
         ? '"Excess Life Recovery from Regeneration is applied to Energy Shield","过量生命再生回复应用于能量护盾"\n"Energy Shield does not Recharge","能量护盾无法充能"\n'
@@ -169,6 +202,9 @@ describe('translationLoader', () => {
 
   it('recognizes every bundled non-English language option', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/data/Translate/translation-files.json') {
+        return { ok: true, status: 200, json: async () => testManifest(), text: async () => JSON.stringify(testManifest()) }
+      }
       const parts = url.split('/')
       const language = parts[parts.length - 2]
       const file = parts[parts.length - 1] || ''
@@ -190,6 +226,9 @@ describe('translationLoader', () => {
 
   it('ignores missing optional translation CSV files', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/data/Translate/translation-files.json') {
+        return { ok: true, status: 200, json: async () => testManifest(), text: async () => JSON.stringify(testManifest()) }
+      }
       const file = url.split('/').pop() || ''
       return {
         ok: file !== 'tree_rt.csv',
@@ -206,8 +245,11 @@ describe('translationLoader', () => {
 
   it('localizes granted ascendancy skill details from node stats', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/data/Translate/translation-files.json') {
+        return { ok: true, status: 200, json: async () => testManifest(), text: async () => JSON.stringify(testManifest()) }
+      }
       const file = url.split('/').pop() || ''
-      const rows = file === 'superpoe_tree_supplement.csv'
+      const rows = file === 'Gems_data.txt.csv'
         ? [
           '"Grants Skill: Hollow Form","获得技能：空洞形态"',
           '"Hollow Form","空洞形态"',
@@ -220,7 +262,6 @@ describe('translationLoader', () => {
       return {
         ok: true,
         status: 200,
-        json: async () => ({ 'zh-rCN': ['superpoe_tree_supplement.csv'] }),
         text: async () => rows,
       }
     }))
@@ -254,12 +295,17 @@ describe('translationLoader', () => {
   })
 
   it('falls back to English granted skill details when a language has no matching translation', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => ({
-      ok: true,
-      status: 200,
-      json: async () => ({ 'zh-rTW': [] }),
-      text: async () => '',
-    })))
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/data/Translate/translation-files.json') {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => testManifest(),
+          text: async (): Promise<string> => JSON.stringify(testManifest()),
+        }
+      }
+      return { ok: true, status: 200, text: async (): Promise<string> => '' }
+    }))
 
     await loadTranslations('zh-rTW')
 
@@ -288,63 +334,27 @@ describe('translationLoader', () => {
     expect(missing).toEqual([])
   })
 
-  it('does not use syllabified supplement translations for Martial Artist key stats', async () => {
-    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
-      const manifestPath = resolve(process.cwd(), 'public/data/Translate/translation-files.json')
-      if (url === '/data/Translate/translation-files.json') {
-        return {
-          ok: true,
-          status: 200,
-          json: async () => JSON.parse(readFileSync(manifestPath, 'utf8')),
-          text: async () => readFileSync(manifestPath, 'utf8'),
-        }
-      }
-
-      const match = url.match(/^\/data\/Translate\/([^/]+)\/(.+)$/)
-      if (!match) {
-        return { ok: false, status: 404, text: async () => '' }
-      }
-
-      const [, language, file] = match
-      const filePath = resolve(process.cwd(), `public/data/Translate/${language}/${file}`)
-      return {
-        ok: true,
-        status: 200,
-        text: async () => readFileSync(filePath, 'utf8'),
-      }
-    }))
-
-    await loadTranslations('zh-rCN')
-
-    const martialArtistNode = {
-      ...node,
-      stats: [
-        'Grants Skill: Hollow Form',
-        'Grants Skill: Hollow Resonance',
-        'Grants Skill: Hollow Focus',
-        'Can tattoo Runes onto your body, gaining\nadditional Rune-only sockets:\n1 Helmet socket\n2 Body Armour sockets\n1 Gloves socket\n1 Boots socket',
-        'Gloves you equip have their Base Type transformed to Fists of Stone while equipped, and\ntheir Explicit Modifiers are transformed into more powerful related Modifiers',
-        'Ignore Attribute Requirements to equip Gloves',
-        'When you gain Combo, gain an additional Combo',
-        '-0.2 seconds to current Energy Shield Recharge delay per Combo expended when using Skills',
-        "100% Surpassing chance per enemy Power to gain Mountain's Teachings on Immobilising an enemy, up to a maximum of 30\nLose a Mountain's Teaching when you are Hit, or when you use or Sustain an Attack that benefits from Mountain's Teachings",
-      ],
+  it('declares only synced PoeCharm2 CSV assets', () => {
+    const manifestPath = resolve(process.cwd(), 'public/data/Translate/translation-files.json')
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      schemaVersion: number
+      source: { repository?: string; commit?: string }
+      languages: Record<string, string[]>
     }
 
-    const text = getLocalizedNodeDisplay(martialArtistNode, 'zh-rCN').stats.join('\n')
+    expect(manifest.schemaVersion).toBe(1)
+    expect(manifest.source.repository).toBeTruthy()
+    expect(manifest.source.commit).toMatch(/^[0-9a-f]{40}$/)
 
-    expect(text).not.toMatch(/赫奥|克阿恩|格阿伊恩|沃赫厄恩|特赫|弗弗|德厄|勒厄|姆厄|尔厄|丘乌/)
-    expect(text).toContain('获得技能：空洞形态')
-    expect(text).toContain('可以将符文纹刻在身体上')
-    expect(text).toContain('无视装备手套的属性需求')
-  })
-
-  it('does not include partial English supplement translations', () => {
-    for (const language of ['zh-rCN', 'zh-rTW', 'ko-KR'] as const) {
-      const file = resolve(process.cwd(), `public/data/Translate/${language}/superpoe_tree_supplement.csv`)
-      const rows = parseCsvRows(readFileSync(file, 'utf8'))
-      const mixedRows = rows.filter(([, translated]) => /[A-Za-z]{2,}/.test(translated))
-      expect(mixedRows, `${language} supplement has mixed English rows`).toEqual([])
+    for (const language of ['zh-rCN', 'zh-rTW', 'ko-KR']) {
+      const files = manifest.languages[language]
+      expect(files.length, `${language} has no synchronized CSV files`).toBeGreaterThan(0)
+      expect(new Set(files).size, `${language} has duplicate manifest entries`).toBe(files.length)
+      expect(files.some((file) => file.startsWith('superpoe_'))).toBe(false)
+      for (const file of files) {
+        expect(file.endsWith('.csv')).toBe(true)
+        expect(readFileSync(resolve(process.cwd(), `public/data/Translate/${language}/${file}`), 'utf8').length).toBeGreaterThan(0)
+      }
     }
   })
 })

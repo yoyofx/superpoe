@@ -16,37 +16,12 @@ const numericDictionaries = new Map<Language, Map<string, string>>()
 const templateDictionaries = new Map<Language, TranslationTemplate[]>()
 const templateKeys = new Map<Language, Set<string>>()
 
-const BASE_TRANSLATION_FILES = [
-  'tree_dn.csv',
-  'tree_sd.csv',
-  'tree_rt.csv',
-  'passiveTree.csv',
-  'statDescriptions.csv',
-  'Query_Mod.csv',
-]
-
-const EXTRA_TRANSLATION_FILES = [
-  'GUI.csv',
-  'TreeTab.csv',
-  'PassiveTreeView.csv',
-  'Tree.csv',
-  'Data.csv',
-  'Unsorted.csv',
-  'Z.csv',
-  'Items_Accessories.txt.csv',
-  'Items_Armour.txt.csv',
-  'Items_Flasks.txt.csv',
-  'Items_Weapons.txt.csv',
-  'Items_Jewels.txt.csv',
-  'Uniques.txt.csv',
-  'stats_words_prefix.csv',
-  'stats_words_suffix.csv',
-]
-
-const TRANSLATION_FILES = [...BASE_TRANSLATION_FILES, ...EXTRA_TRANSLATION_FILES]
 const TRANSLATION_MANIFEST = '/data/Translate/translation-files.json'
-const ZH_CN_SUPPLEMENT_FILE = 'superpoe_tree_supplement.csv'
-const ZH_CN_SYLLABIFIED_PATTERN = /赫奥|厄勒|克阿|格阿|沃赫|特赫|弗弗|德厄|勒厄|姆厄|尔厄|丘乌|布乌|普勒|斯特|恩厄|阿勒|阿德德|阿特特/
+
+interface TranslationManifest {
+  schemaVersion: number
+  languages: Partial<Record<Language, string[]>>
+}
 
 interface TranslationTemplate {
   pattern: RegExp
@@ -207,7 +182,7 @@ function addTemplate(
   translated: string,
   compiler: (source: string, translated: string) => TranslationTemplate | null,
 ): void {
-  const key = `${source}\u0000${translated}\u0000${compiler.name}`
+  const key = `${source}\u0000${compiler.name}`
   const keys = templateKeys.get(language) || new Set<string>()
   templateKeys.set(language, keys)
   if (keys.has(key)) return
@@ -229,21 +204,13 @@ function applyTemplate(template: TranslationTemplate, source: string): string | 
 }
 
 async function getTranslationFiles(language: Language): Promise<string[]> {
-  const files = new Set(TRANSLATION_FILES)
-
-  try {
-    const response = await fetch(TRANSLATION_MANIFEST)
-    if (response.ok) {
-      const manifest = await response.json() as Partial<Record<Language, string[]>>
-      for (const file of manifest[language] || []) {
-        if (file.endsWith('.csv')) files.add(file)
-      }
-    }
-  } catch {
-    // Manifest is optional in tests and older deployments.
-  }
-
-  return [...files]
+  const response = await fetch(TRANSLATION_MANIFEST)
+  if (!response.ok) throw new Error('Translation manifest is unavailable')
+  const manifest = await response.json() as TranslationManifest | Partial<Record<Language, string[]>>
+  const languageFiles = 'languages' in manifest
+    ? manifest.languages?.[language]
+    : manifest[language]
+  return (languageFiles || []).filter((file) => file.endsWith('.csv'))
 }
 
 function addTranslationEntry(
@@ -257,9 +224,9 @@ function addTranslationEntry(
   const displayKey = normalizeDisplayTags(key)
   const displayTranslated = normalizeDisplayTags(translated)
 
-  dictionary.set(key, translated)
+  if (!dictionary.has(key)) dictionary.set(key, translated)
   if (displayKey && displayTranslated) {
-    dictionary.set(displayKey, displayTranslated)
+    if (!dictionary.has(displayKey)) dictionary.set(displayKey, displayTranslated)
   }
 
   for (const [templateSource, templateTranslated] of [
@@ -268,11 +235,6 @@ function addTranslationEntry(
   ] as const) {
     addTemplate(language, templates, templateSource, templateTranslated, compileTemplate)
   }
-}
-
-function shouldSkipTranslationEntry(language: Language, file: string, translated: string): boolean {
-  if (language !== 'zh-rCN' || file !== ZH_CN_SUPPLEMENT_FILE) return false
-  return ZH_CN_SYLLABIFIED_PATTERN.test(translated)
 }
 
 function translateText(value: string, language: Language): string {
@@ -358,21 +320,36 @@ export async function loadTranslations(language: Language): Promise<void> {
   templateDictionaries.set(language, templates)
 
   const translationFiles = await getTranslationFiles(language)
-  await Promise.all(translationFiles.map(async (file) => {
+  const fileRows = await Promise.all(translationFiles.map(async (file) => {
     const response = await fetch(`/data/Translate/${language}/${file}`)
     if (!response.ok) {
       if (response.status === 404) return
       throw new Error(`Failed to load translation file: ${file}`)
     }
-    const rows = parseCsvRows(await response.text())
+    return parseCsvRows(await response.text())
+  }))
+
+  // Requests run concurrently, but merging follows the source manifest order.
+  // The first matching upstream file wins when historical CSVs contain duplicates.
+  for (const rows of fileRows) {
+    if (!rows) continue
     for (const [source, translated] of rows) {
       if (!source || !translated) continue
-      if (shouldSkipTranslationEntry(language, file, translated)) continue
-      addTranslationEntry(dictionary, templates, language, source, translated)
-      addNumericEntry(numericDictionary, normalizeKey(source), translated)
-      addNumericEntry(numericDictionary, normalizeDisplayTags(source), normalizeDisplayTags(translated))
+      const key = normalizeKey(source)
+      if (!dictionary.has(key)) {
+        addTranslationEntry(dictionary, templates, language, source, translated)
+      }
+      const numericKey = compileNumericPattern(key)?.key
+      if (numericKey && !numericDictionary.has(numericKey)) {
+        addNumericEntry(numericDictionary, key, translated)
+      }
+      const displayKey = normalizeDisplayTags(source)
+      const displayNumericKey = compileNumericPattern(displayKey)?.key
+      if (displayNumericKey && !numericDictionary.has(displayNumericKey)) {
+        addNumericEntry(numericDictionary, displayKey, normalizeDisplayTags(translated))
+      }
     }
-  }))
+  }
 
   templates.sort((a, b) => b.literalLength - a.literalLength || a.placeholderCount - b.placeholderCount)
 

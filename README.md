@@ -8,45 +8,32 @@
 
 PoB2 Web Tree 是一个基于 React + PixiJS/WebGL 2D 的 PoE2 天赋树查看/编辑原型。项目使用 Path of Building 2 的天赋树数据，生成 Web 端可直接使用的数据和贴图资源，并提供天赋盘渲染、缩放/平移、节点交互、构筑导入导出和计算入口。
 
-导入/导出 PoB2 build code 已在前端完成，不需要 Fastify 后端。计算正在迁移到前端 Web Worker + PoB Lua bundle：`public/pob-lua/` 是从 `sources/src` 生成的浏览器只读 Lua 文件包。当前 worker 使用 `wasmoon` Lua 5.4 WASM 加一层 LuaJIT/PoB 兼容补丁运行；这是因为当前 PoB2 上游 Lua 已使用 `goto`，不能直接跑在 PUC Lua 5.1 WASM 上。需要和旧 LuaJIT 后端对照调试时，可以显式设置 `VITE_CALC_BACKEND_FALLBACK=true`。如果后续要求计算结果和桌面 PoB 完全逐位一致，仍建议继续推进 LuaJIT WASM 或专门的 PoB Lua 预处理方案。
+导入/导出 PoB2 build code 已在前端完成，不需要 Fastify 后端。计算正在迁移到前端 Web Worker + PoB Lua bundle：`public/pob-lua/` 是从 `upstreams/PathOfBuilding-PoE2/src` 生成的浏览器只读 Lua 文件包。当前 worker 使用 `wasmoon` Lua 5.4 WASM 加一层 LuaJIT/PoB 兼容补丁运行；这是因为当前 PoB2 上游 Lua 已使用 `goto`，不能直接跑在 PUC Lua 5.1 WASM 上。需要和旧 LuaJIT 后端对照调试时，可以显式设置 `VITE_CALC_BACKEND_FALLBACK=true`。如果后续要求计算结果和桌面 PoB 完全逐位一致，仍建议继续推进 LuaJIT WASM 或专门的 PoB Lua 预处理方案。
 
 ## 数据来源
 
-- `sources/` 来源于 [PathOfBuildingCommunity/PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)，用于预处理脚本、Headless 校验和计算。
-- `public/data/Translate/` 来源于 PoeCharm2，用于 Web 端翻译数据。
-- `public/data/tree-web-{version}.json` 是 Web 端生成产物，不是原生游戏文件，也不是 PoB2 上游文件。需要从 `sources/src/TreeData/{version}/tree.lua` / `tree.json` 重新生成时，运行 `npm run pipeline:all -- {version}`。
+- `upstreams/PathOfBuilding-PoE2/` 来源于 [PathOfBuildingCommunity/PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)，用于预处理脚本、Headless 校验和计算。
+- `upstreams/PoeCharm2/` 来源于 [Chuanhsing/PoeCharm2](https://github.com/Chuanhsing/PoeCharm2)，用于同步 Web 端翻译数据。
+- `public/data/tree-web-{version}.json` 是 Web 端生成产物，不是原生游戏文件，也不是 PoB2 上游文件。需要从 `upstreams/PathOfBuilding-PoE2/src/TreeData/{version}/tree.lua` / `tree.json` 重新生成时，运行 `npm run pipeline:all -- {version}`。
 
-### 将 `sources/` 作为 Git Submodule
+### 初始化上游仓库
 
-长期建议把 `sources/` 作为 Git submodule 指向 PoB2 上游仓库：
-
-```bash
-git submodule add https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2.git sources
-git submodule update --init --recursive
-```
-
-首次克隆本项目时可以直接带上 submodule：
+两个上游仓库都位于 `upstreams/` 下，均为本地只读 Git checkout，不随本项目提交。首次初始化时执行：
 
 ```bash
-git clone --recursive <this-repo-url>
-```
-
-如果已经克隆过项目，但还没有拉取 submodule：
-
-```bash
-git submodule update --init --recursive
+git clone https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2.git upstreams/PathOfBuilding-PoE2
+git clone https://github.com/Chuanhsing/PoeCharm2.git upstreams/PoeCharm2
 ```
 
 更新 PoB2 上游数据后，重新生成 Web 端数据和资源：
 
 ```bash
-cd sources
-git pull
-cd ..
-npm run pipeline:all
+git -C upstreams/PathOfBuilding-PoE2 pull
+git -C upstreams/PoeCharm2 pull
+npm run pipeline:all -- 0_5
 ```
 
-注意：如果要把现有本地 `sources/` 目录转换成 submodule，需要先移动或删除当前 `sources/` 目录。同时需要调整 `.gitignore` 中对 `sources/` 的忽略规则，让 Git 能追踪 submodule 入口；本地生成资源和临时文件仍可继续忽略。
+`upstreams/` 在 `.gitignore` 中忽略。不要在两个上游目录内修改源码或 CSV；需要更新时在各自仓库中执行 `git pull`，再运行相应 pipeline。`public/` 下的生成运行资产必须提交。
 
 ## 常用命令
 
@@ -56,7 +43,7 @@ npm run dev
 npm run build
 ```
 
-新机器如果只是运行现有前端，不需要先跑资源管线：`public/` 下的运行时数据和贴图已经随仓库提交。只有更新 `sources/`、生成新版本天赋树数据或重新生成贴图时，才需要安装下面的资源管线依赖。
+新机器如果只是运行现有前端，不需要先跑资源管线：`public/` 下的运行时数据和贴图已经随仓库提交。只有更新 `upstreams/`、生成新版本天赋树数据或重新生成贴图时，才需要安装下面的资源管线依赖。
 
 Windows / PowerShell 初始化资源管线依赖：
 
@@ -66,7 +53,7 @@ python -m pip install -r requirements.txt
 npm run pipeline:check
 ```
 
-`requirements.txt` 会安装 `Pillow` 和 `zstandard`。资源管线还需要能运行 `luajit`，用于把 `sources/src/TreeData/{version}/tree.lua` 转成 JSON。Windows 推荐用 `winget` 安装已验证可用的 LuaJIT 包：
+`requirements.txt` 会安装 `Pillow` 和 `zstandard`。资源管线还需要能运行 `luajit`，用于把 `upstreams/PathOfBuilding-PoE2/src/TreeData/{version}/tree.lua` 转成 JSON。Windows 推荐用 `winget` 安装已验证可用的 LuaJIT 包：
 
 ```powershell
 winget install --id DEVCOM.LuaJIT
@@ -97,7 +84,7 @@ npm run pipeline:check
 npm run pipeline:all -- 0_5
 ```
 
-如果 Tree Data 阶段失败，优先检查 `luajit` 是否可执行、`sources/runtime/lua/dkjson.lua` 是否存在，以及 `sources/src/TreeData/{version}/tree.lua` 是否存在。旧版 DDS/BC7 资源解码需要 `texconv.exe`；本仓库已包含 `scripts/texconv.exe`，新版 `0_5+` 的 WebP atlas 管线通常不依赖它。
+如果 Tree Data 阶段失败，优先检查 `luajit` 是否可执行、`upstreams/PathOfBuilding-PoE2/runtime/lua/dkjson.lua` 是否存在，以及 `upstreams/PathOfBuilding-PoE2/src/TreeData/{version}/tree.lua` 是否存在。旧版 DDS/BC7 资源解码需要 `texconv.exe`；本仓库已包含 `scripts/texconv.exe`，新版 `0_5+` 的 WebP atlas 管线通常不依赖它。
 
 资源和数据管线：
 
@@ -112,7 +99,7 @@ npm run pipeline:check
 npm run pipeline:all
 ```
 
-`npm run pipeline:lua` 会从 `sources/src` 和 `sources/runtime/lua` 生成 `public/pob-lua/`。这个目录供浏览器计算 worker 懒加载，不直接修改 `sources/`。如果上游 PoB2 Lua 文件更新，重新运行该命令即可刷新前端 Lua bundle。
+`npm run pipeline:lua` 会从 `upstreams/PathOfBuilding-PoE2/src` 和 `upstreams/PathOfBuilding-PoE2/runtime/lua` 生成 `public/pob-lua/`。这个目录供浏览器计算 worker 懒加载，不直接修改上游源码。如果上游 PoB2 Lua 文件更新，重新运行该命令即可刷新前端 Lua bundle。
 
 全量更新指定天赋树版本时，使用 `pipeline:all` 并在 `--` 后传版本号。例如未来上游出现 `0_5` 后：
 
@@ -147,16 +134,41 @@ npm run test:lua
 - `src/`：React UI、Zustand store、PixiJS 天赋树渲染、贴图和连接线渲染工具；旧 Canvas 组件保留为 fallback/对照实现。
 - `server/`：Fastify API，用于开发期校验和旧 LuaJIT 计算对照；前端正常导入/导出不依赖它。
 - `scripts/`：Python/Lua 预处理脚本和测试辅助脚本。
-- `sources/`：PoB2 上游源码目录，建议用 submodule 管理。
+- `upstreams/PathOfBuilding-PoE2/`：PoB2 本地只读上游源码目录。
+- `upstreams/PoeCharm2/`：PoeCharm2 本地只读翻译上游目录。
 - `public/assets/`：复制或生成出来的运行时美术资源，浏览器会直接从这里加载。
 - `public/data/`：生成后的 Web 天赋树数据和翻译数据。
-- `public/pob-lua/`：从 PoB2 `sources/src` 生成的前端 Lua 运行时资源包，供计算 worker 懒加载。
+- `public/pob-lua/`：从 PoB2 上游 `src` 生成的前端 Lua 运行时资源包，供计算 worker 懒加载。
 - `docs/`：研究记录、渲染分析和任务历史。
 
 ## 说明
 
-Web 天赋树渲染使用从 PoB2 上游数据生成出来的中间数据，不直接修改上游 `sources/` 文件。游戏或 PoB2 上游数据更新后，应重新运行对应 pipeline，而不是手改生成后的 JSON 或贴图产物。
+Web 天赋树渲染使用从 PoB2 上游数据生成出来的中间数据，不直接修改 `upstreams/PathOfBuilding-PoE2/` 文件。游戏或 PoB2 上游数据更新后，应重新运行对应 pipeline，而不是手改生成后的 JSON 或贴图产物。
 
-`public/assets/dds/`、`public/assets/connectors/`、`public/assets/orbit/` 和 `public/assets/ui/` 是前端运行时资源，需要随仓库提交。这样新机器只要拉取仓库、安装依赖并启动前端，就能看到天赋节点、边框、背景、连线和 tooltip 资源；不需要为了正常显示先准备 `sources/` 或运行资源生成 pipeline。`sources/` 只在更新上游数据或重新生成资源时需要。
+`public/assets/dds/`、`public/assets/connectors/`、`public/assets/orbit/` 和 `public/assets/ui/` 是前端运行时资源，需要随仓库提交。这样新机器只要拉取仓库、安装依赖并启动前端，就能看到天赋节点、边框、背景、连线和 tooltip 资源；不需要为了正常显示先准备 `upstreams/` 或运行资源生成 pipeline。`upstreams/` 只在更新上游数据或重新生成资源时需要。
+
+## PoeCharm2 翻译上游
+
+PoeCharm2 与 PoB2 一样，作为 `upstreams/` 下的本地只读上游维护；不要直接修改其 CSV，也不要在 `public/data/Translate/` 中手工补充翻译。当前同步简体中文、繁体中文和韩文三个目录：
+
+```powershell
+git clone https://github.com/Chuanhsing/PoeCharm2.git upstreams/PoeCharm2
+npm run pipeline:translations
+```
+
+`upstreams/PoeCharm2/` 已被 Git 忽略，运行时只提交同步生成的 `public/data/Translate/` 和 `translation-files.json`。同步脚本会完整镜像 PoeCharm2 的 `Data/Translate/zh-rCN`、`zh-rTW`、`ko-KR`，并生成固定顺序的 manifest；天赋专用 CSV 优先于通用或历史 CSV，重复英文词条不会因网络请求完成顺序而随机覆盖。
+
+PoeCharm2 更新翻译后，执行：
+
+```powershell
+cd upstreams/PoeCharm2
+git pull
+cd ../..
+npm run pipeline:translations
+npm run test:server
+npm run build
+```
+
+`npm run pipeline:all -- 0_5` 也会先同步翻译上游，再生成指定版本的 PoB2 天赋树和资源。
 
 前端会优先按当前树版本加载 `public/assets/dds/{version}`、`public/assets/orbit/{version}` 和 `public/assets/connectors/{version}`。如果新版本资源尚未完整生成，会回退到 `0_4` 资源或 Canvas fallback 绘制；这个回退只影响贴图视觉，不会改变 `tree-web-{version}.json` 中的节点、坐标、连线关系和天赋数据。

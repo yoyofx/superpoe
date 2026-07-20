@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-One-click master script to regenerate all web assets from PoB2 sources.
-Run after git pull of sources/ to update game data.
+One-click master script to regenerate all web assets from the PoB2 upstream.
+Run after git pull of upstreams/PathOfBuilding-PoE2/ to update game data.
 
 Usage:
   python web/scripts/extract_game_assets.py              # All assets
@@ -17,7 +17,7 @@ from pathlib import Path
 
 SCRIPTS_DIR = Path(__file__).parent
 WEB_DIR = SCRIPTS_DIR.parent
-SOURCES_DIR = WEB_DIR / 'sources' / 'src'
+SOURCES_DIR = WEB_DIR / 'upstreams' / 'PathOfBuilding-PoE2' / 'src'
 
 
 def run_step(name, args, skip=False):
@@ -76,7 +76,7 @@ def main():
     
     if not tree_data_dir.exists() and not args.dry_run:
         print(f"ERROR: TreeData/{version} not found at {tree_data_dir}")
-        print("Make sure sources/ is copied from the PoB2 repository.")
+        print("Make sure upstreams/PathOfBuilding-PoE2/ is available.")
         sys.exit(1)
     
     steps = [

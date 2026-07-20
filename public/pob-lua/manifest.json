@@ -1,7 +1,7 @@
 {
   "version": "0_5",
-  "source": "sources/src",
-  "runtime": "sources/runtime/lua",
+  "source": "upstreams/PathOfBuilding-PoE2/src",
+  "runtime": "upstreams/PathOfBuilding-PoE2/runtime/lua",
   "fileCount": 1063,
   "totalBytes": 40109392,
   "files": [

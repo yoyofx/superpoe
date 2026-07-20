@@ -33,6 +33,8 @@ This will allow the skill to benefit from modifiers on the item that affect sock
 No item is equipped in this slot.,这个装备槽位没有装备任何物品。
 Enabled:,启用:
 Include in Full DPS:,计入最终总和DPS:
+Imbued Support:,注入辅助:
+Remove this imbued support.,移除此注入辅助。
 Count:,倍率:
 "You cannot delete this group, but it will disappear if you un-allocate the node.",你不能删除该组，但如果取消分配该节点，该组将消失。
 "You cannot delete this group, but it will disappear if you un-equip the item.",你不能删除该组，但如果取消装备该物品，该组将消失。

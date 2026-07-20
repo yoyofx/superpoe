@@ -116,7 +116,7 @@ Sekhem,威能短杖
 "Bronze Sceptre",铜锻短杖
 "Quartz Sceptre",石英短杖
 "Iron Sceptre",冷铁短杖
-"Ochre Sceptre",赤色短杖
+"Ochre Sceptre",赤色权杖
 "Ritual Sceptre",祭仪短杖
 "Shadow Sceptre",影语短杖
 "Grinning Fetish",远古之祭
@@ -744,7 +744,7 @@ Messer,大砍刀
 "Slim Mace",细柄钉锤
 Warpick,战镐
 "Plated Mace",板锤
-"Brigand Mace",驱灵之锤
+"Brigand Mace",强盗之锤
 "Construct Hammer",施工锤
 "Jade Club",翠玉战棒
 "Lumen Mace",流明之锤
@@ -853,18 +853,18 @@ Greatmace,狼牙巨锤
 "Ruination Maul",毁灭巨锤
 "Massive Greathammer",庞然大锤
 "Tawhoan Greatclub",塔赫亚巨棍
-"Rattling Sceptre",罪孽短杖
-"Stoic Sceptre",克己短杖
-"Lupine Sceptre",幽狼短杖
-"Omen Sceptre",预兆短杖
-"Shrine Sceptre",圣地短杖
-"Devouring Sceptre",吞噬短杖
-"Clasped Sceptre",握扣短杖
-"Devotional Sceptre",虔诚短杖
-"Wrath Sceptre",愤怒短杖
-"Aromatic Sceptre",芳香短杖
-"Pious Sceptre",虔信短杖
-"Hallowed Sceptre",崇圣短杖
+"Rattling Sceptre",罪孽权杖
+"Stoic Sceptre",克己权杖
+"Lupine Sceptre",幽狼权杖
+"Omen Sceptre",预兆权杖
+"Shrine Sceptre",圣地权杖
+"Devouring Sceptre",吞噬权杖
+"Clasped Sceptre",握扣权杖
+"Devotional Sceptre",虔诚权杖
+"Wrath Sceptre",愤怒权杖
+"Aromatic Sceptre",芳香权杖
+"Pious Sceptre",虔信权杖
+"Hallowed Sceptre",崇圣权杖
 "Wrapped Quarterstaff",裹布节杖
 "Long Quarterstaff",长柄节杖
 "Gothic Quarterstaff",哥特节杖
@@ -1049,3 +1049,123 @@ Starcaller,唤星
 "The Monastery Bell",修道院钟声
 "Jiquani's Potential",佳华尼的潜能
 "Unlight Extant",暗光遗存
+"Reflecting Staff",反射长杖
+"Skullcrusher Quarterstaff",碎颅节杖
+"Soaring Spear",翱翔战矛
+"Guardian Spear",守护者战矛
+"Changeling Talisman",易形魔符
+"Nettle Talisman",荨麻魔符
+"Cinderbark Talisman",烬皮魔符
+"Familial Talisman",血亲魔符
+"Frenzied Talisman",狂怒魔符
+"Primal Talisman",原初魔符
+"Rabid Talisman",狂犬魔符
+"Vicious Talisman",凶恶魔符
+"Voltfang Talisman",电牙魔符
+"Lumbering Talisman",蹒跚魔符
+"Roaring Talisman",怒嚎魔符
+"Wingbeat Talisman",翼振魔符
+"Condemned Talisman",罪孽魔符
+"Howling Talisman",怒嚎魔符
+"Fury Talisman",狂怒魔符
+"Cruel Talisman",残酷魔符
+"Spiny Talisman",荆刺魔符
+"Ashbark Talisman",灰烬树皮魔符
+"Fang Talisman",利齿魔符
+"Fungal Talisman",真菌魔符
+"Alpha Talisman",首领魔符
+"Maji Talisman",众神魔符
+"Wildwood Talisman",荒林魔符
+"Thunder Talisman",雷霆魔符
+"Jade Talisman",翡翠魔符
+"Amor Mandragora",爱神曼陀罗
+"Fury of the King",君王之怒
+"Atziri's Contempt",阿兹里的蔑视
+"Hysseg's Claw",西赛格之爪
+"The Flesh Poppet",血肉傀儡
+"The Sands of Time",时之沙
+Skysunder,破天者
+Fleshrender,裁肉者
+"The Sacred Chalice",圣洁圣杯
+"The Desecrated Chalice",亵渎圣杯
+"The Flame of Hope",希望之火
+"The Broken Elegy",破碎挽歌
+"The Bane of Hope",希望之祸
+"Twisted Wand",扭曲法杖
+"Runic Fork",符文之叉
+"Runemastered Runic Fork",符文师匠符文之叉
+"Runemastered Torment Club",符文师匠劫难战棒
+"Runeforged Marching Mace",符文师匠行军之锤
+"Runeforged Wooden Club",符文木棒
+"Runemastered Wooden Club",符文师匠木棒
+"Runeforged Slim Mace",符文细柄钉锤
+"Runeforged Spiked Club",符文钝钉木棒
+"Runeforged Warpick",符文战镐
+"Runeforged Kalguuran Forgehammer",符文卡古兰锻造锤
+"Runeforged Morning Star",符文流星锤
+"Runeforged Crude Bow",符文粗制弓
+"Runeforged Shortbow",符文短弓
+"Runeforged Recurve Bow",符文反曲弓
+"Runeforged Composite Bow",符文复合弓
+"Runeforged Dualstring Bow",符文双弦弓
+"Runeforged Zealot Bow",符文狂热弓
+"Heartwood Shortbow",心木短弓
+"Perching Staff",栖鸟长杖
+"Runeforged Felled Greatclub",符文伐采巨棍
+"Runemastered Felled Greatclub",符文师匠伐采巨棍
+"Runeforged Oak Greathammer",符文橡木大锤
+"Runemastered Oak Greathammer",符文师匠橡木大锤
+"Runeforged Forge Maul",符文锻炉巨锤
+"Runeforged Studded Greatclub",符文镶钉巨棍
+"Runemastered Studded Greatclub",符文师匠镶钉巨棍
+"Runeforged Cultist Greathammer",符文教徒大锤
+"Runeforged Temple Maul",符文神殿巨锤
+"Runeforged Leaden Greathammer",符文灌铅大锤
+"Runeforged Crumbling Maul",符文摧枯巨锤
+"Runeforged Pointed Maul",符文钉头巨锤
+"Aberrant Sledge",畸变巨锤
+"Runemastered Aberrant Sledge",符文师匠畸变巨锤
+"Runeforged Wrapped Quarterstaff",符文裹布节杖
+"Runeforged Long Quarterstaff",符文长柄节杖
+"Runemastered Long Quarterstaff",符文师匠长柄节杖
+"Runeforged Gothic Quarterstaff",符文哥特节杖
+"Runemastered Gothic Quarterstaff",符文师匠哥特节杖
+"Runeforged Crescent Quarterstaff",符文月牙节杖
+"Runeforged Steelpoint Quarterstaff",符文钢缘节杖
+"Warding Quarterstaff",守护节杖
+"Runemastered Warding Quarterstaff",符文师匠守护节杖
+"Runeforged Hardwood Spear",符文硬木长矛
+"Runeforged Ironhead Spear",符文铁头长矛
+"Runemastered Ironhead Spear",符文师匠铁头长矛
+"Runeforged Hunting Spear",符文狩猎长矛
+"Runeforged Winged Spear",符文飞翼长矛
+"Runeforged War Spear",符文历战长矛
+"Runeforged Forked Spear",符文分叉长矛
+"Runeforged Barbed Spear",符文倒刺长矛
+"Runeforged Makeshift Crossbow",符文拼凑战弩
+"Runeforged Tense Crossbow",符文紧弦战弩
+"Runemastered Tense Crossbow",符文师匠紧弦战弩
+"Runeforged Sturdy Crossbow",符文坚固战弩
+"Runeforged Dyad Crossbow",符文双联战弩
+"Runemastered Dyad Crossbow",符文师匠双联战弩
+"Runeforged Bombard Crossbow",符文轰炸战弩
+"Trarthan Cannon",特拉珊火炮
+"Runeforged Changeling Talisman",符文易形魔符
+"Runeforged Nettle Talisman",符文荨麻魔符
+"Runemastered Nettle Talisman",符文师匠荨麻魔符
+"Runeforged Familial Talisman",符文血亲魔符
+"Runemastered Familial Talisman",符文师匠血亲魔符
+"Runeforged Vicious Talisman",符文凶恶魔符
+"Liminal Coil",阈限螺旋
+Periphery,边缘
+"Sylvan's Effigy",森林灵像
+"The Ordained",天选之人
+"The Raven's Flock",渡鸦之群
+"Twisted Empyrean",扭曲天穹
+"Serle's Grit",瑟尔的坚毅
+Redemption,救赎
+Duality,二元一体
+"Sadist's Mercy",施虐者的慈悲
+"Spiteful Floret",怨毒之花
+"Surge of the Tide",奔涌潮汐
+"Runeseeker's Call",符文猎手的呼唤
