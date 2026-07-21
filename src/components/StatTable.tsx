@@ -10,7 +10,7 @@ function fmt(n: number | undefined, decimals = 1): string {
   return Number(n).toFixed(decimals)
 }
 
-export function StatTable() {
+export function StatTable({ page = false }: { page?: boolean }) {
   const { t } = useTranslation()
   const calcResult = useTreeStore((s) => s.calcResult)
   const calcLoading = useTreeStore((s) => s.calcLoading)
@@ -21,6 +21,9 @@ export function StatTable() {
     offence: true,
     defence: true,
   })
+  const containerClass = page
+    ? 'calculation-panel'
+    : 'fixed bottom-4 right-4 z-30 min-w-[240px] max-w-[300px] max-h-[70vh] overflow-y-auto rounded border border-[#454137] bg-[#111311]/95 shadow-xl'
 
   const toggle = useCallback((sec: SectionKey) => {
     setOpenSections((prev) => ({ ...prev, [sec]: !prev[sec] }))
@@ -61,9 +64,17 @@ export function StatTable() {
 
   // Loading state
   if (calcLoading) {
+    if (page) {
+      return <section className="calculation-state">
+        <svg className="animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+        </svg>
+        <h2>{t('stats.calculating')}</h2>
+      </section>
+    }
     return (
-      <div className="fixed bottom-4 right-4 z-30 bg-gray-900/90 backdrop-blur rounded-lg
-                      border border-gray-700 p-4 shadow-xl min-w-[240px] max-w-[300px]">
+      <div className={`${containerClass} p-4`}>
         <div className="flex items-center gap-2 text-sm text-gray-400">
           <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -78,9 +89,15 @@ export function StatTable() {
 
   // Error state
   if (calcError) {
+    if (page) {
+      return <section className="calculation-state error-state">
+        <span>!</span>
+        <h2>{t('stats.error')}</h2>
+        <p>{calcError}</p>
+      </section>
+    }
     return (
-      <div className="fixed bottom-4 right-4 z-30 bg-gray-900/90 backdrop-blur rounded-lg
-                      border border-red-700/50 p-4 shadow-xl min-w-[240px] max-w-[300px]">
+      <div className={`${containerClass} border-red-700/50 p-4`}>
         <p className="text-xs text-red-400 mb-1 font-semibold">{t('stats.error')}</p>
         <p className="text-xs text-red-300 break-words">{calcError}</p>
       </div>
@@ -89,9 +106,15 @@ export function StatTable() {
 
   // Empty state
   if (!calcResult) {
+    if (page) {
+      return <section className="calculation-state">
+        <span>∑</span>
+        <h2>{t('stats.empty')}</h2>
+        <p>{t('toolbar.calcTitle')}</p>
+      </section>
+    }
     return (
-      <div className="fixed bottom-4 right-4 z-30 bg-gray-900/90 backdrop-blur rounded-lg
-                      border border-gray-700 p-4 shadow-xl min-w-[240px] max-w-[300px]">
+      <div className={`${containerClass} p-4`}>
         <p className="text-xs text-gray-500">{t('stats.empty')}</p>
       </div>
     )
@@ -101,9 +124,7 @@ export function StatTable() {
   const r: CalcResult = calcResult
 
   return (
-    <div className="fixed bottom-4 right-4 z-30 bg-gray-900/90 backdrop-blur rounded-lg
-                    border border-gray-700 shadow-xl min-w-[240px] max-w-[300px]
-                    max-h-[70vh] overflow-y-auto">
+    <div className={containerClass}>
       {renderSection('attributes', <>
         {renderRow(t('stats.str'), r.Str)}
         {renderRow(t('stats.dex'), r.Dex)}

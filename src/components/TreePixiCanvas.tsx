@@ -992,6 +992,9 @@ export function TreePixiCanvas() {
   const searchProjection = treeData
     ? getSelectedAscendancyProjection(treeData, selectedClassId, selectedAscendancyId)
     : null
+  const hostBounds = hostRef.current?.getBoundingClientRect()
+  const searchViewportWidth = hostBounds?.width ?? (typeof window !== 'undefined' ? window.innerWidth : 0)
+  const searchViewportHeight = hostBounds?.height ?? (typeof window !== 'undefined' ? window.innerHeight : 0)
   const searchMarkers = treeData && typeof window !== 'undefined'
     ? searchMatchIds.flatMap((id) => {
       const node = treeData.nodes[id]
@@ -999,8 +1002,8 @@ export function TreePixiCanvas() {
       const [x, y] = getRenderTreePoint(node, searchProjection)
       return [{
         id,
-        left: (x + offsetX) * zoom + window.innerWidth / 2,
-        top: (y + offsetY) * zoom + window.innerHeight / 2,
+        left: (x + offsetX) * zoom + searchViewportWidth / 2,
+        top: (y + offsetY) * zoom + searchViewportHeight / 2,
         selected: id === selectedNodeId,
       }]
     })
@@ -1010,7 +1013,7 @@ export function TreePixiCanvas() {
     <>
       <div
         ref={hostRef}
-        className="fixed inset-0 cursor-grab active:cursor-grabbing"
+        className="absolute inset-0 cursor-grab active:cursor-grabbing"
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -1018,7 +1021,7 @@ export function TreePixiCanvas() {
         onContextMenu={handleContextMenu}
         onMouseLeave={handleMouseLeave}
       />
-      <div className="pointer-events-none fixed inset-0 z-10">
+      <div className="pointer-events-none absolute inset-0 z-10">
         {searchMarkers.map((marker) => {
           const size = marker.selected ? 34 : 24
           return (

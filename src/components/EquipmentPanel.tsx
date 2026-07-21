@@ -1,70 +1,75 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Check, ChevronRight, PackageOpen, ShieldCheck, Swords, Upload } from 'lucide-react'
 import { decodeCodeToXml } from '@/engine/buildCode'
 import { parseEquipmentXml } from '@/engine/equipment'
+import { loadItemIconIndex, resolveItemIcon, resolveItemIconName, type ItemIconIndex } from '@/engine/itemIcons'
+import { translateGameText } from '@/i18n/translationLoader'
+import { useTranslation } from '@/i18n/useTranslation'
 import { useTreeStore } from '@/store/treeStore'
 import type { EquipmentItem } from '@/types/equipment'
-import { useTranslation } from '@/i18n/useTranslation'
-import { translateGameText } from '@/i18n/translationLoader'
-import { loadItemIconIndex, resolveItemIcon, resolveItemIconName, type ItemIconIndex } from '@/engine/itemIcons'
 
 const SLOT_KEYS: Record<string, string> = {
-  'Weapon 1': 'equipment.slot.weapon1', 'Weapon 2': 'equipment.slot.weapon2',
-  Helmet: 'equipment.slot.helmet', Gloves: 'equipment.slot.gloves',
-  'Body Armour': 'equipment.slot.bodyArmour', Boots: 'equipment.slot.boots',
-  'Ring 1': 'equipment.slot.ring1', 'Ring 2': 'equipment.slot.ring2',
-  Amulet: 'equipment.slot.amulet', Belt: 'equipment.slot.belt',
-  'Charm 1': 'equipment.slot.charm1', 'Charm 2': 'equipment.slot.charm2',
-  'Charm 3': 'equipment.slot.charm3', 'Flask 1': 'equipment.slot.flask1',
+  'Weapon 1': 'equipment.slot.weapon1',
+  'Weapon 2': 'equipment.slot.weapon2',
+  Helmet: 'equipment.slot.helmet',
+  Gloves: 'equipment.slot.gloves',
+  'Body Armour': 'equipment.slot.bodyArmour',
+  Boots: 'equipment.slot.boots',
+  'Ring 1': 'equipment.slot.ring1',
+  'Ring 2': 'equipment.slot.ring2',
+  Amulet: 'equipment.slot.amulet',
+  Belt: 'equipment.slot.belt',
+  'Charm 1': 'equipment.slot.charm1',
+  'Charm 2': 'equipment.slot.charm2',
+  'Charm 3': 'equipment.slot.charm3',
+  'Flask 1': 'equipment.slot.flask1',
   'Flask 2': 'equipment.slot.flask2',
 }
 
 const PAPER_DOLL_SLOTS = [
-  { name: 'Weapon 1', className: 'col-start-1 row-start-1 row-span-4' },
-  { name: 'Helmet', className: 'col-start-3 row-start-1 row-span-2' },
-  { name: 'Weapon 2', className: 'col-start-5 row-start-1 row-span-4' },
-  { name: 'Ring 1', className: 'col-start-2 row-start-3' },
-  { name: 'Body Armour', className: 'col-start-3 row-start-3 row-span-3' },
-  { name: 'Amulet', className: 'col-start-4 row-start-3' },
-  { name: 'Gloves', className: 'col-start-2 row-start-4 row-span-2' },
-  { name: 'Ring 2', className: 'col-start-4 row-start-4' },
-  { name: 'Boots', className: 'col-start-4 row-start-5 row-span-2' },
-  { name: 'Belt', className: 'col-start-3 row-start-6' },
-  { name: 'Flask 1', className: 'col-start-1 row-start-6 row-span-2' },
-  { name: 'Charm 1', className: 'col-start-2 row-start-7' },
-  { name: 'Charm 2', className: 'col-start-3 row-start-7' },
-  { name: 'Charm 3', className: 'col-start-4 row-start-7' },
-  { name: 'Flask 2', className: 'col-start-5 row-start-6 row-span-2' },
+  { name: 'Weapon 1', className: 'slot-weapon-one' },
+  { name: 'Weapon 2', className: 'slot-weapon-two' },
+  { name: 'Helmet', className: 'slot-helmet' },
+  { name: 'Body Armour', className: 'slot-body-armour' },
+  { name: 'Gloves', className: 'slot-gloves' },
+  { name: 'Boots', className: 'slot-boots' },
+  { name: 'Amulet', className: 'slot-amulet' },
+  { name: 'Ring 1', className: 'slot-ring-one' },
+  { name: 'Ring 2', className: 'slot-ring-two' },
+  { name: 'Belt', className: 'slot-belt' },
+  { name: 'Flask 1', className: 'slot-flask-one' },
+  { name: 'Charm 1', className: 'slot-charm-one' },
+  { name: 'Charm 2', className: 'slot-charm-two' },
+  { name: 'Charm 3', className: 'slot-charm-three' },
+  { name: 'Flask 2', className: 'slot-flask-two' },
 ] as const
+const PAPER_DOLL_SLOT_NAMES = new Set<string>(PAPER_DOLL_SLOTS.map((slot) => slot.name))
 
-const RARITY_STYLE: Record<string, string> = {
-  NORMAL: 'border-gray-500 text-gray-200',
-  MAGIC: 'border-blue-500/80 text-blue-300',
-  RARE: 'border-yellow-500/80 text-yellow-300',
-  UNIQUE: 'border-orange-600/90 text-orange-400',
+const RARITY_CLASS: Record<string, string> = {
+  NORMAL: 'rarity-normal',
+  MAGIC: 'rarity-magic',
+  RARE: 'rarity-rare',
+  UNIQUE: 'rarity-unique',
 }
 
 function SocketedRunes({ item, index, compact = false }: { item: EquipmentItem; index: ItemIconIndex | null; compact?: boolean }) {
   const { lang } = useTranslation()
   useTreeStore((state) => state.translationRevision)
   if (!item.socketCount) return null
+
   return (
-    <div className={compact ? 'absolute left-1/2 top-1/2 grid max-h-[calc(100%-18px)] -translate-x-1/2 -translate-y-1/2 grid-cols-2 gap-1' : 'flex flex-wrap justify-center gap-1.5 py-3'}>
+    <div className={compact ? 'socket-overlay' : 'socket-detail-list'}>
       {Array.from({ length: item.socketCount }, (_, socketIndex) => {
         const rune = item.runes[socketIndex] || ''
         const imageUrl = rune ? resolveItemIconName(rune, index) : undefined
         const label = rune ? translateGameText(rune, lang) : ''
         const centerLastSocket = compact && item.socketCount % 2 === 1 && socketIndex === item.socketCount - 1
         return (
-          <span
-            key={`${rune}-${socketIndex}`}
-            className={compact
-              ? centerLastSocket ? 'col-span-2 justify-self-center' : ''
-              : 'flex items-center gap-1.5 text-xs text-[#c8c0ae]'}
-          >
-            <span title={label || 'Empty socket'} className={`${compact ? 'h-[22px] w-[22px]' : 'h-9 w-9'} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#a18b55] bg-[#16130d] shadow-[0_0_0_1px_rgba(0,0,0,.75)]`}>
-              {imageUrl ? <img src={imageUrl} alt={label} className="h-full w-full object-contain" /> : <span className={compact ? 'text-[9px] text-[#d2b879]' : 'text-[11px] text-[#d2b879]'}>{rune ? 'R' : ''}</span>}
+          <span key={`${rune}-${socketIndex}`} className={centerLastSocket ? 'socket-entry center-last' : 'socket-entry'}>
+            <span className="rune-socket" title={label || 'Empty socket'}>
+              {imageUrl ? <img src={imageUrl} alt={label} /> : <span>{rune ? 'R' : ''}</span>}
             </span>
-            {!compact && <span>{label || 'Empty'}</span>}
+            {!compact && <span className="socket-copy"><strong>{label || 'Empty'}</strong><small>{rune ? 'Rune / Soul Core / Idol' : 'Empty socket'}</small></span>}
           </span>
         )
       })}
@@ -76,28 +81,38 @@ function ItemDetail({ item, imageUrl, itemIconIndex }: { item: EquipmentItem; im
   const { t, lang } = useTranslation()
   useTreeStore((state) => state.translationRevision)
   const translateItemText = (value: string) => translateGameText(value.replace(/\{[^}]+\}/g, ''), lang)
+  const rarityClass = RARITY_CLASS[item.rarity] || RARITY_CLASS.NORMAL
+
   return (
-    <section className="min-h-0 flex-1 overflow-y-auto border-l border-[#403a31] bg-[#11100e] p-5">
-      <div className={`border-b pb-3 text-center ${RARITY_STYLE[item.rarity] || RARITY_STYLE.NORMAL}`}>
-        {imageUrl && <img src={imageUrl} alt="" className="mx-auto mb-2 h-20 w-20 object-contain" />}
-        <h3 className="font-serif text-lg font-semibold">{translateItemText(item.name)}</h3>
-        <p className="mt-0.5 text-sm opacity-80">{translateItemText(item.baseType)}</p>
+    <aside className="equipment-inspector">
+      <header className={`inspector-title ${rarityClass}`}>
+        <span>{lang === 'zh-rCN' ? '已选择装备' : 'Selected item'}</span>
+        <h2>{translateItemText(item.name)}</h2>
+        <p>{translateItemText(item.baseType)}</p>
+      </header>
+
+      <div className="inspector-scroll">
+        <div className="item-art-frame">{imageUrl && <img src={imageUrl} alt="" />}</div>
+        <div className="item-metadata">
+          {item.itemLevel && <span>{t('equipment.itemLevel', { value: item.itemLevel })}</span>}
+          {item.levelReq && <span>{t('equipment.levelReq', { value: item.levelReq })}</span>}
+          {item.quality && <span>{t('equipment.quality', { value: item.quality })}</span>}
+          {item.sockets && <span>{t('equipment.sockets', { value: item.sockets })}</span>}
+        </div>
+
+        <div className="ornament-rule" />
+        <div className="item-modifiers">
+          {item.lines.map((line, index) => (
+            <p key={`${line}-${index}`} className={line.includes('{') ? 'mod-special' : ''}>{translateItemText(line)}</p>
+          ))}
+        </div>
+
+        {!!item.socketCount && <>
+          <div className="inspector-section-title"><span>{lang === 'zh-rCN' ? '孔位镶嵌物' : 'Socketed items'}</span><small>{item.socketCount}</small></div>
+          <SocketedRunes item={item} index={itemIconIndex} />
+        </>}
       </div>
-      <div className="flex flex-wrap justify-center gap-x-4 gap-y-1 border-b border-[#302c26] py-3 text-[11px] text-gray-400">
-        {item.itemLevel && <span>{t('equipment.itemLevel', { value: item.itemLevel })}</span>}
-        {item.levelReq && <span>{t('equipment.levelReq', { value: item.levelReq })}</span>}
-        {item.quality && <span>{t('equipment.quality', { value: item.quality })}</span>}
-        {item.sockets && <span>{t('equipment.sockets', { value: item.sockets })}</span>}
-      </div>
-      <SocketedRunes item={item} index={itemIconIndex} />
-      <div className="space-y-1.5 py-4 text-center text-xs leading-relaxed text-[#b8b3a8]">
-        {item.lines.map((line, index) => (
-          <p key={`${line}-${index}`} className={line.includes('{') ? 'text-blue-300/90' : ''}>
-            {translateItemText(line)}
-          </p>
-        ))}
-      </div>
-    </section>
+    </aside>
   )
 }
 
@@ -122,109 +137,117 @@ function PaperDollSlot({
   useTreeStore((state) => state.translationRevision)
   const slotLabel = t(SLOT_KEYS[slotName] || slotName)
   const itemName = item ? translateGameText(item.name, lang) : ''
+  const rarityClass = item ? RARITY_CLASS[item.rarity] || RARITY_CLASS.NORMAL : 'slot-empty'
+
   return (
     <button
       onClick={onSelect}
       disabled={!item}
       title={item ? `${slotLabel}: ${itemName}` : slotLabel}
-      className={`${className} relative min-h-0 overflow-hidden border bg-[#202932] transition-colors ${
-        item
-          ? `${RARITY_STYLE[item.rarity] || RARITY_STYLE.NORMAL} hover:bg-[#29333c] ${selected ? 'ring-1 ring-[#d5bd7b]' : ''}`
-          : 'border-[#303944] text-gray-600'
-      }`}
+      className={`paper-doll-slot ${className} ${rarityClass} ${selected ? 'selected' : ''}`}
     >
-      {imageUrl ? (
-        <img src={imageUrl} alt={itemName} className="absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain" />
-      ) : (
-        <span className="absolute inset-2 flex items-center justify-center text-center text-[10px] leading-tight">
-          {itemName || t('equipment.empty')}
-        </span>
-      )}
+      {imageUrl ? <img className="slot-item-image" src={imageUrl} alt={itemName} /> : <span className="empty-slot-label">{itemName || slotLabel}</span>}
       {item && <SocketedRunes item={item} index={itemIconIndex} compact />}
-      <span className="absolute inset-x-0 bottom-0 bg-black/65 px-1 py-0.5 text-[8px] text-gray-400">
-        {slotLabel}
-      </span>
+      <span className="slot-label">{slotLabel}</span>
     </button>
   )
 }
 
 export function EquipmentPanel() {
-  const { t } = useTranslation()
+  const { t, lang } = useTranslation()
   const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
-  const [itemIconIndex, setItemIconIndex] = useState<Awaited<ReturnType<typeof loadItemIconIndex>>>(null)
+  const [itemIconIndex, setItemIconIndex] = useState<ItemIconIndex | null>(null)
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
+  const [weaponSet, setWeaponSet] = useState<1 | 2>(1)
+
   useEffect(() => {
     let mounted = true
-    loadItemIconIndex().then((index) => {
-      if (mounted) setItemIconIndex(index)
-    })
+    loadItemIconIndex().then((index) => mounted && setItemIconIndex(index))
     return () => { mounted = false }
   }, [])
+
   const equipment = useMemo(() => {
     if (!importedBuildCode) return null
     try { return parseEquipmentXml(decodeCodeToXml(importedBuildCode)) } catch { return null }
   }, [importedBuildCode])
-  const activeSet = equipment?.itemSets.find((set) => set.id === equipment.activeItemSetId) || equipment?.itemSets[0]
-  const equipped = activeSet?.slots.filter((slot) => !slot.name.endsWith(' Swap')) || []
+  const activeSetId = selectedSetId || equipment?.activeItemSetId
+  const activeSet = equipment?.itemSets.find((set) => set.id === activeSetId) || equipment?.itemSets[0]
+  const equipped = activeSet?.slots.filter((slot) => PAPER_DOLL_SLOT_NAMES.has(slot.name) && slot.itemId) || []
   const firstItem = equipped.map((slot) => equipment?.itemsById[slot.itemId]).find(Boolean)
-  const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [weaponSet, setWeaponSet] = useState<1 | 2>(activeSet?.useSecondWeaponSet ? 2 : 1)
   const selected = (selectedId && equipment?.itemsById[selectedId]) || firstItem
   const selectedImageUrl = selected ? resolveItemIcon(selected, itemIconIndex) : undefined
-  const setTitle = activeSet?.title?.match(/^Set (\d+)$/i)
-    ? t('equipment.defaultSet', { number: activeSet.title.match(/\d+/)?.[0] || '1' })
-    : activeSet?.title || t('equipment.currentBuild')
+
+  useEffect(() => {
+    if (activeSet) setWeaponSet(activeSet.useSecondWeaponSet ? 2 : 1)
+  }, [activeSet?.id, activeSet?.useSecondWeaponSet])
 
   const itemForSlot = (slotName: string) => {
-    const resolvedName = weaponSet === 2 && slotName.startsWith('Weapon ')
-      ? `${slotName} Swap`
-      : slotName
+    const resolvedName = weaponSet === 2 && slotName.startsWith('Weapon ') ? `${slotName} Swap` : slotName
     const slot = activeSet?.slots.find((entry) => entry.name === resolvedName)
     return slot ? equipment?.itemsById[slot.itemId] : undefined
   }
 
+  if (!equipment || !activeSet) {
+    return (
+      <section className="workspace-empty equipment-empty">
+        <PackageOpen />
+        <h2>{t('equipment.title')}</h2>
+        <p>{t('equipment.importHint')}</p>
+        <button className="primary-command" onClick={() => window.dispatchEvent(new Event('open-import-menu'))}><Upload />{t('toolbar.import')}</button>
+      </section>
+    )
+  }
+
   return (
-    <div className="fixed bottom-3 right-3 top-20 z-50 flex w-[min(900px,calc(100vw-24px))] flex-col overflow-hidden rounded-md border border-[#51483b] bg-[#171613]/98 shadow-2xl">
-      <header className="flex h-12 shrink-0 items-center justify-between border-b border-[#403a31] px-4">
-        <div>
-          <h2 className="text-sm font-semibold text-[#d8c69a]">{t('equipment.title')}</h2>
-          <p className="text-[10px] text-gray-500">{setTitle}</p>
+    <section className="equipment-workspace">
+      <aside className="equipment-loadouts">
+        <div className="side-heading"><span>{lang === 'zh-rCN' ? '装备配置' : 'Equipment loadout'}</span><strong>{equipped.length} / 15</strong></div>
+        <div className="loadout-list">
+          {equipment.itemSets.map((set, index) => {
+            const active = set.id === activeSet.id
+            const title = /^Set \d+$/i.test(set.title) ? t('equipment.defaultSet', { number: index + 1 }) : set.title
+            return <button key={set.id} className={active ? 'active' : ''} onClick={() => { setSelectedSetId(set.id); setSelectedId(null) }}>
+              <span className="loadout-index">{index + 1}</span><span><strong>{title}</strong><small>{set.slots.filter((slot) => slot.itemId && PAPER_DOLL_SLOT_NAMES.has(slot.name)).length} {lang === 'zh-rCN' ? '件装备' : 'items'}</small></span>{active && <Check />}
+            </button>
+          })}
         </div>
-        <div className="flex items-center gap-3">
-          <span className="text-[11px] text-gray-500">{t('equipment.count', { count: equipped.length })}</span>
-          <button onClick={() => window.dispatchEvent(new Event('close-equipment-panel'))} aria-label={t('equipment.close')} title={t('equipment.close')}
-            className="flex h-7 w-7 items-center justify-center text-lg text-gray-500 transition-colors hover:bg-[#292620] hover:text-gray-200">×</button>
+
+        <div className="side-heading weapon-heading"><span>{t('equipment.weaponSet')}</span></div>
+        <div className="weapon-set-switch">
+          <button className={weaponSet === 1 ? 'active' : ''} onClick={() => setWeaponSet(1)}><Swords /><span><strong>I</strong><small>{lang === 'zh-rCN' ? '主武器组' : 'Primary'}</small></span></button>
+          <button className={weaponSet === 2 ? 'active' : ''} onClick={() => setWeaponSet(2)}><Swords /><span><strong>II</strong><small>{lang === 'zh-rCN' ? '副武器组' : 'Secondary'}</small></span></button>
         </div>
-      </header>
-      {!equipment || !activeSet ? (
-        <div className="flex flex-1 items-center justify-center p-8 text-center text-sm text-gray-500">
-          {t('equipment.importHint')}
+
+        <div className="equipment-summary">
+          <div><ShieldCheck /><span>{lang === 'zh-rCN' ? '装备完整度' : 'Equipment status'}</span><strong>{Math.round(equipped.length / 15 * 100)}%</strong></div>
+          <div><Swords /><span>{lang === 'zh-rCN' ? '当前武器组' : 'Weapon set'}</span><strong>{weaponSet === 1 ? 'I' : 'II'}</strong></div>
         </div>
-      ) : (
-        <div className="flex min-h-0 flex-1 max-lg:flex-col">
-          <div className="w-[460px] shrink-0 overflow-y-auto p-5 max-lg:w-full">
-            <div className="mb-3 flex items-center justify-between">
-              <span className="text-[10px] font-semibold uppercase text-gray-500">{t('equipment.configuration')}</span>
-              <div className="flex gap-1" aria-label={t('equipment.weaponSet')}>
-                {([1, 2] as const).map((set) => (
-                  <button key={set} onClick={() => setWeaponSet(set)}
-                    className={`h-8 w-8 border text-xs transition-colors ${weaponSet === set ? 'border-[#81909d] bg-[#37434e] text-white' : 'border-[#3b4650] bg-[#242d35] text-gray-500 hover:text-gray-300'}`}>
-                    {set === 1 ? 'I' : 'II'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className="grid h-[454px] grid-cols-[repeat(5,76px)] grid-rows-[repeat(7,58px)] justify-center gap-1.5">
-              {PAPER_DOLL_SLOTS.map((slot) => {
-                const item = itemForSlot(slot.name)
-                const imageUrl = item ? resolveItemIcon(item, itemIconIndex) : undefined
-                return <PaperDollSlot key={slot.name} slotName={slot.name} item={item} className={slot.className}
-                  imageUrl={imageUrl} itemIconIndex={itemIconIndex} selected={item?.id === selected?.id} onSelect={() => item && setSelectedId(item.id)} />
-              })}
-            </div>
-          </div>
-          {selected && <ItemDetail item={selected} imageUrl={selectedImageUrl} itemIconIndex={itemIconIndex} />}
+      </aside>
+
+      <div className="paper-doll-stage">
+        <header className="paper-doll-heading"><span>{t('equipment.title')}</span><small>{lang === 'zh-rCN' ? '选择装备查看完整属性' : 'Select an item to inspect its properties'}</small></header>
+        <div className="paper-doll-frame">
+          {PAPER_DOLL_SLOTS.map((slot) => {
+            const item = itemForSlot(slot.name)
+            const imageUrl = item ? resolveItemIcon(item, itemIconIndex) : undefined
+            return <PaperDollSlot
+              key={slot.name}
+              slotName={slot.name}
+              item={item}
+              imageUrl={imageUrl}
+              itemIconIndex={itemIconIndex}
+              className={slot.className}
+              selected={item?.id === selected?.id}
+              onSelect={() => item && setSelectedId(item.id)}
+            />
+          })}
         </div>
-      )}
-    </div>
+      </div>
+
+      {selected
+        ? <ItemDetail item={selected} imageUrl={selectedImageUrl} itemIconIndex={itemIconIndex} />
+        : <aside className="equipment-inspector empty-inspector"><ChevronRight /><span>{lang === 'zh-rCN' ? '选择一件装备' : 'Select an item'}</span></aside>}
+    </section>
   )
 }

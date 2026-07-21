@@ -2,16 +2,18 @@ import { useEffect, useRef, useState } from 'react'
 import { useTreeStore } from '@/store/treeStore'
 import { TreePixiCanvas } from '@/components/TreePixiCanvas'
 import { Toolbar } from '@/components/Toolbar'
+import type { WorkspaceView } from '@/components/Toolbar'
 import { NodeTooltip } from '@/components/NodeTooltip'
 import { StatTable } from '@/components/StatTable'
+import { Sidebar } from '@/components/Sidebar'
 import { useTranslation } from '@/i18n/useTranslation'
 import { EquipmentPanel } from '@/components/EquipmentPanel'
 import { writePersistedImportedBuild } from '@/engine/buildPersistence'
 
 export default function App() {
-  const { t } = useTranslation()
+  const { t, lang } = useTranslation()
   const hashLoadedRef = useRef(false)
-  const [equipmentOpen, setEquipmentOpen] = useState(false)
+  const [activeView, setActiveView] = useState<WorkspaceView>('passive')
   const { treeData, loading, error, loadTreeData, loadSavedBuilds } = useTreeStore()
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
   const nodeWeaponSets = useTreeStore((s) => s.nodeWeaponSets)
@@ -30,14 +32,9 @@ export default function App() {
   }, [loadTreeData, loadSavedBuilds])
 
   useEffect(() => {
-    const open = () => setEquipmentOpen(true)
-    const close = () => setEquipmentOpen(false)
-    window.addEventListener('open-equipment-panel', open)
-    window.addEventListener('close-equipment-panel', close)
-    return () => {
-      window.removeEventListener('open-equipment-panel', open)
-      window.removeEventListener('close-equipment-panel', close)
-    }
+    const openEquipment = () => setActiveView('equipment')
+    window.addEventListener('open-equipment-panel', openEquipment)
+    return () => window.removeEventListener('open-equipment-panel', openEquipment)
   }, [])
 
   // Load from URL hash on tree ready
@@ -103,12 +100,26 @@ export default function App() {
   if (!treeData) return null
 
   return (
-    <div className="w-screen h-screen relative">
-      <TreePixiCanvas />
-      <Toolbar />
-      <NodeTooltip />
-      <StatTable />
-      {equipmentOpen && <EquipmentPanel />}
+    <div className="superpoe-app">
+      <Toolbar activeView={activeView} onViewChange={setActiveView} />
+      <main className="workspace-view">
+        {activeView === 'passive' && (
+          <section className="passive-workspace">
+            <TreePixiCanvas />
+            <NodeTooltip />
+            <Sidebar />
+          </section>
+        )}
+        {activeView === 'equipment' && <EquipmentPanel />}
+        {activeView === 'skills' && (
+          <section className="workspace-empty">
+            <div className="empty-glyph">✦</div>
+            <h2>{lang === 'zh-rCN' ? '技能工作区' : 'Skills workspace'}</h2>
+            <p>{lang === 'zh-rCN' ? '技能数据仍保持独立，本版先完成统一工作台结构。' : 'Skill data remains separate; this first pass establishes the workspace structure.'}</p>
+          </section>
+        )}
+        {activeView === 'calculation' && <StatTable page />}
+      </main>
     </div>
   )
 }
