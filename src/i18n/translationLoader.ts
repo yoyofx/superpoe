@@ -161,6 +161,11 @@ function compileNumericPattern(value: string): NumericPattern | null {
 }
 
 function addNumericEntry(dictionary: Map<string, string>, source: string, translated: string): void {
+  if (/\{\d+\}/.test(source)) {
+    const normalizeTemplateNumbers = (value: string) => value.replace(/\{(\d+)\}%?/g, '{$1}')
+    dictionary.set(normalizeTemplateNumbers(source), normalizeTemplateNumbers(translated))
+    return
+  }
   const sourcePattern = compileNumericPattern(source)
   const translatedPattern = compileNumericPattern(translated)
   if (!sourcePattern || !translatedPattern) return

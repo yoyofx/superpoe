@@ -309,6 +309,7 @@ export interface SavedBuild {
   selectedClassId: string
   selectedAscendancyId: string
   importedBuildCode?: string | null
+  source?: 'local' | 'pob' | 'wegame' | 'json'
   weaponSetMode: 0 | 1 | 2
   nodeWeaponSets: Record<string, 1 | 2>
   nodeAttributeSelections: Record<string, 1 | 2 | 3>

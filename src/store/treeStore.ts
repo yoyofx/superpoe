@@ -766,8 +766,8 @@ interface TreeStore {
 
 
   // ---- Saved Builds (Phase 16.7) ----
-  saveBuild: (name: string) => void
-  loadBuild: (id: string) => void
+  saveBuild: (name: string, id?: string | null, source?: SavedBuild['source']) => string
+  loadBuild: (id: string) => Promise<void>
   deleteBuild: (id: string) => void
   exportBuildJSON: () => string
   importBuildJSON: (json: string) => void
@@ -2275,35 +2275,45 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     } catch { /* ignore corrupt data */ }
   },
 
-  saveBuild: (name) => {
+  saveBuild: (name, id, source) => {
     const { allocatedNodes, treeVersion, selectedClassId, selectedAscendancyId,
             weaponSetMode, nodeWeaponSets, nodeAttributeSelections, masterySelections, savedBuilds, treeData, importedBuildCode } = get()
-    if (allocatedNodes.size === 0) return
     const now = new Date().toISOString()
+    const existing = id ? savedBuilds.find((item) => item.id === id) : undefined
+    const buildId = existing?.id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2))
     const build: SavedBuild = {
-      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2),
+      id: buildId,
       name,
-      createdAt: now,
+      createdAt: existing?.createdAt || now,
       updatedAt: now,
       treeVersion,
       selectedClassId,
       selectedAscendancyId,
       importedBuildCode,
+      source: source || existing?.source || (importedBuildCode ? 'pob' : 'local'),
       weaponSetMode,
       nodeWeaponSets: { ...nodeWeaponSets },
       nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
       masterySelections: { ...masterySelections },
       allocatedNodes: [...allocatedNodes],
     }
-    const updated = [build, ...savedBuilds]
+    const updated = existing
+      ? savedBuilds.map((item) => item.id === buildId ? build : item)
+      : [build, ...savedBuilds]
+    localStorage.setItem('pob2-saved-builds', JSON.stringify(updated))
     set({ savedBuilds: updated })
-    try { localStorage.setItem('pob2-saved-builds', JSON.stringify(updated)) } catch {}
+    return buildId
   },
 
-  loadBuild: (id) => {
-    const { savedBuilds, treeData } = get()
+  loadBuild: async (id) => {
+    const { savedBuilds } = get()
     const build = savedBuilds.find((b) => b.id === id)
     if (!build) return
+    if (build.treeVersion && build.treeVersion !== get().treeVersion) {
+      set({ treeVersion: build.treeVersion })
+      await get().loadTreeData()
+    }
+    const treeData = get().treeData
     const ctx = treeData ? {
       treeData,
       selectedClassId: build.selectedClassId,

@@ -4,14 +4,13 @@ import {
   ChevronDown,
   CircleHelp,
   Download,
-  FolderOpen,
+  ArrowLeft,
   Languages,
   MoreVertical,
   Redo2,
   Save,
   Search,
   Settings,
-  Share2,
   Sparkles,
   Swords,
   Undo2,
@@ -21,10 +20,6 @@ import {
   ZoomOut,
 } from 'lucide-react'
 import { ExportPanel } from '@/components/ExportPanel'
-import { ImportPanel } from '@/components/ImportPanel'
-import { Poe2dbImportPanel } from '@/components/Poe2dbImportPanel'
-import { SaveLoadPanel } from '@/components/SaveLoadPanel'
-import { isPoe2dbDesktopImportAvailable } from '@/engine/poe2dbImport'
 import { LANGUAGE_OPTIONS, translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import {
@@ -37,11 +32,16 @@ import {
 } from '@/store/treeStore'
 
 export type WorkspaceView = 'passive' | 'equipment' | 'skills' | 'calculation'
-type ToolbarMenu = 'export' | 'import' | 'wegame' | 'builds' | null
+type ToolbarMenu = 'export' | null
 
 interface ToolbarProps {
   activeView: WorkspaceView
   onViewChange: (view: WorkspaceView) => void
+  buildName: string
+  saveStatus: 'saved' | 'dirty' | 'saving' | 'error'
+  onHome: () => void
+  onImport: () => void
+  onSave: () => void
 }
 
 const VIEW_ICONS = {
@@ -51,7 +51,7 @@ const VIEW_ICONS = {
   calculation: Calculator,
 }
 
-export function Toolbar({ activeView, onViewChange }: ToolbarProps) {
+export function Toolbar({ activeView, onViewChange, buildName, saveStatus, onHome, onImport, onSave }: ToolbarProps) {
   const { t, lang, setLanguage } = useTranslation()
   const zoom = useTreeStore((state) => state.zoom)
   const treeVersion = useTreeStore((state) => state.treeVersion)
@@ -80,16 +80,9 @@ export function Toolbar({ activeView, onViewChange }: ToolbarProps) {
 
   const [versions, setVersions] = useState<string[]>(FALLBACK_TREE_VERSIONS)
   const [activeMenu, setActiveMenu] = useState<ToolbarMenu>(null)
-  const hasDesktopWeGameImport = isPoe2dbDesktopImportAvailable()
 
   useEffect(() => {
     loadTreeVersions().then(setVersions).catch(() => setVersions(FALLBACK_TREE_VERSIONS))
-  }, [])
-
-  useEffect(() => {
-    const openImport = () => setActiveMenu('import')
-    window.addEventListener('open-import-menu', openImport)
-    return () => window.removeEventListener('open-import-menu', openImport)
   }, [])
 
   useEffect(() => {
@@ -108,6 +101,9 @@ export function Toolbar({ activeView, onViewChange }: ToolbarProps) {
   const viewLabels = useMemo(() => lang === 'zh-rCN'
     ? { passive: '天赋', equipment: '装备', skills: '技能', calculation: '计算' }
     : { passive: 'Passive', equipment: 'Equipment', skills: 'Skills', calculation: 'Calculate' }, [lang])
+  const saveLabels = lang === 'zh-rCN'
+    ? { saved: '已保存', dirty: '有未保存修改', saving: '正在保存', error: '保存失败' }
+    : { saved: 'Saved', dirty: 'Unsaved changes', saving: 'Saving', error: 'Save failed' }
 
   const handleZoomFit = useCallback(() => {
     if (!treeData) return
@@ -152,23 +148,22 @@ export function Toolbar({ activeView, onViewChange }: ToolbarProps) {
         </div>
 
         <div className="current-build">
+          <button className="icon-command compact back-command" onClick={onHome} title={lang === 'zh-rCN' ? '返回构筑中心' : 'Back to build center'} aria-label={lang === 'zh-rCN' ? '返回构筑中心' : 'Back to build center'}><ArrowLeft /></button>
           <span className="class-emblem">{className.slice(0, 1)}</span>
           <span className="current-build-copy">
-            <strong>{lang === 'zh-rCN' ? '当前构筑' : 'Current build'}</strong>
+            <strong>{buildName}</strong>
             <small>{className}{ascendancyName ? ` · ${ascendancyName}` : ''}</small>
           </span>
-          <span className="save-state"><i />{lang === 'zh-rCN' ? '草稿已保存' : 'Draft saved'}</span>
+          <span className={`save-state ${saveStatus}`}><i />{saveLabels[saveStatus]}</span>
         </div>
 
         <div className="command-actions">
           <select className="compact-select" value={treeVersion} onChange={(event) => void setTreeVersion(event.target.value)} aria-label={t('toolbar.version')}>
             {versions.map((version) => <option key={version} value={version}>{version.replace('_', '.')}</option>)}
           </select>
-          <button className="icon-command" onClick={() => toggleMenu('builds')} title={t('toolbar.buildsTitle')} aria-label={t('toolbar.buildsTitle')}><FolderOpen /></button>
-          <button className="icon-command" onClick={() => toggleMenu('import')} title={t('toolbar.importTitle')} aria-label={t('toolbar.importTitle')}><Upload /></button>
-          {hasDesktopWeGameImport && <button className="icon-command" onClick={() => toggleMenu('wegame')} title={t('toolbar.wegameImportTitle')} aria-label={t('toolbar.wegameImportTitle')}><Share2 /></button>}
+          <button className="icon-command" onClick={onImport} title={t('toolbar.importTitle')} aria-label={t('toolbar.importTitle')}><Upload /></button>
           <button className="icon-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')} aria-label={t('toolbar.exportTitle')}><Download /></button>
-          <button className="primary-command" onClick={() => toggleMenu('builds')}><Save />{lang === 'zh-rCN' ? '保存' : 'Save'}</button>
+          <button className="primary-command" onClick={onSave}><Save />{lang === 'zh-rCN' ? '保存' : 'Save'}</button>
           <button className="icon-command" title={lang === 'zh-rCN' ? '更多操作' : 'More'} aria-label={lang === 'zh-rCN' ? '更多操作' : 'More'}><MoreVertical /></button>
         </div>
       </div>
@@ -232,9 +227,6 @@ export function Toolbar({ activeView, onViewChange }: ToolbarProps) {
 
       {activeMenu && <div className="command-popover">
         {activeMenu === 'export' && <ExportPanel embedded />}
-        {activeMenu === 'import' && <ImportPanel embedded />}
-        {activeMenu === 'wegame' && <Poe2dbImportPanel embedded />}
-        {activeMenu === 'builds' && <SaveLoadPanel embedded />}
       </div>}
     </header>
   )

@@ -1,5 +1,7 @@
 # PoB2 Web Tree
 
+产品功能、当前完成度和后续里程碑见 [`docs/ROADMAP.md`](./docs/ROADMAP.md)。工程任务历史见 [`docs/TASKS.md`](./docs/TASKS.md)。
+
 ## Electron 桌面版
 
 桌面版保留现有 React、PixiJS、Web Worker 和 WASM Lua 计算路径，不启动本地 HTTP API。
