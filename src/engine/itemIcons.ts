@@ -13,6 +13,19 @@ function normalizeItemKey(value: string): string {
     .toLowerCase()
 }
 
+function resolveContainedIcon(value: string, lookup: Record<string, string>): string | undefined {
+  const normalized = normalizeItemKey(value)
+  if (!normalized) return undefined
+  let bestKey = ''
+  let bestPath: string | undefined
+  for (const [key, path] of Object.entries(lookup)) {
+    if (key.length < 6 || key.length <= bestKey.length || !normalized.includes(key)) continue
+    bestKey = key
+    bestPath = path
+  }
+  return bestPath
+}
+
 export async function loadItemIconIndex(): Promise<ItemIconIndex | null> {
   if (!itemIconIndexPromise) {
     itemIconIndexPromise = fetch('/data/item-icons.json')
@@ -31,6 +44,10 @@ export function resolveItemIcon(item: EquipmentItem, index: ItemIconIndex | null
     : [item.baseType, item.name]
   for (const key of keys) {
     const path = lookup[normalizeItemKey(key)]
+    if (path) return path
+  }
+  for (const key of keys) {
+    const path = resolveContainedIcon(key, lookup)
     if (path) return path
   }
   return undefined

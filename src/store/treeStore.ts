@@ -6,11 +6,12 @@ import { create } from 'zustand'
 
 
 
-import type { TreeData, SavedBuild } from '@/types/tree'
+import type { BuildRealm, TreeData, SavedBuild } from '@/types/tree'
 import { LANGUAGE_OPTIONS, getLocalizedSearchText, loadTranslations, type Language } from '@/i18n/translationLoader'
 import { encodeBuildCode, getEncodeClassPayload } from '@/engine/buildCode'
 import { calculateBuild } from '@/engine/pobLuaClient'
 import { clearPersistedImportedBuild, getInitialImportedBuildCode } from '@/engine/buildPersistence'
+import { DEFAULT_BUILD_REALM, inferBuildRealm } from '@/engine/buildRealm'
 import { getRenderTreePoint, getSelectedAscendancyProjection } from '@/engine/treeRenderShared'
 import {
   cleanAttributeSelections,
@@ -502,8 +503,10 @@ interface TreeStore {
 
 
   // ---- Saved Builds (Phase 16.7) ----
+  buildRealm: BuildRealm
   savedBuilds: SavedBuild[]
   loadSavedBuilds: () => void
+  setBuildRealm: (realm: BuildRealm) => void
 
 
   // ---- Actions ----
@@ -1001,6 +1004,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
   calcError: null,
 
   // ---- Saved Builds (Phase 16.7) ----
+  buildRealm: DEFAULT_BUILD_REALM,
   savedBuilds: [],
 
 
@@ -2269,15 +2273,19 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       if (raw) {
         const builds = JSON.parse(raw) as SavedBuild[]
         if (Array.isArray(builds)) {
-          set({ savedBuilds: builds })
+          const normalized = builds.map((build) => ({ ...build, realm: inferBuildRealm(build) }))
+          set({ savedBuilds: normalized })
+          localStorage.setItem('pob2-saved-builds', JSON.stringify(normalized))
         }
       }
     } catch { /* ignore corrupt data */ }
   },
 
+  setBuildRealm: (realm) => set({ buildRealm: realm }),
+
   saveBuild: (name, id, source) => {
     const { allocatedNodes, treeVersion, selectedClassId, selectedAscendancyId,
-            weaponSetMode, nodeWeaponSets, nodeAttributeSelections, masterySelections, savedBuilds, treeData, importedBuildCode } = get()
+            weaponSetMode, nodeWeaponSets, nodeAttributeSelections, masterySelections, savedBuilds, treeData, importedBuildCode, buildRealm } = get()
     const now = new Date().toISOString()
     const existing = id ? savedBuilds.find((item) => item.id === id) : undefined
     const buildId = existing?.id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2))
@@ -2291,6 +2299,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       selectedAscendancyId,
       importedBuildCode,
       source: source || existing?.source || (importedBuildCode ? 'pob' : 'local'),
+      realm: buildRealm,
       weaponSetMode,
       nodeWeaponSets: { ...nodeWeaponSets },
       nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
@@ -2318,6 +2327,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       treeData,
       selectedClassId: build.selectedClassId,
       selectedAscendancyId: build.selectedAscendancyId,
+      buildRealm: inferBuildRealm(build),
     } : null
     const rebuilt = recomputeAllocationState(ctx, new Set(build.allocatedNodes), build.nodeWeaponSets || {})
     const nodeAttributeSelections = defaultAttributeSelections(
@@ -2350,13 +2360,14 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   exportBuildJSON: () => {
     const { allocatedNodes, treeVersion, selectedClassId, selectedAscendancyId,
-            weaponSetMode, nodeWeaponSets, nodeAttributeSelections, masterySelections, treeData, importedBuildCode } = get()
+            weaponSetMode, nodeWeaponSets, nodeAttributeSelections, masterySelections, treeData, importedBuildCode, buildRealm } = get()
     return JSON.stringify({
       name: 'PoB2 Build',
       exportedAt: new Date().toISOString(),
       treeVersion,
       selectedClassId,
       selectedAscendancyId,
+      realm: buildRealm,
       importedBuildCode,
       weaponSetMode,
       nodeWeaponSets,
@@ -2392,6 +2403,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
         availableNodes: rebuilt.availableNodes,
         selectedClassId,
         selectedAscendancyId,
+        buildRealm: build.realm === 'cn' ? 'cn' : 'global',
         importedBuildCode: (build.importedBuildCode as string | null) || null,
         weaponSetMode: (build.weaponSetMode as 0 | 1 | 2) || 0,
         nodeWeaponSets: rebuilt.nodeWeaponSets,

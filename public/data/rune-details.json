@@ -1,0 +1,6410 @@
+{
+  "schemaVersion": 1,
+  "source": "upstreams/PathOfBuilding-PoE2/src/Data/ModRunes.lua",
+  "lookup": {
+    "hayoxissoulcoreofheatproofing": {
+      "name": "Hayoxi's Soul Core of Heatproofing",
+      "variants": {
+        "helmet": {
+          "type": "SoulCore",
+          "stats": [
+            "+40% of Armour also applies to Cold Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "海幽夏的耐热灵核",
+        "zh-rTW": "荷霖蔡的隔熱靈魂核心"
+      }
+    },
+    "zalatlssoulcoreofinsulation": {
+      "name": "Zalatl's Soul Core of Insulation",
+      "variants": {
+        "boots": {
+          "type": "SoulCore",
+          "stats": [
+            "+40% of Armour also applies to Lightning Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "扎拉迪的绝缘灵核",
+        "zh-rTW": "札爾特的絕緣靈魂核心"
+      }
+    },
+    "topotantessoulcoreofdampening": {
+      "name": "Topotante's Soul Core of Dampening",
+      "variants": {
+        "gloves": {
+          "type": "SoulCore",
+          "stats": [
+            "+40% of Armour also applies to Fire Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "托钵塔特的抑制灵核",
+        "zh-rTW": "托波譚提的阻挫靈魂核心"
+      }
+    },
+    "atmohuassoulcoreofretreat": {
+      "name": "Atmohua's Soul Core of Retreat",
+      "variants": {
+        "body armour": {
+          "type": "SoulCore",
+          "stats": [
+            "Gain additional Ailment Threshold equal to 15% of maximum Energy Shield",
+            "Gain additional Stun Threshold equal to 15% of maximum Energy Shield"
+          ]
+        },
+        "focus": {
+          "type": "SoulCore",
+          "stats": [
+            "Gain additional Ailment Threshold equal to 15% of maximum Energy Shield",
+            "Gain additional Stun Threshold equal to 15% of maximum Energy Shield"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "阿特莫瓦的退却灵核",
+        "zh-rTW": "艾特瑪哈的撤退靈魂核心"
+      }
+    },
+    "quipolatlssoulcoreofflow": {
+      "name": "Quipolatl's Soul Core of Flow",
+      "variants": {
+        "helmet": {
+          "type": "SoulCore",
+          "stats": [
+            "8% increased Skill Effect Duration",
+            "8% increased Cooldown Recovery Rate"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "奎波拉特尔的波流灵核",
+        "zh-rTW": "克特帕托的流動靈魂核心"
+      }
+    },
+    "tzamotossoulcoreofferocity": {
+      "name": "Tzamoto's Soul Core of Ferocity",
+      "variants": {
+        "helmet": {
+          "type": "SoulCore",
+          "stats": [
+            "+4 to Maximum Rage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "提扎墨脱的狂暴灵核",
+        "zh-rTW": "薩摩特的狂暴靈魂核心"
+      }
+    },
+    "uromotissoulcoreofattenuation": {
+      "name": "Uromoti's Soul Core of Attenuation",
+      "variants": {
+        "boots": {
+          "type": "SoulCore",
+          "stats": [
+            "15% increased Curse Duration",
+            "15% increased Poison Duration"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "武罗摩提的弱化灵核",
+        "zh-rTW": "烏爾摩堤的消減靈魂核心"
+      }
+    },
+    "opilotissoulcoreofassault": {
+      "name": "Opiloti's Soul Core of Assault",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "50% chance when you gain a Frenzy Charge to gain an additional Frenzy Charge"
+          ]
+        },
+        "wand": {
+          "type": "SoulCore",
+          "stats": [
+            "50% chance when you gain a Frenzy Charge to gain an additional Frenzy Charge"
+          ]
+        },
+        "staff": {
+          "type": "SoulCore",
+          "stats": [
+            "50% chance when you gain a Frenzy Charge to gain an additional Frenzy Charge"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "欧佩罗蒂的突袭灵核",
+        "zh-rTW": "歐派理堤的攻擊靈魂核心"
+      }
+    },
+    "guatelitzissoulcoreofendurance": {
+      "name": "Guatelitzi's Soul Core of Endurance",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "50% chance when you gain an Endurance Charge to gain an additional Endurance Charge"
+          ]
+        },
+        "wand": {
+          "type": "SoulCore",
+          "stats": [
+            "50% chance when you gain an Endurance Charge to gain an additional Endurance Charge"
+          ]
+        },
+        "staff": {
+          "type": "SoulCore",
+          "stats": [
+            "50% chance when you gain an Endurance Charge to gain an additional Endurance Charge"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "瓜铁雷兹的耐力灵核",
+        "zh-rTW": "瓜特利斯的的耐久靈魂核心"
+      }
+    },
+    "xopecssoulcoreofpower": {
+      "name": "Xopec's Soul Core of Power",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "50% chance when you gain a Power Charge to gain an additional Power Charge"
+          ]
+        },
+        "wand": {
+          "type": "SoulCore",
+          "stats": [
+            "50% chance when you gain a Power Charge to gain an additional Power Charge"
+          ]
+        },
+        "staff": {
+          "type": "SoulCore",
+          "stats": [
+            "50% chance when you gain a Power Charge to gain an additional Power Charge"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "肖佩克的力量灵核",
+        "zh-rTW": "柔派克的力量靈魂核心"
+      }
+    },
+    "estazuntissoulcoreofconvalescence": {
+      "name": "Estazunti's Soul Core of Convalescence",
+      "variants": {
+        "boots": {
+          "type": "SoulCore",
+          "stats": [
+            "12% increased speed of Recoup Effects"
+          ]
+        },
+        "helmet": {
+          "type": "SoulCore",
+          "stats": [
+            "8% of Damage taken Recouped as Life"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "埃斯塔祖提的康复灵核",
+        "zh-rTW": "艾斯祖太的康復靈魂核心"
+      }
+    },
+    "tacatissoulcoreofaffliction": {
+      "name": "Tacati's Soul Core of Affliction",
+      "variants": {
+        "helmet": {
+          "type": "SoulCore",
+          "stats": [
+            "Enemies you Curse have -5% to Chaos Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "塔卡提的折磨灵核",
+        "zh-rTW": "特卡蒂的苦痛靈魂核心"
+      }
+    },
+    "cholotlssoulcoreofwar": {
+      "name": "Cholotl's Soul Core of War",
+      "variants": {
+        "bow": {
+          "type": "SoulCore",
+          "stats": [
+            "20% increased Projectile Speed"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "查罗特的战争灵核",
+        "zh-rTW": "斯拉托的戰爭靈魂核心"
+      }
+    },
+    "citaqualotlssoulcoreoffoulness": {
+      "name": "Citaqualotl's Soul Core of Foulness",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "Adds 19 to 29 Chaos damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "奇塔夸雷特的腐秽灵核",
+        "zh-rTW": "希特克拉多的腐壞靈魂核心"
+      }
+    },
+    "xipocadossoulcoreofdominion": {
+      "name": "Xipocado's Soul Core of Dominion",
+      "variants": {
+        "wand": {
+          "type": "SoulCore",
+          "stats": [
+            "Minions deal 40% increased Damage with Command Skills"
+          ]
+        },
+        "staff": {
+          "type": "SoulCore",
+          "stats": [
+            "Minions deal 40% increased Damage with Command Skills"
+          ]
+        },
+        "sceptre": {
+          "type": "SoulCore",
+          "stats": [
+            "Minions deal 40% increased Damage with Command Skills"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "夏波卡多的统御灵核",
+        "zh-rTW": "賽匹卡托的支配靈魂核心"
+      }
+    },
+    "soulcoreoftacati": {
+      "name": "Soul Core of Tacati",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "15% chance to Poison on Hit with this weapon"
+          ]
+        },
+        "armour": {
+          "type": "SoulCore",
+          "stats": [
+            "+11% to Chaos Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "塔卡提的灵核",
+        "zh-rTW": "特卡蒂靈魂核心"
+      }
+    },
+    "soulcoreofopiloti": {
+      "name": "Soul Core of Opiloti",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "15% chance to cause Bleeding on Hit"
+          ]
+        },
+        "helmet": {
+          "type": "SoulCore",
+          "stats": [
+            "20% increased Charm Charges gained"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "欧佩罗蒂的灵核",
+        "zh-rTW": "歐派理堤靈魂核心"
+      }
+    },
+    "soulcoreofjiquani": {
+      "name": "Soul Core of Jiquani",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "Recover 2% of maximum Life on Kill"
+          ]
+        },
+        "body armour": {
+          "type": "SoulCore",
+          "stats": [
+            "3% increased maximum Life"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "佳华尼的灵核",
+        "zh-rTW": "吉卡尼靈魂核心"
+      }
+    },
+    "soulcoreofzalatl": {
+      "name": "Soul Core of Zalatl",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "Recover 2% of maximum Mana on Kill"
+          ]
+        },
+        "helmet": {
+          "type": "SoulCore",
+          "stats": [
+            "3% increased maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "扎拉迪的灵核",
+        "zh-rTW": "札爾特靈魂核心"
+      }
+    },
+    "soulcoreofcitaqualotl": {
+      "name": "Soul Core of Citaqualotl",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "30% increased Elemental Damage with Attacks"
+          ]
+        },
+        "armour": {
+          "type": "SoulCore",
+          "stats": [
+            "+5% to all Elemental Resistances"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "奇塔夸雷特的灵核",
+        "zh-rTW": "希特克拉多靈魂核心"
+      }
+    },
+    "soulcoreofpuhuarte": {
+      "name": "Soul Core of Puhuarte",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "30% increased Flammability Magnitude"
+          ]
+        },
+        "gloves": {
+          "type": "SoulCore",
+          "stats": [
+            "+1% to Maximum Fire Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "普华特的灵核",
+        "zh-rTW": "普希瓦爾靈魂核心"
+      }
+    },
+    "soulcoreoftzamoto": {
+      "name": "Soul Core of Tzamoto",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "30% increased Freeze Buildup"
+          ]
+        },
+        "helmet": {
+          "type": "SoulCore",
+          "stats": [
+            "+1% to Maximum Cold Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "提扎墨脱的灵核",
+        "zh-rTW": "薩摩特靈魂核心"
+      }
+    },
+    "soulcoreofxopec": {
+      "name": "Soul Core of Xopec",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "30% increased chance to Shock"
+          ]
+        },
+        "boots": {
+          "type": "SoulCore",
+          "stats": [
+            "+1% to Maximum Lightning Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "肖佩克的灵核",
+        "zh-rTW": "柔派克靈魂核心"
+      }
+    },
+    "soulcoreofazcapa": {
+      "name": "Soul Core of Azcapa",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "+15 to Spirit"
+          ]
+        },
+        "gloves": {
+          "type": "SoulCore",
+          "stats": [
+            "10% increased Quantity of Gold Dropped by Slain Enemies"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "阿兹卡帕的灵核",
+        "zh-rTW": "艾斯卡巴靈魂核心"
+      }
+    },
+    "soulcoreoftopotante": {
+      "name": "Soul Core of Topotante",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "Attacks with this Weapon Penetrate 15% Elemental Resistances"
+          ]
+        },
+        "boots": {
+          "type": "SoulCore",
+          "stats": [
+            "25% increased Elemental Ailment Threshold"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "托钵塔特的灵核",
+        "zh-rTW": "塔普塔特靈魂核心"
+      }
+    },
+    "soulcoreofquipolatl": {
+      "name": "Soul Core of Quipolatl",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "5% increased Attack Speed"
+          ]
+        },
+        "boots": {
+          "type": "SoulCore",
+          "stats": [
+            "15% reduced Slowing Potency of Debuffs on You"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "奎波拉特尔的灵核",
+        "zh-rTW": "克特帕托靈魂核心"
+      }
+    },
+    "soulcoreofticaba": {
+      "name": "Soul Core of Ticaba",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "+5% to Critical Damage Bonus"
+          ]
+        },
+        "body armour": {
+          "type": "SoulCore",
+          "stats": [
+            "Hits against you have 20% reduced Critical Damage Bonus"
+          ]
+        },
+        "shield": {
+          "type": "SoulCore",
+          "stats": [
+            "Hits against you have 20% reduced Critical Damage Bonus"
+          ]
+        },
+        "buckler": {
+          "type": "SoulCore",
+          "stats": [
+            "Hits against you have 20% reduced Critical Damage Bonus"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "提卡巴的灵核",
+        "zh-rTW": "堤卡巴靈魂核心"
+      }
+    },
+    "soulcoreofatmohua": {
+      "name": "Soul Core of Atmohua",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "Convert 20% of Requirements to Strength"
+          ]
+        },
+        "armour": {
+          "type": "SoulCore",
+          "stats": [
+            "Convert 20% of Requirements to Strength"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "阿特莫瓦的灵核",
+        "zh-rTW": "艾特瑪哈靈魂核心"
+      }
+    },
+    "soulcoreofcholotl": {
+      "name": "Soul Core of Cholotl",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "Convert 20% of Requirements to Dexterity"
+          ]
+        },
+        "armour": {
+          "type": "SoulCore",
+          "stats": [
+            "Convert 20% of Requirements to Dexterity"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "查罗特的灵核",
+        "zh-rTW": "斯拉托靈魂核心"
+      }
+    },
+    "soulcoreofzantipi": {
+      "name": "Soul Core of Zantipi",
+      "variants": {
+        "weapon": {
+          "type": "SoulCore",
+          "stats": [
+            "Convert 20% of Requirements to Intelligence"
+          ]
+        },
+        "armour": {
+          "type": "SoulCore",
+          "stats": [
+            "Convert 20% of Requirements to Intelligence"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "赞提佩的灵核",
+        "zh-rTW": "善堤比靈魂核心"
+      }
+    },
+    "guatelitzisthesis": {
+      "name": "Guatelitzi's Thesis",
+      "variants": {
+        "helmet": {
+          "type": "SoulCore",
+          "stats": [
+            "Gain Armour equal to 35% of Life Lost from Hits in the past 8 seconds"
+          ]
+        },
+        "body armour": {
+          "type": "SoulCore",
+          "stats": [
+            "10% of Physical Damage prevented Recouped as Life"
+          ]
+        },
+        "boots": {
+          "type": "SoulCore",
+          "stats": [
+            "Lose 5% of maximum Life per second while Sprinting",
+            "25% increased Movement Speed while Sprinting"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "瓜铁雷兹的圣典",
+        "zh-rTW": "瓜特利斯的假說"
+      }
+    },
+    "citaqualotlsthesis": {
+      "name": "Citaqualotl's Thesis",
+      "variants": {
+        "body armour": {
+          "type": "SoulCore",
+          "stats": [
+            "You Recoup 50% of Damage taken by your Offerings as Life"
+          ]
+        },
+        "gloves": {
+          "type": "SoulCore",
+          "stats": [
+            "One of your Persistent Minions revives when an Offering expires"
+          ]
+        },
+        "boots": {
+          "type": "SoulCore",
+          "stats": [
+            "Sacrifice 10% of maximum Life to gain that much Guard when you Dodge Roll"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "奇塔夸雷特的圣典",
+        "zh-rTW": "希特克拉多的假說"
+      }
+    },
+    "jiquanisthesis": {
+      "name": "Jiquani's Thesis",
+      "variants": {
+        "helmet": {
+          "type": "SoulCore",
+          "stats": [
+            "+1 to maximum Mana per 2 Item Energy Shield on Equipped Helmet"
+          ]
+        },
+        "gloves": {
+          "type": "SoulCore",
+          "stats": [
+            "Energy Shield Recharge starts after spending a total of",
+            " 2000 Mana, no more than once every 2 seconds"
+          ]
+        },
+        "boots": {
+          "type": "SoulCore",
+          "stats": [
+            "Increases and Reductions to Movement Speed also",
+            " apply to Energy Shield Recharge Rate"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "佳华尼的圣典",
+        "zh-rTW": "吉卡尼的假說"
+      }
+    },
+    "quipolatlsthesis": {
+      "name": "Quipolatl's Thesis",
+      "variants": {
+        "helmet": {
+          "type": "SoulCore",
+          "stats": [
+            "A random Skill that requires Glory generates 50% of its maximum Glory when your Marks Activate"
+          ]
+        },
+        "gloves": {
+          "type": "SoulCore",
+          "stats": [
+            "Your Energy Shield Recharge starts when your Minions are Reformed"
+          ]
+        },
+        "body armour": {
+          "type": "SoulCore",
+          "stats": [
+            "+75% of Armour also applies to Chaos Damage while on full Energy Shield"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "奎波拉特尔的圣典",
+        "zh-rTW": "克特帕托的假說"
+      }
+    },
+    "amanamusgaze": {
+      "name": "Amanamu's Gaze",
+      "variants": {
+        "helmet": {
+          "type": "AbyssalEye",
+          "stats": [
+            "Remove a Damaging Ailment when you use a Command Skill"
+          ]
+        },
+        "body armour": {
+          "type": "AbyssalEye",
+          "stats": [
+            "+2 to Armour per 1 Spirit"
+          ]
+        },
+        "boots": {
+          "type": "AbyssalEye",
+          "stats": [
+            "1% increased Movement Speed per 15 Spirit, up to a maximum of 40%",
+            "Other Modifiers to Movement Speed except for Sprinting do not apply"
+          ]
+        }
+      }
+    },
+    "kurgalsgaze": {
+      "name": "Kurgal's Gaze",
+      "variants": {
+        "helmet": {
+          "type": "AbyssalEye",
+          "stats": [
+            "Increases and Reductions to Life Regeneration Rate also apply to Mana Regeneration Rate"
+          ]
+        },
+        "gloves": {
+          "type": "AbyssalEye",
+          "stats": [
+            "40% increased effect of Arcane Surge on you"
+          ]
+        },
+        "boots": {
+          "type": "AbyssalEye",
+          "stats": [
+            "15% increased Mana Cost Efficiency if you haven't Dodge Rolled Recently"
+          ]
+        }
+      }
+    },
+    "tecrodsgaze": {
+      "name": "Tecrod's Gaze",
+      "variants": {
+        "body armour": {
+          "type": "AbyssalEye",
+          "stats": [
+            "Regenerate 1.5% of maximum Life per second"
+          ]
+        },
+        "gloves": {
+          "type": "AbyssalEye",
+          "stats": [
+            "25% increased Life Cost Efficiency"
+          ]
+        },
+        "boots": {
+          "type": "AbyssalEye",
+          "stats": [
+            "10% increased Movement Speed when on Low Life"
+          ]
+        }
+      }
+    },
+    "ulamansgaze": {
+      "name": "Ulaman's Gaze",
+      "variants": {
+        "helmet": {
+          "type": "AbyssalEye",
+          "stats": [
+            "+1 to Accuracy Rating per 1 Item Evasion Rating on Equipped Helmet"
+          ]
+        },
+        "gloves": {
+          "type": "AbyssalEye",
+          "stats": [
+            "Critical Hit chance is Lucky against Parried enemies"
+          ]
+        },
+        "body armour": {
+          "type": "AbyssalEye",
+          "stats": [
+            "Prevent +3% of Damage from Deflected Hits"
+          ]
+        }
+      }
+    },
+    "desertrune": {
+      "name": "Desert Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 7 to 11 Fire Damage",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 8% of Damage as Extra Fire Damage",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 8% of Damage as Extra Fire Damage",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+14% to Fire Resistance",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "沙漠符文",
+        "zh-rTW": "沙漠符文"
+      }
+    },
+    "glacialrune": {
+      "name": "Glacial Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 6 to 10 Cold Damage",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 8% of Damage as Extra Cold Damage",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 8% of Damage as Extra Cold Damage",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+14% to Cold Resistance",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "冰川符文",
+        "zh-rTW": "冰川符文"
+      }
+    },
+    "stormrune": {
+      "name": "Storm Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 1 to 20 Lightning Damage",
+            "Bonded: 30% increased Magnitude of Shock you inflict"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 8% of Damage as Extra Lightning Damage",
+            "Bonded: 30% increased Magnitude of Shock you inflict"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 8% of Damage as Extra Lightning Damage",
+            "Bonded: 30% increased Magnitude of Shock you inflict"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+14% to Lightning Resistance",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "风暴符文",
+        "zh-rTW": "暴風符文"
+      }
+    },
+    "ironrune": {
+      "name": "Iron Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "16% increased Physical Damage",
+            "Bonded: 20% increased effect of Fully Broken Armour"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "25% increased Spell Damage",
+            "Bonded: Break Armour on Critical Hit with Spells equal to 12% of Physical Damage dealt"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "25% increased Spell Damage",
+            "Bonded: Break Armour on Critical Hit with Spells equal to 12% of Physical Damage dealt"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "16% increased Armour, Evasion and Energy Shield",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "钢铁符文",
+        "zh-rTW": "鍛鐵符文"
+      }
+    },
+    "bodyrune": {
+      "name": "Body Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Leeches 4% of Physical Damage as Life",
+            "Bonded: 5% increased maximum Life"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "+40 to maximum Energy Shield",
+            "Bonded: 5% increased maximum Life"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "+40 to maximum Energy Shield",
+            "Bonded: 5% increased maximum Life"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+45 to maximum Life",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "身躯符文",
+        "zh-rTW": "肉體符文"
+      }
+    },
+    "mindrune": {
+      "name": "Mind Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Leeches 3% of Physical Damage as Mana",
+            "Bonded: 5% increased maximum Mana"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "+60 to maximum Mana",
+            "Bonded: 5% increased maximum Mana"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "+60 to maximum Mana",
+            "Bonded: 5% increased maximum Mana"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+30 to maximum Mana",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "心灵符文",
+        "zh-rTW": "心靈符文"
+      }
+    },
+    "rebirthrune": {
+      "name": "Rebirth Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Gain 25 Life per enemy killed",
+            "Bonded: Regenerate 0.4% of maximum Life per second"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "8% increased Energy Shield Recharge Rate",
+            "Bonded: 8% of Damage taken Recouped as Life"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "8% increased Energy Shield Recharge Rate",
+            "Bonded: 8% of Damage taken Recouped as Life"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "Regenerate 0.4% of maximum Life per second",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "重生符文",
+        "zh-rTW": "重生符文"
+      }
+    },
+    "inspirationrune": {
+      "name": "Inspiration Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Gain 20 Mana per enemy killed",
+            "Bonded: 12% of Skill Mana Costs Converted to Life Costs"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "25% increased Mana Regeneration Rate",
+            "Bonded: 16% increased Mana Cost Efficiency"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "25% increased Mana Regeneration Rate",
+            "Bonded: 16% increased Mana Cost Efficiency"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "15% increased Mana Regeneration Rate",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "启迪符文",
+        "zh-rTW": "啟發符文"
+      }
+    },
+    "stonerune": {
+      "name": "Stone Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Causes 30% increased Stun Buildup",
+            "Bonded: 40% increased Damage against Immobilised Enemies"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain additional Stun Threshold equal to 12% of maximum Energy Shield",
+            "Bonded: 30% increased Immobilisation buildup"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain additional Stun Threshold equal to 12% of maximum Energy Shield",
+            "Bonded: 30% increased Immobilisation buildup"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+75 to Stun Threshold",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "磐石符文",
+        "zh-rTW": "岩石符文"
+      }
+    },
+    "visionrune": {
+      "name": "Vision Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+90 to Accuracy Rating",
+            "Bonded: Attacks have +1% to Critical Hit Chance"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "20% increased Critical Hit Chance for Spells",
+            "Bonded: 25% increased Critical Damage Bonus"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "20% increased Critical Hit Chance for Spells",
+            "Bonded: 25% increased Critical Damage Bonus"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "12% increased Life and Mana Recovery from Flasks",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "幻象符文",
+        "zh-rTW": "遠見符文"
+      }
+    },
+    "lesserdesertrune": {
+      "name": "Lesser Desert Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 4 to 6 Fire Damage",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 6% of Damage as Extra Fire Damage",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 6% of Damage as Extra Fire Damage",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+10% to Fire Resistance",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级沙漠符文",
+        "zh-rTW": "低階沙漠符文"
+      }
+    },
+    "lesserglacialrune": {
+      "name": "Lesser Glacial Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 3 to 5 Cold Damage",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 6% of Damage as Extra Cold Damage",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 6% of Damage as Extra Cold Damage",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+10% to Cold Resistance",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级冰川符文",
+        "zh-rTW": "低階冰川符文"
+      }
+    },
+    "lesserstormrune": {
+      "name": "Lesser Storm Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 1 to 10 Lightning Damage",
+            "Bonded: 30% increased Magnitude of Shock you inflict"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 6% of Damage as Extra Lightning Damage",
+            "Bonded: 30% increased Magnitude of Shock you inflict"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 6% of Damage as Extra Lightning Damage",
+            "Bonded: 30% increased Magnitude of Shock you inflict"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+10% to Lightning Resistance",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级风暴符文",
+        "zh-rTW": "低階暴風符文"
+      }
+    },
+    "lesserironrune": {
+      "name": "Lesser Iron Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "14% increased Physical Damage",
+            "Bonded: 20% increased effect of Fully Broken Armour"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "20% increased Spell Damage",
+            "Bonded: Break Armour on Critical Hit with Spells equal to 12% of Physical Damage dealt"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "20% increased Spell Damage",
+            "Bonded: Break Armour on Critical Hit with Spells equal to 12% of Physical Damage dealt"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "14% increased Armour, Evasion and Energy Shield",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级钢铁符文",
+        "zh-rTW": "低階鍛鐵符文"
+      }
+    },
+    "lesserbodyrune": {
+      "name": "Lesser Body Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Leeches 3% of Physical Damage as Life",
+            "Bonded: 5% increased maximum Life"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "+30 to maximum Energy Shield",
+            "Bonded: 5% increased maximum Life"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "+30 to maximum Energy Shield",
+            "Bonded: 5% increased maximum Life"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+30 to maximum Life",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级身躯符文",
+        "zh-rTW": "低階肉體符文"
+      }
+    },
+    "lessermindrune": {
+      "name": "Lesser Mind Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Leeches 2% of Physical Damage as Mana",
+            "Bonded: 5% increased maximum Mana"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "+45 to maximum Mana",
+            "Bonded: 5% increased maximum Mana"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "+45 to maximum Mana",
+            "Bonded: 5% increased maximum Mana"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+20 to maximum Mana",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级心灵符文",
+        "zh-rTW": "低階心靈符文"
+      }
+    },
+    "lesserrebirthrune": {
+      "name": "Lesser Rebirth Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Gain 15 Life per enemy killed",
+            "Bonded: Regenerate 0.4% of maximum Life per second"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "6% increased Energy Shield Recharge Rate",
+            "Bonded: 8% of Damage taken Recouped as Life"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "6% increased Energy Shield Recharge Rate",
+            "Bonded: 8% of Damage taken Recouped as Life"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "Regenerate 0.35% of maximum Life per second",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级重生符文",
+        "zh-rTW": "低階重生符文"
+      }
+    },
+    "lesserinspirationrune": {
+      "name": "Lesser Inspiration Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Gain 10 Mana per enemy killed",
+            "Bonded: 12% of Skill Mana Costs Converted to Life Costs"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "20% increased Mana Regeneration Rate",
+            "Bonded: 16% increased Mana Cost Efficiency"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "20% increased Mana Regeneration Rate",
+            "Bonded: 16% increased Mana Cost Efficiency"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "12% increased Mana Regeneration Rate",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级启迪符文",
+        "zh-rTW": "低階啟發符文"
+      }
+    },
+    "lesserstonerune": {
+      "name": "Lesser Stone Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Causes 20% increased Stun Buildup",
+            "Bonded: 40% increased Damage against Immobilised Enemies"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain additional Stun Threshold equal to 10% of maximum Energy Shield",
+            "Bonded: 30% increased Immobilisation buildup"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain additional Stun Threshold equal to 10% of maximum Energy Shield",
+            "Bonded: 30% increased Immobilisation buildup"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+50 to Stun Threshold",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级磐石符文",
+        "zh-rTW": "低階岩石符文"
+      }
+    },
+    "lesservisionrune": {
+      "name": "Lesser Vision Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+60 to Accuracy Rating",
+            "Bonded: Attacks have +1% to Critical Hit Chance"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "16% increased Critical Hit Chance for Spells",
+            "Bonded: 25% increased Critical Damage Bonus"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "16% increased Critical Hit Chance for Spells",
+            "Bonded: 25% increased Critical Damage Bonus"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "8% increased Life and Mana Recovery from Flasks",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级幻象符文",
+        "zh-rTW": "低階遠見符文"
+      }
+    },
+    "greaterdesertrune": {
+      "name": "Greater Desert Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 13 to 16 Fire Damage",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 10% of Damage as Extra Fire Damage",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 10% of Damage as Extra Fire Damage",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+18% to Fire Resistance",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级沙漠符文",
+        "zh-rTW": "高階沙漠符文"
+      }
+    },
+    "greaterglacialrune": {
+      "name": "Greater Glacial Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 9 to 15 Cold Damage",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 10% of Damage as Extra Cold Damage",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 10% of Damage as Extra Cold Damage",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+18% to Cold Resistance",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级冰川符文",
+        "zh-rTW": "高階冰川符文"
+      }
+    },
+    "greaterstormrune": {
+      "name": "Greater Storm Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 1 to 30 Lightning Damage",
+            "Bonded: 30% increased Magnitude of Shock you inflict"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 10% of Damage as Extra Lightning Damage",
+            "Bonded: 30% increased Magnitude of Shock you inflict"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 10% of Damage as Extra Lightning Damage",
+            "Bonded: 30% increased Magnitude of Shock you inflict"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+18% to Lightning Resistance",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级风暴符文",
+        "zh-rTW": "高階暴風符文"
+      }
+    },
+    "greaterironrune": {
+      "name": "Greater Iron Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "18% increased Physical Damage",
+            "Bonded: 20% increased effect of Fully Broken Armour"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "30% increased Spell Damage",
+            "Bonded: Break Armour on Critical Hit with Spells equal to 12% of Physical Damage dealt"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "30% increased Spell Damage",
+            "Bonded: Break Armour on Critical Hit with Spells equal to 12% of Physical Damage dealt"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "18% increased Armour, Evasion and Energy Shield",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级钢铁符文",
+        "zh-rTW": "高階鍛鐵符文"
+      }
+    },
+    "greaterbodyrune": {
+      "name": "Greater Body Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Leeches 5% of Physical Damage as Life",
+            "Bonded: 5% increased maximum Life"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "+50 to maximum Energy Shield",
+            "Bonded: 5% increased maximum Life"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "+50 to maximum Energy Shield",
+            "Bonded: 5% increased maximum Life"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+60 to maximum Life",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级身躯符文",
+        "zh-rTW": "高階肉體符文"
+      }
+    },
+    "greatermindrune": {
+      "name": "Greater Mind Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Leeches 4% of Physical Damage as Mana",
+            "Bonded: 5% increased maximum Mana"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "+75 to maximum Mana",
+            "Bonded: 5% increased maximum Mana"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "+75 to maximum Mana",
+            "Bonded: 5% increased maximum Mana"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+40 to maximum Mana",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级心灵符文",
+        "zh-rTW": "高階心靈符文"
+      }
+    },
+    "greaterrebirthrune": {
+      "name": "Greater Rebirth Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Gain 35 Life per enemy killed",
+            "Bonded: Regenerate 0.4% of maximum Life per second"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "10% increased Energy Shield Recharge Rate",
+            "Bonded: 8% of Damage taken Recouped as Life"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "10% increased Energy Shield Recharge Rate",
+            "Bonded: 8% of Damage taken Recouped as Life"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "Regenerate 0.45% of maximum Life per second",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级重生符文",
+        "zh-rTW": "高階重生符文"
+      }
+    },
+    "greaterinspirationrune": {
+      "name": "Greater Inspiration Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Gain 30 Mana per enemy killed",
+            "Bonded: 12% of Skill Mana Costs Converted to Life Costs"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "30% increased Mana Regeneration Rate",
+            "Bonded: 16% increased Mana Cost Efficiency"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "30% increased Mana Regeneration Rate",
+            "Bonded: 16% increased Mana Cost Efficiency"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "18% increased Mana Regeneration Rate",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级启迪符文",
+        "zh-rTW": "高階啟發符文"
+      }
+    },
+    "greaterstonerune": {
+      "name": "Greater Stone Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Causes 40% increased Stun Buildup",
+            "Bonded: 40% increased Damage against Immobilised Enemies"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain additional Stun Threshold equal to 14% of maximum Energy Shield",
+            "Bonded: 30% increased Immobilisation buildup"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain additional Stun Threshold equal to 14% of maximum Energy Shield",
+            "Bonded: 30% increased Immobilisation buildup"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+100 to Stun Threshold",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级磐石符文",
+        "zh-rTW": "高階岩石符文"
+      }
+    },
+    "greatervisionrune": {
+      "name": "Greater Vision Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+120 to Accuracy Rating",
+            "Bonded: Attacks have +1% to Critical Hit Chance"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "24% increased Critical Hit Chance for Spells",
+            "Bonded: 25% increased Critical Damage Bonus"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "24% increased Critical Hit Chance for Spells",
+            "Bonded: 25% increased Critical Damage Bonus"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "16% increased Life and Mana Recovery from Flasks",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级幻象符文",
+        "zh-rTW": "高階遠見符文"
+      }
+    },
+    "perfectdesertrune": {
+      "name": "Perfect Desert Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 17 to 20 Fire Damage",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 12% of Damage as Extra Fire Damage",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 12% of Damage as Extra Fire Damage",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+22% to Fire Resistance",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美沙漠符文",
+        "zh-rTW": "完美沙漠符文"
+      }
+    },
+    "perfectglacialrune": {
+      "name": "Perfect Glacial Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 16 to 20 Cold Damage",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 12% of Damage as Extra Cold Damage",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 12% of Damage as Extra Cold Damage",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+22% to Cold Resistance",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美冰川符文",
+        "zh-rTW": "完美冰川符文"
+      }
+    },
+    "perfectstormrune": {
+      "name": "Perfect Storm Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 1 to 40 Lightning Damage",
+            "Bonded: 30% increased Magnitude of Shock you inflict"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 12% of Damage as Extra Lightning Damage",
+            "Bonded: 30% increased Magnitude of Shock you inflict"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 12% of Damage as Extra Lightning Damage",
+            "Bonded: 30% increased Magnitude of Shock you inflict"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+22% to Lightning Resistance",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美风暴符文",
+        "zh-rTW": "完美暴風符文"
+      }
+    },
+    "perfectironrune": {
+      "name": "Perfect Iron Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "20% increased Physical Damage",
+            "Bonded: 20% increased effect of Fully Broken Armour"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "35% increased Spell Damage",
+            "Bonded: Break Armour on Critical Hit with Spells equal to 12% of Physical Damage dealt"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "35% increased Spell Damage",
+            "Bonded: Break Armour on Critical Hit with Spells equal to 12% of Physical Damage dealt"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "20% increased Armour, Evasion and Energy Shield",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美钢铁符文",
+        "zh-rTW": "完美鍛鐵符文"
+      }
+    },
+    "perfectbodyrune": {
+      "name": "Perfect Body Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Leeches 6% of Physical Damage as Life",
+            "Bonded: 5% increased maximum Life"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "+60 to maximum Energy Shield",
+            "Bonded: 5% increased maximum Life"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "+60 to maximum Energy Shield",
+            "Bonded: 5% increased maximum Life"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+75 to maximum Life",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美身躯符文",
+        "zh-rTW": "完美肉體符文"
+      }
+    },
+    "perfectmindrune": {
+      "name": "Perfect Mind Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Leeches 5% of Physical Damage as Mana",
+            "Bonded: 5% increased maximum Mana"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "+90 to maximum Mana",
+            "Bonded: 5% increased maximum Mana"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "+90 to maximum Mana",
+            "Bonded: 5% increased maximum Mana"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+50 to maximum Mana",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美心灵符文",
+        "zh-rTW": "完美心靈符文"
+      }
+    },
+    "perfectrebirthrune": {
+      "name": "Perfect Rebirth Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Gain 45 Life per enemy killed",
+            "Bonded: Regenerate 0.4% of maximum Life per second"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "12% increased Energy Shield Recharge Rate",
+            "Bonded: 8% of Damage taken Recouped as Life"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "12% increased Energy Shield Recharge Rate",
+            "Bonded: 8% of Damage taken Recouped as Life"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "Regenerate 0.5% of maximum Life per second",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美重生符文",
+        "zh-rTW": "完美重生符文"
+      }
+    },
+    "perfectinspirationrune": {
+      "name": "Perfect Inspiration Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Gain 40 Mana per enemy killed",
+            "Bonded: 12% of Skill Mana Costs Converted to Life Costs"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "35% increased Mana Regeneration Rate",
+            "Bonded: 16% increased Mana Cost Efficiency"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "35% increased Mana Regeneration Rate",
+            "Bonded: 16% increased Mana Cost Efficiency"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "21% increased Mana Regeneration Rate",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美启迪符文",
+        "zh-rTW": "完美啟發符文"
+      }
+    },
+    "perfectstonerune": {
+      "name": "Perfect Stone Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Causes 50% increased Stun Buildup",
+            "Bonded: 40% increased Damage against Immobilised Enemies"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain additional Stun Threshold equal to 16% of maximum Energy Shield",
+            "Bonded: 30% increased Immobilisation buildup"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain additional Stun Threshold equal to 16% of maximum Energy Shield",
+            "Bonded: 30% increased Immobilisation buildup"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+125 to Stun Threshold",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美磐石符文",
+        "zh-rTW": "完美岩石符文"
+      }
+    },
+    "perfectvisionrune": {
+      "name": "Perfect Vision Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+150 to Accuracy Rating",
+            "Bonded: Attacks have +1% to Critical Hit Chance"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "28% increased Critical Hit Chance for Spells",
+            "Bonded: 25% increased Critical Damage Bonus"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "28% increased Critical Hit Chance for Spells",
+            "Bonded: 25% increased Critical Damage Bonus"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "20% increased Life and Mana Recovery from Flasks",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美幻象符文",
+        "zh-rTW": "完美遠見符文"
+      }
+    },
+    "lesserrobustrune": {
+      "name": "Lesser Robust Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+6 to Strength"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+6 to Strength"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+6 to Strength"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级健壮符文",
+        "zh-rTW": "低階堅實符文"
+      }
+    },
+    "robustrune": {
+      "name": "Robust Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+9 to Strength"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+9 to Strength"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+9 to Strength"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "健壮符文",
+        "zh-rTW": "堅實符文"
+      }
+    },
+    "greaterrobustrune": {
+      "name": "Greater Robust Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+12 to Strength"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+12 to Strength"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+12 to Strength"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级健壮符文",
+        "zh-rTW": "高階堅實符文"
+      }
+    },
+    "perfectrobustrune": {
+      "name": "Perfect Robust Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+15 to Strength"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+15 to Strength"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+15 to Strength"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美健壮符文",
+        "zh-rTW": "完美堅實符文"
+      }
+    },
+    "lesseradeptrune": {
+      "name": "Lesser Adept Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+6 to Dexterity"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+6 to Dexterity"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+6 to Dexterity"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级行家符文",
+        "zh-rTW": "低階嫻熟符文"
+      }
+    },
+    "adeptrune": {
+      "name": "Adept Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+9 to Dexterity"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+9 to Dexterity"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+9 to Dexterity"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "行家符文",
+        "zh-rTW": "嫻熟符文"
+      }
+    },
+    "greateradeptrune": {
+      "name": "Greater Adept Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+12 to Dexterity"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+12 to Dexterity"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+12 to Dexterity"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级行家符文",
+        "zh-rTW": "高階嫻熟符文"
+      }
+    },
+    "perfectadeptrune": {
+      "name": "Perfect Adept Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+15 to Dexterity"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+15 to Dexterity"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+15 to Dexterity"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美行家符文",
+        "zh-rTW": "完美嫻熟符文"
+      }
+    },
+    "lesserresolverune": {
+      "name": "Lesser Resolve Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+6 to Intelligence"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+6 to Intelligence"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+6 to Intelligence"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级坚毅符文",
+        "zh-rTW": "低階決心符文"
+      }
+    },
+    "resolverune": {
+      "name": "Resolve Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+9 to Intelligence"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+9 to Intelligence"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+9 to Intelligence"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "坚毅符文",
+        "zh-rTW": "決心符文"
+      }
+    },
+    "greaterresolverune": {
+      "name": "Greater Resolve Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+12 to Intelligence"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+12 to Intelligence"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+12 to Intelligence"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级坚毅符文",
+        "zh-rTW": "高階決心符文"
+      }
+    },
+    "perfectresolverune": {
+      "name": "Perfect Resolve Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+15 to Intelligence"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+15 to Intelligence"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+15 to Intelligence"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美坚毅符文",
+        "zh-rTW": "完美決心符文"
+      }
+    },
+    "lessertemperedrune": {
+      "name": "Lesser Tempered Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 3 to 4 Physical Damage"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "6 to 9 Physical Thorns damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级淬炼符文",
+        "zh-rTW": "低階鍛煉符文"
+      }
+    },
+    "temperedrune": {
+      "name": "Tempered Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 6 to 9 Physical Damage"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "14 to 21 Physical Thorns damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "淬炼符文",
+        "zh-rTW": "鍛煉符文"
+      }
+    },
+    "greatertemperedrune": {
+      "name": "Greater Tempered Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 9 to 12 Physical Damage"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "31 to 52 Physical Thorns damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级淬炼符文",
+        "zh-rTW": "高階鍛煉符文"
+      }
+    },
+    "greaterruneofleadership": {
+      "name": "Greater Rune of Leadership",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Minions gain 10% of their Physical Damage as Extra Lightning Damage",
+            "Bonded: Minions deal 20% increased Damage"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "Minions take 10% of Physical Damage as Lightning Damage",
+            "Bonded: Minions have +10% to all Elemental Resistances"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级领袖符文",
+        "zh-rTW": "高階領導符文"
+      }
+    },
+    "greaterruneoftithing": {
+      "name": "Greater Rune of Tithing",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Meta Skills gain 10% increased Energy",
+            "Bonded: Invocated Spells have 25% chance to consume half as much Energy"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "1 to 100 Lightning Thorns damage",
+            "Bonded: 15% increased Thorns damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级奉纳符文",
+        "zh-rTW": "高階奉獻符文"
+      }
+    },
+    "greaterruneofalacrity": {
+      "name": "Greater Rune of Alacrity",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "8% increased Skill Speed",
+            "Bonded: 15% increased Reservation Efficiency of Herald Skills"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "Debuffs on you expire 8% faster",
+            "Bonded: 15% increased Elemental Ailment Threshold"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级迅捷符文",
+        "zh-rTW": "高階迅捷符文"
+      }
+    },
+    "greaterruneofnobility": {
+      "name": "Greater Rune of Nobility",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Attacks with this Weapon have 10% chance to inflict Exposure",
+            "Bonded: 20% increased Exposure Effect"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "10% reduced effect of Shock on you",
+            "Bonded: 10% reduced Shock duration on you"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级尊贵符文",
+        "zh-rTW": "高階崇高符文"
+      }
+    },
+    "hedgewitchassandrasruneofwisdom": {
+      "name": "Hedgewitch Assandra's Rune of Wisdom",
+      "variants": {
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "+1 to Level of all Spell Skills",
+            "Bonded: Archon recovery period expires 30% faster"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "+1 to Level of all Spell Skills",
+            "Bonded: Archon recovery period expires 30% faster"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "女巫阿桑德拉的智慧符文",
+        "zh-rTW": "流浪女巫艾珊德菈的智慧符文"
+      }
+    },
+    "saqawalsruneofthesky": {
+      "name": "Saqawal's Rune of the Sky",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Gain 5% of Damage as Extra Damage of all Elements",
+            "Bonded: 8% chance to gain an additional random Charge when you gain a Charge"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 5% of Damage as Extra Damage of all Elements",
+            "Bonded: 12% chance when collecting an Elemental Infusion to gain an",
+            "Bonded: additional Elemental Infusion of the same type"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 5% of Damage as Extra Damage of all Elements",
+            "Bonded: 12% chance when collecting an Elemental Infusion to gain an",
+            "Bonded: additional Elemental Infusion of the same type"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "萨奇沃的苍空符文",
+        "zh-rTW": "斯卡沃的天空符文"
+      }
+    },
+    "fenumusruneofagony": {
+      "name": "Fenumus' Rune of Agony",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Gain 13% of Damage as Extra Chaos Damage",
+            "Bonded: Gain 8% of Damage as Extra Physical Damage"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Gain 13% of Damage as Extra Chaos Damage",
+            "Bonded: Gain 8% of Damage as Extra Physical Damage"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 13% of Damage as Extra Chaos Damage",
+            "Bonded: Gain 8% of Damage as Extra Physical Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "费努姆斯的痛苦符文",
+        "zh-rTW": "菲恩絲的苦痛符文"
+      }
+    },
+    "farrulsruneofgrace": {
+      "name": "Farrul's Rune of Grace",
+      "variants": {
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "8% increased Deflection Rating while moving",
+            "Bonded: Prevent +3% of Damage from Deflected Hits"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "法瑞尔的优雅符文",
+        "zh-rTW": "費爾羅的優雅符文"
+      }
+    },
+    "farrulsruneofthechase": {
+      "name": "Farrul's Rune of the Chase",
+      "variants": {
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "5% increased Movement Speed",
+            "Bonded: 10% increased Cooldown Recovery Rate"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "法瑞尔的追逐符文",
+        "zh-rTW": "費爾羅的追擊符文"
+      }
+    },
+    "craiceannsruneofwarding": {
+      "name": "Craiceann's Rune of Warding",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "50% reduced effect of Curses on you",
+            "Bonded: 8% increased Curse Magnitudes"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "克林斯昂的守护符文",
+        "zh-rTW": "奎爾珊的守護符文"
+      }
+    },
+    "saqawalsruneofmemory": {
+      "name": "Saqawal's Rune of Memory",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "2% increased Experience gain",
+            "Bonded: +10% to all Elemental Resistances"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "萨奇沃的回忆符文",
+        "zh-rTW": "斯卡沃的記憶符文"
+      }
+    },
+    "saqawalsruneoferosion": {
+      "name": "Saqawal's Rune of Erosion",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "25% increased Exposure Effect",
+            "Bonded: 15% increased Magnitude of Non-Damaging Ailments you inflict"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "萨奇沃的碎砾符文",
+        "zh-rTW": "斯卡沃的侵蝕符文"
+      }
+    },
+    "farrulsruneofthehunt": {
+      "name": "Farrul's Rune of the Hunt",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "50% increased Attack Damage against Rare or Unique Enemies",
+            "Bonded: +1 to Level of all Attack Skills"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "法瑞尔的狩猎符文",
+        "zh-rTW": "費爾羅的狩獵符文"
+      }
+    },
+    "craiceannsruneofrecovery": {
+      "name": "Craiceann's Rune of Recovery",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "30% increased Energy Shield Recharge Rate",
+            "Bonded: Gain additional Ailment Threshold equal to 50% of maximum Energy Shield",
+            "Bonded: Gain additional Stun Threshold equal to 50% of maximum Energy Shield"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "克林斯昂的回复符文",
+        "zh-rTW": "奎爾珊的恢復符文"
+      }
+    },
+    "courtesanmannansruneofcruelty": {
+      "name": "Courtesan Mannan's Rune of Cruelty",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "20% increased Magnitude of Damaging Ailments you inflict",
+            "Bonded: 15% increased Duration of Damaging Ailments on Enemies"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "交际花曼南的残酷符文",
+        "zh-rTW": "花魁蔓南的殘酷符文"
+      }
+    },
+    "thanegrannellsruneofmastery": {
+      "name": "Thane Grannell's Rune of Mastery",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "30% increased Magnitude of Non-Damaging Ailments you inflict",
+            "Bonded: 15% increased Duration of Elemental Ailments on Enemies"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "格兰内尔领主的掌控符文",
+        "zh-rTW": "爵士格蘭內爾的專精符文"
+      }
+    },
+    "fenumusruneofspinning": {
+      "name": "Fenumus' Rune of Spinning",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "8% increased Cast Speed",
+            "Bonded: 20% increased Mana Cost Efficiency while on Low Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "费努姆斯的飞旋符文",
+        "zh-rTW": "菲恩絲的轉動符文"
+      }
+    },
+    "countessseskesruneofarchery": {
+      "name": "Countess Seske's Rune of Archery",
+      "variants": {
+        "bow": {
+          "type": "Rune",
+          "stats": [
+            "Bow Attacks fire an additional Arrow",
+            "Bonded: 20% increased Projectile Speed"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "塞丝克伯爵夫人的箭术符文",
+        "zh-rTW": "伯爵夫人瑟絲可的箭術符文"
+      }
+    },
+    "thanegirtsruneofwildness": {
+      "name": "Thane Girt's Rune of Wildness",
+      "variants": {
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "25% chance for Spell Skills to fire 2 additional Projectiles",
+            "Bonded: Every Rage also grants 1% increased Spell Damage"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "25% chance for Spell Skills to fire 2 additional Projectiles",
+            "Bonded: Every Rage also grants 1% increased Spell Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "吉尔特领主的荒野符文",
+        "zh-rTW": "爵士格特的野性符文"
+      }
+    },
+    "fenumusruneofdraining": {
+      "name": "Fenumus' Rune of Draining",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "20% increased Withered Magnitude",
+            "Bonded: +7% to Chaos Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "费努姆斯的流失符文",
+        "zh-rTW": "菲恩絲的流失符文"
+      }
+    },
+    "thanemyrksruneofsummer": {
+      "name": "Thane Myrk's Rune of Summer",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 23 to 34 Fire Damage to Attacks against Ignited Enemies",
+            "Bonded: +2% to Maximum Fire Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "默克领主的仲夏符文",
+        "zh-rTW": "爵士邁爾克的盛夏符文"
+      }
+    },
+    "ladyhestrasruneofwinter": {
+      "name": "Lady Hestra's Rune of Winter",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 19 to 28 Cold Damage against Chilled Enemies",
+            "Bonded: +2% to Maximum Cold Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "赫丝特拉女士的寒冬符文",
+        "zh-rTW": "赫絲緹菈女士的寒冬符文"
+      }
+    },
+    "thaneleldsruneofspring": {
+      "name": "Thane Leld's Rune of Spring",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Adds 1 to 60 Lightning Damage against Shocked Enemies",
+            "Bonded: +2% to Maximum Lightning Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "雷尔德领主的春光符文",
+        "zh-rTW": "爵士勒爾德的暖春符文"
+      }
+    },
+    "thegreatwolfsruneofclaws": {
+      "name": "The Greatwolf's Rune of Claws",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "Adds 5 to 12 Physical Damage to Attacks",
+            "Bonded: Fissure Skills have +2 to Limit"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "巨狼之利爪符文",
+        "zh-rTW": "巨狼之爪符文"
+      }
+    },
+    "thegreatwolfsruneofwillpower": {
+      "name": "The Greatwolf's Rune of Willpower",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "15% of Damage is taken from Mana before Life",
+            "Bonded: 8% of Maximum Life Converted to Energy Shield"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "巨狼之意志符文",
+        "zh-rTW": "巨狼意志符文"
+      }
+    },
+    "masterworkrune": {
+      "name": "Masterwork Rune",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Upgrades a socketed Rune"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "Upgrades a socketed Rune"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "Upgrades a socketed Rune"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "大师符文",
+        "zh-rTW": "匠鍛符文"
+      }
+    },
+    "lesserwardrune": {
+      "name": "Lesser Ward Rune",
+      "variants": {
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+15 to maximum Runic Ward",
+            "Bonded: 15% increased Global Armour, Evasion and Energy Shield"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级结界符文",
+        "zh-rTW": "低階保護符文"
+      }
+    },
+    "wardrune": {
+      "name": "Ward Rune",
+      "variants": {
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+20 to maximum Runic Ward",
+            "Bonded: 15% increased Global Armour, Evasion and Energy Shield"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "结界符文",
+        "zh-rTW": "保護符文"
+      }
+    },
+    "greaterwardrune": {
+      "name": "Greater Ward Rune",
+      "variants": {
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+25 to maximum Runic Ward",
+            "Bonded: 15% increased Global Armour, Evasion and Energy Shield"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级结界符文",
+        "zh-rTW": "高階保護符文"
+      }
+    },
+    "perfectwardrune": {
+      "name": "Perfect Ward Rune",
+      "variants": {
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+30 to maximum Runic Ward",
+            "Bonded: 15% increased Global Armour, Evasion and Energy Shield"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美结界符文",
+        "zh-rTW": "完美保護符文"
+      }
+    },
+    "lesserchargingrune": {
+      "name": "Lesser Charging Rune",
+      "variants": {
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "8% increased Runic Ward Regeneration Rate",
+            "Bonded: Regenerate 10 Runic Ward per second"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "次级充能符文",
+        "zh-rTW": "低階充能符文"
+      }
+    },
+    "chargingrune": {
+      "name": "Charging Rune",
+      "variants": {
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "12% increased Runic Ward Regeneration Rate",
+            "Bonded: Regenerate 15 Runic Ward per second"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "充能符文",
+        "zh-rTW": "充能符文"
+      }
+    },
+    "greaterchargingrune": {
+      "name": "Greater Charging Rune",
+      "variants": {
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "16% increased Runic Ward Regeneration Rate",
+            "Bonded: Regenerate 20 Runic Ward per second"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "高级充能符文",
+        "zh-rTW": "高階充能符文"
+      }
+    },
+    "perfectchargingrune": {
+      "name": "Perfect Charging Rune",
+      "variants": {
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "20% increased Runic Ward Regeneration Rate",
+            "Bonded: Regenerate 25 Runic Ward per second"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "完美充能符文",
+        "zh-rTW": "完美充能符文"
+      }
+    },
+    "wardingruneofreinforcement": {
+      "name": "Warding Rune of Reinforcement",
+      "variants": {
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "20% increased Runic Ward",
+            "Bonded: Gain 2% of maximum Life as Extra maximum Runic Ward"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "巩固之结界符文",
+        "zh-rTW": "增援保護符文"
+      }
+    },
+    "wardingruneofprotection": {
+      "name": "Warding Rune of Protection",
+      "variants": {
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "Every 4 seconds, gain Guard equal to 20% of maximum Runic Ward for 2 seconds",
+            "Bonded: 8% increased Guard gained"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "保护之结界符文",
+        "zh-rTW": "護佑保護符文"
+      }
+    },
+    "wardingruneofdisintegration": {
+      "name": "Warding Rune of Disintegration",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Attacks Break Armour equal to 15% of maximum Runic Ward",
+            "Bonded: Break 10% increased Armour"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "瓦解之结界符文",
+        "zh-rTW": "崩解保護符文"
+      }
+    },
+    "wardingruneofdesperation": {
+      "name": "Warding Rune of Desperation",
+      "variants": {
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Spell damage Penetrates 25% of enemy Elemental Resistances while on Low Runic Ward",
+            "Bonded: 12% increased Elemental Damage"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Spell damage Penetrates 25% of enemy Elemental Resistances while on Low Runic Ward",
+            "Bonded: 12% increased Elemental Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "迫急之结界符文",
+        "zh-rTW": "絕望保護符文"
+      }
+    },
+    "wardingruneofsymbiosis": {
+      "name": "Warding Rune of Symbiosis",
+      "variants": {
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "1% increased Energy Shield Recharge Rate per 30 maximum Runic Ward",
+            "Bonded: Regenerate 1% of maximum Energy Shield per second"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "共生之结界符文",
+        "zh-rTW": "共生保護符文"
+      }
+    },
+    "wardingruneofcourage": {
+      "name": "Warding Rune of Courage",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "25% increased Armour and Evasion Rating while on Low Runic Ward",
+            "Bonded: 20% increased Armour and Evasion Rating when on Low Life"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "勇气之结界符文",
+        "zh-rTW": "勇氣保護符文"
+      }
+    },
+    "wardingruneofstability": {
+      "name": "Warding Rune of Stability",
+      "variants": {
+        "shield": {
+          "type": "Rune",
+          "stats": [
+            "+4 to Stun Threshold per 10 maximum Runic Ward",
+            "Bonded: 15% increased Stun buildup while Shapeshifted"
+          ]
+        },
+        "buckler": {
+          "type": "Rune",
+          "stats": [
+            "+4 to Stun Threshold per 10 maximum Runic Ward",
+            "Bonded: 15% increased Stun buildup while Shapeshifted"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "稳定之结界符文",
+        "zh-rTW": "穩定保護符文"
+      }
+    },
+    "wardingruneofglancing": {
+      "name": "Warding Rune of Glancing",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "+3 to Deflection Rating per 10 maximum Runic Ward",
+            "Bonded: Prevent +1% of Damage from Deflected Hits"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "瞥视之结界符文",
+        "zh-rTW": "斜擦保護符文"
+      }
+    },
+    "wardingruneofheart": {
+      "name": "Warding Rune of Heart",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "Gain 5% of maximum Life as Extra maximum Runic Ward",
+            "Bonded: 1% more Runic Ward Regeneration rate per 2% of maximum Runic Ward lost from Hits Recently, up to 100% more"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "心脏之结界符文",
+        "zh-rTW": "心源保護符文"
+      }
+    },
+    "wardingruneofnourishment": {
+      "name": "Warding Rune of Nourishment",
+      "variants": {
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "15% Life Recovery from Flasks also applies to Runic Ward",
+            "Bonded: 15% increased Life Recovery from Flasks"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "滋养之结界符文",
+        "zh-rTW": "滋養保護符文"
+      }
+    },
+    "wardingruneofannihilation": {
+      "name": "Warding Rune of Annihilation",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Attacks spend 5% of your maximum Runic Ward if possible to gain that much added Physical damage",
+            "Bonded: 10% reduced Runic Ward Cost Efficiency"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "湮灭之结界符文",
+        "zh-rTW": "殲滅保護符文"
+      }
+    },
+    "wardingruneofarmature": {
+      "name": "Warding Rune of Armature",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Gain maximum Runic Ward equal to 15% of this Weapon's maximum damage",
+            "Bonded: 5% increased Attack Speed while missing Runic Ward"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "电枢之结界符文",
+        "zh-rTW": "鎧甲保護符文"
+      }
+    },
+    "wardingruneofobsession": {
+      "name": "Warding Rune of Obsession",
+      "variants": {
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "All damage taken bypasses Runic Ward",
+            "Runic Ward Regeneration Rate is doubled",
+            "Bonded: 12% increased maximum Runic Ward"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "痴迷之结界符文",
+        "zh-rTW": "執念保護符文"
+      }
+    },
+    "wardingruneofequinox": {
+      "name": "Warding Rune of Equinox",
+      "variants": {
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "40% less Mana Regeneration Rate",
+            "Mana Recovery from Regeneration is also applied to Runic Ward",
+            "Bonded: 20% increased Runic Ward Regeneration Rate if you've dealt a Critical Hit Recently"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "分点之结界符文",
+        "zh-rTW": "均衡保護符文"
+      }
+    },
+    "wardingruneofsalvaging": {
+      "name": "Warding Rune of Salvaging",
+      "variants": {
+        "sceptre": {
+          "type": "Rune",
+          "stats": [
+            "Recover 3% of maximum Runic Ward when one of your Reviving Minions is Killed",
+            "Bonded: Recover 3% of maximum Life when one of your Minions is Revived"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "回收之结界符文",
+        "zh-rTW": "救援保護符文"
+      }
+    },
+    "wardingruneofbodyguards": {
+      "name": "Warding Rune of Bodyguards",
+      "variants": {
+        "sceptre": {
+          "type": "Rune",
+          "stats": [
+            "Minions in your Presence have Onslaught while you are on Low Runic Ward",
+            "Bonded: Damage of Enemies Hitting you is Unlucky if",
+            "Bonded: your Runic Ward has been damaged Recently"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "护卫之结界符文",
+        "zh-rTW": "護衛保護符文"
+      }
+    },
+    "wardingruneofhollowing": {
+      "name": "Warding Rune of Hollowing",
+      "variants": {
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "Gain 15% of maximum Life as Extra maximum Runic Ward",
+            "15% less maximum Life",
+            "Bonded: +1% to all Maximum Elemental Resistances while on full Runic Ward"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "虚化之结界符文",
+        "zh-rTW": "空蝕保護符文"
+      }
+    },
+    "passionofaldur": {
+      "name": "Passion of Aldur",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Transforms all Cold and Lightning modifiers on the item into equivalent Fire modifiers",
+            "Bonded: 25% increased Fire Damage"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "Transforms all Cold and Lightning modifiers on the item into equivalent Fire modifiers",
+            "Bonded: 25% increased Fire Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "奥杜尔之热情",
+        "zh-rTW": "阿德爾的熱情"
+      }
+    },
+    "breathofaldur": {
+      "name": "Breath of Aldur",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "When socketed, transforms all Fire and Lightning modifiers to equivalent Cold modifiers",
+            "Bonded: 25% increased Cold Damage"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "When socketed, transforms all Fire and Lightning modifiers to equivalent Cold modifiers",
+            "Bonded: 25% increased Cold Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "奥杜尔之呼吸",
+        "zh-rTW": "阿德爾的吐息"
+      }
+    },
+    "ireofaldur": {
+      "name": "Ire of Aldur",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Transforms all Fire and Cold modifiers on the item into equivalent Lightning modifiers",
+            "Bonded: 25% increased Lightning Damage"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "Transforms all Fire and Cold modifiers on the item into equivalent Lightning modifiers",
+            "Bonded: 25% increased Lightning Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "奥杜尔之忿怒",
+        "zh-rTW": "阿德爾的聖怒"
+      }
+    },
+    "betrayalofaldur": {
+      "name": "Betrayal of Aldur",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Transforms all Fire, Cold and Lightning modifiers on the item into equivalent Chaos modifiers",
+            "Bonded: 25% increased Chaos Damage"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "Transforms all Fire, Cold and Lightning modifiers on the item into equivalent Chaos modifiers",
+            "Bonded: 25% increased Chaos Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "奥杜尔之背叛",
+        "zh-rTW": "阿德爾的背叛"
+      }
+    },
+    "ancientruneofsplinters": {
+      "name": "Ancient Rune of Splinters",
+      "variants": {
+        "bow": {
+          "type": "Rune",
+          "stats": [
+            "+50% Surpassing chance to fire an additional Arrow",
+            "Bonded: 30% increased Projectile Speed"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "碎片之远古符文",
+        "zh-rTW": "遠古分裂符文"
+      }
+    },
+    "ancientruneofdueling": {
+      "name": "Ancient Rune of Dueling",
+      "variants": {
+        "buckler": {
+          "type": "Rune",
+          "stats": [
+            "30% increased Parried Debuff Magnitude",
+            "Bonded: 15% increased Block chance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "决斗之远古符文",
+        "zh-rTW": "遠古決鬥符文"
+      }
+    },
+    "ancientruneofthetitan": {
+      "name": "Ancient Rune of the Titan",
+      "variants": {
+        "two hand mace": {
+          "type": "Rune",
+          "stats": [
+            "10% chance for Slam Skills you use yourself to cause an additional Aftershock",
+            "Bonded: 15% increased Area of Effect for Attacks"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "泰坦之远古符文",
+        "zh-rTW": "遠古泰坦符文"
+      }
+    },
+    "ancientruneofshattering": {
+      "name": "Ancient Rune of Shattering",
+      "variants": {
+        "one hand mace": {
+          "type": "Rune",
+          "stats": [
+            "40% increased effect of Fully Broken Armour",
+            "Bonded: Break 50% increased Armour"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "碎离之远古符文",
+        "zh-rTW": "遠古粉碎符文"
+      }
+    },
+    "ancientruneofprowess": {
+      "name": "Ancient Rune of Prowess",
+      "variants": {
+        "spear": {
+          "type": "Rune",
+          "stats": [
+            "30% chance when you gain a Charge to gain an additional Charge",
+            "Bonded: 30% increased Endurance, Frenzy and Power Charge Duration"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "英勇之远古符文",
+        "zh-rTW": "遠古卓越符文"
+      }
+    },
+    "ancientruneofcontrol": {
+      "name": "Ancient Rune of Control",
+      "variants": {
+        "quarterstaff": {
+          "type": "Rune",
+          "stats": [
+            "50% increased Immobilisation buildup",
+            "Bonded: 30% increased Damage against Immobilised Enemies"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "操控之远古符文",
+        "zh-rTW": "遠古控制符文"
+      }
+    },
+    "ancientruneofdiscovery": {
+      "name": "Ancient Rune of Discovery",
+      "variants": {
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "30% chance to create an additional Remnant",
+            "Bonded: +1 to maximum number of Elemental Infusions"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "披露之远古符文",
+        "zh-rTW": "遠古探索符文"
+      }
+    },
+    "ancientruneofdecay": {
+      "name": "Ancient Rune of Decay",
+      "variants": {
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "25% increased Withered Magnitude",
+            "Bonded: 15% chance that when Volatility on you explodes, you regain an equivalent amount of Volatility"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "腐朽之远古符文",
+        "zh-rTW": "遠古腐朽符文"
+      }
+    },
+    "ancientruneofwitchcraft": {
+      "name": "Ancient Rune of Witchcraft",
+      "variants": {
+        "focus": {
+          "type": "Rune",
+          "stats": [
+            "40% increased Area of Effect of Curses",
+            "Bonded: 15% faster Curse Activation"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "巫术之远古符文",
+        "zh-rTW": "遠古巫術符文"
+      }
+    },
+    "ancientruneofthehorde": {
+      "name": "Ancient Rune of the Horde",
+      "variants": {
+        "sceptre": {
+          "type": "Rune",
+          "stats": [
+            "Minions have 8% increased Attack and Cast Speed",
+            "Bonded: Minions have 10% increased Movement Speed"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "部落之远古符文",
+        "zh-rTW": "遠古部族符文"
+      }
+    },
+    "ancientruneofanimosity": {
+      "name": "Ancient Rune of Animosity",
+      "variants": {
+        "talisman": {
+          "type": "Rune",
+          "stats": [
+            "Gain 2 Druidic Prowess when you Heavy Stun a Rare or Unique Enemy",
+            "Bonded: 40% increased Stun Buildup"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "憎恨之远古符文",
+        "zh-rTW": "遠古敵意符文"
+      }
+    },
+    "ancientruneofdetonation": {
+      "name": "Ancient Rune of Detonation",
+      "variants": {
+        "crossbow": {
+          "type": "Rune",
+          "stats": [
+            "Grenades have 10% chance to activate a second time",
+            "Bonded: 40% increased Crossbow Reload Speed"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "引爆之远古符文",
+        "zh-rTW": "遠古引爆符文"
+      }
+    },
+    "ancientruneofretaliation": {
+      "name": "Ancient Rune of Retaliation",
+      "variants": {
+        "shield": {
+          "type": "Rune",
+          "stats": [
+            "8% increased Attack Speed if you have Blocked Recently",
+            "Bonded: +3% to maximum Block chance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "报复之远古符文",
+        "zh-rTW": "遠古復仇符文"
+      }
+    },
+    "runeofvitality": {
+      "name": "Rune of Vitality",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+80 to maximum Life",
+            "Bonded: 15% increased amount of Life Leeched"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+80 to maximum Life",
+            "Bonded: 15% increased amount of Life Leeched"
+          ]
+        },
+        "shield": {
+          "type": "Rune",
+          "stats": [
+            "Recover 15 Life when you Block",
+            "Bonded: 5% increased maximum Life"
+          ]
+        },
+        "buckler": {
+          "type": "Rune",
+          "stats": [
+            "Recover 15 Life when you Block",
+            "Bonded: 5% increased maximum Life"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "活力符文",
+        "zh-rTW": "崇敬活力符文"
+      }
+    },
+    "runeofthehunt": {
+      "name": "Rune of the Hunt",
+      "variants": {
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "8% increased Movement Speed while Sprinting",
+            "Bonded: 50% increased Stun Recovery"
+          ]
+        },
+        "sceptre": {
+          "type": "Rune",
+          "stats": [
+            "Companions deal 30% increased Damage",
+            "Bonded: 8% increased Mana Recovery rate while your Companion is in your Presence"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "狩猎符文",
+        "zh-rTW": "崇敬狩獵符文"
+      }
+    },
+    "runeofacrobatics": {
+      "name": "Rune of Acrobatics",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Flasks gain 0.2 charges per Second",
+            "Bonded: Charms gain 0.25 charges per Second"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "Flasks gain 0.2 charges per Second",
+            "Bonded: Charms gain 0.25 charges per Second"
+          ]
+        },
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "+0.3 metres to Dodge Roll distance",
+            "Bonded: 30% increased Armour if you haven't Dodge Rolled Recently"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "杂技符文",
+        "zh-rTW": "崇敬巧技符文"
+      }
+    },
+    "runeofculmination": {
+      "name": "Rune of Culmination",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "50% chance to build an additional Combo on Hit",
+            "Bonded: 5% increased Attack Speed"
+          ]
+        },
+        "one hand mace": {
+          "type": "Rune",
+          "stats": [
+            "Rolls only the minimum or maximum Damage value for Physical Damage"
+          ]
+        },
+        "warstaff": {
+          "type": "Rune",
+          "stats": [
+            "Rolls only the minimum or maximum Damage value for Physical Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "巅峰符文",
+        "zh-rTW": "崇敬終點符文"
+      }
+    },
+    "runeofrenown": {
+      "name": "Rune of Renown",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "50% increased Glory generation",
+            "Bonded: Banner Skills have 20% increased Aura Magnitudes"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "Archon recovery period expires 30% faster",
+            "Bonded: 30% increased Archon Buff duration"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "声望符文",
+        "zh-rTW": "崇敬聲望符文"
+      }
+    },
+    "runeofaccumulation": {
+      "name": "Rune of Accumulation",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "Gain 3 Life per Enemy Hit with Attacks",
+            "Gain 1 Mana per Enemy Hit with Attacks",
+            "Bonded: +30 to maximum Life",
+            "Bonded: +30 to maximum Mana"
+          ]
+        },
+        "crossbow": {
+          "type": "Rune",
+          "stats": [
+            "On Hitting an enemy, gains maximum added Cold damage equal to the enemy's Power for 20 seconds, up to a total of 32",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "bow": {
+          "type": "Rune",
+          "stats": [
+            "On Hitting an enemy, gains maximum added Cold damage equal to the enemy's Power for 20 seconds, up to a total of 32",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        },
+        "spear": {
+          "type": "Rune",
+          "stats": [
+            "On Hitting an enemy, gains maximum added Cold damage equal to the enemy's Power for 20 seconds, up to a total of 32",
+            "Bonded: 30% increased Freeze Buildup"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "积累符文",
+        "zh-rTW": "崇敬積累符文"
+      }
+    },
+    "runeoffoundations": {
+      "name": "Rune of Foundations",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "+30 to Armour",
+            "+30 to Evasion Rating",
+            "+10 to maximum Energy Shield",
+            "Bonded: +20 to maximum Life",
+            "Bonded: +20 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "根基符文",
+        "zh-rTW": "崇敬基準符文"
+      }
+    },
+    "runeoftheprism": {
+      "name": "Rune of the Prism",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "-10% to all Maximum Elemental Resistances",
+            "+20% to all Elemental Resistances"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "棱镜符文",
+        "zh-rTW": "崇敬稜鏡符文"
+      }
+    },
+    "runeoftheblossom": {
+      "name": "Rune of the Blossom",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "+50 to Spirit",
+            "-1 to Spirit per 2 Levels",
+            "Bonded: 5% increased Spirit Reservation Efficiency"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "绽放符文",
+        "zh-rTW": "崇敬精通符文"
+      }
+    },
+    "runeofconsistency": {
+      "name": "Rune of Consistency",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "200% increased Critical Hit Chance",
+            "You have no Critical Damage Bonus",
+            "Bonded: Hits against you have 25% reduced Critical Damage Bonus"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "50% increased Spell Damage while your Companion is in your Presence",
+            "Bonded: 8% increased Mana Recovery rate while your Companion is in your Presence"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "连贯符文",
+        "zh-rTW": "崇敬連貫符文"
+      }
+    },
+    "runeofreach": {
+      "name": "Rune of Reach",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "Remnants you create have 15% increased effect",
+            "Bonded: Recover 3% of Maximum Mana when you collect a Remnant"
+          ]
+        },
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "Remnants you create have 25% reduced effect",
+            "Remnants can be collected from 50% further away",
+            "Bonded: 20% increased Exposure Effect"
+          ]
+        },
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Remnants you create have 25% reduced effect",
+            "Remnants can be collected from 50% further away",
+            "Bonded: 20% increased Exposure Effect"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "延伸符文",
+        "zh-rTW": "崇敬觸及符文"
+      }
+    },
+    "runeofvitalflame": {
+      "name": "Rune of Vital Flame",
+      "variants": {
+        "one hand mace": {
+          "type": "Rune",
+          "stats": [
+            "Adds 13 to 16 Fire Damage",
+            "15% of Skill Mana Costs Converted to Life Costs",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "two hand mace": {
+          "type": "Rune",
+          "stats": [
+            "Adds 13 to 16 Fire Damage",
+            "15% of Skill Mana Costs Converted to Life Costs",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        },
+        "talisman": {
+          "type": "Rune",
+          "stats": [
+            "Adds 13 to 16 Fire Damage",
+            "15% of Skill Mana Costs Converted to Life Costs",
+            "Bonded: 30% increased Ignite Magnitude"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "命焰符文",
+        "zh-rTW": "崇敬生命火焰符文"
+      }
+    },
+    "runeofconfrontation": {
+      "name": "Rune of Confrontation",
+      "variants": {
+        "warstaff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 4 Rage on Melee Hit",
+            "-10 to Maximum Rage"
+          ]
+        },
+        "spear": {
+          "type": "Rune",
+          "stats": [
+            "Gain 4 Rage on Melee Hit",
+            "-10 to Maximum Rage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "冲突符文",
+        "zh-rTW": "崇敬對峙符文"
+      }
+    },
+    "serlestriumph": {
+      "name": "Serle's Triumph",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "+1 Suffix Modifier allowed"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "+1 Suffix Modifier allowed"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "+1 Suffix Modifier allowed"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "瑟尔的凯旋",
+        "zh-rTW": "瑟雷的凱旋"
+      }
+    },
+    "cadigansepiphany": {
+      "name": "Cadigan's Epiphany",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "Destroys all Augment Sockets on the item to create a Jewel Socket"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "卡迪甘的顿悟",
+        "zh-rTW": "卡迪根的頓悟"
+      }
+    },
+    "astridscreativity": {
+      "name": "Astrid's Creativity",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Can have 1 additional Crafted Modifier"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "Can have 1 additional Crafted Modifier"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "Can have 1 additional Crafted Modifier"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "阿斯特丽德的创造",
+        "zh-rTW": "阿斯垂德的創造"
+      }
+    },
+    "uhtredssidereus": {
+      "name": "Uhtred's Sidereus",
+      "variants": {
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "Can roll Chronomancy modifiers",
+            "Bonded: 10% increased Cooldown Recovery Rate"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "乌崔德的星辰",
+        "zh-rTW": "烏特雷的星空"
+      }
+    },
+    "kolrshunt": {
+      "name": "Kolr's Hunt",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "Can roll Marksman modifiers",
+            "Bonded: 20% increased Projectile Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "克尔的狩猎",
+        "zh-rTW": "克洛爾的狩獵"
+      }
+    },
+    "voranascarnage": {
+      "name": "Vorana's Carnage",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "Can roll Berserking modifiers",
+            "Bonded: Gain 2 Rage on Melee Hit"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "沃拉娜的屠戮",
+        "zh-rTW": "沃拉娜的殘殺"
+      }
+    },
+    "thrudsmight": {
+      "name": "Thrud's Might",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "Can roll Destruction modifiers",
+            "Bonded: +5% to all Elemental Resistances"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "Can roll Destruction modifiers",
+            "Bonded: +5% to all Elemental Resistances"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "斯鲁德的神力",
+        "zh-rTW": "索魯德的強權"
+      }
+    },
+    "medvedstending": {
+      "name": "Medved's Tending",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "Can roll Soul modifiers",
+            "Bonded: 3% increased maximum Life",
+            "Bonded: 3% increased maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "梅德维德的照料",
+        "zh-rTW": "梅德偉的照料"
+      }
+    },
+    "katlasgloom": {
+      "name": "Katla's Gloom",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "Can roll Decay modifiers",
+            "Bonded: 25% reduced Effect of Non-Damaging Ailments on you"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "卡塔拉的阴霾",
+        "zh-rTW": "卡特拉的愁悵"
+      }
+    },
+    "aldurslegacy": {
+      "name": "Aldur's Legacy",
+      "variants": {
+        "weapon": {
+          "type": "Rune",
+          "stats": [
+            "When socketed into a Unique Kalguuran or Ezomyte item, destroys the item to create a Rune imbued with that item's power"
+          ]
+        },
+        "armour": {
+          "type": "Rune",
+          "stats": [
+            "When socketed into a Unique Kalguuran or Ezomyte item, destroys the item to create a Rune imbued with that item's power"
+          ]
+        },
+        "caster": {
+          "type": "Rune",
+          "stats": [
+            "When socketed into a Unique Kalguuran or Ezomyte item, destroys the item to create a Rune imbued with that item's power"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "奥杜尔的遗产",
+        "zh-rTW": "阿德爾的傳承"
+      }
+    },
+    "legacyofbramblejack": {
+      "name": "Legacy of Bramblejack",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "250% of Melee Physical Damage taken reflected to Attacker",
+            "Bonded: Regenerate 3% of maximum Life per second while Surrounded"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "刺棘宝甲之遗产",
+        "zh-rTW": "傳承．刺棘寶甲"
+      }
+    },
+    "legacyofblackbraid": {
+      "name": "Legacy of Blackbraid",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "+50% of Armour also applies to Elemental Damage",
+            "Bonded: +15% to all Elemental Resistances"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "黑髻之遗产",
+        "zh-rTW": "傳承．黑辮"
+      }
+    },
+    "legacyofedyrnstusks": {
+      "name": "Legacy of Edyrns Tusks",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "50% chance to inflict Bleeding on Hit",
+            "50% reduced Slowing Potency of Debuffs on You",
+            "Bonded: 35% increased Thorns damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "艾丁的獠牙之遗产",
+        "zh-rTW": "傳承．埃狄恩的曲牙"
+      }
+    },
+    "legacyofkingsguard": {
+      "name": "Legacy of Kingsguard",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "Recover 5% of maximum Life for each Endurance Charge consumed",
+            "Bonded: +30 to maximum Life"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "皇家卫甲之遗产",
+        "zh-rTW": "傳承．王衛"
+      }
+    },
+    "legacyofbristleboar": {
+      "name": "Legacy of Bristleboar",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "Gain 5 Rage when Hit by an Enemy",
+            "Gain 10 Rage when Critically Hit by an Enemy",
+            "Bonded: +3 to Maximum Rage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "棘体猪肤之遗产",
+        "zh-rTW": "傳承．鬃豬"
+      }
+    },
+    "legacyoffoxshade": {
+      "name": "Legacy of Foxshade",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "10% increased Movement Speed when on Full Life",
+            "100% increased Evasion Rating when on Full Life",
+            "Bonded: 20% increased Evasion Rating"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "狐毛铠之遗产",
+        "zh-rTW": "傳承．狐毛鎧"
+      }
+    },
+    "legacyofashrend": {
+      "name": "Legacy of Ashrend",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "Cannot be Ignited",
+            "-10 Physical Damage taken from Attack Hits",
+            "Bonded: +35% to Fire Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "拂烬之遗产",
+        "zh-rTW": "傳承．拂燼"
+      }
+    },
+    "legacyofbriskwrap": {
+      "name": "Legacy of Briskwrap",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "Gain Deflection Rating equal to 30% of Evasion Rating",
+            "Bonded: 35% increased Flask Mana Recovery rate"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "荒途之遗产",
+        "zh-rTW": "傳承．荒途"
+      }
+    },
+    "legacyoftheunleashed": {
+      "name": "Legacy of The Unleashed",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "25% of Damage taken from Hits bypasses Energy Shield if Energy Shield is below half",
+            "Bonded: 20% increased Armour while Shapeshifted"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "破禁者之遗产",
+        "zh-rTW": "傳承．束縛"
+      }
+    },
+    "legacyofhornsofbynden": {
+      "name": "Legacy of Horns of Bynden",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "Gain 1 Rage on Melee Hit",
+            "Every Rage also grants 1% increased Armour",
+            "Bonded: +3 to Maximum Rage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "柏安登的犄角之遗产",
+        "zh-rTW": "傳承．賓登之角"
+      }
+    },
+    "legacyofwingsofcaelyn": {
+      "name": "Legacy of Wings of Caelyn",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "Gain 1 Rage on Melee Hit",
+            "Every Rage also grants 1% increased Stun Threshold",
+            "Bonded: Every five Rage also grants you 1% increased Movement Speed"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "凯琳飞翼之遗产",
+        "zh-rTW": "傳承．凱林之翼"
+      }
+    },
+    "legacyofezomytepeak": {
+      "name": "Legacy of Ezomyte Peak",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "15% increased Area of Effect",
+            "Unwavering Stance",
+            "Bonded: 50% reduced Slowing Potency of Debuffs on You"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "艾兹麦的荣光之遗产",
+        "zh-rTW": "傳承．艾茲麥的榮光"
+      }
+    },
+    "legacyofdeidbell": {
+      "name": "Legacy of Deidbell",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "Warcries Explode Corpses dealing 10% of their Life as Physical Damage",
+            "Bonded: Warcry Skills have 20% increased Area of Effect"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "丧钟之遗产",
+        "zh-rTW": "傳承．喪鐘"
+      }
+    },
+    "legacyofelevore": {
+      "name": "Legacy of Elevore",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "Charms gain 1 charge per Second",
+            "+1 Charm Slot",
+            "Bonded: Charms gain 0.5 charges per Second"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "艾尔弗雷之遗产",
+        "zh-rTW": "傳承．愛勒弗"
+      }
+    },
+    "legacyofstarkonjashead": {
+      "name": "Legacy of Starkonja's Head",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "100% increased Global Evasion Rating when on Low Life",
+            "5% of Damage from Hits is taken from your Damageable Companion's Life before you",
+            "Bonded: 5% of Damage from Hits is taken from your Damageable Companion's Life before you"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "斯塔空加之首之遗产",
+        "zh-rTW": "傳承．斯塔空加之首"
+      }
+    },
+    "legacyofcrownofthorns": {
+      "name": "Legacy of Crown of Thorns",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "Pain Attunement",
+            "Bonded: 17 to 26 Physical Thorns damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "刺棘之冠之遗产",
+        "zh-rTW": "傳承．刺棘之冠"
+      }
+    },
+    "legacyofgreymake": {
+      "name": "Legacy of Greymake",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "+50 to all Attributes",
+            "Bonded: +1 Maximum Life per Level"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "苍髯皓首之遗产",
+        "zh-rTW": "傳承．灰製"
+      }
+    },
+    "legacyoferianscobble": {
+      "name": "Legacy of Erian's Cobble",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "+30 to Accuracy Rating",
+            "+10 to maximum Life",
+            "+10 to maximum Mana",
+            "10% increased Rarity of Items found",
+            "10% increased Critical Hit Chance",
+            "+5 to all Attributes",
+            "+5% to all Elemental Resistances",
+            "3 Life Regeneration per second",
+            "Bonded: +20 to Armour",
+            "Bonded: +20 to Evasion Rating",
+            "Bonded: +20 to maximum Energy Shield"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "阿里安的拼凑之遗产",
+        "zh-rTW": "傳承．埃里安的鵝卵石"
+      }
+    },
+    "legacyofthesmilingknight": {
+      "name": "Legacy of The Smiling Knight",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "Aggravate Bleeding on targets you Critically Hit with Attacks",
+            "Bonded: 20% increased Critical Hit Chance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "笑面骑士之遗产",
+        "zh-rTW": "傳承．微笑騎士"
+      }
+    },
+    "legacyofthevileknight": {
+      "name": "Legacy of The Vile Knight",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "Deal 4% increased Damage with Hits to Rare or Unique Enemies for each second they've ever been in your Presence, up to a maximum of 200%",
+            "Bonded: 20% increased Presence Area of Effect"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "厄难骑士之遗产",
+        "zh-rTW": "傳承．惡劣騎士"
+      }
+    },
+    "legacyofnorthpaw": {
+      "name": "Legacy of Northpaw",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "Base Critical Hit Chance for Attacks with Weapons is 7%",
+            "Bonded: 15% increased Critical Damage Bonus"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "北境凶爪之遗产",
+        "zh-rTW": "傳承．北方之爪"
+      }
+    },
+    "legacyofcandlemaker": {
+      "name": "Legacy of Candlemaker",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "40% increased Fire Damage",
+            "Flammability Magnitude is doubled",
+            "Bonded: 20% increased Ignite Duration on Enemies"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "塑烛者之遗产",
+        "zh-rTW": "傳承．製燭者"
+      }
+    },
+    "legacyofdeathblow": {
+      "name": "Legacy of Deathblow",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "Culling Strike",
+            "Bonded: Gain 30 Life per enemy killed"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "死神的袭击之遗产",
+        "zh-rTW": "傳承．致命一擊"
+      }
+    },
+    "legacyoflegionstride": {
+      "name": "Legacy of Legionstride",
+      "variants": {
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "+10% to Block chance",
+            "Bonded: 10% reduced Damage taken from Projectile Hits"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "军团的进击之遗产",
+        "zh-rTW": "傳承．帝國之靴"
+      }
+    },
+    "legacyoftrampletoe": {
+      "name": "Legacy of Trampletoe",
+      "variants": {
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "Deal 10% of Overkill damage to enemies within 2 metres of the enemy killed",
+            "Bonded: 15% increased Global Physical Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "踏趾靴之遗产",
+        "zh-rTW": "傳承．踐踏之鞋"
+      }
+    },
+    "legacyofbriarpatch": {
+      "name": "Legacy of Briarpatch",
+      "variants": {
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "+15% to Thorns Critical Hit Chance",
+            "Bonded: 15% increased Thorns Critical Damage Bonus"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "荆皮护靴之遗产",
+        "zh-rTW": "傳承．薔薇眼罩"
+      }
+    },
+    "legacyofbushwhack": {
+      "name": "Legacy of Bushwhack",
+      "variants": {
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "Physical Damage is Pinning",
+            "Bonded: +20 to Dexterity"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "踏林长靴之遗产",
+        "zh-rTW": "傳承．突襲"
+      }
+    },
+    "legacyofwanderlust": {
+      "name": "Legacy of Wanderlust",
+      "variants": {
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "Your speed is unaffected by Slows",
+            "Bonded: 5% increased Movement Speed"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "苦行之履之遗产",
+        "zh-rTW": "傳承．苦行之履"
+      }
+    },
+    "legacyoftheknighterrant": {
+      "name": "Legacy of The Knight-errant",
+      "variants": {
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "Iron Reflexes",
+            "Bonded: 25% increased Elemental Ailment Threshold"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "豪侠骑士之遗产",
+        "zh-rTW": "傳承．漂泊騎士"
+      }
+    },
+    "legacyofobernsbastion": {
+      "name": "Legacy of Obern's Bastion",
+      "variants": {
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "200% increased Stun Recovery",
+            "Bonded: 40% reduced Chill Duration on you",
+            "Bonded: 40% reduced Freeze Duration on you"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "欧本的壁垒之遗产",
+        "zh-rTW": "傳承．歐伯恩的壁壘"
+      }
+    },
+    "legacyofdionadair": {
+      "name": "Legacy of Dionadair",
+      "variants": {
+        "shield": {
+          "type": "Rune",
+          "stats": [
+            "Double Stun Threshold while Shield is Raised",
+            "Bonded: 15% increased Stun Threshold"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "御身守卫之遗产",
+        "zh-rTW": "傳承．捍衛者"
+      }
+    },
+    "legacyofwulfsbane": {
+      "name": "Legacy of Wulfsbane",
+      "variants": {
+        "shield": {
+          "type": "Rune",
+          "stats": [
+            "Intimidate Enemies on Block for 8 seconds",
+            "Bonded: +25 to Strength"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "伍夫之难之遗产",
+        "zh-rTW": "傳承．狼之禍"
+      }
+    },
+    "legacyofchernobogspillar": {
+      "name": "Legacy of Chernobog's Pillar",
+      "variants": {
+        "shield": {
+          "type": "Rune",
+          "stats": [
+            "Gain 1% of damage as Fire damage per 2% Chance to Block",
+            "Bonded: +30% to Chaos Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "五芒屏障之遗产",
+        "zh-rTW": "傳承．五芒屏障"
+      }
+    },
+    "legacyofalkemeira": {
+      "name": "Legacy of Alkem Eira",
+      "variants": {
+        "shield": {
+          "type": "Rune",
+          "stats": [
+            "30% of damage Blocked is Recouped as Mana",
+            "Bonded: 20% of damage Blocked is Recouped as Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "神谕之遗产",
+        "zh-rTW": "傳承．神諭"
+      }
+    },
+    "legacyofoaksworn": {
+      "name": "Legacy of Oaksworn",
+      "variants": {
+        "shield": {
+          "type": "Rune",
+          "stats": [
+            "50% increased Life Regeneration rate",
+            "Bonded: 50 Life Regeneration per second"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "橡木盟誓之遗产",
+        "zh-rTW": "傳承．橡誓者"
+      }
+    },
+    "legacyofdunkelhalt": {
+      "name": "Legacy of Dunkelhalt",
+      "variants": {
+        "buckler": {
+          "type": "Rune",
+          "stats": [
+            "50% increased Parried Debuff Magnitude",
+            "Bonded: 50% increased Parry Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "黑暗止步之遗产",
+        "zh-rTW": "傳承．唐克哈特"
+      }
+    },
+    "legacyofrondeldeezo": {
+      "name": "Legacy of Rondel de Ezo",
+      "variants": {
+        "buckler": {
+          "type": "Rune",
+          "stats": [
+            "Curse Enemies with Enfeeble on Block",
+            "Bonded: 100% increased Block chance against Projectiles"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "艾佐的诗篇之遗产",
+        "zh-rTW": "傳承．隆德爾．德．艾佐"
+      }
+    },
+    "legacyofbrynhandsmark": {
+      "name": "Legacy of Brynhand's Mark",
+      "variants": {
+        "one hand mace": {
+          "type": "Rune",
+          "stats": [
+            "Causes Double Stun Buildup",
+            "Bonded: Adds 14 to 20 Physical Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "布琳翰德印记之遗产",
+        "zh-rTW": "傳承．布林漢的印記"
+      }
+    },
+    "legacyoftrenchtimbre": {
+      "name": "Legacy of Trenchtimbre",
+      "variants": {
+        "one hand mace": {
+          "type": "Rune",
+          "stats": [
+            "Increases and Reductions to Minion Attack Speed also affect you",
+            "Bonded: +1 to Level of all Minion Skills"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "战壕砥柱之遗产",
+        "zh-rTW": "傳承．壕溝之音"
+      }
+    },
+    "legacyofmjolner": {
+      "name": "Legacy of Mjolner",
+      "variants": {
+        "one hand mace": {
+          "type": "Rune",
+          "stats": [
+            "+200 Intelligence Requirement",
+            "+3 to Level of all Lightning Skills",
+            "Bonded: +1 to Level of all Lightning Skills"
+          ]
+        }
+      }
+    },
+    "legacyoftwistedempyrean": {
+      "name": "Legacy of Twisted Empyrean",
+      "variants": {
+        "two hand mace": {
+          "type": "Rune",
+          "stats": [
+            "Attacks with this Weapon have Added Cold Damage equal to 6% to 10% of maximum Mana",
+            "Bonded: 15% of Damage is taken from Mana before Life"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "扭曲天穹之遗产",
+        "zh-rTW": "傳承．畸變星穹"
+      }
+    },
+    "legacyofhoghunt": {
+      "name": "Legacy of Hoghunt",
+      "variants": {
+        "two hand mace": {
+          "type": "Rune",
+          "stats": [
+            "+5% to Critical Hit Chance",
+            "Maim on Critical Hit",
+            "Bonded: 25% increased Attack Damage against Maimed Enemies"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "猎猪大棒之遗产",
+        "zh-rTW": "傳承．獵豬"
+      }
+    },
+    "legacyofhrimnorshymn": {
+      "name": "Legacy of Hrimnor's Hymn",
+      "variants": {
+        "two hand mace": {
+          "type": "Rune",
+          "stats": [
+            "25% chance for Slam Skills you use yourself to cause an additional Aftershock",
+            "Bonded: 15% chance for Slam Skills you use yourself to cause an additional Aftershock"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "雷姆诺的夺命凶器之遗产",
+        "zh-rTW": "傳承．雷姆諾的奪命樂具"
+      }
+    },
+    "legacyofbrainrattler": {
+      "name": "Legacy of Brain Rattler",
+      "variants": {
+        "two hand mace": {
+          "type": "Rune",
+          "stats": [
+            "All damage with this Weapon causes Electrocution buildup",
+            "Bonded: Damage Penetrates 10% Lightning Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "脑乱者之遗产",
+        "zh-rTW": "傳承．腦亂者"
+      }
+    },
+    "legacyoflifesprig": {
+      "name": "Legacy of Lifesprig",
+      "variants": {
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "+2 to Level of all Spell Skills",
+            "Bonded: Leeches 1% of maximum Life when you Cast a Spell"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "生机之记之遗产",
+        "zh-rTW": "傳承．生機之記"
+      }
+    },
+    "legacyofduality": {
+      "name": "Legacy of Duality",
+      "variants": {
+        "quarterstaff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 250 Guard for 0.5 seconds per Combo expended when using Skills",
+            "Bonded: Gain Finality for 0.2 seconds per Combo expended when using Skills"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "二元一体之遗产",
+        "zh-rTW": "傳承．二元性"
+      }
+    },
+    "legacyoftyrannysgrip": {
+      "name": "Legacy of Tyranny's Grip",
+      "variants": {
+        "spear": {
+          "type": "Rune",
+          "stats": [
+            "Strikes deal Splash Damage",
+            "Bonded: Knocks Enemies Back on Hit"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "暴政之握之遗产",
+        "zh-rTW": "傳承．暴政之握"
+      }
+    },
+    "legacyofthesentry": {
+      "name": "Legacy of The Sentry",
+      "variants": {
+        "quarterstaff": {
+          "type": "Rune",
+          "stats": [
+            "Adds 23 to 34 Fire damage to Attacks",
+            "100% increased Flammability Magnitude",
+            "Bonded: +2% to Maximum Fire Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "哨望之遗产",
+        "zh-rTW": "傳承．哨兵"
+      }
+    },
+    "legacyofadoniasego": {
+      "name": "Legacy of Adonia's Ego",
+      "variants": {
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "+1 to Maximum Power Charges",
+            "Bonded: +65 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "阿多尼娅的自我之遗产",
+        "zh-rTW": "傳承．艾多尼亞的自負"
+      }
+    },
+    "legacyofcursecarver": {
+      "name": "Legacy of Cursecarver",
+      "variants": {
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "+3 to Level of all Curse Skills",
+            "Bonded: 35% increased Mana Regeneration Rate"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "刻咒之遗产",
+        "zh-rTW": "傳承．咒刻者"
+      }
+    },
+    "legacyofduskvigil": {
+      "name": "Legacy of Dusk Vigil",
+      "variants": {
+        "staff": {
+          "type": "Rune",
+          "stats": [
+            "Gain 30% of Physical Damage as Extra Fire Damage",
+            "Bonded: Triggered Spells deal 20% increased Spell Damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "暮色守望之遗产",
+        "zh-rTW": "傳承．暗暮守夜"
+      }
+    },
+    "legacyofthebloodthorn": {
+      "name": "Legacy of The Blood Thorn",
+      "variants": {
+        "quarterstaff": {
+          "type": "Rune",
+          "stats": [
+            "Adds 4 to 8 Physical Damage",
+            "Causes Bleeding on Hit",
+            "Bonded: 10% increased Magnitude of Bleeding you inflict"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "血棘之遗产",
+        "zh-rTW": "傳承．血棘"
+      }
+    },
+    "legacyofquillrain": {
+      "name": "Legacy of Quill Rain",
+      "variants": {
+        "bow": {
+          "type": "Rune",
+          "stats": [
+            "50% increased Attack Speed",
+            "20% less Attack Damage",
+            "Bonded: 70% increased Arrow Speed"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "骤雨之弦之遗产",
+        "zh-rTW": "傳承．驟雨之弦"
+      }
+    },
+    "legacyofironbound": {
+      "name": "Legacy of Ironbound",
+      "variants": {
+        "bow": {
+          "type": "Rune",
+          "stats": [
+            "Hits with this weapon have 1 to 3 Added Physical Damage per 1% Block Chance",
+            "Bonded: 3% increased Block chance per 100 total Item Armour on Equipped Armour Items"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "铁箍战弓之遗产",
+        "zh-rTW": "傳承．鐵縛者"
+      }
+    },
+    "legacyofamormandragora": {
+      "name": "Legacy of Amor Mandragora",
+      "variants": {
+        "talisman": {
+          "type": "Rune",
+          "stats": [
+            "Gain 1 Druidic Prowess for every 20 total Rage spent",
+            "Bonded: Enemies in your Presence are Hindered"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "爱神曼陀罗之遗产",
+        "zh-rTW": "傳承．阿莫爾．曼德拉戈拉"
+      }
+    },
+    "legacyofspitefulfloret": {
+      "name": "Legacy of Spiteful Floret",
+      "variants": {
+        "talisman": {
+          "type": "Rune",
+          "stats": [
+            "Every 5 Rage also grants 5% of Damage taken Recouped as Life",
+            "Bonded: Attacks have 20% chance to cause Bleeding"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "怨毒之花之遗产",
+        "zh-rTW": "傳承．怨毒花蕊"
+      }
+    },
+    "legacyofsvalinn": {
+      "name": "Legacy of Svalinn",
+      "variants": {
+        "shield": {
+          "type": "Rune",
+          "stats": [
+            "Chance to Block Damage is Lucky",
+            "You take 20% of damage from Blocked Hits",
+            "Bonded: +50 to maximum Runic Ward"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "斯瓦林之遗产",
+        "zh-rTW": "傳承．史瓦林"
+      }
+    },
+    "legacyofkeeperofthearc": {
+      "name": "Legacy of Keeper of the Arc",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "Alternating every 5 seconds:",
+            "Take 20% less Damage from Hits",
+            "Take 20% less Damage over time",
+            "Bonded: 25% increased Mana Regeneration Rate"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "弧光守护者之遗产",
+        "zh-rTW": "傳承．電弧守護者"
+      }
+    },
+    "legacyofolrovasara": {
+      "name": "Legacy of Olrovasara",
+      "variants": {
+        "one hand mace": {
+          "type": "Rune",
+          "stats": [
+            "On Hitting an enemy, gains maximum added Lightning damage equal to",
+            "the enemy's Power for 20 seconds, up to a total of 120",
+            "Bonded: 15% increased Attack Speed"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "欧罗瓦萨拉之遗产",
+        "zh-rTW": "傳承．歐洛瓦沙拉"
+      }
+    },
+    "legacyofaworthyfoe": {
+      "name": "Legacy of A Worthy Foe",
+      "variants": {
+        "shield": {
+          "type": "Rune",
+          "stats": [
+            "Off-hand Hits inflict Runefather's Challenge",
+            "Bonded: +45% to Cold Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "劲敌之遗产",
+        "zh-rTW": "傳承．崇敬之敵"
+      }
+    },
+    "legacyofserlesgrit": {
+      "name": "Legacy of Serle's Grit",
+      "variants": {
+        "one hand mace": {
+          "type": "Rune",
+          "stats": [
+            "Maximum Quality is 40%",
+            "Bonded: Skills which Empower an Attack have 20% chance to not count that Attack"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "瑟尔的坚毅之遗产",
+        "zh-rTW": "傳承．瑟雷之握"
+      }
+    },
+    "legacyofruneseekerscall": {
+      "name": "Legacy of Runeseeker's Call",
+      "variants": {
+        "wand": {
+          "type": "Rune",
+          "stats": [
+            "75% increased effect of Socketed Runes",
+            "Bonded: +100 to maximum Mana"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "符文猎手的呼唤之遗产",
+        "zh-rTW": "傳承．符文探求者之喚"
+      }
+    },
+    "legacyoffacebreaker": {
+      "name": "Legacy of Facebreaker",
+      "variants": {
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "+1 to Armour per Strength",
+            "Bonded: 1% increased Damage per 15 Strength"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "毁面者之遗产",
+        "zh-rTW": "傳承．毀面者"
+      }
+    },
+    "emergentvigour": {
+      "name": "Emergent Vigour",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "+1 to maximum Life per 8 Armour on Equipped Helmet",
+            "Bonded: +20 to Spirit"
+          ]
+        },
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "Gain Maximum Energy Shield equal to 50% of total",
+            "Strength Requirements of Equipped Armour Items",
+            "Bonded: +20 to Strength"
+          ]
+        },
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "Hits against you have no Critical Damage Bonus while on Consecrated Ground",
+            "Bonded: 20% increased Effect of Consecrated Ground you create"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "新生活力",
+        "zh-rTW": "活力湧現"
+      }
+    },
+    "emergentpossibility": {
+      "name": "Emergent Possibility",
+      "variants": {
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "15% of Chaos Damage from Hits taken as a Damage of a random Element",
+            "Bonded: +13% to Chaos Resistance"
+          ]
+        },
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "Gain 1% of Damage as Extra Damage of a random Element per",
+            "Rune Socketed in Equipped Items",
+            "Bonded: 20% increased Elemental Damage"
+          ]
+        },
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "50% increased Runic Ward Regeneration Rate while Sprinting",
+            "Bonded: 15% increased Runic Ward Cost Efficiency"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "新生可能",
+        "zh-rTW": "潛能湧現"
+      }
+    },
+    "emergentprotection": {
+      "name": "Emergent Protection",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "Gain 1 Endurance Charge on reaching Low Life, only once every 2 seconds",
+            "Bonded: 40% increased Endurance Charge Duration"
+          ]
+        },
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "Banners also grant 2% of Life Regenerated per second to affected targets",
+            "Bonded: Regenerate 0.5% of maximum Life per second"
+          ]
+        },
+        "boots": {
+          "type": "Rune",
+          "stats": [
+            "When you stop Sprinting, gain Guard equal to 4% of maximum Life per second spent Sprinting, up to a maximum of 20%, for 4 seconds",
+            "Bonded: 20% increased Guard gained"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "新生防护",
+        "zh-rTW": "護佑湧現"
+      }
+    },
+    "emergentinstinct": {
+      "name": "Emergent Instinct",
+      "variants": {
+        "helmet": {
+          "type": "Rune",
+          "stats": [
+            "Targets that are Blinded, Maimed, and Bleeding cannot Evade your Hits",
+            "Bonded: 30% increased Immobilisation buildup"
+          ]
+        },
+        "gloves": {
+          "type": "Rune",
+          "stats": [
+            "Regenerate 5% of maximum Life per Second if you have used a Command Skill Recently",
+            "Bonded: 20% increased Life Regeneration rate"
+          ]
+        },
+        "body armour": {
+          "type": "Rune",
+          "stats": [
+            "Thorns Damage is Lucky against targets with Fully Broken Armour",
+            "Bonded: 30% increased Thorns damage"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "新生本能",
+        "zh-rTW": "直覺湧現"
+      }
+    },
+    "idolofsirrius": {
+      "name": "Idol of Sirrius",
+      "variants": {
+        "gloves": {
+          "type": "Idol",
+          "stats": [
+            "8% increased Attack Speed",
+            "Bonded: 20% reduced Slowing Potency of Debuffs on You"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Allies in your Presence have 8% increased Movement Speed",
+            "Bonded: 4% increased Movement Speed"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "西里乌斯之雕像",
+        "zh-rTW": "席里斯魔偶"
+      }
+    },
+    "idolofthruldana": {
+      "name": "Idol of Thruldana",
+      "variants": {
+        "weapon": {
+          "type": "Idol",
+          "stats": [
+            "25% reduced Poison Duration",
+            "Targets can be affected by +1 of your Poisons at the same time",
+            "Bonded: Gain 13% of Physical Damage as extra Chaos Damage"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Allies in your Presence deal 13 to 27 added Attack Chaos Damage",
+            "Bonded: 15% increased Withered Magnitude"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "舒尔达纳之雕像",
+        "zh-rTW": "特盧達納魔偶"
+      }
+    },
+    "idolofgrold": {
+      "name": "Idol of Grold",
+      "variants": {
+        "boots": {
+          "type": "Idol",
+          "stats": [
+            "50% increased total Power counted by Warcries",
+            "Bonded: 30% increased Glory generation"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "15% increased Damage per each different Companion in your Presence",
+            "Bonded: 15% increased Reservation Efficiency of Companion Skills"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "格罗尔德之雕像",
+        "zh-rTW": "格羅德魔偶"
+      }
+    },
+    "idolofeeshta": {
+      "name": "Idol of Eeshta",
+      "variants": {
+        "helmet": {
+          "type": "Idol",
+          "stats": [
+            "15% increased Cost Efficiency",
+            "Bonded: Meta Skills have 15% increased Reservation Efficiency"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "15% increased Mana Recovery rate while your Companion is in your Presence",
+            "Bonded: 8% increased Life Recovery Rate while your Companion is in your Presence"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "埃什塔之雕像",
+        "zh-rTW": "義許塔魔偶"
+      }
+    },
+    "idolofegrin": {
+      "name": "Idol of Egrin",
+      "variants": {
+        "helmet": {
+          "type": "Idol",
+          "stats": [
+            "Enemies you Curse take 6% increased Damage",
+            "Bonded: 20% increased Area of Effect of Curses"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Bonded: 20% faster Curse Activation"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "艾格林之雕像",
+        "zh-rTW": "埃格林魔偶"
+      }
+    },
+    "idolofmaxarius": {
+      "name": "Idol of Maxarius",
+      "variants": {
+        "body armour": {
+          "type": "Idol",
+          "stats": [
+            "+1 Charm Slot",
+            "Bonded: Storm Skills have +1 to Limit"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Flasks gain 0.2 charges per Second",
+            "Bonded: 20% increased Life and Mana Recovery from Flasks"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "玛萨留斯之雕像",
+        "zh-rTW": "馬薩里斯魔偶"
+      }
+    },
+    "idolofralakesh": {
+      "name": "Idol of Ralakesh",
+      "variants": {
+        "helmet": {
+          "type": "Idol",
+          "stats": [
+            "8% increased Reservation Efficiency of Minion Skills",
+            "Bonded: Minions Revive 8% faster"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "40% increased Armour, Evasion and Energy Shield while your Companion is in your Presence",
+            "Bonded: Companions have 25% increased maximum Life"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "拉克斯之雕像",
+        "zh-rTW": "芮勒蓋許魔偶"
+      }
+    },
+    "snakeidol": {
+      "name": "Snake Idol",
+      "variants": {
+        "gloves": {
+          "type": "Idol",
+          "stats": [
+            "8% increased Curse Magnitudes",
+            "Bonded: Remnants you create have 15% increased effect"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Allies in your Presence have 10% increased Attack Speed",
+            "Bonded: 10% increased Skill Speed while Shapeshifted"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "毒蛇雕像",
+        "zh-rTW": "蝮蛇魔偶"
+      }
+    },
+    "primateidol": {
+      "name": "Primate Idol",
+      "variants": {
+        "helmet": {
+          "type": "Idol",
+          "stats": [
+            "Minions have 15% increased maximum Life",
+            "Bonded: Remnants can be collected from 30% further away"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Allies in your Presence deal 40% increased Damage",
+            "Bonded: 40% increased Damage while Shapeshifted"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "狂猿雕像",
+        "zh-rTW": "靈長魔偶"
+      }
+    },
+    "owlidol": {
+      "name": "Owl Idol",
+      "variants": {
+        "focus": {
+          "type": "Idol",
+          "stats": [
+            "12% increased Cooldown Recovery Rate",
+            "Bonded: 20% increased effect of Archon Buffs on you"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Allies in your Presence have 10% increased Cast Speed",
+            "Bonded: 10% increased Skill Speed while Shapeshifted"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "猫头鹰雕像",
+        "zh-rTW": "夜梟魔偶"
+      }
+    },
+    "catidol": {
+      "name": "Cat Idol",
+      "variants": {
+        "gloves": {
+          "type": "Idol",
+          "stats": [
+            "25% increased Accuracy Rating",
+            "Bonded: 30% increased Charm Charges gained"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Allies in your Presence have 14% increased Critical Hit Chance",
+            "Bonded: 25% increased Critical Hit Chance while Shapeshifted"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "灵猫雕像",
+        "zh-rTW": "靈貓魔偶"
+      }
+    },
+    "wolfidol": {
+      "name": "Wolf Idol",
+      "variants": {
+        "gloves": {
+          "type": "Idol",
+          "stats": [
+            "15% increased Magnitude of Bleeding you inflict",
+            "Bonded: 25% reduced Magnitude of Bleeding on You"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Allies in your Presence have 20% increased Critical Damage Bonus",
+            "Bonded: 25% increased Critical Hit Chance while Shapeshifted"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "恶狼雕像",
+        "zh-rTW": "野狼魔偶"
+      }
+    },
+    "stagidol": {
+      "name": "Stag Idol",
+      "variants": {
+        "helmet": {
+          "type": "Idol",
+          "stats": [
+            "Projectiles have 15% chance to Fork",
+            "Bonded: Projectiles have 25% chance for an additional Projectile when Forking"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Allies in your Presence deal 1 to 40 added Attack Lightning Damage",
+            "Bonded: 40% increased Attack Damage while Shapeshifted"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "雄鹿雕像",
+        "zh-rTW": "雄鹿魔偶"
+      }
+    },
+    "boaridol": {
+      "name": "Boar Idol",
+      "variants": {
+        "gloves": {
+          "type": "Idol",
+          "stats": [
+            "Gain 1 Rage on Melee Hit",
+            "Bonded: 25% increased Warcry Cooldown Recovery Rate"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Allies in your Presence Regenerate 0.5% of your Maximum Life per second",
+            "Bonded: 25% increased Life Regeneration rate while Shapeshifted"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "野猪雕像",
+        "zh-rTW": "野豬魔偶"
+      }
+    },
+    "bearidol": {
+      "name": "Bear Idol",
+      "variants": {
+        "helmet": {
+          "type": "Idol",
+          "stats": [
+            "10% increased Area of Effect",
+            "Bonded: 12% increased Reservation Efficiency of Companion Skills"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Allies in your Presence deal 12 to 18 added Attack Physical Damage",
+            "Bonded: 40% increased Attack Damage while Shapeshifted"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "巨熊雕像",
+        "zh-rTW": "巨熊魔偶"
+      }
+    },
+    "oxidol": {
+      "name": "Ox Idol",
+      "variants": {
+        "shield": {
+          "type": "Idol",
+          "stats": [
+            "15% increased Block chance",
+            "Bonded: 15% chance for Damage of Enemies Hitting you to be Unlucky"
+          ]
+        },
+        "buckler": {
+          "type": "Idol",
+          "stats": [
+            "15% increased Block chance",
+            "Bonded: 15% chance for Damage of Enemies Hitting you to be Unlucky"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Allies in your Presence have +12% to all Elemental Resistances",
+            "Bonded: +20% of Armour also applies to Elemental Damage while Shapeshifted"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "公牛雕像",
+        "zh-rTW": "公牛魔偶"
+      }
+    },
+    "rabbitidol": {
+      "name": "Rabbit Idol",
+      "variants": {
+        "body armour": {
+          "type": "Idol",
+          "stats": [
+            "12% increased Rarity of Items found",
+            "Bonded: 10% increased Quantity of Gold Dropped by Slain Enemies"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "15% increased Spirit",
+            "Bonded: Minions have 30% increased Cooldown Recovery Rate for Command Skills"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "狡兔雕像",
+        "zh-rTW": "狡兔魔偶"
+      }
+    },
+    "foxidol": {
+      "name": "Fox Idol",
+      "variants": {
+        "body armour": {
+          "type": "Idol",
+          "stats": [
+            "Idols socketed in this item gain the benefits of their Bonded modifiers",
+            "Bonded: +5% to Quality of all Skills"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "50% increased Presence Area of Effect",
+            "Bonded: Minions have 30% increased Area of Effect"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "狐狸雕像",
+        "zh-rTW": "狐狸魔偶"
+      }
+    },
+    "idolofgreust": {
+      "name": "Idol of Greust",
+      "variants": {
+        "shield": {
+          "type": "Idol",
+          "stats": [
+            "+25% of Armour also applies to Elemental Damage",
+            "Bonded: 12% increased Damage for each type of Elemental Ailment on Enemy"
+          ]
+        },
+        "buckler": {
+          "type": "Idol",
+          "stats": [
+            "Gain Deflection Rating equal to 20% of Evasion Rating",
+            "Bonded: 12% increased Damage for each type of Elemental Ailment on Enemy"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Companions deal 10% more Damage for each different type of dead Companion you have",
+            "Bonded: Recover 3% of maximum Life when one of your Minions is Revived"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "古斯特之雕像",
+        "zh-rTW": "古斯特魔偶"
+      }
+    },
+    "idolofyeena": {
+      "name": "Idol of Yeena",
+      "variants": {
+        "boots": {
+          "type": "Idol",
+          "stats": [
+            "30% increased Skill Effect Duration with Plant Skills",
+            "Bonded: Plants have a 25% chance to immediately Overgrow when they enter your Presence for the first time"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Plants have a 25% chance to immediately Overgrow when they enter your Presence for the first time",
+            "Bonded: 30% increased Skill Effect Duration with Plant Skills"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "伊娜之雕像",
+        "zh-rTW": "伊娜魔偶"
+      }
+    },
+    "idoloferamir": {
+      "name": "Idol of Eramir",
+      "variants": {
+        "body armour": {
+          "type": "Idol",
+          "stats": [
+            "Skills have 10% chance to not remove Charges but still count as consuming them",
+            "Bonded: 15% chance for Charms you use to not consume Charges"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Allies in your Presence share Charges with you",
+            "Bonded: 25% increased Endurance, Frenzy and Power Charge Duration"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "艾米尔之雕像",
+        "zh-rTW": "艾米爾魔偶"
+      }
+    },
+    "idolofoak": {
+      "name": "Idol of Oak",
+      "variants": {
+        "boots": {
+          "type": "Idol",
+          "stats": [
+            "15% chance when you gain an Endurance Charge to gain an additional Endurance Charge",
+            "Bonded: +1 to Maximum Endurance Charges"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "When you generate an Endurance Charge, Allies in your Presence generate that Charge instead",
+            "Bonded: 40% increased Armour if you've consumed an Endurance Charge Recently"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "欧克之雕像",
+        "zh-rTW": "歐克魔偶"
+      }
+    },
+    "idolofalira": {
+      "name": "Idol of Alira",
+      "variants": {
+        "helmet": {
+          "type": "Idol",
+          "stats": [
+            "15% chance when you gain a Power Charge to gain an additional Power Charge",
+            "Bonded: +1 to Maximum Power Charges"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "When you generate a Power Charge, Allies in your Presence generate that Charge instead",
+            "Bonded: 40% increased maximum Energy Shield if you've consumed a Power Charge Recently"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "阿莉亚之雕像",
+        "zh-rTW": "阿莉亞魔偶"
+      }
+    },
+    "idolofkraityn": {
+      "name": "Idol of Kraityn",
+      "variants": {
+        "gloves": {
+          "type": "Idol",
+          "stats": [
+            "15% chance when you gain a Frenzy Charge to gain an additional Frenzy Charge",
+            "Bonded: +1 to Maximum Frenzy Charges"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "When you generate a Frenzy Charge, Allies in your Presence generate that Charge instead",
+            "Bonded: 40% increased Evasion Rating if you've consumed a Frenzy Charge Recently"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "克雷顿之雕像",
+        "zh-rTW": "克雷頓魔偶"
+      }
+    },
+    "idolofsilk": {
+      "name": "Idol of Silk",
+      "variants": {
+        "shield": {
+          "type": "Idol",
+          "stats": [
+            "15% increased Block chance while your Companion is in your Presence",
+            "Bonded: +3% to maximum Block chance"
+          ]
+        },
+        "buckler": {
+          "type": "Idol",
+          "stats": [
+            "Bonded: 30% increased Parry Range"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Companions in your Presence gain 1 Rage on hit",
+            "Bonded: Companions have 30% increased Area of Effect"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "流丝之雕像",
+        "zh-rTW": "斯克魔偶"
+      }
+    },
+    "idolofthesycophant": {
+      "name": "Idol of the Sycophant",
+      "variants": {
+        "martial weapon wand or staff": {
+          "type": "Idol",
+          "stats": [
+            "-20% to all Elemental Resistances",
+            "Gain 20% of Damage as Extra Damage of a random Element",
+            "Bonded: -20% to Chaos Resistance",
+            "Bonded: Gain 20% of Damage as Extra Chaos Damage"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Companions in your Presence have -20% to all Elemental Resistances",
+            "Companions in your Presence Gain 20% of Damage as Extra Damage of a random Element",
+            "Bonded: Allies in your Presence Gain 20% of Damage as Extra Chaos Damage",
+            "Bonded: Companions in your Presence have -20% to Chaos Resistance"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "谄媚者之雕像",
+        "zh-rTW": "奉承魔偶"
+      }
+    },
+    "idolofthemartyr": {
+      "name": "Idol of the Martyr",
+      "variants": {
+        "martial weapon wand or staff": {
+          "type": "Idol",
+          "stats": [
+            "25% reduced Spirit",
+            "Meta Skills gain 40% increased Energy",
+            "Bonded: Invocated skills have 25% increased Maximum Energy",
+            "Bonded: Meta Skills have 25% reduced Reservation Efficiency"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "40% reduced Presence Area of Effect",
+            "Aura Skills have 25% increased Magnitudes",
+            "Bonded: Allies in your Presence Regenerate 3% of your Maximum Life per second",
+            "Bonded: 25% reduced Life Regeneration rate"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "殉道者之雕像",
+        "zh-rTW": "烈士魔偶"
+      }
+    },
+    "idolofthepharisee": {
+      "name": "Idol of the Pharisee",
+      "variants": {
+        "martial weapon wand or staff": {
+          "type": "Idol",
+          "stats": [
+            "30% reduced maximum Mana",
+            "Gain 2% of Damage as Extra Physical Damage per ten percent missing Mana",
+            "Bonded: 30% reduced Mana Cost Efficiency",
+            "Bonded: 12% increased Skill Speed while on Low Mana"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "30% reduced Mana Cost Efficiency of Command Skills",
+            "Minions deal 60% increased Damage with Command Skills",
+            "Bonded: 25% reduced Reservation Efficiency of Minion Skills",
+            "Bonded: Temporary Minion Skills have +2 to Limit of Minions summoned"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "法利赛之雕像",
+        "zh-rTW": "偽善魔偶"
+      }
+    },
+    "pantheridol": {
+      "name": "Panther Idol",
+      "variants": {
+        "body armour": {
+          "type": "Idol",
+          "stats": [
+            "+10% of Armour also applies to Chaos Damage",
+            "Bonded: +8% to Chaos Resistance"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Minions have +20% to Chaos Resistance",
+            "Bonded: Minions have 20% additional Physical Damage Reduction"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "黑豹雕像",
+        "zh-rTW": "花豹魔偶"
+      }
+    },
+    "hawkidol": {
+      "name": "Hawk Idol",
+      "variants": {
+        "body armour": {
+          "type": "Idol",
+          "stats": [
+            "10% increased Deflection Rating",
+            "Bonded: +12% to Cold Resistance"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Companions have 12% increased Attack Speed",
+            "Bonded: 8% increased Attack Speed while your Companion is in your Presence"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "鹰隼雕像",
+        "zh-rTW": "翔鷹魔偶"
+      }
+    },
+    "stoatidol": {
+      "name": "Stoat Idol",
+      "variants": {
+        "body armour": {
+          "type": "Idol",
+          "stats": [
+            "5% of Damage taken bypasses Energy Shield",
+            "Bonded: +12% to Lightning Resistance"
+          ]
+        },
+        "sceptre": {
+          "type": "Idol",
+          "stats": [
+            "Companions have 25% increased maximum Life",
+            "Bonded: 25% increased Damage while your Companion is in your Presence"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "白鼬雕像",
+        "zh-rTW": "白鼬魔偶"
+      }
+    },
+    "raventouchedshard": {
+      "name": "Raven-Touched Shard",
+      "variants": {
+        "helmet": {
+          "type": "CongealedMist",
+          "stats": [
+            "Raven-Touched"
+          ]
+        }
+      },
+      "localizedNames": {
+        "zh-rCN": "渡鸦之触碎片",
+        "zh-rTW": "渡鴉碎片"
+      }
+    }
+  }
+}

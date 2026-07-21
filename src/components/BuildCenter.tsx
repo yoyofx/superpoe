@@ -1,15 +1,19 @@
-import { useMemo, useState } from 'react'
-import { CircleHelp, Clock3, FileInput, Languages, MoreVertical, Plus, Search, Settings, Trash2 } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, Languages, MoreVertical, Plus, Search, Settings, Trash2 } from 'lucide-react'
 import { LANGUAGE_OPTIONS, translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { useTreeStore } from '@/store/treeStore'
 import type { SavedBuild } from '@/types/tree'
+import { buildRealmLabel } from '@/engine/buildRealm'
+import { SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 
 interface BuildCenterProps {
   onCreate: () => void
   onImport: () => void
   onOpen: (build: SavedBuild) => void
 }
+
+const BUILDS_PER_PAGE = 10
 
 function formatUpdatedAt(value: string, lang: Language): string {
   const date = new Date(value)
@@ -26,11 +30,11 @@ function formatUpdatedAt(value: string, lang: Language): string {
 export function BuildCenter({ onCreate, onImport, onOpen }: BuildCenterProps) {
   const { lang, setLanguage } = useTranslation()
   const treeData = useTreeStore((state) => state.treeData)
-  const treeVersion = useTreeStore((state) => state.treeVersion)
   const savedBuilds = useTreeStore((state) => state.savedBuilds)
   const deleteBuild = useTreeStore((state) => state.deleteBuild)
   const [query, setQuery] = useState('')
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
   const zh = lang === 'zh-rCN'
 
   const builds = useMemo(() => {
@@ -40,12 +44,24 @@ export function BuildCenter({ onCreate, onImport, onOpen }: BuildCenterProps) {
     return sorted.filter((build) => {
       const cls = treeData?.constants.classes[build.selectedClassId]
       const asc = cls?.ascendancies.find((item) => (item.id || item.name) === build.selectedAscendancyId)
-      return [build.name, cls?.name, cls?.displayName, asc?.name, asc?.displayName]
+      return [build.name, cls?.name, cls?.displayName, asc?.name, asc?.displayName, buildRealmLabel(build.realm, zh)]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(normalized))
     })
-  }, [query, savedBuilds, treeData])
+  }, [query, savedBuilds, treeData, zh])
   const recentBuilds = builds.slice(0, 4)
+  const pageCount = Math.max(1, Math.ceil(builds.length / BUILDS_PER_PAGE))
+  const currentPage = Math.min(page, pageCount)
+  const pageStart = (currentPage - 1) * BUILDS_PER_PAGE
+  const pagedBuilds = builds.slice(pageStart, pageStart + BUILDS_PER_PAGE)
+
+  useEffect(() => {
+    setPage(1)
+  }, [query])
+
+  useEffect(() => {
+    if (page > pageCount) setPage(pageCount)
+  }, [page, pageCount])
 
   const buildClass = (build: SavedBuild) => {
     const cls = treeData?.constants.classes[build.selectedClassId]
@@ -66,7 +82,7 @@ export function BuildCenter({ onCreate, onImport, onOpen }: BuildCenterProps) {
   return (
     <div className="build-center">
       <header className="center-app-bar">
-        <div className="app-brand center-brand"><span className="app-brand-mark"><i>S</i></span><span><strong>SuperPoE</strong><small>PoB2 {treeVersion.replace('_', '.')} · Offline</small></span></div>
+        <div className="app-brand center-brand"><span className="app-brand-mark"><i>S</i></span><span><strong>SuperPoE2</strong><small>{SUPERPOE_VERSION_LABEL}</small></span></div>
         <label className="build-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={zh ? '搜索构筑名称、职业或升华' : 'Search builds, classes, or ascendancies'} /></label>
         <div className="center-actions">
           <label className="language-select"><Languages /><select value={lang} onChange={(event) => setLanguage(event.target.value as Language)}>{LANGUAGE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
@@ -95,7 +111,7 @@ export function BuildCenter({ onCreate, onImport, onOpen }: BuildCenterProps) {
                 const info = buildClass(build)
                 return <button key={build.id} onClick={() => onOpen(build)}>
                   <span className="recent-class-mark">{info.name.slice(0, 1)}</span>
-                  <span><strong>{build.name}</strong><small>{info.name}{info.ascendancy ? ` · ${info.ascendancy}` : ''}</small></span>
+                  <span><strong>{build.name}<em className={`realm-tag ${build.realm}`}>{buildRealmLabel(build.realm, zh)}</em></strong><small>{info.name}{info.ascendancy ? ` · ${info.ascendancy}` : ''}</small></span>
                   <time><Clock3 />{formatUpdatedAt(build.updatedAt, lang)}</time>
                 </button>
               })}
@@ -105,22 +121,32 @@ export function BuildCenter({ onCreate, onImport, onOpen }: BuildCenterProps) {
           <section className="build-table-section">
             <div className="center-section-title"><h2>{zh ? '我的构筑' : 'My builds'}</h2><span>{builds.length}</span></div>
             <div className="build-table-wrap">
-              <table className="build-table">
-                <thead><tr><th>{zh ? '构筑名' : 'Build'}</th><th>{zh ? '职业 / 升华' : 'Class / Ascendancy'}</th><th>{zh ? '版本' : 'Version'}</th><th>{zh ? '天赋点数' : 'Passives'}</th><th>{zh ? '修改时间' : 'Modified'}</th><th>{zh ? '来源' : 'Source'}</th><th aria-label={zh ? '操作' : 'Actions'} /></tr></thead>
-                <tbody>{builds.map((build) => {
-                  const info = buildClass(build)
-                  return <tr key={build.id} onDoubleClick={() => onOpen(build)}>
-                    <td><button className="build-name-cell" onClick={() => onOpen(build)}><span>{info.name.slice(0, 1)}</span><strong>{build.name}</strong></button></td>
-                    <td><strong>{info.name}</strong><small>{info.ascendancy || (zh ? '未选择升华' : 'No ascendancy')}</small></td>
-                    <td>{build.treeVersion.replace('_', '.')}</td>
-                    <td>{build.allocatedNodes.length}</td>
-                    <td>{formatUpdatedAt(build.updatedAt, lang)}</td>
-                    <td><span className={`source-tag ${(build.source && build.source !== 'local') || build.importedBuildCode ? 'imported' : ''}`}>{sourceLabel(build)}</span></td>
-                    <td className="build-row-actions"><button className="icon-command compact" onClick={() => setOpenMenuId((id) => id === build.id ? null : build.id)} aria-label={zh ? '更多操作' : 'More actions'}><MoreVertical /></button>{openMenuId === build.id && <div className="row-menu"><button onClick={() => onOpen(build)}>{zh ? '打开' : 'Open'}</button><button className="danger" onClick={() => { deleteBuild(build.id); setOpenMenuId(null) }}><Trash2 />{zh ? '删除' : 'Delete'}</button></div>}</td>
-                  </tr>
-                })}</tbody>
-              </table>
-              {builds.length === 0 && <div className="table-empty">{zh ? '没有匹配的构筑' : 'No matching builds'}</div>}
+              <div className="build-table-viewport">
+                <table className="build-table">
+                  <thead><tr><th>{zh ? '构筑名' : 'Build'}</th><th>{zh ? '职业 / 升华' : 'Class / Ascendancy'}</th><th>{zh ? '版本' : 'Version'}</th><th>{zh ? '天赋点数' : 'Passives'}</th><th>{zh ? '修改时间' : 'Modified'}</th><th>{zh ? '来源' : 'Source'}</th><th aria-label={zh ? '操作' : 'Actions'} /></tr></thead>
+                  <tbody>{pagedBuilds.map((build) => {
+                    const info = buildClass(build)
+                    return <tr key={build.id} onDoubleClick={() => onOpen(build)}>
+                      <td><button className="build-name-cell" onClick={() => onOpen(build)}><span>{info.name.slice(0, 1)}</span><strong>{build.name}</strong><em className={`realm-tag ${build.realm}`}>{buildRealmLabel(build.realm, zh)}</em></button></td>
+                      <td><strong>{info.name}</strong><small>{info.ascendancy || (zh ? '未选择升华' : 'No ascendancy')}</small></td>
+                      <td>{build.treeVersion.replace('_', '.')}</td>
+                      <td>{build.allocatedNodes.length}</td>
+                      <td>{formatUpdatedAt(build.updatedAt, lang)}</td>
+                      <td><span className={`source-tag ${(build.source && build.source !== 'local') || build.importedBuildCode ? 'imported' : ''}`}>{sourceLabel(build)}</span></td>
+                      <td className="build-row-actions"><button className="icon-command compact" onClick={() => setOpenMenuId((id) => id === build.id ? null : build.id)} aria-label={zh ? '更多操作' : 'More actions'}><MoreVertical /></button>{openMenuId === build.id && <div className="row-menu"><button onClick={() => onOpen(build)}>{zh ? '打开' : 'Open'}</button><button className="danger" onClick={() => { deleteBuild(build.id); setOpenMenuId(null) }}><Trash2 />{zh ? '删除' : 'Delete'}</button></div>}</td>
+                    </tr>
+                  })}</tbody>
+                </table>
+                {builds.length === 0 && <div className="table-empty">{zh ? '没有匹配的构筑' : 'No matching builds'}</div>}
+              </div>
+              <footer className="build-pagination">
+                <span>{builds.length === 0 ? '0' : `${pageStart + 1}-${Math.min(pageStart + BUILDS_PER_PAGE, builds.length)}`} / {builds.length}</span>
+                <div>
+                  <button className="icon-command compact" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} title={zh ? '上一页' : 'Previous page'} aria-label={zh ? '上一页' : 'Previous page'}><ChevronLeft /></button>
+                  <span>{currentPage} / {pageCount}</span>
+                  <button className="icon-command compact" disabled={currentPage >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))} title={zh ? '下一页' : 'Next page'} aria-label={zh ? '下一页' : 'Next page'}><ChevronRight /></button>
+                </div>
+              </footer>
             </div>
           </section>
         </>}

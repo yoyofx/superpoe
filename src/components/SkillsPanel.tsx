@@ -42,12 +42,14 @@ export function SkillsPanel() {
     </aside>
     <div className="skill-link-stage">
       <header><span>{zh ? '当前技能组' : 'Current skill group'}</span><small>{selected.enabled ? (zh ? '已启用' : 'Enabled') : (zh ? '已禁用' : 'Disabled')}</small></header>
-      <div className="main-skill-node">{resolveItemIconName(mainGem.name, iconIndex) ? <img src={resolveItemIconName(mainGem.name, iconIndex)} alt="" /> : <Sparkles />}<strong>{translateGameText(mainGem.name, lang)}</strong><small>Lv. {mainGem.level} · Q {mainGem.quality}%</small></div>
-      <div className="support-link-line" />
-      <div className="support-skill-grid">{supports.map((gem, index) => {
-        const image = resolveItemIconName(gem.name, iconIndex)
-        return <div key={`${gem.skillId}-${index}`}>{image ? <img src={image} alt="" /> : <span>{gem.name.slice(0, 1)}</span>}<strong>{translateGameText(gem.name, lang)}</strong><small>Lv. {gem.level} · Q {gem.quality}%</small></div>
-      })}</div>
+      <div className="skill-stage-frame">
+        <div className="main-skill-node">{resolveItemIconName(mainGem.name, iconIndex) ? <img src={resolveItemIconName(mainGem.name, iconIndex)} alt="" /> : <Sparkles />}<strong>{translateGameText(mainGem.name, lang)}</strong><small>Lv. {mainGem.level} · Q {mainGem.quality}%</small></div>
+        <div className="support-link-line" />
+        <div className="support-skill-grid">{supports.map((gem, index) => {
+          const image = resolveItemIconName(gem.name, iconIndex)
+          return <div key={`${gem.skillId}-${index}`}>{image ? <img src={image} alt="" /> : <span>{gem.name.slice(0, 1)}</span>}<strong>{translateGameText(gem.name, lang)}</strong><small>Lv. {gem.level} · Q {gem.quality}%</small></div>
+        })}</div>
+      </div>
     </div>
     <aside className="skill-inspector">
       <header><span>{zh ? '技能详情' : 'Skill details'}</span><h2>{translateGameText(mainGem.name, lang)}</h2></header>

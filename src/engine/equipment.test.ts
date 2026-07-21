@@ -41,6 +41,43 @@ describe('equipment XML parser', () => {
     expect(result?.itemsById['8']).toMatchObject({ name: 'Ultimate Mana Flask', baseType: 'Ultimate Mana Flask' })
   })
 
+  it('handles affixed magic flasks without a separate base-type line', () => {
+    const result = parseEquipmentXml(`<PathOfBuilding2><Items>
+      <Item id="8">Rarity: MAGIC\nTurbid Ultimate Mana Flask of the Practitioner\nUnique ID: test\nItem Level: 80</Item>
+    </Items></PathOfBuilding2>`)
+
+    expect(result?.itemsById['8']).toMatchObject({
+      name: 'Turbid Ultimate Mana Flask of the Practitioner',
+      baseType: 'Turbid Ultimate Mana Flask of the Practitioner',
+    })
+  })
+
+  it('counts augment and jewel sockets across repeated socket lines', () => {
+    const result = parseEquipmentXml(`<PathOfBuilding2><Items>
+      <Item id="3">Rarity: RARE\nWrath Palm\nRuneforged Barbed Bracers\nSockets: S\nRune: Cadigan's Epiphany\nSockets: J\nImplicits: 0</Item>
+    </Items></PathOfBuilding2>`)
+
+    expect(result?.itemsById['3']).toMatchObject({
+      sockets: 'S J',
+      socketCount: 2,
+      runes: ["Cadigan's Epiphany"],
+    })
+  })
+
+  it('preserves both primary and swap weapon slots', () => {
+    const result = parseEquipmentXml(`<PathOfBuilding2><Items activeItemSet="1">
+      <Item id="1">Rarity: NORMAL\nQuarterstaff</Item>
+      <Item id="2">Rarity: NORMAL\nSceptre</Item>
+      <Item id="3">Rarity: NORMAL\nBow</Item>
+      <Item id="4">Rarity: NORMAL\nQuiver</Item>
+      <ItemSet id="1"><Slot name="Weapon 1" itemId="1"/><Slot name="Weapon 2" itemId="2"/><Slot name="Weapon 1 Swap" itemId="3"/><Slot name="Weapon 2 Swap" itemId="4"/></ItemSet>
+    </Items></PathOfBuilding2>`)
+
+    expect(result?.itemSets[0].slots.map((slot) => slot.name)).toEqual([
+      'Weapon 1', 'Weapon 2', 'Weapon 1 Swap', 'Weapon 2 Swap',
+    ])
+  })
+
   it('defines equipment UI strings in every supported language', () => {
     const languages: Language[] = ['en', 'zh-rCN', 'zh-rTW', 'ko-KR']
     const requiredKeys = [

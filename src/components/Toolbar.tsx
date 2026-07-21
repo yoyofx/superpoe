@@ -6,6 +6,7 @@ import {
   Download,
   ArrowLeft,
   Languages,
+  LockKeyhole,
   MoreVertical,
   Redo2,
   Save,
@@ -22,10 +23,10 @@ import {
 import { ExportPanel } from '@/components/ExportPanel'
 import { LANGUAGE_OPTIONS, translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
+import { buildRealmLabel } from '@/engine/buildRealm'
+import { SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import {
   DEFAULT_ZOOM,
-  FALLBACK_TREE_VERSIONS,
-  loadTreeVersions,
   MAX_ZOOM,
   MIN_ZOOM,
   useTreeStore,
@@ -38,6 +39,7 @@ interface ToolbarProps {
   activeView: WorkspaceView
   onViewChange: (view: WorkspaceView) => void
   buildName: string
+  onBuildNameChange: (name: string) => void
   saveStatus: 'saved' | 'dirty' | 'saving' | 'error'
   onHome: () => void
   onImport: () => void
@@ -45,13 +47,15 @@ interface ToolbarProps {
 }
 
 const VIEW_ICONS = {
-  passive: Workflow,
   equipment: Swords,
+  passive: Workflow,
   skills: Sparkles,
   calculation: Calculator,
 }
 
-export function Toolbar({ activeView, onViewChange, buildName, saveStatus, onHome, onImport, onSave }: ToolbarProps) {
+const VIEW_ORDER: WorkspaceView[] = ['equipment', 'passive', 'skills', 'calculation']
+
+export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange, saveStatus, onHome, onImport, onSave }: ToolbarProps) {
   const { t, lang, setLanguage } = useTranslation()
   const zoom = useTreeStore((state) => state.zoom)
   const treeVersion = useTreeStore((state) => state.treeVersion)
@@ -66,6 +70,7 @@ export function Toolbar({ activeView, onViewChange, buildName, saveStatus, onHom
   const undoStack = useTreeStore((state) => state.undoStack)
   const redoStack = useTreeStore((state) => state.redoStack)
   const treeData = useTreeStore((state) => state.treeData)
+  const buildRealm = useTreeStore((state) => state.buildRealm)
   const setZoom = useTreeStore((state) => state.setZoom)
   const selectClass = useTreeStore((state) => state.selectClass)
   const selectAscendancy = useTreeStore((state) => state.selectAscendancy)
@@ -73,17 +78,11 @@ export function Toolbar({ activeView, onViewChange, buildName, saveStatus, onHom
   const setWeaponSetMode = useTreeStore((state) => state.setWeaponSetMode)
   const setSearchQuery = useTreeStore((state) => state.setSearchQuery)
   const performSearch = useTreeStore((state) => state.performSearch)
-  const setTreeVersion = useTreeStore((state) => state.setTreeVersion)
   const runCalculation = useTreeStore((state) => state.runCalculation)
   const undo = useTreeStore((state) => state.undo)
   const redo = useTreeStore((state) => state.redo)
 
-  const [versions, setVersions] = useState<string[]>(FALLBACK_TREE_VERSIONS)
   const [activeMenu, setActiveMenu] = useState<ToolbarMenu>(null)
-
-  useEffect(() => {
-    loadTreeVersions().then(setVersions).catch(() => setVersions(FALLBACK_TREE_VERSIONS))
-  }, [])
 
   useEffect(() => {
     const timer = window.setTimeout(() => performSearch(searchQuery), 180)
@@ -142,25 +141,35 @@ export function Toolbar({ activeView, onViewChange, buildName, saveStatus, onHom
   return (
     <header className="workbench-header">
       <div className="app-command-bar">
-        <div className="app-brand" aria-label="SuperPoE">
+        <div className="app-brand" aria-label="SuperPoE2">
           <span className="app-brand-mark"><i>S</i></span>
-          <span><strong>SuperPoE</strong><small>PoB2 {treeVersion.replace('_', '.')}</small></span>
+          <span><strong>SuperPoE2</strong><small>{SUPERPOE_VERSION_LABEL}</small></span>
         </div>
 
         <div className="current-build">
           <button className="icon-command compact back-command" onClick={onHome} title={lang === 'zh-rCN' ? '返回构筑中心' : 'Back to build center'} aria-label={lang === 'zh-rCN' ? '返回构筑中心' : 'Back to build center'}><ArrowLeft /></button>
           <span className="class-emblem">{className.slice(0, 1)}</span>
           <span className="current-build-copy">
-            <strong>{buildName}</strong>
+            <input
+              className="current-build-name"
+              value={buildName}
+              maxLength={80}
+              onChange={(event) => onBuildNameChange(event.target.value)}
+              onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+              aria-label={lang === 'zh-rCN' ? '构筑名称' : 'Build name'}
+              title={lang === 'zh-rCN' ? '修改构筑名称' : 'Rename build'}
+            />
             <small>{className}{ascendancyName ? ` · ${ascendancyName}` : ''}</small>
           </span>
+          <span className={`realm-tag ${buildRealm}`}>{buildRealmLabel(buildRealm, lang === 'zh-rCN')}</span>
           <span className={`save-state ${saveStatus}`}><i />{saveLabels[saveStatus]}</span>
         </div>
 
         <div className="command-actions">
-          <select className="compact-select" value={treeVersion} onChange={(event) => void setTreeVersion(event.target.value)} aria-label={t('toolbar.version')}>
-            {versions.map((version) => <option key={version} value={version}>{version.replace('_', '.')}</option>)}
-          </select>
+          <span className="version-indicator" title={lang === 'zh-rCN' ? '构筑版本已确定' : 'Build version is fixed'} aria-label={`${t('toolbar.version')} ${treeVersion.replace('_', '.')}`}>
+            <LockKeyhole />
+            <span>{treeVersion.replace('_', '.')}</span>
+          </span>
           <button className="icon-command" onClick={onImport} title={t('toolbar.importTitle')} aria-label={t('toolbar.importTitle')}><Upload /></button>
           <button className="icon-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')} aria-label={t('toolbar.exportTitle')}><Download /></button>
           <button className="primary-command" onClick={onSave}><Save />{lang === 'zh-rCN' ? '保存' : 'Save'}</button>
@@ -170,11 +179,11 @@ export function Toolbar({ activeView, onViewChange, buildName, saveStatus, onHom
 
       <div className="workspace-tabs-bar">
         <nav className="workspace-tabs" aria-label={lang === 'zh-rCN' ? '构筑编辑页面' : 'Build workspace'}>
-          {(Object.keys(VIEW_ICONS) as WorkspaceView[]).map((view) => {
+          {VIEW_ORDER.map((view) => {
             const Icon = VIEW_ICONS[view]
             const count = view === 'passive' ? allocatedNodes.size : null
             return (
-              <button key={view} className={activeView === view ? 'active' : ''} onClick={() => onViewChange(view)}>
+              <button key={view} className={activeView === view ? 'active' : ''} onClick={() => onViewChange(view)} aria-label={viewLabels[view]} title={viewLabels[view]}>
                 <Icon /> <span>{viewLabels[view]}</span>{count != null && <small>{count}</small>}
               </button>
             )

@@ -21,11 +21,13 @@ function parseItem(id: string, rawValue: unknown): EquipmentItem {
   const magicBase = rarity.toUpperCase() === 'MAGIC'
     ? lines[1]?.match(/^MAGIC\s+(.+?)\s+[a-f0-9]{8,}$/i)?.[1]
     : undefined
+  const isMetadataLine = (value: string | undefined) => !value || /^(?:Unique ID|Item Level|LevelReq|Quality|Sockets|Rune|Implicits):/i.test(value)
   const name = magicBase || lines[1] || 'Unknown item'
-  const baseType = magicBase || lines[2] || ''
+  const baseType = magicBase || (!isMetadataLine(lines[2]) ? lines[2] : name)
   const valueOf = (label: string) => lines.find((line) => line.startsWith(label))?.slice(label.length).trim()
   const detailStart = lines.findIndex((line) => /^Implicits:\s*\d+/i.test(line))
-  const socketCount = (valueOf('Sockets:')?.match(/\bS\b/g) || []).length
+  const socketValues = lines.filter((line) => line.startsWith('Sockets:')).map((line) => line.slice('Sockets:'.length).trim())
+  const socketCount = socketValues.reduce((count, value) => count + (value.match(/\b(?:S|J)\b/g) || []).length, 0)
   const runes = lines.filter((line) => line.startsWith('Rune:')).map((line) => line.slice('Rune:'.length).trim())
 
   return {
@@ -36,7 +38,7 @@ function parseItem(id: string, rawValue: unknown): EquipmentItem {
     itemLevel: valueOf('Item Level:'),
     levelReq: valueOf('LevelReq:'),
     quality: valueOf('Quality:'),
-    sockets: valueOf('Sockets:'),
+    sockets: socketValues.join(' ') || undefined,
     socketCount,
     runes,
     lines: detailStart >= 0 ? lines.slice(detailStart + 1) : lines.slice(3),

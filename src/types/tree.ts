@@ -300,6 +300,8 @@ export interface TreeData {
 }
 
 // ---- Saved Build (Phase 16.7) ----
+export type BuildRealm = 'cn' | 'global'
+
 export interface SavedBuild {
   id: string            // uuid
   name: string
@@ -310,6 +312,7 @@ export interface SavedBuild {
   selectedAscendancyId: string
   importedBuildCode?: string | null
   source?: 'local' | 'pob' | 'wegame' | 'json'
+  realm: BuildRealm
   weaponSetMode: 0 | 1 | 2
   nodeWeaponSets: Record<string, 1 | 2>
   nodeAttributeSelections: Record<string, 1 | 2 | 3>

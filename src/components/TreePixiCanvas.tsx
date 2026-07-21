@@ -22,6 +22,7 @@ import {
 } from '@/engine/passiveAllocation'
 import { getSpriteLoader } from '@/engine/spriteLoader'
 import { decodeBuildCode, type NodeJewels } from '@/engine/buildCode'
+import { loadItemIconIndex, resolveItemIconName, type ItemIconIndex } from '@/engine/itemIcons'
 import type { SpriteInfo } from '@/engine/spriteLoader'
 import {
   preloadPixiConnectors,
@@ -103,6 +104,12 @@ function jewelSpriteName(jewel: NodeJewels[string]): string {
   return jewel.rarity === 'UNIQUE' && jewel.name !== 'Grand Spectrum'
     ? jewel.name
     : jewel.baseType
+}
+
+function jewelSocketFrameName(allocated: boolean, available: boolean): string {
+  if (allocated) return 'JewelFrameAllocated'
+  if (available) return 'JewelFrameCanAllocate'
+  return 'JewelFrameUnallocated'
 }
 
 function assetHalfSize(
@@ -232,6 +239,7 @@ export function TreePixiCanvas() {
   const [textureRenderTick, setTextureRenderTick] = useState(0)
   const [resizeTick, setResizeTick] = useState(0)
   const [nodeRenderRevision, setNodeRenderRevision] = useState(0)
+  const [itemIconIndex, setItemIconIndex] = useState<ItemIconIndex | null>(null)
 
   const treeData = useTreeStore((s) => s.treeData)
   const treeVersion = useTreeStore((s) => s.treeVersion)
@@ -395,6 +403,10 @@ export function TreePixiCanvas() {
       preloadPixiOrbits(FALLBACK_VERSION),
     ])
   }, [treeData, treeVersion])
+
+  useEffect(() => {
+    void loadItemIconIndex().then(setItemIconIndex)
+  }, [])
 
   useEffect(() => {
     const app = appRef.current
@@ -646,6 +658,18 @@ export function TreePixiCanvas() {
             }
           }
 
+          if ((node.type === 'JewelSocket' || node.isJewelSocket) && !node.nodeOverlay) {
+            const jewelFrame = jewelSocketFrameName(isAllocated, isAvailable)
+            const tex = requestPixiTexture(`/assets/dds/${treeVersion}/backgrounds/${jewelFrame}.webp`, requestRender)
+            if (tex) {
+              const [frameW, frameH] = assetHalfSize(node.targetSize?.overlay, r * 1.2, r * 1.2, zoom)
+              const frame = new Sprite(tex)
+              configureSprite(frame, sx, sy, frameW * 2 / zoom, frameH * 2 / zoom)
+              nodeLayer.addChild(frame)
+              drewSprite = true
+            }
+          }
+
           const overlay = node.nodeOverlay || treeData.nodeOverlay?.[node.type]
           const stateKey = isAllocated ? 'alloc' : (isAvailable ? 'path' : 'unalloc')
           const frameName = overlay?.[stateKey]
@@ -686,6 +710,16 @@ export function TreePixiCanvas() {
         const point = nodeScreenCache.get(id)
         if (!node || !point || !isEffectivelyAllocated(id, allocatedNodes, implicitRoots)) continue
         const radius = (NODE_RADIUS[node.type] ?? 9) * 0.92
+        const itemIconUrl = resolveItemIconName(jewel.rarity === 'UNIQUE' ? jewel.name : jewel.baseType, itemIconIndex)
+          || resolveItemIconName(jewel.baseType, itemIconIndex)
+        const itemTexture = itemIconUrl ? requestPixiTexture(itemIconUrl, requestRender) : null
+        if (itemTexture) {
+          const [width, height] = assetHalfSize(node.targetSize?.overlay, radius, radius, zoom)
+          const sprite = new Sprite(itemTexture)
+          configureSprite(sprite, point[0], point[1], width * 2 / zoom, height * 2 / zoom)
+          jewelLayer.addChild(sprite)
+          continue
+        }
         const spriteInfo = spriteLoader.getByName(jewelSpriteName(jewel))
         const spriteTexture = spriteInfo ? requestSpriteTexture(spriteInfo, requestRender) : null
         if (spriteTexture) {
@@ -736,7 +770,7 @@ export function TreePixiCanvas() {
     void spriteLoader.init().then(() => {
       if (token === renderTokenRef.current) render()
     })
-  }, [pixiReady, textureRenderTick, resizeTick, treeData, treeVersion, nodeWeaponSets, nodeAttributeSelections, passiveJewels, selectedClassId, selectedAscendancyId, allocatedNodes, availableNodes, requestRender])
+  }, [pixiReady, textureRenderTick, resizeTick, treeData, treeVersion, nodeWeaponSets, nodeAttributeSelections, passiveJewels, itemIconIndex, selectedClassId, selectedAscendancyId, allocatedNodes, availableNodes, requestRender])
 
   useEffect(() => {
     const connectorLayer = previewConnectorLayerRef.current

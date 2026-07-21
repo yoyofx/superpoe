@@ -1,4 +1,4 @@
-# PoB2 Web Tree
+# SuperPoE2
 
 产品功能、当前完成度和后续里程碑见 [`docs/ROADMAP.md`](./docs/ROADMAP.md)。工程任务历史见 [`docs/TASKS.md`](./docs/TASKS.md)。
 
@@ -30,7 +30,7 @@ npm run dist:electron
 
 当前实现保留 React、Zustand、tooltip、导入导出和资源生成管线，只替换原来的 Canvas 2D 绘制层。旧 `TreeCanvas` 组件暂时保留为 fallback/对照实现，默认入口使用 `TreePixiCanvas`。
 
-PoB2 Web Tree 是一个基于 React + PixiJS/WebGL 2D 的 PoE2 天赋树查看/编辑原型。项目使用 Path of Building 2 的天赋树数据，生成 Web 端可直接使用的数据和贴图资源，并提供天赋盘渲染、缩放/平移、节点交互、构筑导入导出和计算入口。
+SuperPoE2 是一个基于 React + PixiJS/WebGL 2D 的 PoE2 离线构筑规划工具。项目使用 Path of Building 2 的天赋树数据，生成 Web 端可直接使用的数据和贴图资源，并提供天赋盘渲染、缩放/平移、节点交互、构筑导入导出和计算入口。
 
 导入/导出 PoB2 build code 已在前端完成，不需要 Fastify 后端。计算正在迁移到前端 Web Worker + PoB Lua bundle：`public/pob-lua/` 是从 `upstreams/PathOfBuilding-PoE2/src` 生成的浏览器只读 Lua 文件包。当前 worker 使用 `wasmoon` Lua 5.4 WASM 加一层 LuaJIT/PoB 兼容补丁运行；这是因为当前 PoB2 上游 Lua 已使用 `goto`，不能直接跑在 PUC Lua 5.1 WASM 上。需要和旧 LuaJIT 后端对照调试时，可以显式设置 `VITE_CALC_BACKEND_FALLBACK=true`。如果后续要求计算结果和桌面 PoB 完全逐位一致，仍建议继续推进 LuaJIT WASM 或专门的 PoB Lua 预处理方案。
 

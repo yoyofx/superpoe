@@ -1,7 +1,7 @@
 {
-  "name": "pob2-web-tree",
+  "name": "superpoe2",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.5.0",
   "type": "module",
   "main": "dist-electron/electron/main.js",
   "scripts": {
@@ -20,17 +20,19 @@
     "pipeline:tree": "python scripts/gen_tree_data.py 0_4",
     "pipeline:orbit": "python scripts/copy_orbit_png.py",
     "pipeline:ui": "python scripts/copy_ui_assets.py",
+    "pipeline:workbench-ui": "python scripts/sync_wegame_ui_assets.py",
     "pipeline:connectors": "python scripts/dds_to_webp.py --connectors-only",
     "pipeline:dds": "python scripts/dds_to_webp.py",
     "pipeline:check": "python scripts/check_pipeline_deps.py",
     "pipeline:lua": "python scripts/build_pob_lua_bundle.py",
     "pipeline:translations": "python scripts/sync_poecharm_translations.py",
     "pipeline:items": "python scripts/sync_poe2db_item_icons.py",
+    "pipeline:rune-details": "python scripts/build_rune_details.py",
     "pipeline:all": "node scripts/run_pipeline_all.mjs"
   },
   "build": {
     "appId": "com.yoyofx.superpoe",
-    "productName": "SuperPoE",
+    "productName": "SuperPoE2",
     "files": [
       "dist/**",
       "dist-electron/**",

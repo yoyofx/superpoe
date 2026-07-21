@@ -7,8 +7,11 @@ const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
 
+app.setName('SuperPoE2')
+
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
+    title: 'SuperPoE2',
     width: 1440,
     height: 960,
     minWidth: 1024,

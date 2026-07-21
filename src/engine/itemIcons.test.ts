@@ -27,6 +27,20 @@ describe('item icon resolver', () => {
     expect(resolveItemIcon(item({ name: 'Dread Track', baseType: 'Rough Greaves' }), index)).toBe('/assets/items/RoughGreaves.webp')
   })
 
+  it('finds a flask base inside an affixed magic item name', () => {
+    const flaskIndex = {
+      lookup: {
+        ultimatelifeflask: '/assets/items/UltimateLifeFlask.webp',
+        ultimatemanaflask: '/assets/items/UltimateManaFlask.webp',
+      },
+    }
+    expect(resolveItemIcon(item({
+      rarity: 'MAGIC',
+      name: 'Sapping Ultimate Life Flask of the Brewer',
+      baseType: 'Sapping Ultimate Life Flask of the Brewer',
+    }), flaskIndex)).toBe('/assets/items/UltimateLifeFlask.webp')
+  })
+
   it('keeps every alias when several PoE2DB catalogues share an icon', () => {
     const generatedIndex = JSON.parse(readFileSync('public/data/item-icons.json', 'utf8'))
     const bases = ['Drakeskin Boots', 'Soaring Spear', 'Sinister Quarterstaff']

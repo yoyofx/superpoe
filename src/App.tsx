@@ -6,7 +6,6 @@ import { Toolbar } from '@/components/Toolbar'
 import type { WorkspaceView } from '@/components/Toolbar'
 import { NodeTooltip } from '@/components/NodeTooltip'
 import { StatTable } from '@/components/StatTable'
-import { Sidebar } from '@/components/Sidebar'
 import { useTranslation } from '@/i18n/useTranslation'
 import { EquipmentPanel } from '@/components/EquipmentPanel'
 import { writePersistedImportedBuild } from '@/engine/buildPersistence'
@@ -22,7 +21,7 @@ export default function App() {
   const hashLoadedRef = useRef(false)
   const cleanSignatureRef = useRef('')
   const [screen, setScreen] = useState<'center' | 'editor'>('center')
-  const [activeView, setActiveView] = useState<WorkspaceView>('passive')
+  const [activeView, setActiveView] = useState<WorkspaceView>('equipment')
   const [buildName, setBuildName] = useState(lang === 'zh-rCN' ? '未命名构筑' : 'Untitled build')
   const [activeBuildId, setActiveBuildId] = useState<string | null>(null)
   const [buildSource, setBuildSource] = useState<SavedBuild['source']>('local')
@@ -49,6 +48,8 @@ export default function App() {
   const selectAscendancy = useTreeStore((s) => s.selectAscendancy)
   const setTreeVersion = useTreeStore((s) => s.setTreeVersion)
   const importBuildJSON = useTreeStore((s) => s.importBuildJSON)
+  const buildRealm = useTreeStore((s) => s.buildRealm)
+  const setBuildRealm = useTreeStore((s) => s.setBuildRealm)
 
   const buildSignature = useMemo(() => JSON.stringify({
     nodes: [...allocatedNodes].sort(),
@@ -57,7 +58,8 @@ export default function App() {
     treeVersion,
     selectedClassId,
     selectedAscendancyId,
-  }), [allocatedNodes, nodeWeaponSets, nodeAttributeSelections, treeVersion, selectedClassId, selectedAscendancyId])
+    buildRealm,
+  }), [allocatedNodes, nodeWeaponSets, nodeAttributeSelections, treeVersion, selectedClassId, selectedAscendancyId, buildRealm])
 
   useEffect(() => {
     loadTreeData()
@@ -134,6 +136,7 @@ export default function App() {
       treeVersion: state.treeVersion,
       selectedClassId: state.selectedClassId,
       selectedAscendancyId: state.selectedAscendancyId,
+      buildRealm: state.buildRealm,
     })
     setSaveStatus('saved')
   }, [])
@@ -142,7 +145,7 @@ export default function App() {
     setBuildName(name)
     setActiveBuildId(id)
     setBuildSource(source)
-    setActiveView('passive')
+    setActiveView('equipment')
     setScreen('editor')
     window.setTimeout(markClean, 0)
   }, [markClean])
@@ -158,9 +161,10 @@ export default function App() {
     if (input.ascendancyId) selectAscendancy(input.ascendancyId)
     else useTreeStore.setState({ selectedAscendancyId: '' })
     clearAllocatedNodes()
+    setBuildRealm(input.realm)
     setNewBuildOpen(false)
     enterEditor(input.name, null, 'local')
-  }, [clearAllocatedNodes, enterEditor, selectAscendancy, selectClass, setTreeVersion])
+  }, [clearAllocatedNodes, enterEditor, selectAscendancy, selectClass, setBuildRealm, setTreeVersion])
 
   const handleImportConfirmation = useCallback(async (confirmation: ImportConfirmation) => {
     if (confirmation.kind === 'json') {
@@ -170,15 +174,16 @@ export default function App() {
       if (!code) throw new Error('Missing converted PoB code')
       await importPobBuildCode(code)
     }
+    setBuildRealm(confirmation.realm)
     if (confirmation.mode === 'new' || screen === 'center') {
       setBuildName(confirmation.suggestedName)
       setActiveBuildId(null)
     }
     setBuildSource(confirmation.kind)
-    setActiveView('passive')
+    setActiveView('equipment')
     setScreen('editor')
     window.setTimeout(markClean, 0)
-  }, [importBuildJSON, markClean, screen])
+  }, [importBuildJSON, markClean, screen, setBuildRealm])
 
   const handleSave = useCallback(() => {
     setSaveStatus('saving')
@@ -192,6 +197,11 @@ export default function App() {
       setSaveNotice({ type: 'error', message: lang === 'zh-rCN' ? '保存失败，请检查本地存储空间' : 'Save failed. Check local storage availability.' })
     }
   }, [activeBuildId, buildName, buildSource, lang, markClean, saveBuild])
+
+  const handleBuildNameChange = useCallback((name: string) => {
+    setBuildName(name)
+    setSaveStatus('dirty')
+  }, [])
 
   const requestHome = useCallback(() => {
     if (saveStatus === 'dirty') setLeaveConfirmOpen(true)
@@ -219,13 +229,12 @@ export default function App() {
   return (
     <div className="superpoe-app">
       {screen === 'center' ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} /> : <>
-      <Toolbar activeView={activeView} onViewChange={setActiveView} buildName={buildName} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} />
+      <Toolbar activeView={activeView} onViewChange={setActiveView} buildName={buildName} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} />
       <main className="workspace-view">
         {activeView === 'passive' && (
           <section className="passive-workspace">
             <TreePixiCanvas />
             <NodeTooltip />
-            <Sidebar />
           </section>
         )}
         {activeView === 'equipment' && <EquipmentPanel />}
