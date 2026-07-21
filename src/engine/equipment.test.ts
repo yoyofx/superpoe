@@ -22,6 +22,25 @@ describe('equipment XML parser', () => {
     expect(parseEquipmentXml('<PathOfBuilding2><Tree/></PathOfBuilding2>')).toBeNull()
   })
 
+  it('keeps equipment sockets and their rune order separate from skill groups', () => {
+    const result = parseEquipmentXml(`<PathOfBuilding2><Items>
+      <Item id="9">Rarity: RARE\nRune Vessel\nVile Robe\nSockets: S S\nRune: Greater Iron Rune\nRune: Soul Core of Tacati\nImplicits: 0</Item>
+    </Items></PathOfBuilding2>`)
+
+    expect(result?.itemsById['9']).toMatchObject({
+      socketCount: 2,
+      runes: ['Greater Iron Rune', 'Soul Core of Tacati'],
+    })
+  })
+
+  it('uses the actual base type for magic items emitted by the game export', () => {
+    const result = parseEquipmentXml(`<PathOfBuilding2><Items>
+      <Item id="8">Rarity: MAGIC\nMAGIC Ultimate Mana Flask 764afbd0\nUnique ID: test\nItem Level: 66</Item>
+    </Items></PathOfBuilding2>`)
+
+    expect(result?.itemsById['8']).toMatchObject({ name: 'Ultimate Mana Flask', baseType: 'Ultimate Mana Flask' })
+  })
+
   it('defines equipment UI strings in every supported language', () => {
     const languages: Language[] = ['en', 'zh-rCN', 'zh-rTW', 'ko-KR']
     const requiredKeys = [

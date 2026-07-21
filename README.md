@@ -180,6 +180,20 @@ npm run pipeline:translations
 
 `upstreams/PoeCharm2/` 已被 Git 忽略，运行时只提交同步生成的 `public/data/Translate/` 和 `translation-files.json`。同步脚本会完整镜像 PoeCharm2 的 `Data/Translate/zh-rCN`、`zh-rTW`、`ko-KR`，并生成固定顺序的 manifest；天赋专用 CSV 优先于通用或历史 CSV，重复英文词条不会因网络请求完成顺序而随机覆盖。
 
+## 物品图标上游
+
+纯 PoB Code 不带装备图标 URL。`npm run pipeline:items` 会从 [PoE2DB](https://poe2db.tw/us/Items) 的公开物品目录下载装备、珠宝、药剂和咒符图标到 `public/assets/items/poe2db/`，并生成 `public/data/item-icons.json`。前端应读取本地索引和本地图片，不在运行时热链 PoE2DB。WeGame 链接导入仍优先使用其返回的精确官方图标 URL；无 URL 的纯 PoB Code 则按传奇名或底材名查询该离线索引。
+
+装备面板会优先使用导入数据携带的精确图标 URL；没有该 URL 时，传奇装备按名称匹配，普通、魔法和稀有装备按底材匹配本地索引。
+
+```powershell
+npm run pipeline:items
+```
+
+该命令会以 `upstreams/PathOfBuilding-PoE2/src/Data/Bases/`、`Data/Uniques/`、`Data/ModRunes.lua` 的完整底材、传奇、符文/灵魂核心清单校验分类页结果，并自动补抓缺失物品的 PoE2DB 详情页图标。仅诊断分类页时可传 `-- --skip-pob-bases --skip-pob-uniques --skip-pob-runes`，但该模式不保证覆盖完整。
+
+PoB 中的 `Energy Blade` 是隐藏的技能生成武器，PoE2DB 没有独立物品图；三种 `Shrine Sceptre (Purity ...)` 也只是同一底材的技能变体。索引会分别回退到对应的一手剑/双手剑和 `Shrine Sceptre` 图标。
+
 PoeCharm2 更新翻译后，执行：
 
 ```powershell

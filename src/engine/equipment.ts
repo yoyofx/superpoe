@@ -18,10 +18,15 @@ function parseItem(id: string, rawValue: unknown): EquipmentItem {
     return result
   }, [])
   const rarity = lines[0]?.replace(/^Rarity:\s*/i, '') || 'NORMAL'
-  const name = lines[1] || 'Unknown item'
-  const baseType = lines[2] || ''
+  const magicBase = rarity.toUpperCase() === 'MAGIC'
+    ? lines[1]?.match(/^MAGIC\s+(.+?)\s+[a-f0-9]{8,}$/i)?.[1]
+    : undefined
+  const name = magicBase || lines[1] || 'Unknown item'
+  const baseType = magicBase || lines[2] || ''
   const valueOf = (label: string) => lines.find((line) => line.startsWith(label))?.slice(label.length).trim()
   const detailStart = lines.findIndex((line) => /^Implicits:\s*\d+/i.test(line))
+  const socketCount = (valueOf('Sockets:')?.match(/\bS\b/g) || []).length
+  const runes = lines.filter((line) => line.startsWith('Rune:')).map((line) => line.slice('Rune:'.length).trim())
 
   return {
     id,
@@ -32,6 +37,8 @@ function parseItem(id: string, rawValue: unknown): EquipmentItem {
     levelReq: valueOf('LevelReq:'),
     quality: valueOf('Quality:'),
     sockets: valueOf('Sockets:'),
+    socketCount,
+    runes,
     lines: detailStart >= 0 ? lines.slice(detailStart + 1) : lines.slice(3),
     raw,
   }

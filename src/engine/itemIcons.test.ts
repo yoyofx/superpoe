@@ -1,0 +1,40 @@
+import { existsSync, readFileSync } from 'node:fs'
+import { describe, expect, it } from 'vitest'
+import { resolveItemIcon } from '@/engine/itemIcons'
+import type { EquipmentItem } from '@/types/equipment'
+
+const index = {
+  lookup: {
+    legionstride: '/assets/items/Legionstride.webp',
+    roughgreaves: '/assets/items/RoughGreaves.webp',
+  },
+}
+
+function item(overrides: Partial<EquipmentItem>): EquipmentItem {
+  return { id: '1', rarity: 'RARE', name: 'Rare Item', baseType: 'Rough Greaves', socketCount: 0, runes: [], lines: [], raw: '', ...overrides }
+}
+
+describe('item icon resolver', () => {
+  it('uses a supplied exact image before the local fallback index', () => {
+    expect(resolveItemIcon(item({ imageUrl: 'https://cdn.example/item.png' }), index)).toBe('https://cdn.example/item.png')
+  })
+
+  it('uses a unique item name before its base type', () => {
+    expect(resolveItemIcon(item({ rarity: 'UNIQUE', name: 'Legionstride' }), index)).toBe('/assets/items/Legionstride.webp')
+  })
+
+  it('uses the base type for normal and rare equipment', () => {
+    expect(resolveItemIcon(item({ name: 'Dread Track', baseType: 'Rough Greaves' }), index)).toBe('/assets/items/RoughGreaves.webp')
+  })
+
+  it('keeps every alias when several PoE2DB catalogues share an icon', () => {
+    const generatedIndex = JSON.parse(readFileSync('public/data/item-icons.json', 'utf8'))
+    const bases = ['Drakeskin Boots', 'Soaring Spear', 'Sinister Quarterstaff']
+
+    for (const baseType of bases) {
+      const path = resolveItemIcon(item({ name: 'Rare Item', baseType }), generatedIndex)
+      expect(path, baseType).toMatch(/^\/assets\/items\/poe2db\//)
+      expect(existsSync(`public${path}`), baseType).toBe(true)
+    }
+  })
+})

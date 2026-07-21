@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { decodeCodeToXml } from '@/engine/buildCode'
 import { parseEquipmentXml } from '@/engine/equipment'
 import { useTreeStore } from '@/store/treeStore'
 import type { EquipmentItem } from '@/types/equipment'
 import { useTranslation } from '@/i18n/useTranslation'
 import { translateGameText } from '@/i18n/translationLoader'
+import { loadItemIconIndex, resolveItemIcon, resolveItemIconName, type ItemIconIndex } from '@/engine/itemIcons'
 
 const SLOT_KEYS: Record<string, string> = {
   'Weapon 1': 'equipment.slot.weapon1', 'Weapon 2': 'equipment.slot.weapon2',
@@ -42,13 +43,43 @@ const RARITY_STYLE: Record<string, string> = {
   UNIQUE: 'border-orange-600/90 text-orange-400',
 }
 
-function ItemDetail({ item }: { item: EquipmentItem }) {
+function SocketedRunes({ item, index, compact = false }: { item: EquipmentItem; index: ItemIconIndex | null; compact?: boolean }) {
+  const { lang } = useTranslation()
+  useTreeStore((state) => state.translationRevision)
+  if (!item.socketCount) return null
+  return (
+    <div className={compact ? 'absolute left-1/2 top-1/2 grid max-h-[calc(100%-18px)] -translate-x-1/2 -translate-y-1/2 grid-cols-2 gap-1' : 'flex flex-wrap justify-center gap-1.5 py-3'}>
+      {Array.from({ length: item.socketCount }, (_, socketIndex) => {
+        const rune = item.runes[socketIndex] || ''
+        const imageUrl = rune ? resolveItemIconName(rune, index) : undefined
+        const label = rune ? translateGameText(rune, lang) : ''
+        const centerLastSocket = compact && item.socketCount % 2 === 1 && socketIndex === item.socketCount - 1
+        return (
+          <span
+            key={`${rune}-${socketIndex}`}
+            className={compact
+              ? centerLastSocket ? 'col-span-2 justify-self-center' : ''
+              : 'flex items-center gap-1.5 text-xs text-[#c8c0ae]'}
+          >
+            <span title={label || 'Empty socket'} className={`${compact ? 'h-[22px] w-[22px]' : 'h-9 w-9'} flex shrink-0 items-center justify-center overflow-hidden rounded-full border border-[#a18b55] bg-[#16130d] shadow-[0_0_0_1px_rgba(0,0,0,.75)]`}>
+              {imageUrl ? <img src={imageUrl} alt={label} className="h-full w-full object-contain" /> : <span className={compact ? 'text-[9px] text-[#d2b879]' : 'text-[11px] text-[#d2b879]'}>{rune ? 'R' : ''}</span>}
+            </span>
+            {!compact && <span>{label || 'Empty'}</span>}
+          </span>
+        )
+      })}
+    </div>
+  )
+}
+
+function ItemDetail({ item, imageUrl, itemIconIndex }: { item: EquipmentItem; imageUrl?: string; itemIconIndex: ItemIconIndex | null }) {
   const { t, lang } = useTranslation()
   useTreeStore((state) => state.translationRevision)
   const translateItemText = (value: string) => translateGameText(value.replace(/\{[^}]+\}/g, ''), lang)
   return (
     <section className="min-h-0 flex-1 overflow-y-auto border-l border-[#403a31] bg-[#11100e] p-5">
       <div className={`border-b pb-3 text-center ${RARITY_STYLE[item.rarity] || RARITY_STYLE.NORMAL}`}>
+        {imageUrl && <img src={imageUrl} alt="" className="mx-auto mb-2 h-20 w-20 object-contain" />}
         <h3 className="font-serif text-lg font-semibold">{translateItemText(item.name)}</h3>
         <p className="mt-0.5 text-sm opacity-80">{translateItemText(item.baseType)}</p>
       </div>
@@ -58,6 +89,7 @@ function ItemDetail({ item }: { item: EquipmentItem }) {
         {item.quality && <span>{t('equipment.quality', { value: item.quality })}</span>}
         {item.sockets && <span>{t('equipment.sockets', { value: item.sockets })}</span>}
       </div>
+      <SocketedRunes item={item} index={itemIconIndex} />
       <div className="space-y-1.5 py-4 text-center text-xs leading-relaxed text-[#b8b3a8]">
         {item.lines.map((line, index) => (
           <p key={`${line}-${index}`} className={line.includes('{') ? 'text-blue-300/90' : ''}>
@@ -72,12 +104,16 @@ function ItemDetail({ item }: { item: EquipmentItem }) {
 function PaperDollSlot({
   slotName,
   item,
+  imageUrl,
+  itemIconIndex,
   className,
   selected,
   onSelect,
 }: {
   slotName: string
   item?: EquipmentItem
+  imageUrl?: string
+  itemIconIndex: ItemIconIndex | null
   className: string
   selected: boolean
   onSelect: () => void
@@ -97,13 +133,14 @@ function PaperDollSlot({
           : 'border-[#303944] text-gray-600'
       }`}
     >
-      {item?.imageUrl ? (
-        <img src={item.imageUrl} alt={itemName} className="absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain" />
+      {imageUrl ? (
+        <img src={imageUrl} alt={itemName} className="absolute inset-1 h-[calc(100%-8px)] w-[calc(100%-8px)] object-contain" />
       ) : (
         <span className="absolute inset-2 flex items-center justify-center text-center text-[10px] leading-tight">
           {itemName || t('equipment.empty')}
         </span>
       )}
+      {item && <SocketedRunes item={item} index={itemIconIndex} compact />}
       <span className="absolute inset-x-0 bottom-0 bg-black/65 px-1 py-0.5 text-[8px] text-gray-400">
         {slotLabel}
       </span>
@@ -114,6 +151,14 @@ function PaperDollSlot({
 export function EquipmentPanel() {
   const { t } = useTranslation()
   const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
+  const [itemIconIndex, setItemIconIndex] = useState<Awaited<ReturnType<typeof loadItemIconIndex>>>(null)
+  useEffect(() => {
+    let mounted = true
+    loadItemIconIndex().then((index) => {
+      if (mounted) setItemIconIndex(index)
+    })
+    return () => { mounted = false }
+  }, [])
   const equipment = useMemo(() => {
     if (!importedBuildCode) return null
     try { return parseEquipmentXml(decodeCodeToXml(importedBuildCode)) } catch { return null }
@@ -124,6 +169,7 @@ export function EquipmentPanel() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [weaponSet, setWeaponSet] = useState<1 | 2>(activeSet?.useSecondWeaponSet ? 2 : 1)
   const selected = (selectedId && equipment?.itemsById[selectedId]) || firstItem
+  const selectedImageUrl = selected ? resolveItemIcon(selected, itemIconIndex) : undefined
   const setTitle = activeSet?.title?.match(/^Set (\d+)$/i)
     ? t('equipment.defaultSet', { number: activeSet.title.match(/\d+/)?.[0] || '1' })
     : activeSet?.title || t('equipment.currentBuild')
@@ -170,12 +216,13 @@ export function EquipmentPanel() {
             <div className="grid h-[454px] grid-cols-[repeat(5,76px)] grid-rows-[repeat(7,58px)] justify-center gap-1.5">
               {PAPER_DOLL_SLOTS.map((slot) => {
                 const item = itemForSlot(slot.name)
+                const imageUrl = item ? resolveItemIcon(item, itemIconIndex) : undefined
                 return <PaperDollSlot key={slot.name} slotName={slot.name} item={item} className={slot.className}
-                  selected={item?.id === selected?.id} onSelect={() => item && setSelectedId(item.id)} />
+                  imageUrl={imageUrl} itemIconIndex={itemIconIndex} selected={item?.id === selected?.id} onSelect={() => item && setSelectedId(item.id)} />
               })}
             </div>
           </div>
-          {selected && <ItemDetail item={selected} />}
+          {selected && <ItemDetail item={selected} imageUrl={selectedImageUrl} itemIconIndex={itemIconIndex} />}
         </div>
       )}
     </div>

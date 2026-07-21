@@ -25,6 +25,7 @@
     "pipeline:check": "python scripts/check_pipeline_deps.py",
     "pipeline:lua": "python scripts/build_pob_lua_bundle.py",
     "pipeline:translations": "python scripts/sync_poecharm_translations.py",
+    "pipeline:items": "python scripts/sync_poe2db_item_icons.py",
     "pipeline:all": "node scripts/run_pipeline_all.mjs"
   },
   "build": {

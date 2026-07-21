@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SuperPoE 构筑编辑器概念设计</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      font-family: "Microsoft YaHei", "Noto Sans SC", sans-serif;
+      --ink: #0b0d0d;
+      --panel: rgba(17, 18, 17, 0.94);
+      --panel-soft: rgba(25, 25, 22, 0.9);
+      --line: #514b3c;
+      --line-bright: #8a7a58;
+      --gold: #c9ae70;
+      --gold-soft: #92805c;
+      --text: #ddd5c4;
+      --muted: #938d80;
+      --green: #66bd8b;
+      --red: #d25c55;
+      --blue: #5e91be;
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-width: 1180px; min-height: 760px; background: #080b0d; color: var(--text); }
+    button, input, select { font: inherit; }
+    button { color: inherit; }
+
+    .app {
+      min-height: 100vh;
+      position: relative;
+      overflow: hidden;
+      background:
+        linear-gradient(rgba(5, 8, 10, 0.3), rgba(5, 8, 10, 0.78)),
+        url("references/wegame-poe2/assets/page-bg-21pjpjtV.jpg") center top / cover fixed;
+    }
+
+    .app::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      box-shadow: inset 0 0 140px 36px #030505;
+    }
+
+    .topbar {
+      height: 58px;
+      display: grid;
+      grid-template-columns: 230px minmax(650px, 1fr) auto;
+      align-items: stretch;
+      border-bottom: 1px solid #5a503b;
+      background: rgba(9, 11, 11, 0.96);
+      box-shadow: 0 10px 30px rgba(0,0,0,.45);
+      position: relative;
+      z-index: 5;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 20px;
+      border-right: 1px solid #39362d;
+    }
+
+    .brand-mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border: 1px solid #9b8453;
+      color: #ddc78d;
+      background: #171814;
+      transform: rotate(45deg);
+      box-shadow: inset 0 0 0 3px #0d0f0d;
+    }
+
+    .brand-mark span { transform: rotate(-45deg); font-family: Georgia, serif; font-size: 20px; }
+    .brand strong { color: #e1d5b7; font-family: Georgia, "Microsoft YaHei", serif; font-size: 20px; letter-spacing: 0; }
+    .brand small { color: #716c60; display: block; margin-top: 2px; }
+
+    .tabs { display: flex; align-items: stretch; padding-left: 18px; }
+    .tab {
+      min-width: 112px;
+      border: 0;
+      border-left: 1px solid transparent;
+      border-right: 1px solid transparent;
+      background: transparent;
+      color: #928c7e;
+      cursor: pointer;
+      position: relative;
+    }
+    .tab:hover { color: #d9cfb8; background: rgba(255,255,255,.025); }
+    .tab.active { color: #e0c98e; border-color: #4c4534; background: #151612; }
+    .tab.active::after { content: ""; position: absolute; left: 20px; right: 20px; bottom: 0; height: 2px; background: #b89a5f; }
+
+    .top-actions { display: flex; align-items: center; gap: 8px; padding: 0 16px; }
+    .icon-button, .primary-button, .select-like {
+      height: 34px;
+      border: 1px solid #575142;
+      background: #171916;
+      color: #bcb4a3;
+      cursor: pointer;
+    }
+    .icon-button { width: 36px; font-size: 17px; }
+    .primary-button { padding: 0 18px; border-color: #887346; color: #dfc986; background: #242116; }
+
+    .workspace {
+      position: relative;
+      z-index: 1;
+      height: calc(100vh - 58px);
+      min-height: 702px;
+      display: grid;
+      grid-template-columns: 250px minmax(660px, 1fr) 370px;
+      gap: 0;
+      max-width: 1680px;
+      margin: 0 auto;
+      border-left: 1px solid rgba(89,79,57,.75);
+      border-right: 1px solid rgba(89,79,57,.75);
+      background: rgba(7,9,9,.72);
+    }
+
+    .sidebar {
+      background: rgba(12,14,13,.96);
+      border-right: 1px solid #4a4435;
+      padding: 18px 16px;
+      overflow: hidden;
+    }
+
+    .build-heading { padding: 4px 4px 15px; border-bottom: 1px solid #38352d; }
+    .eyebrow { color: #756f62; font-size: 12px; margin-bottom: 6px; }
+    .build-heading h1 { margin: 0; font: 500 21px Georgia, "Microsoft YaHei", serif; color: #decda4; }
+    .build-heading p { margin: 7px 0 0; color: #817c70; font-size: 12px; }
+
+    .character {
+      display: grid;
+      grid-template-columns: 58px 1fr;
+      gap: 12px;
+      padding: 18px 4px;
+      border-bottom: 1px solid #38352d;
+    }
+    .portrait {
+      width: 58px;
+      height: 58px;
+      display: grid;
+      place-items: center;
+      color: #bba66f;
+      font: 25px Georgia, serif;
+      background: url("references/wegame-poe2/assets/avatar-bg-DBkVikWt.png") center / contain no-repeat;
+    }
+    .character strong { display: block; color: #d0c5ae; margin-top: 5px; }
+    .character span { color: #827c70; font-size: 12px; }
+
+    .section-title {
+      color: #a59672;
+      font: 500 13px Georgia, "Microsoft YaHei", serif;
+      margin: 20px 0 10px;
+      padding-bottom: 8px;
+      background: url("references/wegame-poe2/assets/profile-line-DRLu6cYR.png") left bottom / 100% 6px no-repeat;
+    }
+
+    .build-list { display: grid; gap: 5px; }
+    .build-row {
+      display: grid;
+      grid-template-columns: 24px 1fr auto;
+      align-items: center;
+      min-height: 36px;
+      padding: 0 8px;
+      color: #8f897d;
+      border: 1px solid transparent;
+    }
+    .build-row.active { border-color: #554b35; color: #d9cfb6; background: rgba(159,130,72,.09); }
+    .build-row b { color: #b39b65; font-weight: 500; }
+    .build-row small { color: #69655d; }
+
+    .summary {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      border-top: 1px solid #39362e;
+      border-left: 1px solid #39362e;
+    }
+    .summary div { padding: 11px 9px; border-right: 1px solid #39362e; border-bottom: 1px solid #39362e; }
+    .summary span { display: block; color: #706b61; font-size: 11px; }
+    .summary strong { display: block; margin-top: 3px; font: 500 17px Georgia, serif; color: #c8b783; }
+
+    .stage { min-width: 0; display: grid; grid-template-rows: 52px 1fr; background: rgba(7,8,8,.58); }
+    .stage-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      border-bottom: 1px solid #3e392e;
+      background: rgba(17,18,16,.92);
+    }
+    .weapon-switch { display: flex; align-items: center; gap: 6px; }
+    .weapon-switch span { color: #777165; font-size: 12px; margin-right: 4px; }
+    .segmented button {
+      height: 30px;
+      min-width: 40px;
+      border: 1px solid #4d483b;
+      background: #111310;
+      color: #777267;
+      cursor: pointer;
+    }
+    .segmented button + button { border-left: 0; }
+    .segmented button.active { color: #d5c088; background: #282318; }
+    .stage-tools { display: flex; gap: 8px; }
+
+    .paper-doll-wrap {
+      min-height: 0;
+      position: relative;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+      background: radial-gradient(circle at center, rgba(94,82,55,.13), transparent 58%);
+    }
+
+    .paper-doll {
+      position: relative;
+      width: min(96%, 860px);
+      aspect-ratio: 1548 / 1160;
+      background: url("references/wegame-poe2/assets/equip-bg-D8S81SLb.png") center / contain no-repeat;
+      filter: brightness(1.05) contrast(1.03);
+    }
+
+    .item { position: absolute; display: grid; place-items: center; padding: 0; border: 0; background: transparent; cursor: pointer; }
+    .item img { max-width: 84%; max-height: 84%; object-fit: contain; filter: drop-shadow(0 3px 4px #000); transition: transform .15s ease, filter .15s ease; }
+    .item:hover img, .item.selected img { transform: scale(1.04); filter: drop-shadow(0 0 7px rgba(210,177,94,.7)); }
+    .item.selected::after { content: ""; position: absolute; inset: 4px; border: 1px solid rgba(210,177,94,.78); box-shadow: inset 0 0 12px rgba(210,177,94,.15); }
+    .socket-strip { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); display: flex; gap: 4px; }
+    .socket { width: 20px; height: 20px; border-radius: 50%; border: 2px solid #8b7550; background: #161714; box-shadow: 0 1px 4px #000, inset 0 0 5px #050606; }
+    .socket.red { background: radial-gradient(circle, #b84839 0 32%, #381714 36% 58%, #0b0c0b 62%); }
+    .socket.green { background: radial-gradient(circle, #4da66a 0 32%, #183822 36% 58%, #0b0c0b 62%); }
+
+    .weapon-left { left: 11.5%; top: 11%; width: 17%; height: 36%; }
+    .weapon-right { right: 10.4%; top: 11%; width: 17%; height: 36%; }
+    .helmet { left: 42.7%; top: 8%; width: 15.5%; height: 20%; }
+    .amulet { left: 31%; top: 36%; width: 8%; height: 11%; }
+    .ring-one { right: 29.6%; top: 26%; width: 8.3%; height: 11%; }
+    .ring-two { right: 29.6%; top: 38.7%; width: 8.3%; height: 11%; }
+    .chest { left: 42.4%; top: 31%; width: 16.4%; height: 29%; }
+    .gloves { left: 23.8%; top: 50.8%; width: 17%; height: 19.5%; }
+    .boots { right: 20.5%; top: 50.8%; width: 17%; height: 19.5%; }
+    .belt { left: 42%; top: 61%; width: 17%; height: 10.5%; }
+    .flask { left: 27.2%; bottom: 6%; width: 8%; height: 15%; }
+
+    .detail {
+      background: rgba(11,13,12,.97);
+      border-left: 1px solid #4a4435;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      min-width: 0;
+    }
+    .detail-head { padding: 17px 18px 14px; border-bottom: 1px solid #413b30; background: rgba(26,25,21,.9); }
+    .detail-head .slot-label { color: #777064; font-size: 11px; }
+    .detail-head h2 { margin: 5px 0 2px; color: #d8b55e; font: 500 19px Georgia, "Microsoft YaHei", serif; }
+    .detail-head p { margin: 0; color: #9e9788; font-size: 12px; }
+
+    .item-detail { overflow: hidden; padding: 16px 18px; }
+    .item-preview { height: 138px; display: grid; place-items: center; background: url("references/wegame-poe2/assets/equip-msg-bg-ebkz6IIH.png") center / 100% 100% no-repeat; }
+    .item-preview img { max-height: 112px; max-width: 110px; filter: drop-shadow(0 4px 5px #000); }
+    .mods { margin-top: 15px; padding: 0 5px; font-size: 12px; line-height: 1.72; text-align: center; }
+    .mods .implicit { color: #7aa6cc; }
+    .mods .positive { color: #779dcc; }
+    .mods .unique { color: #d0a34e; }
+    .mods .crafted { color: #b796d5; }
+    .rule { height: 6px; margin: 10px 0; background: url("references/wegame-poe2/assets/line-adorn-DvnAWBwO.png") center / 100% 100% no-repeat; opacity: .75; }
+
+    .runes { display: grid; gap: 7px; margin-top: 12px; }
+    .rune-row { display: grid; grid-template-columns: 28px 1fr; align-items: center; gap: 9px; color: #aaa291; text-align: left; }
+    .rune-icon { width: 26px; height: 26px; display: grid; place-items: center; background: url("references/wegame-poe2/assets/rune-bg-BxzydIwX.png") center / contain no-repeat; color: #d48666; }
+
+    .stats { border-top: 1px solid #413b30; padding: 13px 18px 16px; background: #121411; }
+    .stats-title { display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px; color: #8f846c; font-size: 12px; }
+    .stat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: #34322b; border: 1px solid #34322b; }
+    .stat { padding: 8px 9px; background: #10120f; }
+    .stat span { color: #6f6b62; display: block; font-size: 10px; }
+    .stat strong { color: #c6baa0; display: block; margin-top: 2px; font: 500 15px Georgia, serif; }
+    .stat strong.green { color: var(--green); }
+    .stat strong.red { color: var(--red); }
+
+    .statusbar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 24px;
+      z-index: 8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 14px;
+      color: #6e6a61;
+      font-size: 11px;
+      border-top: 1px solid #302e28;
+      background: #090b0a;
+    }
+
+    @media (max-width: 1300px) {
+      .workspace { grid-template-columns: 220px minmax(600px, 1fr) 340px; }
+      .tabs .tab { min-width: 92px; }
+      .topbar { grid-template-columns: 220px minmax(560px, 1fr) auto; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark"><span>S</span></div>
+        <div><strong>SuperPoE</strong><small>Path of Building 2</small></div>
+      </div>
+      <nav class="tabs" aria-label="构筑编辑页面">
+        <button class="tab">构筑</button>
+        <button class="tab active">装备</button>
+        <button class="tab">技能</button>
+        <button class="tab">天赋树</button>
+        <button class="tab">计算</button>
+        <button class="tab">配置</button>
+      </nav>
+      <div class="top-actions">
+        <button class="icon-button" aria-label="撤销">↶</button>
+        <button class="icon-button" aria-label="重做">↷</button>
+        <button class="primary-button">保存构筑</button>
+        <button class="icon-button" aria-label="更多操作">⋮</button>
+      </div>
+    </header>
+
+    <div class="workspace">
+      <aside class="sidebar">
+        <section class="build-heading">
+          <div class="eyebrow">当前构筑</div>
+          <h1>古老的油条</h1>
+          <p>0.5 · 游侠 · 亚马逊 · 等级 97</p>
+        </section>
+        <section class="character">
+          <div class="portrait">97</div>
+          <div><strong>亚马逊</strong><span>长矛 · 闪电投射物</span><br><span>最后保存于 2 分钟前</span></div>
+        </section>
+
+        <h2 class="section-title">装备方案</h2>
+        <div class="build-list">
+          <div class="build-row active"><b>I</b><span>主手 · 伤害配置</span><small>启用</small></div>
+          <div class="build-row"><b>II</b><span>副手 · 生存配置</span><small>可切换</small></div>
+          <div class="build-row"><b>+</b><span>新建装备方案</span><small></small></div>
+        </div>
+
+        <h2 class="section-title">构筑状态</h2>
+        <div class="build-list">
+          <div class="build-row"><b>◆</b><span>天赋树</span><small>122 点</small></div>
+          <div class="build-row"><b>✦</b><span>技能组</span><small>8 组</small></div>
+          <div class="build-row"><b>◈</b><span>装备</span><small>14 / 14</small></div>
+          <div class="build-row"><b>⌁</b><span>珠宝</span><small>5 颗</small></div>
+        </div>
+
+        <div class="summary">
+          <div><span>生命</span><strong>2,193</strong></div>
+          <div><span>魔力</span><strong>789</strong></div>
+          <div><span>闪避值</span><strong>26,057</strong></div>
+          <div><span>移动速度</span><strong>158%</strong></div>
+        </div>
+      </aside>
+
+      <section class="stage">
+        <div class="stage-toolbar">
+          <div class="weapon-switch"><span>武器组</span><div class="segmented"><button class="active">I</button><button>II</button></div></div>
+          <div class="stage-tools"><button class="select-like">装备筛选：全部</button><button class="icon-button" aria-label="搜索装备">⌕</button></div>
+        </div>
+
+        <div class="paper-doll-wrap">
+          <div class="paper-doll">
+            <button class="item weapon-left" aria-label="主手武器"><img src="../../public/assets/items/poe2db/Art/2DItems/Weapons/TwoHandWeapons/WarStaves/Warstaff03.webp" alt="战杖"></button>
+            <button class="item weapon-right" aria-label="副手武器"><img src="../../public/assets/items/poe2db/Art/2DItems/Weapons/TwoHandWeapons/WarStaves/Warstaff03.webp" alt="战杖"></button>
+            <button class="item helmet" aria-label="头盔"><img src="../../public/assets/items/poe2db/Art/2DItems/Armours/Helmets/Basetypes/HelmetDex07.webp" alt="头盔"><span class="socket-strip"><i class="socket green"></i><i class="socket red"></i></span></button>
+            <button class="item amulet" aria-label="项链"><img src="../../public/assets/items/poe2db/Art/2DItems/Amulets/Basetypes/AbsentAmulet.webp" alt="项链"></button>
+            <button class="item ring-one" aria-label="戒指一"><img src="../../public/assets/items/poe2db/Art/2DItems/Rings/Basetypes/PrismaticRing.webp" alt="戒指"></button>
+            <button class="item ring-two" aria-label="戒指二"><img src="../../public/assets/items/poe2db/Art/2DItems/Rings/Basetypes/PrismaticRing.webp" alt="戒指"></button>
+            <button class="item chest selected" aria-label="胸甲"><img src="../../public/assets/items/poe2db/Art/2DItems/Armours/BodyArmours/Uniques/HuskOfDreams.webp" alt="梦境外壳"><span class="socket-strip"><i class="socket red"></i><i class="socket green"></i></span></button>
+            <button class="item gloves" aria-label="手套"><img src="../../public/assets/items/poe2db/Art/2DItems/Armours/Gloves/Basetypes/GlovesDex04.webp" alt="手套"></button>
+            <button class="item boots" aria-label="鞋子"><img src="../../public/assets/items/poe2db/Art/2DItems/Armours/Boots/Basetypes/BootsDex06.webp" alt="鞋子"></button>
+            <button class="item belt" aria-label="腰带"><img src="../../public/assets/items/poe2db/Art/2DItems/Belts/Uniques/Mageblood.webp" alt="魔血"></button>
+            <button class="item flask" aria-label="生命药剂"><img src="../../public/assets/items/poe2db/Art/2DItems/Flasks/Basetypes/FlaskLife09.webp" alt="生命药剂"></button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="detail">
+        <header class="detail-head">
+          <span class="slot-label">胸甲 · 已装备</span>
+          <h2>梦境外壳</h2>
+          <p>精制链甲 · 物品等级 82</p>
+        </header>
+        <div class="item-detail">
+          <div class="item-preview"><img src="../../public/assets/items/poe2db/Art/2DItems/Armours/BodyArmours/Uniques/HuskOfDreams.webp" alt="梦境外壳"></div>
+          <div class="mods">
+            <div class="implicit">护甲：1,246　闪避值：1,108</div>
+            <div class="rule"></div>
+            <div class="positive">+132 最大生命</div>
+            <div class="positive">+31% 火焰抗性</div>
+            <div class="positive">+34% 闪电抗性</div>
+            <div class="unique">受到击中时获得 1 层梦境帷幕</div>
+            <div class="crafted">该装备上的符文效果提高 18%</div>
+          </div>
+          <div class="runes">
+            <div class="rune-row"><span class="rune-icon">◆</span><span>完美风暴符文<br><small>+12% 闪电抗性</small></span></div>
+            <div class="rune-row"><span class="rune-icon">◇</span><span>高阶速度灵魂核心<br><small>+5% 移动速度</small></span></div>
+          </div>
+        </div>
+        <section class="stats">
+          <div class="stats-title"><span>装备变更影响</span><span>主技能：风暴长矛</span></div>
+          <div class="stat-grid">
+            <div class="stat"><span>技能伤害</span><strong class="green">+8.4%</strong></div>
+            <div class="stat"><span>有效生命</span><strong class="green">+316</strong></div>
+            <div class="stat"><span>火焰抗性</span><strong>81%</strong></div>
+            <div class="stat"><span>闪电抗性</span><strong>82%</strong></div>
+            <div class="stat"><span>移动速度</span><strong class="green">158%</strong></div>
+            <div class="stat"><span>魔力消耗</span><strong class="red">+3.1%</strong></div>
+          </div>
+        </section>
+      </aside>
+    </div>
+
+    <footer class="statusbar"><span>计算引擎已就绪 · PoB 0.5</span><span>离线模式 · 中文</span></footer>
+  </main>
+
+  <script>
+    document.querySelectorAll('.tab').forEach((tab) => {
+      tab.addEventListener('click', () => {
+        document.querySelectorAll('.tab').forEach((item) => item.classList.remove('active'));
+        tab.classList.add('active');
+      });
+    });
+    document.querySelectorAll('.segmented button').forEach((button) => {
+      button.addEventListener('click', () => {
+        document.querySelectorAll('.segmented button').forEach((item) => item.classList.remove('active'));
+        button.classList.add('active');
+      });
+    });
+    document.querySelectorAll('.item').forEach((item) => {
+      item.addEventListener('click', () => {
+        document.querySelectorAll('.item').forEach((slot) => slot.classList.remove('selected'));
+        item.classList.add('selected');
+      });
+    });
+  </script>
+</body>
+</html>

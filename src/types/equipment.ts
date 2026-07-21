@@ -9,6 +9,8 @@ export interface EquipmentItem {
   levelReq?: string
   quality?: string
   sockets?: string
+  socketCount: number
+  runes: string[]
   lines: string[]
   raw: string
   imageUrl?: string
