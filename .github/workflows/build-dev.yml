@@ -145,6 +145,7 @@ jobs:
       - name: Create or refresh pre-release tag dev
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           VERSION: ${{ needs.prepare.outputs.version }}
           SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
           COMMIT_SHA: ${{ needs.prepare.outputs.commit_sha }}
@@ -153,7 +154,12 @@ jobs:
         run: |
           set -euo pipefail
 
-          NOTES="$(cat <<EOF
+          # gh release CLI resolves the repo via git by default; this job has no checkout.
+          # GH_REPO + --repo keep all commands on the API path.
+          REPO="${GH_REPO}"
+
+          NOTES_FILE="$(mktemp)"
+          cat > "${NOTES_FILE}" <<EOF
           ## SuperPoE2 Dev channel
 
           Rolling **pre-release** — always the latest successful build from the \`dev\` branch.
@@ -170,40 +176,41 @@ jobs:
           - Each push to \`dev\` rebuilds and **replaces** assets on this release.
           - Stable releases use separately published version tags (not this page).
           EOF
-          )"
+          # Strip leading indentation from the heredoc body for readable release notes.
+          sed -i 's/^          //' "${NOTES_FILE}"
 
           # Point lightweight tag `dev` at this commit (create or force-update).
-          if gh api "repos/${{ github.repository }}/git/ref/tags/dev" >/dev/null 2>&1; then
-            gh api --method PATCH "repos/${{ github.repository }}/git/refs/tags/dev" \
+          if gh api "repos/${REPO}/git/ref/tags/dev" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/${REPO}/git/refs/tags/dev" \
               -f sha="${COMMIT_SHA}" \
               -F force=true
           else
-            gh api --method POST "repos/${{ github.repository }}/git/refs" \
+            gh api --method POST "repos/${REPO}/git/refs" \
               -f ref="refs/tags/dev" \
               -f sha="${COMMIT_SHA}"
           fi
 
-          if gh release view dev >/dev/null 2>&1; then
-            gh release edit dev \
+          if gh release view dev --repo "${REPO}" >/dev/null 2>&1; then
+            gh release edit dev --repo "${REPO}" \
               --title "SuperPoE2 Dev" \
               --prerelease \
               --latest=false \
               --target "${COMMIT_SHA}" \
-              --notes "${NOTES}"
+              --notes-file "${NOTES_FILE}"
 
             # Drop previous channel assets so only the current build remains.
-            mapfile -t old_assets < <(gh release view dev --json assets -q '.assets[].name' 2>/dev/null || true)
+            mapfile -t old_assets < <(gh release view dev --repo "${REPO}" --json assets -q '.assets[].name' 2>/dev/null || true)
             for name in "${old_assets[@]+"${old_assets[@]}"}"; do
               [[ -n "${name}" ]] || continue
-              gh release delete-asset dev "${name}" --yes
+              gh release delete-asset dev "${name}" --repo "${REPO}" --yes
             done
           else
-            gh release create dev \
+            gh release create dev --repo "${REPO}" \
               --title "SuperPoE2 Dev" \
               --prerelease \
               --latest=false \
               --target "${COMMIT_SHA}" \
-              --notes "${NOTES}"
+              --notes-file "${NOTES_FILE}"
           fi
 
           # Upload current installers (names include rolling version).
@@ -213,6 +220,6 @@ jobs:
             echo "No files under dist-assets/" >&2
             exit 1
           fi
-          gh release upload dev "${files[@]}" --clobber
+          gh release upload dev --repo "${REPO}" "${files[@]}" --clobber
 
-          echo "Dev channel updated: https://github.com/${{ github.repository }}/releases/tag/dev"
+          echo "Dev channel updated: https://github.com/${REPO}/releases/tag/dev"
