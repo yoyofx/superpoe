@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { deflate } from 'pako'
 import { decodeBuildCode, encodeBuildCode } from '@/engine/buildCode'
+
+function encodeXml(xml: string): string {
+  return Buffer.from(deflate(new TextEncoder().encode(xml))).toString('base64url')
+}
 
 describe('front-end build code encode/decode', () => {
   it('round-trips simple nodes', () => {
@@ -34,6 +39,39 @@ describe('front-end build code encode/decode', () => {
     expect(decoded.ascendClassId).toBe('1')
     expect(decoded.classInternalId).toBe('7')
     expect(decoded.ascendancyInternalId).toBe('Sorceress1')
+  })
+
+  it('uses only the active passive tree spec', () => {
+    const code = encodeXml(`<?xml version="1.0"?><PathOfBuilding2><Tree activeSpec="2">
+      <Spec treeVersion="0_5" classId="7" classInternalId="10" ascendClassId="1" ascendancyInternalId="Monk1" nodes="100,101">
+        <WeaponSet1 nodes="101"/>
+      </Spec>
+      <Spec treeVersion="0_5" classId="6" classInternalId="7" ascendClassId="1" ascendancyInternalId="Sorceress1" nodes="200,201">
+        <WeaponSet2 nodes="201"/>
+        <Overrides><AttributeOverride strNodes="200" dexNodes="" intNodes=""/></Overrides>
+      </Spec>
+    </Tree></PathOfBuilding2>`)
+
+    const decoded = decodeBuildCode(code)
+    expect(decoded.activeSpecIndex).toBe(2)
+    expect(decoded.nodes).toEqual(['200', '201'])
+    expect(decoded.nodeWeaponSets).toEqual({ '201': 2 })
+    expect(decoded.nodeAttributeSelections).toEqual({ '200': 1 })
+    expect(decoded.classInternalId).toBe('7')
+    expect(decoded.ascendancyInternalId).toBe('Sorceress1')
+    expect(decoded.specs).toHaveLength(2)
+  })
+
+  it('falls back to the first populated spec when activeSpec is invalid', () => {
+    const code = encodeXml(`<?xml version="1.0"?><PathOfBuilding2><Tree activeSpec="99">
+      <Spec treeVersion="0_5" classId="7" nodes=""/>
+      <Spec treeVersion="0_5" classId="6" classInternalId="7" ascendClassId="1" ascendancyInternalId="Sorceress1" nodes="200,201"/>
+    </Tree></PathOfBuilding2>`)
+
+    const decoded = decodeBuildCode(code)
+    expect(decoded.activeSpecIndex).toBe(2)
+    expect(decoded.nodes).toEqual(['200', '201'])
+    expect(decoded.classInternalId).toBe('7')
   })
 
   it('replaces tree XML in a base code', () => {

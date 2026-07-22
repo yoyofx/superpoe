@@ -51,6 +51,7 @@ export interface DecodeBuildCodeResult {
   ascendClassId: string
   classInternalId: string
   ascendancyInternalId: string
+  activeSpecIndex: number
   specs: Array<{
     treeVersion: string
     classId: string
@@ -313,30 +314,44 @@ export function decodeBuildCode(code: string): DecodeBuildCodeResult {
     ascendClassId: '',
     classInternalId: '',
     ascendancyInternalId: '',
+    activeSpecIndex: 1,
     specs: [],
     xml,
   }
 
   const itemMap = parsePassiveJewelItems(xml)
+  const treeMatch = xml.match(/<Tree\b([^>]*)>([\s\S]*?)<\/Tree>/i)
+  const treeAttrs = treeMatch ? parseAttrs(treeMatch[1]) : {}
+  const requestedActiveSpec = Math.max(1, Number.parseInt(treeAttrs.activeSpec || '1', 10) || 1)
+  result.activeSpecIndex = requestedActiveSpec
+  const specSource = treeMatch?.[2] || xml
   const specRe = /<Spec\b([^>]*)>([\s\S]*?)<\/Spec>|<Spec\b([^>]*)\/>/gi
+  const parsedSpecs: Array<{
+    summary: DecodeBuildCodeResult['specs'][number]
+    nodes: string[]
+    nodeWeaponSets: NodeWeaponSets
+    nodeAttributeSelections: NodeAttributeSelections
+    nodeJewels: NodeJewels
+  }> = []
   let match: RegExpExecArray | null
-  while ((match = specRe.exec(xml))) {
+  while ((match = specRe.exec(specSource))) {
     const attrs = parseAttrs(match[1] || match[3] || '')
-    if (!attrs.nodes) continue
     const body = match[2] || ''
     const ids = parseIds(attrs.nodes)
-    result.nodes.push(...ids)
+    const nodeWeaponSets: NodeWeaponSets = {}
+    const nodeAttributeSelections: NodeAttributeSelections = {}
+    const nodeJewels: NodeJewels = {}
 
     const ws1 = body.match(/<WeaponSet1\b([^>]*)\/?>/i)
     const ws2 = body.match(/<WeaponSet2\b([^>]*)\/?>/i)
-    for (const id of parseIds(ws1 ? parseAttrs(ws1[1]).nodes : undefined)) result.nodeWeaponSets[id] = 1
-    for (const id of parseIds(ws2 ? parseAttrs(ws2[1]).nodes : undefined)) result.nodeWeaponSets[id] = 2
+    for (const id of parseIds(ws1 ? parseAttrs(ws1[1]).nodes : undefined)) nodeWeaponSets[id] = 1
+    for (const id of parseIds(ws2 ? parseAttrs(ws2[1]).nodes : undefined)) nodeWeaponSets[id] = 2
 
     const attributeOverride = body.match(/<AttributeOverride\b([^>]*)\/?>/i)
     const overrideAttrs = attributeOverride ? parseAttrs(attributeOverride[1]) : {}
-    for (const id of parseIds(overrideAttrs.strNodes)) result.nodeAttributeSelections[id] = 1
-    for (const id of parseIds(overrideAttrs.dexNodes)) result.nodeAttributeSelections[id] = 2
-    for (const id of parseIds(overrideAttrs.intNodes)) result.nodeAttributeSelections[id] = 3
+    for (const id of parseIds(overrideAttrs.strNodes)) nodeAttributeSelections[id] = 1
+    for (const id of parseIds(overrideAttrs.dexNodes)) nodeAttributeSelections[id] = 2
+    for (const id of parseIds(overrideAttrs.intNodes)) nodeAttributeSelections[id] = 3
 
     const sockets = body.match(/<Sockets\b[^>]*>([\s\S]*?)<\/Sockets>|<Sockets\b[^>]*\/>/i)
     if (sockets?.[1]) {
@@ -347,7 +362,7 @@ export function decodeBuildCode(code: string): DecodeBuildCodeResult {
         const nodeId = socketAttrs.nodeId
         const itemId = socketAttrs.itemId
         if (!nodeId || !itemId) continue
-        result.nodeJewels[nodeId] = itemMap[itemId] || {
+        nodeJewels[nodeId] = itemMap[itemId] || {
           itemId,
           name: 'Unknown Jewel',
           baseType: '',
@@ -366,7 +381,20 @@ export function decodeBuildCode(code: string): DecodeBuildCodeResult {
       nodeCount: ids.length,
     }
     result.specs.push(specSummary)
-    if (!result.treeVersion) Object.assign(result, specSummary)
+    parsedSpecs.push({ summary: specSummary, nodes: ids, nodeWeaponSets, nodeAttributeSelections, nodeJewels })
+  }
+
+  const selectedSpecIndex = parsedSpecs[requestedActiveSpec - 1]
+    ? requestedActiveSpec - 1
+    : Math.max(0, parsedSpecs.findIndex((spec) => spec.nodes.length > 0))
+  const selectedSpec = parsedSpecs[selectedSpecIndex]
+  if (selectedSpec) {
+    result.activeSpecIndex = selectedSpecIndex + 1
+    Object.assign(result, selectedSpec.summary)
+    result.nodes = selectedSpec.nodes
+    result.nodeWeaponSets = selectedSpec.nodeWeaponSets
+    result.nodeAttributeSelections = selectedSpec.nodeAttributeSelections
+    result.nodeJewels = selectedSpec.nodeJewels
   }
 
   return result

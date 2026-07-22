@@ -16,9 +16,10 @@ export async function importPobBuildCode(code: string): Promise<ImportedPobBuild
 
   await useTreeStore.getState().importAllocatedNodes(data.nodes, data.nodeWeaponSets, {
     treeVersion: data.treeVersion,
-    // classId is the tree-data key; classInternalId may numerically collide with another key.
-    classId: data.classId || data.classInternalId,
-    ascendClassId: data.ascendancyInternalId || data.ascendClassId,
+    classId: data.classId,
+    classInternalId: data.classInternalId,
+    ascendClassId: data.ascendClassId,
+    ascendancyInternalId: data.ascendancyInternalId,
     importedBuildCode: trimmed,
     nodeAttributeSelections: data.nodeAttributeSelections,
   })

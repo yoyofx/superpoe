@@ -4,10 +4,11 @@ import { decodeBuildCode } from '@/engine/buildCode'
 import { SUPERPOE_NAME } from '@/engine/appVersion'
 import { parseEquipmentXml } from '@/engine/equipment'
 import { isPoe2dbDesktopImportAvailable, requestPoe2dbImport } from '@/engine/poe2dbImport'
+import { resolveTreeAscendancy, resolveTreeClass, type AscendancyIdentifiers, type ClassIdentifiers } from '@/engine/treeClassResolution'
 import { translateGameText } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { useTreeStore } from '@/store/treeStore'
-import type { BuildRealm } from '@/types/tree'
+import type { BuildRealm, TreeData } from '@/types/tree'
 
 export type ImportKind = 'pob' | 'wegame' | 'json'
 export type ImportMode = 'new' | 'replace'
@@ -38,6 +39,27 @@ interface UnifiedImportDialogProps {
   defaultRealm: BuildRealm
   onClose: () => void
   onConfirm: (confirmation: ImportConfirmation) => Promise<void>
+}
+
+const previewTreeCache = new Map<string, Promise<TreeData>>()
+
+async function loadPreviewTreeData(version: string, currentTreeData: TreeData | null): Promise<TreeData> {
+  if (!version || !/^0_\d+$/.test(version)) throw new Error('The imported build has an invalid passive tree version')
+  if (currentTreeData?.version.version === version) return currentTreeData
+  let pending = previewTreeCache.get(version)
+  if (!pending) {
+    pending = fetch(`/data/tree-web-${version}.json`).then(async (response) => {
+      if (!response.ok) throw new Error(`Passive tree data ${version} is unavailable`)
+      return response.json() as Promise<TreeData>
+    })
+    previewTreeCache.set(version, pending)
+  }
+  try {
+    return await pending
+  } catch (reason) {
+    previewTreeCache.delete(version)
+    throw reason
+  }
 }
 
 function countEquipment(xml: string): number {
@@ -82,20 +104,22 @@ export function UnifiedImportDialog({ open, hasCurrentBuild, defaultRealm, onClo
 
   if (!open) return null
 
-  const resolveNames = (classId: string, ascendancyId: string) => {
-    const classEntry = Object.entries(treeData?.constants.classes || {}).find(([id, cls]) => id === classId || String(cls.integerId) === classId || cls.name === classId)
+  const resolveNames = (previewTreeData: TreeData, classIds: ClassIdentifiers, ascendancyIds: AscendancyIdentifiers) => {
+    const classEntry = resolveTreeClass(previewTreeData, classIds)
     const cls = classEntry?.[1]
-    const asc = cls?.ascendancies.find((item) => (item.id || item.name) === ascendancyId || item.internalId === ascendancyId || item.name === ascendancyId)
+    const resolvedAscendancyId = resolveTreeAscendancy(cls, ascendancyIds)
+    const asc = cls?.ascendancies.find((item) => (item.id || item.name) === resolvedAscendancyId)
     return {
-      className: cls ? translateGameText(cls.displayName || cls.name, lang) : classId || '-',
-      ascendancyName: asc ? translateGameText(asc.displayName || asc.name, lang) : ascendancyId || (zh ? '未选择' : 'None'),
+      className: cls ? translateGameText(cls.displayName || cls.name, lang) : classIds.classInternalId || classIds.classId || '-',
+      ascendancyName: asc ? translateGameText(asc.displayName || asc.name, lang) : ascendancyIds.ascendancyInternalId || ascendancyIds.ascendClassId || (zh ? '未选择' : 'None'),
     }
   }
 
-  const previewCode = (code: string, source: string) => {
+  const previewCode = async (code: string, source: string) => {
     const data = decodeBuildCode(code)
     if (!data.nodes.length) throw new Error(zh ? '构筑中没有天赋节点' : 'The build has no passive nodes')
-    const names = resolveNames(data.classInternalId || data.classId, data.ascendancyInternalId || data.ascendClassId)
+    const previewTreeData = await loadPreviewTreeData(data.treeVersion, treeData)
+    const names = resolveNames(previewTreeData, data, data)
     setPreview({
       ...names,
       treeVersion: (data.treeVersion || '-').replace('_', '.'),
@@ -119,23 +143,32 @@ export function UnifiedImportDialog({ open, hasCurrentBuild, defaultRealm, onClo
         if (!wegameAvailable) throw new Error(zh ? 'WeGame 导入仅在 Electron 桌面版可用' : 'WeGame import is available only in Electron')
         const converted = await requestPoe2dbImport(trimmed)
         setConvertedCode(converted.code)
-        previewCode(converted.code, 'WeGame')
+        await previewCode(converted.code, 'WeGame')
       } else if (kind === 'json') {
         const build = JSON.parse(trimmed) as Record<string, unknown>
         const nodes = Array.isArray(build.allocatedNodes) ? build.allocatedNodes : []
         if (!nodes.length) throw new Error(zh ? 'JSON 中缺少 allocatedNodes' : 'JSON is missing allocatedNodes')
         const embeddedCode = typeof build.importedBuildCode === 'string' ? build.importedBuildCode : undefined
-        const names = resolveNames(String(build.selectedClassId || ''), String(build.selectedAscendancyId || ''))
+        const decoded = embeddedCode ? decodeBuildCode(embeddedCode) : null
+        const targetTreeVersion = typeof build.treeVersion === 'string' && build.treeVersion
+          ? build.treeVersion
+          : decoded?.treeVersion || ''
+        const previewTreeData = await loadPreviewTreeData(targetTreeVersion, treeData)
+        let names = resolveNames(
+          previewTreeData,
+          { classId: String(build.selectedClassId || '') },
+          { ascendClassId: String(build.selectedAscendancyId || '') },
+        )
         let equipmentCount = 0
         let skillCount = 0
-        if (embeddedCode) {
-          const decoded = decodeBuildCode(embeddedCode)
+        if (decoded) {
+          names = resolveNames(previewTreeData, decoded, decoded)
           equipmentCount = countEquipment(decoded.xml)
           skillCount = countSkills(decoded.xml)
         }
-        setPreview({ ...names, treeVersion: String(build.treeVersion || '-').replace('_', '.'), nodeCount: nodes.length, weaponNodeCount: Object.keys((build.nodeWeaponSets as Record<string, unknown>) || {}).length, equipmentCount, skillCount, source: 'JSON' })
+        setPreview({ ...names, treeVersion: targetTreeVersion.replace('_', '.'), nodeCount: nodes.length, weaponNodeCount: Object.keys((build.nodeWeaponSets as Record<string, unknown>) || {}).length, equipmentCount, skillCount, source: 'JSON' })
       } else {
-        previewCode(trimmed, 'PoB Code')
+        await previewCode(trimmed, 'PoB Code')
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))

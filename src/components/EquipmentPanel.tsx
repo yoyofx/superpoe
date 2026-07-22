@@ -1,7 +1,12 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, ChevronRight, PackageOpen, ShieldCheck, Swords, Upload } from 'lucide-react'
+import { ChevronDown, ChevronRight, PackageOpen, Upload } from 'lucide-react'
 import { decodeCodeToXml } from '@/engine/buildCode'
+import {
+  aggregateEquipmentAffixes,
+  type EquipmentAffixCategory,
+  type EquipmentAffixSummary,
+} from '@/engine/equipmentAffixes'
 import { parseEquipmentXml } from '@/engine/equipment'
 import { loadItemIconIndex, resolveItemIcon, resolveItemIconName, type ItemIconIndex } from '@/engine/itemIcons'
 import {
@@ -13,7 +18,7 @@ import {
 import { translateGameText } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { useTreeStore } from '@/store/treeStore'
-import type { EquipmentItem } from '@/types/equipment'
+import type { EquipmentItem, EquipmentSlot } from '@/types/equipment'
 import {
   fitPaperDoll,
   getActivePaperDollSlots,
@@ -51,6 +56,91 @@ const RARITY_CLASS: Record<string, string> = {
   MAGIC: 'rarity-magic',
   RARE: 'rarity-rare',
   UNIQUE: 'rarity-unique',
+}
+
+type EquipmentAffixGroup = 'attack' | 'defence' | 'attributes' | 'important' | 'other'
+
+const AFFIX_CATEGORY_ORDER: EquipmentAffixCategory[] = [
+  'addedDamage',
+  'skillLevels',
+  'offence',
+  'resources',
+  'resistances',
+  'defences',
+  'attributes',
+  'utility',
+  'special',
+]
+
+const AFFIX_GROUP_ORDER: EquipmentAffixGroup[] = ['attack', 'defence', 'attributes', 'important', 'other']
+
+const AFFIX_GROUP_LABELS: Record<EquipmentAffixGroup, { en: string; zh: string }> = {
+  attack: { en: 'Attack', zh: '攻击' },
+  defence: { en: 'Defence', zh: '防御' },
+  attributes: { en: 'Attributes', zh: '属性' },
+  important: { en: 'Important', zh: '重要' },
+  other: { en: 'Other', zh: '其他' },
+}
+
+const IMPORTANT_AFFIX_PATTERN = /accuracy|chance to hit|penetrat|enemies?.*resistance|resistance.*enemies?|breaks? armour|armour break|ignore[sd]? armour|damage over time|bleed(?:ing)?|poison|ignite|命中|穿透|敌人.*抗性|抗性.*敌人|减抗|破甲|无视护甲|持续伤害|流血|中毒|点燃/i
+const BONDED_AFFIX_PATTERN = /^\s*(?:bonded|羁绊)\s*[:：]/i
+const FLASK_AFFIX_PATTERN = /flasks?|药剂|藥劑/i
+const ENEMY_STUN_THRESHOLD_PATTERN = /enem(?:y|ies).*stun threshold|stun threshold.*enem(?:y|ies)|敌人.*晕眩(?:阈值|门槛)|敵人.*暈眩(?:閾值|門檻)/i
+
+function getAffixGroup(summary: EquipmentAffixSummary): EquipmentAffixGroup {
+  const { category, text } = summary
+  if (summary.sources.every((source) => /^(?:Flask|Charm)\s+\d+$/i.test(source.slotName))) return 'other'
+  if (FLASK_AFFIX_PATTERN.test(text)) return 'other'
+  if (BONDED_AFFIX_PATTERN.test(text)) return 'other'
+  if (ENEMY_STUN_THRESHOLD_PATTERN.test(text)) return 'important'
+  if (IMPORTANT_AFFIX_PATTERN.test(text)) return 'important'
+  if (category === 'addedDamage' || category === 'skillLevels' || category === 'offence') return 'attack'
+  if (category === 'resources' || category === 'resistances' || category === 'defences') return 'defence'
+  if (category === 'attributes') return 'attributes'
+  return 'other'
+}
+
+function getSocketSlotInfo(slotName: string): { parent: string; index: number } | null {
+  const match = slotName.match(/^(.+?)\s+(?:Jewel Socket|珠宝(?:插槽|孔)|珠寶(?:插槽|孔))\s*(\d+)$/i)
+  return match ? { parent: match[1].trim(), index: Number(match[2]) } : null
+}
+
+function AffixSummaryRow({
+  summary,
+  expanded,
+  onToggle,
+  onSelectSource,
+}: {
+  summary: EquipmentAffixSummary
+  expanded: boolean
+  onToggle: () => void
+  onSelectSource: (itemId: string) => void
+}) {
+  const { t, lang } = useTranslation()
+  const translatedText = translateGameText(summary.text, lang)
+
+  return (
+    <div className={`equipment-affix ${expanded ? 'expanded' : ''}`}>
+      <button className="equipment-affix-row" type="button" onClick={onToggle} aria-expanded={expanded}>
+        <ChevronRight />
+        <span>{translatedText}</span>
+        <small>{summary.sources.length > 1 ? summary.sources.length : ''}</small>
+      </button>
+      {expanded && <div className="equipment-affix-sources">
+        {summary.sources.map((source, index) => {
+          const socketSlot = getSocketSlotInfo(source.slotName)
+          const slotLabel = socketSlot
+            ? `${t(SLOT_KEYS[socketSlot.parent] || socketSlot.parent)} · ${lang === 'zh-rCN' ? '珠宝' : 'Jewel'} ${socketSlot.index}`
+            : t(SLOT_KEYS[source.slotName] || source.slotName)
+          return <button key={`${source.itemId}-${source.line}-${index}`} type="button" onClick={() => onSelectSource(source.itemId)}>
+            <span>{slotLabel}</span>
+            <strong>{translateGameText(source.itemName, lang)}</strong>
+            {source.rune && <i>{lang === 'zh-rCN' ? '符文' : 'Rune'}</i>}
+          </button>
+        })}
+      </div>}
+    </div>
+  )
 }
 
 function SocketedRunes({
@@ -279,6 +369,8 @@ export function EquipmentPanel() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
   const [weaponSet, setWeaponSet] = useState<1 | 2>(1)
+  const [collapsedCategories, setCollapsedCategories] = useState<Set<EquipmentAffixGroup>>(new Set())
+  const [expandedAffixes, setExpandedAffixes] = useState<Set<string>>(new Set())
   const { hostRef, size: paperDollSize } = usePaperDollSize()
 
   useEffect(() => {
@@ -296,6 +388,34 @@ export function EquipmentPanel() {
   const activeSet = equipment?.itemSets.find((set) => set.id === activeSetId) || equipment?.itemSets[0]
   const activeSlotNames = new Set(getActivePaperDollSlots(weaponSet).map((slot) => slot.slotName))
   const equipped = activeSet?.slots.filter((slot) => activeSlotNames.has(slot.name) && slot.itemId) || []
+  const affixSlots = useMemo(() => {
+    if (!activeSet) return []
+    const visibleSlots = new Set(getActivePaperDollSlots(weaponSet).map((slot) => slot.slotName))
+    const result: EquipmentSlot[] = activeSet.slots
+      .filter((slot) => slot.active && slot.itemId && visibleSlots.has(slot.name))
+    for (const slot of activeSet.slots) {
+      const socketSlot = getSocketSlotInfo(slot.name)
+      if (slot.active && slot.itemId && socketSlot && visibleSlots.has(socketSlot.parent)) result.push(slot)
+    }
+    return result
+  }, [activeSet, weaponSet])
+  const affixSummaries = useMemo(
+    () => aggregateEquipmentAffixes(affixSlots, equipment?.itemsById || {}),
+    [affixSlots, equipment?.itemsById],
+  )
+  const affixesByGroup = useMemo(() => {
+    const groups = new Map<EquipmentAffixGroup, EquipmentAffixSummary[]>()
+    const ordered = [...affixSummaries].sort((left, right) => (
+      AFFIX_CATEGORY_ORDER.indexOf(left.category) - AFFIX_CATEGORY_ORDER.indexOf(right.category)
+    ))
+    for (const summary of ordered) {
+      const group = getAffixGroup(summary)
+      const entries = groups.get(group) || []
+      entries.push(summary)
+      groups.set(group, entries)
+    }
+    return groups
+  }, [affixSummaries])
   const firstItem = equipped.map((slot) => equipment?.itemsById[slot.itemId]).find(Boolean)
   const selected = (selectedId && equipment?.itemsById[selectedId]) || firstItem
   const selectedSlotName = selected ? activeSet?.slots.find((slot) => slot.itemId === selected.id)?.name : undefined
@@ -304,6 +424,11 @@ export function EquipmentPanel() {
   useEffect(() => {
     if (activeSet) setWeaponSet(activeSet.useSecondWeaponSet ? 2 : 1)
   }, [activeSet?.id, activeSet?.useSecondWeaponSet])
+
+  useEffect(() => {
+    setCollapsedCategories(new Set())
+    setExpandedAffixes(new Set())
+  }, [activeSet?.id])
 
   const itemForSlot = (slotName: string) => {
     const slot = activeSet?.slots.find((entry) => entry.name === slotName)
@@ -342,28 +467,56 @@ export function EquipmentPanel() {
   return (
     <section className="equipment-workspace">
       <aside className="equipment-loadouts">
-        <div className="side-heading"><span>{lang === 'zh-rCN' ? '装备配置' : 'Equipment loadout'}</span><strong>{equipped.length} / 15</strong></div>
-        <div className="loadout-list">
-          {equipment.itemSets.map((set, index) => {
-            const active = set.id === activeSet.id
-            const title = /^Set \d+$/i.test(set.title) ? t('equipment.defaultSet', { number: index + 1 }) : set.title
-            const setWeapon = set.useSecondWeaponSet ? 2 : 1
-            const visibleNames = new Set(getActivePaperDollSlots(setWeapon).map((slot) => slot.slotName))
-            return <button key={set.id} className={active ? 'active' : ''} onClick={() => { setSelectedSetId(set.id); setSelectedId(null) }}>
-              <span className="loadout-index">{index + 1}</span><span><strong>{title}</strong><small>{set.slots.filter((slot) => slot.itemId && visibleNames.has(slot.name)).length} {lang === 'zh-rCN' ? '件装备' : 'items'}</small></span>{active && <Check />}
-            </button>
+        <div className="equipment-affix-heading">
+          <span>{lang === 'zh-rCN' ? '已装备词缀' : 'Equipped modifiers'}</span>
+          <strong>{lang === 'zh-rCN' ? `武器组 ${weaponSet === 1 ? 'I' : 'II'}` : `Weapon set ${weaponSet === 1 ? 'I' : 'II'}`}</strong>
+        </div>
+        <label className="equipment-loadout-select">
+          <span>{lang === 'zh-rCN' ? '装备方案' : 'Loadout'}</span>
+          <select value={activeSet.id} onChange={(event) => { setSelectedSetId(event.target.value); setSelectedId(null) }}>
+            {equipment.itemSets.map((set, index) => {
+              const title = /^Set \d+$/i.test(set.title) ? t('equipment.defaultSet', { number: index + 1 }) : set.title
+              return <option key={set.id} value={set.id}>{title}</option>
+            })}
+          </select>
+        </label>
+        <div className="equipment-affix-list">
+          {AFFIX_GROUP_ORDER.map((group) => {
+            const summaries = affixesByGroup.get(group)
+            if (!summaries?.length) return null
+            const collapsed = collapsedCategories.has(group)
+            const label = AFFIX_GROUP_LABELS[group]
+            return <section className="equipment-affix-category" key={group}>
+              <button
+                className="equipment-affix-category-toggle"
+                type="button"
+                onClick={() => setCollapsedCategories((current) => {
+                  const next = new Set(current)
+                  if (next.has(group)) next.delete(group)
+                  else next.add(group)
+                  return next
+                })}
+                aria-expanded={!collapsed}
+              >
+                <span>{lang === 'zh-rCN' ? label.zh : label.en}</span>
+                <small>{summaries.length}</small>
+                {collapsed ? <ChevronRight /> : <ChevronDown />}
+              </button>
+              {!collapsed && summaries.map((summary) => <AffixSummaryRow
+                key={summary.key}
+                summary={summary}
+                expanded={expandedAffixes.has(summary.key)}
+                onToggle={() => setExpandedAffixes((current) => {
+                  const next = new Set(current)
+                  if (next.has(summary.key)) next.delete(summary.key)
+                  else next.add(summary.key)
+                  return next
+                })}
+                onSelectSource={setSelectedId}
+              />)}
+            </section>
           })}
-        </div>
-
-        <div className="side-heading weapon-heading"><span>{t('equipment.weaponSet')}</span></div>
-        <div className="weapon-set-switch">
-          <button className={weaponSet === 1 ? 'active' : ''} onClick={() => setWeaponSet(1)}><Swords /><span><strong>I</strong><small>{lang === 'zh-rCN' ? '主武器组' : 'Primary'}</small></span></button>
-          <button className={weaponSet === 2 ? 'active' : ''} onClick={() => setWeaponSet(2)}><Swords /><span><strong>II</strong><small>{lang === 'zh-rCN' ? '副武器组' : 'Secondary'}</small></span></button>
-        </div>
-
-        <div className="equipment-summary">
-          <div><ShieldCheck /><span>{lang === 'zh-rCN' ? '装备完整度' : 'Equipment status'}</span><strong>{Math.round(equipped.length / 15 * 100)}%</strong></div>
-          <div><Swords /><span>{lang === 'zh-rCN' ? '当前武器组' : 'Weapon set'}</span><strong>{weaponSet === 1 ? 'I' : 'II'}</strong></div>
+          {!affixSummaries.length && <div className="equipment-affix-empty">{lang === 'zh-rCN' ? '当前装备没有可汇总的词缀' : 'No equipped modifiers to summarize'}</div>}
         </div>
       </aside>
 

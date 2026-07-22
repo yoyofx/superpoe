@@ -8,11 +8,12 @@ import { create } from 'zustand'
 
 import type { BuildRealm, TreeData, SavedBuild } from '@/types/tree'
 import { LANGUAGE_OPTIONS, getLocalizedSearchText, loadTranslations, type Language } from '@/i18n/translationLoader'
-import { encodeBuildCode, getEncodeClassPayload } from '@/engine/buildCode'
+import { decodeBuildCode, encodeBuildCode, getEncodeClassPayload } from '@/engine/buildCode'
 import { calculateBuild } from '@/engine/pobLuaClient'
 import { clearPersistedImportedBuild, getInitialImportedBuildCode } from '@/engine/buildPersistence'
 import { DEFAULT_BUILD_REALM, inferBuildRealm } from '@/engine/buildRealm'
 import { getRenderTreePoint, getSelectedAscendancyProjection } from '@/engine/treeRenderShared'
+import { resolveTreeAscendancy, resolveTreeClass } from '@/engine/treeClassResolution'
 import {
   cleanAttributeSelections,
   nextAttributeSelection,
@@ -152,29 +153,6 @@ function defaultAttributeSelections(
   return cleanAttributeSelections(treeData?.nodes, allocatedNodes, existing)
 }
 
-function findClassEntry(treeData: TreeData | undefined, classId: string | undefined): [string, TreeData['constants']['classes'][string]] | null {
-  if (!treeData || !classId) return null
-  const classes = treeData.constants.classes || {}
-  if (classes[classId]) return [classId, classes[classId]]
-  return Object.entries(classes).find(([, cls]) => (
-    String(cls.integerId) === classId
-    || cls.name === classId
-    || cls.displayName === classId
-  )) || null
-}
-
-function findAscendancyId(
-  classData: TreeData['constants']['classes'][string] | undefined,
-  ascendClassId: string | undefined,
-): string {
-  if (!classData) return ''
-  const ascendancy = classData.ascendancies.find((asc) => (
-    asc.id === ascendClassId
-    || asc.name === ascendClassId
-    || asc.internalId === ascendClassId
-  )) || classData.ascendancies[0]
-  return ascendancy?.id || ascendancy?.name || ''
-}
 function getInitialLanguage(): Language {
   if (typeof localStorage === 'undefined') return DEFAULT_LANGUAGE
   const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY)
@@ -620,7 +598,9 @@ interface TreeStore {
     options?: {
       treeVersion?: string
       classId?: string
+      classInternalId?: string
       ascendClassId?: string
+      ascendancyInternalId?: string
       importedBuildCode?: string
       nodeAttributeSelections?: NodeAttributeSelections
     },
@@ -773,7 +753,7 @@ interface TreeStore {
   loadBuild: (id: string) => Promise<void>
   deleteBuild: (id: string) => void
   exportBuildJSON: () => string
-  importBuildJSON: (json: string) => void
+  importBuildJSON: (json: string) => Promise<void>
 
 
 }
@@ -1712,27 +1692,30 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
   importAllocatedNodes: async (ids: string[], importedWeaponSets: NodeWeaponSets = {}, options = {}) => {
-    const current = get()
-    if (options.treeVersion && options.treeVersion !== current.treeVersion) {
-      set({ treeVersion: options.treeVersion })
+    const targetTreeVersion = options.treeVersion?.trim()
+    if (!targetTreeVersion) throw new Error('The imported build does not specify a passive tree version')
+    if (targetTreeVersion !== get().treeVersion) {
+      set({ treeVersion: targetTreeVersion })
       await get().loadTreeData()
     }
 
-    const state = get()
-    const tree = state.treeData
-    const classEntry = findClassEntry(tree || undefined, options.classId)
-    if (classEntry) {
-      const [resolvedClassId, classData] = classEntry
-      set({
-        selectedClassId: resolvedClassId,
-        selectedAscendancyId: findAscendancyId(classData, options.ascendClassId),
-      })
+    const tree = get().treeData
+    if (!tree || tree.version.version !== targetTreeVersion) {
+      throw new Error(`Passive tree data ${targetTreeVersion} is unavailable`)
+    }
+    const classEntry = resolveTreeClass(tree || undefined, options)
+    if (!classEntry) throw new Error('The imported build class could not be resolved')
+    const [selectedClassId, classData] = classEntry
+    const selectedAscendancyId = resolveTreeAscendancy(classData, options)
+    const requestedAscendancy = options.ascendancyInternalId || options.ascendClassId
+    if (requestedAscendancy && !['0', 'nil'].includes(requestedAscendancy.toLowerCase()) && !selectedAscendancyId) {
+      throw new Error(`The imported ascendancy "${requestedAscendancy}" could not be resolved`)
     }
 
-    const ctx = getAllocationContext(get())
+    const ctx = { treeData: tree, selectedClassId, selectedAscendancyId }
     const next = new Set<string>()
     for (const id of ids) {
-      const node = ctx?.treeData.nodes[id]
+      const node = tree.nodes[id]
       if (node && node.type !== 'ClassStart' && node.type !== 'AscendClassStart') next.add(id)
     }
     const rebuilt = recomputeAllocationState(ctx, next, importedWeaponSets)
@@ -1742,13 +1725,32 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       options.nodeAttributeSelections,
     )
     set({
+      selectedClassId,
+      selectedAscendancyId,
       allocatedNodes: rebuilt.allocatedNodes,
       availableNodes: rebuilt.availableNodes,
+      treeEditMode: false,
+      weaponSetMode: 0,
       nodeWeaponSets: rebuilt.nodeWeaponSets,
       nodeAttributeSelections: nextAttributeSelections,
+      masterySelections: {},
+      pendingMasteryNode: null,
+      specs: [{ id: 'default', title: 'Tree 1', nodes: [...rebuilt.allocatedNodes] }],
+      activeSpecId: 'default',
       importedBuildCode: options.importedBuildCode || null,
+      hoveredNodeId: null,
+      selectedNodeId: null,
+      searchQuery: '',
+      searchMatchIds: [],
+      searchMatchCount: 0,
+      zoom: DEFAULT_ZOOM,
+      offsetX: -(tree.constants.min_x + tree.constants.max_x) / 2,
+      offsetY: -(tree.constants.min_y + tree.constants.max_y) / 2,
       undoStack: [],
       redoStack: [],
+      calcResult: null,
+      calcLoading: false,
+      calcError: null,
     })
   },
 
@@ -1979,7 +1981,9 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       let nodeAttributeSelections: NodeAttributeSelections = {}
       let treeVersion: string | undefined
       let classId: string | undefined
+      let classInternalId: string | undefined
       let ascendClassId: string | undefined
+      let ascendancyInternalId: string | undefined
       if (str.trim().startsWith('{')) {
         const payload = JSON.parse(str) as {
           nodes?: string[]
@@ -1995,8 +1999,10 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
         nodeWeaponSets = payload.nodeWeaponSets || {}
         nodeAttributeSelections = payload.nodeAttributeSelections || {}
         treeVersion = payload.treeVersion
-        classId = payload.classInternalId || payload.classId
-        ascendClassId = payload.ascendancyInternalId || payload.ascendClassId
+        classId = payload.classId
+        classInternalId = payload.classInternalId
+        ascendClassId = payload.ascendClassId
+        ascendancyInternalId = payload.ascendancyInternalId
       } else {
         ids = str.split(',').filter(Boolean)
       }
@@ -2007,12 +2013,12 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
           await get().loadTreeData()
         }
         const loaded = get()
-        const classEntry = findClassEntry(loaded.treeData || undefined, classId)
+        const classEntry = resolveTreeClass(loaded.treeData || undefined, { classId, classInternalId })
         if (classEntry) {
           const [resolvedClassId, classData] = classEntry
           set({
             selectedClassId: resolvedClassId,
-            selectedAscendancyId: findAscendancyId(classData, ascendClassId),
+            selectedAscendancyId: resolveTreeAscendancy(classData, { ascendClassId, ascendancyInternalId }),
           })
         }
         const ctx = getAllocationContext(get())
@@ -2323,10 +2329,24 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       await get().loadTreeData()
     }
     const treeData = get().treeData
+    let selectedClassId = build.selectedClassId
+    let selectedAscendancyId = build.selectedAscendancyId
+    if (treeData && build.importedBuildCode) {
+      try {
+        const decoded = decodeBuildCode(build.importedBuildCode)
+        const resolvedClass = resolveTreeClass(treeData, decoded)
+        if (resolvedClass) {
+          selectedClassId = resolvedClass[0]
+          selectedAscendancyId = resolveTreeAscendancy(resolvedClass[1], decoded)
+        }
+      } catch {
+        // Keep the saved identifiers when the original build code is unavailable or invalid.
+      }
+    }
     const ctx = treeData ? {
       treeData,
-      selectedClassId: build.selectedClassId,
-      selectedAscendancyId: build.selectedAscendancyId,
+      selectedClassId,
+      selectedAscendancyId,
       buildRealm: inferBuildRealm(build),
     } : null
     const rebuilt = recomputeAllocationState(ctx, new Set(build.allocatedNodes), build.nodeWeaponSets || {})
@@ -2338,8 +2358,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     set({
       allocatedNodes: rebuilt.allocatedNodes,
       availableNodes: rebuilt.availableNodes,
-      selectedClassId: build.selectedClassId,
-      selectedAscendancyId: build.selectedAscendancyId,
+      selectedClassId,
+      selectedAscendancyId,
       importedBuildCode: build.importedBuildCode || null,
       weaponSetMode: build.weaponSetMode,
       nodeWeaponSets: rebuilt.nodeWeaponSets,
@@ -2377,46 +2397,88 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     }, null, 2)
   },
 
-  importBuildJSON: (json: string) => {
-    try {
-      const build = JSON.parse(json) as Record<string, unknown>
-      const { treeData } = get()
-      const nodes = build.allocatedNodes as string[]
-      if (!nodes || !Array.isArray(nodes)) {
-        throw new Error('Invalid build: missing allocatedNodes')
-      }
-      const selectedClassId = (build.selectedClassId as string) || get().selectedClassId
-      const selectedAscendancyId = (build.selectedAscendancyId as string) || get().selectedAscendancyId
-      const ctx = treeData ? { treeData, selectedClassId, selectedAscendancyId } : null
-      const rebuilt = recomputeAllocationState(
-        ctx,
-        new Set<string>(nodes),
-        (build.nodeWeaponSets as NodeWeaponSets) || {},
-      )
-      const nodeAttributeSelections = defaultAttributeSelections(
-        treeData || undefined,
-        rebuilt.allocatedNodes,
-        (build.nodeAttributeSelections as NodeAttributeSelections) || {},
-      )
-      set({
-        allocatedNodes: rebuilt.allocatedNodes,
-        availableNodes: rebuilt.availableNodes,
-        selectedClassId,
-        selectedAscendancyId,
-        buildRealm: build.realm === 'cn' ? 'cn' : 'global',
-        importedBuildCode: (build.importedBuildCode as string | null) || null,
-        weaponSetMode: (build.weaponSetMode as 0 | 1 | 2) || 0,
-        nodeWeaponSets: rebuilt.nodeWeaponSets,
-        nodeAttributeSelections,
-        masterySelections: (build.masterySelections as Record<string, string>) || {},
-        undoStack: [],
-        redoStack: [],
-        calcResult: null,
-        calcError: null,
-      })
-    } catch (err) {
-      console.error('Failed to import build:', err)
+  importBuildJSON: async (json: string) => {
+    const build = JSON.parse(json) as Record<string, unknown>
+    const nodes = build.allocatedNodes as string[]
+    if (!nodes || !Array.isArray(nodes)) {
+      throw new Error('Invalid build: missing allocatedNodes')
     }
+
+    const importedBuildCode = (build.importedBuildCode as string | null) || null
+    let decoded: ReturnType<typeof decodeBuildCode> | null = null
+    if (importedBuildCode) decoded = decodeBuildCode(importedBuildCode)
+
+    const targetTreeVersion = typeof build.treeVersion === 'string' && build.treeVersion
+      ? build.treeVersion
+      : decoded?.treeVersion
+    if (!targetTreeVersion) throw new Error('The imported build does not specify a passive tree version')
+    if (targetTreeVersion && targetTreeVersion !== get().treeVersion) {
+      set({ treeVersion: targetTreeVersion })
+      await get().loadTreeData()
+    }
+
+    const { treeData } = get()
+    if (!treeData || treeData.version.version !== targetTreeVersion) {
+      throw new Error(`Passive tree data ${targetTreeVersion} is unavailable`)
+    }
+    const classIdentifiers = decoded || { classId: typeof build.selectedClassId === 'string' ? build.selectedClassId : '' }
+    const ascendancyIdentifiers = decoded || { ascendClassId: typeof build.selectedAscendancyId === 'string' ? build.selectedAscendancyId : '' }
+    const resolvedClass = resolveTreeClass(treeData, classIdentifiers)
+    if (!resolvedClass) throw new Error('The imported build class could not be resolved')
+    const selectedClassId = resolvedClass[0]
+    const selectedAscendancyId = resolveTreeAscendancy(resolvedClass[1], ascendancyIdentifiers)
+    const requestedAscendancy = decoded
+      ? decoded.ascendancyInternalId || decoded.ascendClassId
+      : ascendancyIdentifiers.ascendClassId
+    if (requestedAscendancy && !['0', 'nil'].includes(requestedAscendancy.toLowerCase()) && !selectedAscendancyId) {
+      throw new Error(`The imported ascendancy "${requestedAscendancy}" could not be resolved`)
+    }
+
+    const ctx = { treeData, selectedClassId, selectedAscendancyId }
+    const importedNodes = new Set<string>()
+    for (const id of nodes) {
+      const node = treeData.nodes[id]
+      if (node && node.type !== 'ClassStart' && node.type !== 'AscendClassStart') importedNodes.add(id)
+    }
+    const rebuilt = recomputeAllocationState(
+      ctx,
+      importedNodes,
+      (build.nodeWeaponSets as NodeWeaponSets) || {},
+    )
+    const nodeAttributeSelections = defaultAttributeSelections(
+      treeData || undefined,
+      rebuilt.allocatedNodes,
+      (build.nodeAttributeSelections as NodeAttributeSelections) || {},
+    )
+    set({
+      allocatedNodes: rebuilt.allocatedNodes,
+      availableNodes: rebuilt.availableNodes,
+      selectedClassId,
+      selectedAscendancyId,
+      buildRealm: build.realm === 'cn' ? 'cn' : 'global',
+      importedBuildCode,
+      treeEditMode: false,
+      weaponSetMode: (build.weaponSetMode as 0 | 1 | 2) || 0,
+      nodeWeaponSets: rebuilt.nodeWeaponSets,
+      nodeAttributeSelections,
+      masterySelections: (build.masterySelections as Record<string, string>) || {},
+      pendingMasteryNode: null,
+      specs: [{ id: 'default', title: 'Tree 1', nodes: [...rebuilt.allocatedNodes] }],
+      activeSpecId: 'default',
+      hoveredNodeId: null,
+      selectedNodeId: null,
+      searchQuery: '',
+      searchMatchIds: [],
+      searchMatchCount: 0,
+      zoom: DEFAULT_ZOOM,
+      offsetX: -(treeData.constants.min_x + treeData.constants.max_x) / 2,
+      offsetY: -(treeData.constants.min_y + treeData.constants.max_y) / 2,
+      undoStack: [],
+      redoStack: [],
+      calcResult: null,
+      calcLoading: false,
+      calcError: null,
+    })
   },
 
 

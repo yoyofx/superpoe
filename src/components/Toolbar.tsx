@@ -19,6 +19,9 @@ import {
   ZoomOut,
 } from 'lucide-react'
 import { ExportPanel } from '@/components/ExportPanel'
+import { decodeCodeToXml } from '@/engine/buildCode'
+import { getTreeAssetUrl, loadTreeAssetIndex } from '@/engine/treeAssetIndex'
+import type { SpriteIndex } from '@/engine/spriteLoader'
 import { translateGameText } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { buildRealmLabel } from '@/engine/buildRealm'
@@ -70,6 +73,7 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
   const redoStack = useTreeStore((state) => state.redoStack)
   const treeData = useTreeStore((state) => state.treeData)
   const buildRealm = useTreeStore((state) => state.buildRealm)
+  const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
   const setZoom = useTreeStore((state) => state.setZoom)
   const selectClass = useTreeStore((state) => state.selectClass)
   const selectAscendancy = useTreeStore((state) => state.selectAscendancy)
@@ -82,6 +86,16 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
   const redo = useTreeStore((state) => state.redo)
 
   const [activeMenu, setActiveMenu] = useState<ToolbarMenu>(null)
+  const [assetIndex, setAssetIndex] = useState<SpriteIndex>({})
+
+  useEffect(() => {
+    let active = true
+    setAssetIndex({})
+    void loadTreeAssetIndex(treeVersion).then((index) => {
+      if (active) setAssetIndex(index)
+    })
+    return () => { active = false }
+  }, [treeVersion])
 
   useEffect(() => {
     const timer = window.setTimeout(() => performSearch(searchQuery), 180)
@@ -96,6 +110,19 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
   const ascendancyName = currentAscendancy
     ? translateGameText(currentAscendancy.displayName || currentAscendancy.name, lang)
     : ''
+  const characterImageUrl = getTreeAssetUrl(
+    assetIndex,
+    currentAscendancy?.background?.image || currentClass?.background?.image,
+  )
+  const characterLevel = useMemo(() => {
+    if (!importedBuildCode) return '1'
+    try {
+      const buildTag = decodeCodeToXml(importedBuildCode).match(/<Build\b([^>]*)>/i)?.[1] || ''
+      return buildTag.match(/\blevel="([^"]+)"/i)?.[1] || '--'
+    } catch {
+      return '--'
+    }
+  }, [importedBuildCode])
   const viewLabels = useMemo(() => lang === 'zh-rCN'
     ? { passive: '天赋', equipment: '装备', skills: '技能', calculation: '计算' }
     : { passive: 'Passive', equipment: 'Equipment', skills: 'Skills', calculation: 'Calculate' }, [lang])
@@ -147,18 +174,33 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
 
         <div className="current-build">
           <button className="icon-command compact back-command" onClick={onHome} title={lang === 'zh-rCN' ? '返回构筑中心' : 'Back to build center'} aria-label={lang === 'zh-rCN' ? '返回构筑中心' : 'Back to build center'}><ArrowLeft /></button>
-          <span className="class-emblem">{className.slice(0, 1)}</span>
-          <span className="current-build-copy">
-            <input
-              className="current-build-name"
-              value={buildName}
-              maxLength={80}
-              onChange={(event) => onBuildNameChange(event.target.value)}
-              onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
-              aria-label={lang === 'zh-rCN' ? '构筑名称' : 'Build name'}
-              title={lang === 'zh-rCN' ? '修改构筑名称' : 'Rename build'}
-            />
-            <small>{className}{ascendancyName ? ` · ${ascendancyName}` : ''}</small>
+          <span className="current-build-profile">
+            <span className="class-emblem">
+              {characterImageUrl
+                ? <img src={characterImageUrl} alt="" decoding="async" />
+                : className.slice(0, 1)}
+            </span>
+            <span className="current-build-copy">
+              <input
+                className="current-build-name"
+                value={buildName}
+                maxLength={80}
+                onChange={(event) => onBuildNameChange(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+                aria-label={lang === 'zh-rCN' ? '构筑名称' : 'Build name'}
+                title={lang === 'zh-rCN' ? '修改构筑名称' : 'Rename build'}
+              />
+              <small>Lv.{characterLevel} · {className}{ascendancyName ? ` · ${ascendancyName}` : ''}</small>
+            </span>
+            <span className="character-summary-tooltip" role="tooltip">
+              <strong>{lang === 'zh-rCN' ? '人物基本信息' : 'Character details'}</strong>
+              <span><i>{lang === 'zh-rCN' ? '等级' : 'Level'}</i><b>{characterLevel}</b></span>
+              <span><i>{lang === 'zh-rCN' ? '职业' : 'Class'}</i><b>{className}</b></span>
+              <span><i>{lang === 'zh-rCN' ? '升华' : 'Ascendancy'}</i><b>{ascendancyName || (lang === 'zh-rCN' ? '未选择' : 'Not selected')}</b></span>
+              <span><i>{lang === 'zh-rCN' ? '服务器' : 'Realm'}</i><b>{buildRealmLabel(buildRealm, lang === 'zh-rCN')}</b></span>
+              <span><i>{lang === 'zh-rCN' ? '天赋版本' : 'Tree version'}</i><b>{treeVersion.replace('_', '.')}</b></span>
+              <span><i>{lang === 'zh-rCN' ? '已分配天赋' : 'Allocated passives'}</i><b>{allocatedNodes.size}</b></span>
+            </span>
           </span>
           <span className={`realm-tag ${buildRealm}`}>{buildRealmLabel(buildRealm, lang === 'zh-rCN')}</span>
           <span className={`save-state ${saveStatus}`}><i />{saveLabels[saveStatus]}</span>

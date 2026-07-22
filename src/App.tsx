@@ -173,7 +173,7 @@ export default function App() {
 
   const handleImportConfirmation = useCallback(async (confirmation: ImportConfirmation) => {
     if (confirmation.kind === 'json') {
-      importBuildJSON(confirmation.value)
+      await importBuildJSON(confirmation.value)
     } else {
       const code = confirmation.kind === 'wegame' ? confirmation.code : confirmation.value
       if (!code) throw new Error('Missing converted PoB code')

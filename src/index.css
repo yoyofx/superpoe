@@ -41,13 +41,22 @@ svg { flex: 0 0 auto; }
 .app-brand small { display: block; color: #716c60; font-size: 10px; margin-top: 1px; }
 
 .current-build { min-width: 0; display: flex; align-items: center; gap: 10px; padding: 0 14px; }
+.current-build-profile { position: relative; min-width: 0; display: flex; align-items: center; gap: 9px; }
 .class-emblem { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid #62573d; background: #1b1b16; color: #c5aa6e; font: 500 14px Georgia, serif; }
+.class-emblem img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .current-build-copy { min-width: 0; }
 .current-build-copy small { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .current-build-name { display: block; width: min(300px, 30vw); height: 19px; padding: 0 3px; border: 1px solid transparent; background: transparent; color: #d4cab5; font: 500 12px Inter, "Microsoft YaHei", sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; outline: 0; }
 .current-build-name:hover { border-color: #454137; background: rgba(18, 20, 17, .76); }
 .current-build-name:focus { border-color: #88764f; background: #11130f; color: #ead9ae; }
 .current-build-copy small { color: #777166; font-size: 10px; margin-top: 2px; }
+.character-summary-tooltip { position: absolute; z-index: 120; top: calc(100% + 10px); left: 0; width: 248px; display: grid; gap: 7px; padding: 11px 12px; border: 1px solid #5c513c; background: #0d100e; color: #aaa294; box-shadow: 0 12px 34px rgba(0, 0, 0, .72); opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(-3px); transition: opacity .12s ease, transform .12s ease, visibility .12s ease; }
+.current-build-profile:hover .character-summary-tooltip { opacity: 1; visibility: visible; transform: translateY(0); }
+.character-summary-tooltip::before { content: ""; position: absolute; left: 13px; top: -5px; width: 8px; height: 8px; border-left: 1px solid #5c513c; border-top: 1px solid #5c513c; background: #0d100e; transform: rotate(45deg); }
+.character-summary-tooltip > strong { padding-bottom: 7px; border-bottom: 1px solid #343129; color: #d4bf89; font: 500 12px Georgia, "Microsoft YaHei", serif; }
+.character-summary-tooltip > span { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.character-summary-tooltip i { color: #716c63; font-style: normal; }
+.character-summary-tooltip b { color: #c8c0b1; font-weight: 500; text-align: right; }
 .realm-tag { display: inline-flex; align-items: center; justify-content: center; min-height: 18px; padding: 1px 6px; border: 1px solid #4d665e; background: #13201c; color: #7eb39e; font-size: 8px; font-style: normal; font-weight: 500; line-height: 1; white-space: nowrap; }
 .realm-tag.cn { border-color: #71443e; background: #241412; color: #d47a70; }
 .current-build > .realm-tag { flex: 0 0 auto; }
@@ -112,37 +121,39 @@ svg { flex: 0 0 auto; }
 .workspace-empty p { max-width: 480px; color: #777269; font-size: 12px; text-align: center; }
 .workspace-empty .primary-command { margin-top: 8px; }
 
-.equipment-workspace { height: 100%; display: grid; grid-template-columns: clamp(190px, 16vw, 226px) minmax(440px, 1fr) clamp(290px, 25vw, 350px); min-width: 0; background: #0a0c0c url('/assets/ui/workbench/page-bg-21pjpjtV.jpg') center / cover no-repeat; }
+.equipment-workspace { height: 100%; display: grid; grid-template-columns: clamp(250px, 20vw, 300px) minmax(440px, 1fr) clamp(290px, 25vw, 350px); min-width: 0; background: #0a0c0c url('/assets/ui/workbench/page-bg-21pjpjtV.jpg') center / cover no-repeat; }
 .equipment-workspace::before { content: ""; position: absolute; inset: 0; pointer-events: none; background: rgba(4, 7, 8, .78); }
 .equipment-loadouts, .paper-doll-stage, .equipment-inspector { position: relative; z-index: 1; min-width: 0; }
 .equipment-loadouts { padding: 15px 12px; border-right: 1px solid #4a4435; background: rgba(12, 14, 13, .96); overflow-y: auto; }
 .side-heading { min-height: 29px; display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #39362f; color: #9e916f; font: 500 11px Georgia, "Microsoft YaHei", serif; }
 .side-heading strong { color: #6f6a61; font: 400 10px Inter, sans-serif; }
-.weapon-heading { margin-top: 20px; }
-.loadout-list { display: grid; gap: 4px; margin-top: 8px; }
-.loadout-list button { min-height: 48px; display: grid; grid-template-columns: 27px 1fr 16px; align-items: center; gap: 8px; padding: 5px 7px; border: 1px solid transparent; background: transparent; text-align: left; color: #8b857a; cursor: pointer; }
-.loadout-list button:hover { background: #171915; color: #c8bda6; }
-.loadout-list button.active { border-color: #5e5339; background: rgba(143, 119, 67, .11); color: #d5c7aa; }
-.loadout-index { width: 24px; height: 24px; display: grid; place-items: center; border: 1px solid #4a4538; color: #a8915f; font: 500 12px Georgia, serif; }
-.loadout-list strong, .loadout-list small { display: block; }
-.loadout-list strong { font-size: 11px; font-weight: 500; }
-.loadout-list small { color: #656159; font-size: 9px; margin-top: 3px; }
-.loadout-list svg { width: 13px; height: 13px; color: #a98f55; }
-
-.weapon-set-switch { display: grid; gap: 5px; margin-top: 8px; }
-.weapon-set-switch button { min-height: 42px; display: grid; grid-template-columns: 24px 1fr; align-items: center; gap: 8px; padding: 4px 8px; border: 1px solid #35332d; background: #111310; color: #716e66; text-align: left; cursor: pointer; }
-.weapon-set-switch button:hover { color: #c1b7a2; border-color: #514a3b; }
-.weapon-set-switch button.active { color: #d7c69f; border-color: #806f49; background: #201e17; }
-.weapon-set-switch svg { width: 16px; height: 16px; }
-.weapon-set-switch strong, .weapon-set-switch small { display: block; }
-.weapon-set-switch strong { font: 500 13px Georgia, serif; }
-.weapon-set-switch small { color: #68645c; font-size: 9px; margin-top: 1px; }
-
-.equipment-summary { margin-top: 20px; border-top: 1px solid #39362e; border-left: 1px solid #39362e; }
-.equipment-summary > div { display: grid; grid-template-columns: 20px 1fr auto; align-items: center; min-height: 42px; padding: 0 8px; border-right: 1px solid #39362e; border-bottom: 1px solid #39362e; }
-.equipment-summary svg { width: 14px; height: 14px; color: #8e7a50; }
-.equipment-summary span { color: #716d64; font-size: 10px; }
-.equipment-summary strong { color: #bfae84; font: 500 13px Georgia, serif; }
+.equipment-affix-heading { min-height: 31px; display: flex; align-items: center; justify-content: space-between; padding-bottom: 6px; border-bottom: 1px solid #403b31; color: #c5ad76; font: 500 12px Georgia, "Microsoft YaHei", serif; }
+.equipment-affix-heading strong { color: #7e9e91; font: 500 10px var(--font-ui); }
+.equipment-loadout-select { display: grid; gap: 6px; padding: 12px 0 13px; border-bottom: 1px solid #302e28; }
+.equipment-loadout-select > span { color: #777168; font-size: 10px; }
+.equipment-loadout-select select { width: 100%; height: 31px; padding: 0 28px 0 9px; border: 1px solid #4b463a; border-radius: 2px; background: #141713; color: #c4bba9; cursor: pointer; }
+.equipment-loadout-select select:hover { border-color: #746345; }
+.equipment-affix-list { padding-top: 5px; }
+.equipment-affix-category { border-bottom: 1px solid #292923; }
+.equipment-affix-category-toggle { width: 100%; min-height: 34px; display: grid; grid-template-columns: 1fr auto 14px; align-items: center; gap: 7px; padding: 0 5px; border: 0; background: transparent; color: #a99568; text-align: left; cursor: pointer; }
+.equipment-affix-category-toggle:hover { background: rgba(169, 145, 94, .06); color: #cfbc8b; }
+.equipment-affix-category-toggle span { font: 500 11px Georgia, "Microsoft YaHei", serif; }
+.equipment-affix-category-toggle small { color: #625f57; font-size: 9px; }
+.equipment-affix-category-toggle svg { width: 13px; height: 13px; }
+.equipment-affix { margin-bottom: 2px; }
+.equipment-affix-row { width: 100%; min-height: 30px; display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: start; gap: 6px; padding: 6px 5px; border: 0; background: transparent; color: #aaa397; text-align: left; cursor: pointer; }
+.equipment-affix-row:hover, .equipment-affix.expanded > .equipment-affix-row { background: rgba(255, 255, 255, .025); color: #d0c6b4; }
+.equipment-affix-row svg { width: 11px; height: 11px; margin-top: 2px; color: #766846; transition: transform .12s ease; }
+.equipment-affix.expanded > .equipment-affix-row svg { transform: rotate(90deg); }
+.equipment-affix-row span { min-width: 0; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.equipment-affix-row small { min-width: 16px; color: #756e62; font-size: 9px; text-align: right; }
+.equipment-affix-sources { margin: 0 4px 5px 22px; border-left: 1px solid #3d382d; }
+.equipment-affix-sources button { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 5px 6px; border: 0; background: transparent; color: #716d65; text-align: left; cursor: pointer; }
+.equipment-affix-sources button:hover { background: rgba(177, 146, 81, .08); color: #aaa08d; }
+.equipment-affix-sources span { color: #8c7d60; font-size: 9px; white-space: nowrap; }
+.equipment-affix-sources strong { min-width: 0; font-size: 9px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.equipment-affix-sources i { padding: 1px 4px; border: 1px solid #4e614e; color: #78a276; font-size: 8px; font-style: normal; }
+.equipment-affix-empty { padding: 28px 8px; color: #625f58; font-size: 10px; line-height: 1.6; text-align: center; }
 
 .paper-doll-stage { min-width: 0; min-height: 0; display: grid; grid-template-rows: 45px minmax(0, 1fr); padding: 0 12px 10px; background: rgba(7, 9, 9, .72); overflow: hidden; }
 .paper-doll-heading { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #343129; }
@@ -462,7 +473,7 @@ svg { flex: 0 0 auto; }
 .skill-inspector-section p small { color: #68645c; }
 
 @media (max-width: 1400px) {
-  .equipment-workspace { grid-template-columns: 210px minmax(500px, 1fr) 320px; }
+  .equipment-workspace { grid-template-columns: 260px minmax(500px, 1fr) 320px; }
   .workspace-tabs button { min-width: 88px; padding-inline: 10px; }
   .context-select { max-width: 105px; }
   .context-tools > .icon-command:last-child, .context-tools > .icon-command:nth-last-child(2) { display: none; }
@@ -471,22 +482,17 @@ svg { flex: 0 0 auto; }
 
 @media (max-width: 1120px) {
   .recent-builds { grid-template-columns: repeat(2, minmax(190px, 1fr)); }
-  .equipment-workspace { grid-template-columns: 180px minmax(400px, 1fr) 280px; }
+  .equipment-workspace { grid-template-columns: 240px minmax(400px, 1fr) 280px; }
   .equipment-loadouts { padding-inline: 8px; }
   .paper-doll-stage { padding-inline: 6px; }
 }
 
 @media (max-width: 940px) {
   .center-app-bar { grid-template-columns: 190px minmax(220px, 1fr) auto; }
-  .equipment-workspace { grid-template-columns: minmax(430px, 1fr) 290px; grid-template-rows: 70px minmax(0, 1fr); }
-  .equipment-loadouts { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 10px; align-items: center; padding: 7px 10px; border-right: 0; border-bottom: 1px solid #4a4435; overflow: hidden; }
-  .equipment-loadouts .side-heading { display: none; }
-  .loadout-list { display: flex; margin: 0; overflow-x: auto; }
-  .loadout-list button { min-width: 170px; min-height: 48px; }
-  .weapon-set-switch { display: flex; margin: 0; }
-  .weapon-set-switch button { min-width: 88px; min-height: 44px; }
-  .equipment-summary { display: flex; margin: 0; border-top: 0; }
-  .equipment-summary > div { width: 115px; border-top: 1px solid #39362e; }
+  .equipment-workspace { grid-template-columns: minmax(430px, 1fr) 290px; grid-template-rows: 190px minmax(0, 1fr); }
+  .equipment-loadouts { grid-column: 1 / -1; padding: 8px 10px; border-right: 0; border-bottom: 1px solid #4a4435; overflow-y: auto; }
+  .equipment-loadout-select { width: 250px; padding-block: 7px; }
+  .equipment-affix-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 10px; }
   .paper-doll-stage { grid-column: 1; grid-row: 2; }
   .equipment-inspector { grid-column: 2; grid-row: 2; }
   .import-body { grid-template-columns: 1fr; }
@@ -504,9 +510,8 @@ svg { flex: 0 0 auto; }
   .import-tabs button { min-width: 0; flex: 1; }
   .import-footer { flex-wrap: wrap; }
   .import-footer > span { display: none; }
-  .equipment-workspace { grid-template-columns: 1fr; grid-template-rows: 62px minmax(300px, 56%) minmax(220px, 44%); overflow-y: auto; }
-  .equipment-loadouts { grid-template-columns: 1fr auto; }
-  .equipment-summary { display: none; }
+  .equipment-workspace { grid-template-columns: 1fr; grid-template-rows: 190px minmax(300px, 56%) minmax(220px, 44%); overflow-y: auto; }
+  .equipment-affix-list { grid-template-columns: 1fr; }
   .paper-doll-stage { grid-column: 1; grid-row: 2; }
   .equipment-inspector { grid-column: 1; grid-row: 3; border-left: 0; border-top: 1px solid #4a4435; }
   .skills-workspace { grid-template-columns: 160px 1fr; }
@@ -605,10 +610,8 @@ svg { flex: 0 0 auto; }
 
 .equipment-loadouts,
 .equipment-inspector { background-color: rgba(10, 12, 10, .96); }
-.loadout-list button,
-.weapon-set-switch button { background-color: rgba(14, 16, 13, .84); }
-.loadout-list button.active,
-.weapon-set-switch button.active { box-shadow: inset 3px 0 #b79a5d, inset 0 0 18px rgba(160, 126, 61, .08); }
+.loadout-list button { background-color: rgba(14, 16, 13, .84); }
+.loadout-list button.active { box-shadow: inset 3px 0 #b79a5d, inset 0 0 18px rgba(160, 126, 61, .08); }
 
 .skills-workspace { position: relative; isolation: isolate; background: #090b0a url('/assets/ui/workbench/page-bg-21pjpjtV.jpg') center / cover no-repeat; }
 .skills-workspace::before { content: ""; position: absolute; inset: 0; z-index: -1; background: rgba(5, 7, 7, .74); }
@@ -692,8 +695,6 @@ svg { flex: 0 0 auto; }
 .side-heading,
 .side-heading strong,
 .loadout-list small,
-.weapon-set-switch small,
-.equipment-summary span,
 .paper-doll-heading small,
 .rune-tooltip header small,
 .rune-tooltip-empty,
@@ -722,7 +723,6 @@ svg { flex: 0 0 auto; }
 .realm-tag,
 .workspace-tabs button small,
 .loadout-list small,
-.weapon-set-switch small,
 .paper-doll-heading small,
 .rune-socket,
 .item-metadata,
@@ -771,7 +771,6 @@ svg { flex: 0 0 auto; }
 .current-build-copy small,
 .side-heading strong,
 .loadout-list small,
-.weapon-set-switch small,
 .paper-doll-heading small,
 .item-metadata,
 .socket-copy small,
