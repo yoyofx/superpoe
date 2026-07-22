@@ -17,11 +17,12 @@ export interface NewBuildInput {
 
 interface NewBuildDialogProps {
   open: boolean
+  defaultRealm: BuildRealm
   onClose: () => void
   onCreate: (input: NewBuildInput) => void
 }
 
-export function NewBuildDialog({ open, onClose, onCreate }: NewBuildDialogProps) {
+export function NewBuildDialog({ open, defaultRealm, onClose, onCreate }: NewBuildDialogProps) {
   const { lang } = useTranslation()
   const treeData = useTreeStore((state) => state.treeData)
   const currentVersion = useTreeStore((state) => state.treeVersion)
@@ -54,8 +55,8 @@ export function NewBuildDialog({ open, onClose, onCreate }: NewBuildDialogProps)
     setAscendancyId('')
     setName('')
     setTreeVersion(currentVersion)
-    setRealm('global')
-  }, [open, classes, currentVersion])
+    setRealm(defaultRealm)
+  }, [open, classes, currentVersion, defaultRealm])
 
   if (!open) return null
   const classLabel = selectedClass ? translateGameText(selectedClass.displayName || selectedClass.name, lang) : ''

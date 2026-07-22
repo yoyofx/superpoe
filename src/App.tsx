@@ -15,6 +15,8 @@ import { UnifiedImportDialog, type ImportConfirmation } from '@/components/Unifi
 import { importPobBuildCode } from '@/engine/importPobBuildCode'
 import type { SavedBuild } from '@/types/tree'
 import { SkillsPanel } from '@/components/SkillsPanel'
+import { GlobalSettingsDialog } from '@/components/GlobalSettingsDialog'
+import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/appSettings'
 
 export default function App() {
   const { t, lang } = useTranslation()
@@ -29,7 +31,9 @@ export default function App() {
   const [saveNotice, setSaveNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [newBuildOpen, setNewBuildOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
+  const [appSettings, setAppSettings] = useState(loadAppSettings)
   const { treeData, loading, error, loadTreeData, loadSavedBuilds } = useTreeStore()
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
   const nodeWeaponSets = useTreeStore((s) => s.nodeWeaponSets)
@@ -203,10 +207,15 @@ export default function App() {
     setSaveStatus('dirty')
   }, [])
 
+  const handleSettingsChange = useCallback((settings: AppSettings) => {
+    setAppSettings(settings)
+    saveAppSettings(settings)
+  }, [])
+
   const requestHome = useCallback(() => {
-    if (saveStatus === 'dirty') setLeaveConfirmOpen(true)
+    if (saveStatus === 'dirty' && appSettings.confirmUnsavedExit) setLeaveConfirmOpen(true)
     else setScreen('center')
-  }, [saveStatus])
+  }, [appSettings.confirmUnsavedExit, saveStatus])
 
   if (loading) {
     return (
@@ -228,8 +237,8 @@ export default function App() {
 
   return (
     <div className="superpoe-app">
-      {screen === 'center' ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} /> : <>
-      <Toolbar activeView={activeView} onViewChange={setActiveView} buildName={buildName} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} />
+      {screen === 'center' ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onSettings={() => setSettingsOpen(true)} /> : <>
+      <Toolbar activeView={activeView} onViewChange={setActiveView} buildName={buildName} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} onSettings={() => setSettingsOpen(true)} />
       <main className="workspace-view">
         {activeView === 'passive' && (
           <section className="passive-workspace">
@@ -242,8 +251,9 @@ export default function App() {
         {activeView === 'calculation' && <StatTable page />}
       </main>
       </>}
-      <NewBuildDialog open={newBuildOpen} onClose={() => setNewBuildOpen(false)} onCreate={(input) => void handleCreateBuild(input)} />
-      <UnifiedImportDialog open={importOpen} hasCurrentBuild={screen === 'editor'} onClose={() => setImportOpen(false)} onConfirm={handleImportConfirmation} />
+      <NewBuildDialog open={newBuildOpen} defaultRealm={appSettings.defaultRealm} onClose={() => setNewBuildOpen(false)} onCreate={(input) => void handleCreateBuild(input)} />
+      <UnifiedImportDialog open={importOpen} hasCurrentBuild={screen === 'editor'} defaultRealm={appSettings.defaultRealm} onClose={() => setImportOpen(false)} onConfirm={handleImportConfirmation} />
+      <GlobalSettingsDialog open={settingsOpen} settings={appSettings} onChange={handleSettingsChange} onClose={() => setSettingsOpen(false)} />
       {leaveConfirmOpen && <div className="modal-backdrop"><section className="confirm-dialog" role="alertdialog" aria-modal="true"><AlertTriangle /><h2>{lang === 'zh-rCN' ? '离开当前构筑？' : 'Leave current build?'}</h2><p>{lang === 'zh-rCN' ? '当前构筑有未保存修改。离开后仍会保留自动草稿，但不会出现在命名构筑列表中。' : 'This build has unsaved changes. The draft remains locally, but it will not appear as a named build.'}</p><footer><button className="secondary-command" onClick={() => setLeaveConfirmOpen(false)}>{lang === 'zh-rCN' ? '继续编辑' : 'Keep editing'}</button><button className="primary-command" onClick={() => { setLeaveConfirmOpen(false); setScreen('center') }}>{lang === 'zh-rCN' ? '离开' : 'Leave'}</button></footer></section></div>}
       {saveNotice && <div className={`save-notice ${saveNotice.type}`} role="status" aria-live="polite">
         {saveNotice.type === 'success' ? <CheckCircle2 /> : <XCircle />}

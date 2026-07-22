@@ -9,7 +9,7 @@
 ## 当前状态
 
 - 主渲染层：默认使用 PixiJS 8 / WebGL 2D 渲染天赋树；旧 `TreeCanvas` 仍保留为 fallback 和对照实现。
-- 数据与资源：`public/data/tree-web-{version}.json`、`public/assets/`、`public/pob-lua/` 均作为浏览器运行时资源提交。
+- 数据与资源：`public/data/tree-web-{version}.json`、`public/assets/`、`public/pob-lua/` 均作为 Electron renderer 运行时资源提交。
 - Build code：PoB2 导入/导出已在前端 `src/engine/buildCode.ts` 完成，不再需要 Fastify 编解码接口。
 - 计算：当前走 `src/engine/pobLuaWorker.ts`，通过 Web Worker + wasmoon Lua 5.4 WASM 加载 `public/pob-lua/` bundle 执行 PoB Lua。
 - 后端：`server/`、Vite `/api` proxy、`dev:server`、`test:server` 仍存在，作为旧 LuaJIT 对照/遗留路径；目标是从产品路径移除。
@@ -53,7 +53,7 @@
 
 ## 下一阶段：前端 WASM 化 PoB
 
-> 目标：所有产品 PoB 功能在浏览器前端执行，不依赖 Fastify API。运行时继续使用 wasmoon Lua 5.4 WASM，第一阶段追求关键指标与桌面 PoB 一致。
+> 目标：所有产品 PoB 功能在 Electron renderer 中执行，不依赖 Fastify API。运行时继续使用 wasmoon Lua 5.4 WASM，第一阶段追求关键指标与桌面 PoB 一致。
 
 | ID | 任务 | 状态 |
 |----|------|------|
@@ -82,7 +82,7 @@
 | 计算详情 | [ ] | 展示 offense/defense breakdown、技能 DPS 明细和关键来源 |
 | 多 spec 完整 UI | [ ] | 当前 store 有框架，仍需完整 SpecSelector / Compare UI |
 | 专精效果完整数据 | [ ] | 当前已有框架，完整 masteryEffects 仍需从数据源补齐 |
-| 外部网络功能 | [ ] | trade、archives、在线导入等需要单独设计浏览器-only 方案 |
+| 外部网络功能 | [ ] | trade、archives、在线导入等统一通过 Electron 桌面能力设计 |
 | 移动端适配 | [ ] | 当前主要面向桌面视口，后续再做响应式工具布局 |
 
 ---
@@ -109,7 +109,7 @@
 # 安装依赖
 npm install
 
-# 前端开发
+# Electron 桌面开发
 npm run dev
 
 # 构建

@@ -1,4 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
+import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseWeGameShareCode, requestPoe2dbBuild } from './poe2dbClient.js'
@@ -6,12 +7,22 @@ import { parseWeGameShareCode, requestPoe2dbBuild } from './poe2dbClient.js'
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
+const packageMetadata = JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')) as {
+  name?: string
+  build?: { productName?: string }
+}
+const productName = packageMetadata.build?.productName || packageMetadata.name
 
-app.setName('SuperPoE2')
+if (!productName) throw new Error('package.json must define build.productName or name')
+
+const appDataPath = app.getPath('appData')
+const userDataPath = path.join(appDataPath, productName)
+app.setPath('userData', userDataPath)
+app.setName(productName)
 
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
-    title: 'SuperPoE2',
+    title: productName,
     width: 1440,
     height: 960,
     minWidth: 1024,

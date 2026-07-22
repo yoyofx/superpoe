@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Calculator,
-  ChevronDown,
   CircleHelp,
   Download,
   ArrowLeft,
-  Languages,
   LockKeyhole,
   MoreVertical,
   Redo2,
@@ -21,10 +19,10 @@ import {
   ZoomOut,
 } from 'lucide-react'
 import { ExportPanel } from '@/components/ExportPanel'
-import { LANGUAGE_OPTIONS, translateGameText, type Language } from '@/i18n/translationLoader'
+import { translateGameText } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { buildRealmLabel } from '@/engine/buildRealm'
-import { SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
+import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import {
   DEFAULT_ZOOM,
   MAX_ZOOM,
@@ -44,6 +42,7 @@ interface ToolbarProps {
   onHome: () => void
   onImport: () => void
   onSave: () => void
+  onSettings: () => void
 }
 
 const VIEW_ICONS = {
@@ -55,8 +54,8 @@ const VIEW_ICONS = {
 
 const VIEW_ORDER: WorkspaceView[] = ['equipment', 'passive', 'skills', 'calculation']
 
-export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange, saveStatus, onHome, onImport, onSave }: ToolbarProps) {
-  const { t, lang, setLanguage } = useTranslation()
+export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange, saveStatus, onHome, onImport, onSave, onSettings }: ToolbarProps) {
+  const { t, lang } = useTranslation()
   const zoom = useTreeStore((state) => state.zoom)
   const treeVersion = useTreeStore((state) => state.treeVersion)
   const selectedClassId = useTreeStore((state) => state.selectedClassId)
@@ -141,9 +140,9 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
   return (
     <header className="workbench-header">
       <div className="app-command-bar">
-        <div className="app-brand" aria-label="SuperPoE2">
+        <div className="app-brand" aria-label={SUPERPOE_NAME}>
           <span className="app-brand-mark"><i>S</i></span>
-          <span><strong>SuperPoE2</strong><small>{SUPERPOE_VERSION_LABEL}</small></span>
+          <span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span>
         </div>
 
         <div className="current-build">
@@ -222,14 +221,7 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
           {activeView === 'calculation' && <button className="primary-command" onClick={openCalculate} disabled={!allocatedNodes.size || calcLoading}><Calculator />{calcLoading ? t('stats.calculating') : t('toolbar.calc')}</button>}
 
           <span className="toolbar-spacer" />
-          <label className="language-select" title={t('toolbar.language')}>
-            <Languages />
-            <select value={lang} onChange={(event) => setLanguage(event.target.value as Language)} aria-label={t('toolbar.language')}>
-              {LANGUAGE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-            </select>
-            <ChevronDown />
-          </label>
-          <button className="icon-command compact" title={lang === 'zh-rCN' ? '设置' : 'Settings'} aria-label={lang === 'zh-rCN' ? '设置' : 'Settings'}><Settings /></button>
+          <button className="icon-command compact" onClick={onSettings} title={lang === 'zh-rCN' ? '全局设置' : 'Global settings'} aria-label={lang === 'zh-rCN' ? '全局设置' : 'Global settings'}><Settings /></button>
           <button className="icon-command compact" title={lang === 'zh-rCN' ? '帮助' : 'Help'} aria-label={lang === 'zh-rCN' ? '帮助' : 'Help'}><CircleHelp /></button>
         </div>
       </div>

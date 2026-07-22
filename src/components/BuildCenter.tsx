@@ -1,16 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, Languages, MoreVertical, Plus, Search, Settings, Trash2 } from 'lucide-react'
-import { LANGUAGE_OPTIONS, translateGameText, type Language } from '@/i18n/translationLoader'
+import { ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, MoreVertical, Plus, Search, Settings, Trash2 } from 'lucide-react'
+import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { useTreeStore } from '@/store/treeStore'
 import type { SavedBuild } from '@/types/tree'
 import { buildRealmLabel } from '@/engine/buildRealm'
-import { SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
+import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 
 interface BuildCenterProps {
   onCreate: () => void
   onImport: () => void
   onOpen: (build: SavedBuild) => void
+  onSettings: () => void
 }
 
 const BUILDS_PER_PAGE = 10
@@ -27,8 +28,8 @@ function formatUpdatedAt(value: string, lang: Language): string {
   }).format(date)
 }
 
-export function BuildCenter({ onCreate, onImport, onOpen }: BuildCenterProps) {
-  const { lang, setLanguage } = useTranslation()
+export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCenterProps) {
+  const { lang } = useTranslation()
   const treeData = useTreeStore((state) => state.treeData)
   const savedBuilds = useTreeStore((state) => state.savedBuilds)
   const deleteBuild = useTreeStore((state) => state.deleteBuild)
@@ -82,11 +83,10 @@ export function BuildCenter({ onCreate, onImport, onOpen }: BuildCenterProps) {
   return (
     <div className="build-center">
       <header className="center-app-bar">
-        <div className="app-brand center-brand"><span className="app-brand-mark"><i>S</i></span><span><strong>SuperPoE2</strong><small>{SUPERPOE_VERSION_LABEL}</small></span></div>
+        <div className="app-brand center-brand"><span className="app-brand-mark"><i>S</i></span><span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span></div>
         <label className="build-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={zh ? '搜索构筑名称、职业或升华' : 'Search builds, classes, or ascendancies'} /></label>
         <div className="center-actions">
-          <label className="language-select"><Languages /><select value={lang} onChange={(event) => setLanguage(event.target.value as Language)}>{LANGUAGE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-          <button className="icon-command" title={zh ? '设置' : 'Settings'} aria-label={zh ? '设置' : 'Settings'}><Settings /></button>
+          <button className="icon-command" onClick={onSettings} title={zh ? '全局设置' : 'Global settings'} aria-label={zh ? '全局设置' : 'Global settings'}><Settings /></button>
           <button className="icon-command" title={zh ? '帮助' : 'Help'} aria-label={zh ? '帮助' : 'Help'}><CircleHelp /></button>
         </div>
       </header>

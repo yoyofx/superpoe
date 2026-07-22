@@ -11,7 +11,7 @@ Electron main process 仅负责受限的系统能力；当前包含 WeGame 分�
 
 ```powershell
 npm install
-npm run dev:electron
+npm run dev
 ```
 
 打包桌面安装程序：
@@ -22,7 +22,7 @@ npm run dist:electron
 
 首次安装依赖时，Electron 会下载与当前平台对应的 Chromium runtime。若下载被网络策略阻断，需要配置可访问 Electron 发布包的网络或镜像后重新执行 `npm install`。
 
-浏览器模式仍可使用 `npm run dev`，但不会显示 WeGame 自动导入入口；可继续使用普通 PoB code 导入。
+应用入口统一为 Electron 桌面窗口。Vite 仅作为开发期间的 renderer 服务，不再自动打开浏览器，也不提供独立浏览器产品入口。
 
 ## 渲染层
 

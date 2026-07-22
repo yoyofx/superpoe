@@ -100,10 +100,6 @@ svg { flex: 0 0 auto; }
 .zoom-control button:nth-child(2), .zoom-control button:nth-child(3) { min-width: 42px; }
 .zoom-control svg { width: 13px; height: 13px; margin: auto; }
 
-.language-select { position: relative; height: 28px; display: flex; align-items: center; gap: 5px; padding: 0 5px 0 7px; border: 1px solid #454137; background: #10120f; color: #827d73; }
-.language-select > svg { width: 13px; height: 13px; }
-.language-select > svg:last-child { width: 10px; }
-.language-select select { max-width: 92px; border: 0; appearance: none; background: transparent; color: #918b7f; font-size: 10px; outline: 0; }
 .command-popover { position: fixed; z-index: 90; top: 58px; right: 14px; width: min(390px, calc(100vw - 28px)); }
 
 .workspace-view { position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #090b0c; }
@@ -368,6 +364,23 @@ svg { flex: 0 0 auto; }
 .preview-empty svg { width: 28px; height: 28px; color: #655a41; }
 .import-footer { justify-content: flex-start; }
 .import-footer > span { flex: 1; }
+.settings-dialog { width: min(600px, calc(100vw - 32px)); grid-template-rows: auto minmax(0, 1fr) auto; }
+.settings-body { min-height: 0; overflow-y: auto; }
+.settings-section { border-bottom: 1px solid #38352e; }
+.settings-section:last-child { border-bottom: 0; }
+.settings-section > header { min-height: 38px; display: flex; align-items: center; gap: 8px; padding: 0 18px; background: #141612; color: #a69268; }
+.settings-section > header svg { width: 14px; height: 14px; }
+.settings-section > header h3 { font: 500 11px Georgia, "Microsoft YaHei", serif; }
+.settings-row { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 18px; padding: 8px 18px; border-top: 1px solid #2d2d27; color: #999287; font-size: 11px; }
+.settings-row > span { min-width: 0; }
+.settings-row > select { width: min(210px, 48%); height: 30px; padding: 0 30px 0 9px; border: 1px solid #484338; background: #0d0f0d; color: #c8beaa; font-size: 11px; outline: 0; }
+.settings-row > strong { color: #c8b991; font-size: 11px; font-weight: 500; }
+.settings-realm-row > .realm-selector { width: min(260px, 54%); height: 31px; }
+.settings-toggle-row { cursor: pointer; }
+.settings-toggle-row input { width: 16px; height: 16px; flex: none; accent-color: #a88c4f; cursor: pointer; }
+.settings-about .settings-row { min-height: 40px; }
+.settings-dialog > .dialog-footer { justify-content: flex-end; }
+.settings-dialog > .dialog-footer > span { flex: 1; }
 .confirm-dialog { width: min(430px, calc(100vw - 32px)); display: flex; flex-direction: column; align-items: center; padding: 24px; text-align: center; }
 .confirm-dialog > svg { width: 32px; height: 32px; color: #c59757; }
 .confirm-dialog h2 { margin-top: 10px; color: #d0c3a8; font: 500 17px Georgia, "Microsoft YaHei", serif; }
@@ -431,7 +444,7 @@ svg { flex: 0 0 auto; }
   .equipment-workspace { grid-template-columns: 210px minmax(500px, 1fr) 320px; }
   .workspace-tabs button { min-width: 88px; padding-inline: 10px; }
   .context-select { max-width: 105px; }
-  .language-select, .context-tools > .icon-command:last-child, .context-tools > .icon-command:nth-last-child(2) { display: none; }
+  .context-tools > .icon-command:last-child, .context-tools > .icon-command:nth-last-child(2) { display: none; }
   .node-search { width: 145px; flex-basis: 145px; }
 }
 
@@ -444,7 +457,6 @@ svg { flex: 0 0 auto; }
 
 @media (max-width: 940px) {
   .center-app-bar { grid-template-columns: 190px minmax(220px, 1fr) auto; }
-  .center-actions .language-select { display: none; }
   .equipment-workspace { grid-template-columns: minmax(430px, 1fr) 290px; grid-template-rows: 70px minmax(0, 1fr); }
   .equipment-loadouts { grid-column: 1 / -1; display: grid; grid-template-columns: minmax(180px, 1fr) auto auto; gap: 10px; align-items: center; padding: 7px 10px; border-right: 0; border-bottom: 1px solid #4a4435; overflow: hidden; }
   .equipment-loadouts .side-heading { display: none; }
@@ -529,7 +541,6 @@ svg { flex: 0 0 auto; }
 .node-search input,
 .context-select,
 .compact-select,
-.language-select,
 .mode-control,
 .zoom-control { background-color: rgba(12, 14, 12, .96); border-color: #4c4639; }
 
@@ -657,7 +668,6 @@ svg { flex: 0 0 auto; }
 .node-search input,
 .mode-control button,
 .zoom-control button,
-.language-select select,
 .side-heading,
 .side-heading strong,
 .loadout-list small,

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { AlertTriangle, Check, FileCode2, Link2, LoaderCircle, Upload, X } from 'lucide-react'
 import { decodeBuildCode } from '@/engine/buildCode'
+import { SUPERPOE_NAME } from '@/engine/appVersion'
 import { parseEquipmentXml } from '@/engine/equipment'
 import { isPoe2dbDesktopImportAvailable, requestPoe2dbImport } from '@/engine/poe2dbImport'
 import { translateGameText } from '@/i18n/translationLoader'
@@ -34,6 +35,7 @@ interface ImportPreview {
 interface UnifiedImportDialogProps {
   open: boolean
   hasCurrentBuild: boolean
+  defaultRealm: BuildRealm
   onClose: () => void
   onConfirm: (confirmation: ImportConfirmation) => Promise<void>
 }
@@ -48,7 +50,7 @@ function countSkills(xml: string): number {
   return (xml.match(/<Skill\b[^>]*enabled="true"/g) || xml.match(/<Skill\b/g) || []).length
 }
 
-export function UnifiedImportDialog({ open, hasCurrentBuild, onClose, onConfirm }: UnifiedImportDialogProps) {
+export function UnifiedImportDialog({ open, hasCurrentBuild, defaultRealm, onClose, onConfirm }: UnifiedImportDialogProps) {
   const { lang } = useTranslation()
   const treeData = useTreeStore((state) => state.treeData)
   const [kind, setKind] = useState<ImportKind>('pob')
@@ -69,8 +71,8 @@ export function UnifiedImportDialog({ open, hasCurrentBuild, onClose, onConfirm 
     setPreview(null)
     setError(null)
     setLoading(false)
-    setRealm('global')
-  }, [open])
+    setRealm(defaultRealm)
+  }, [defaultRealm, open])
 
   const tabs = useMemo(() => [
     { id: 'pob' as const, label: 'PoB Code', icon: FileCode2 },
@@ -160,7 +162,7 @@ export function UnifiedImportDialog({ open, hasCurrentBuild, onClose, onConfirm 
     <div className="modal-backdrop" role="presentation">
       <section className="workflow-dialog import-dialog" role="dialog" aria-modal="true" aria-labelledby="import-dialog-title">
         <header className="dialog-header"><div><span>{zh ? '统一导入' : 'Unified import'}</span><h2 id="import-dialog-title">{zh ? '导入构筑' : 'Import build'}</h2></div><button className="icon-command" onClick={onClose} aria-label={zh ? '关闭' : 'Close'}><X /></button></header>
-        <nav className="import-tabs">{tabs.map((tab) => { const Icon = tab.icon; return <button key={tab.id} className={kind === tab.id ? 'active' : ''} onClick={() => { setKind(tab.id); setRealm(tab.id === 'wegame' ? 'cn' : 'global'); setValue(''); setPreview(null); setError(null) }}><Icon />{tab.label}</button> })}</nav>
+        <nav className="import-tabs">{tabs.map((tab) => { const Icon = tab.icon; return <button key={tab.id} className={kind === tab.id ? 'active' : ''} onClick={() => { setKind(tab.id); setRealm(tab.id === 'wegame' ? 'cn' : defaultRealm); setValue(''); setPreview(null); setError(null) }}><Icon />{tab.label}</button> })}</nav>
 
         <div className="dialog-body import-body">
           <div className="import-input-panel">
@@ -171,7 +173,7 @@ export function UnifiedImportDialog({ open, hasCurrentBuild, onClose, onConfirm 
             <label><span>{kind === 'pob' ? (zh ? 'PoB2 构筑代码' : 'PoB2 build code') : kind === 'wegame' ? (zh ? 'WeGame 分享链接' : 'WeGame share link') : (zh ? '构筑 JSON' : 'Build JSON')}</span>
               {kind === 'wegame'
                 ? <input value={value} onChange={(event) => { setValue(event.target.value); setPreview(null); setError(null) }} placeholder="https://www.wegame.com.cn/helper/poe2/#/share/..." />
-                : <textarea value={value} onChange={(event) => { setValue(event.target.value); setPreview(null); setError(null) }} rows={7} placeholder={kind === 'pob' ? (zh ? '粘贴 PoB2 导出代码' : 'Paste PoB2 export code') : (zh ? '粘贴 SuperPoE2 构筑 JSON' : 'Paste SuperPoE2 build JSON')} />}
+                : <textarea value={value} onChange={(event) => { setValue(event.target.value); setPreview(null); setError(null) }} rows={7} placeholder={kind === 'pob' ? (zh ? '粘贴 PoB2 导出代码' : 'Paste PoB2 export code') : (zh ? `粘贴 ${SUPERPOE_NAME} 构筑 JSON` : `Paste ${SUPERPOE_NAME} build JSON`)} />}
             </label>
             {kind === 'wegame' && <p className="import-notice">{wegameAvailable ? (zh ? '链接将通过 PoE2DB 转换为完整 PoB 构筑。' : 'The link is converted to a complete PoB build through PoE2DB.') : (zh ? '当前不是 Electron 环境，无法请求 PoE2DB。' : 'PoE2DB conversion requires the Electron app.')}</p>}
             <button className="secondary-command parse-command" onClick={() => void handleParse()} disabled={loading || !value.trim()}>{loading ? <LoaderCircle className="animate-spin" /> : <FileCode2 />}{zh ? '解析预览' : 'Parse preview'}</button>
