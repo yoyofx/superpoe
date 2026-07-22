@@ -20,6 +20,22 @@ npm run dev
 npm run dist:electron
 ```
 
+electron-builder 默认把安装包写到仓库内 `release/`。可用 `package.json` 的 `build.directories.output` 或命令行参数覆盖。
+
+从零准备上游并打包可用一键脚本：`.\scripts\build-local.ps1`（Windows）或 `./scripts/build-local.sh`（macOS/Linux）。说明见下方「初始化上游仓库」。
+
+### GitHub Actions 自动构建
+
+- **dev 固定渠道**：推送到 `dev` 或手动运行 `Build Dev` 后：
+  - 构建 win-x64 + macOS，上传 Actions Artifact（保留 14 天）
+  - 更新固定 Pre-release：**Releases → tag `dev`**（URL：`/releases/tag/dev`，附件每次覆盖）
+  - 安装包内版本为滚动号：`{package.json 主版本}-dev.{run}.{shortsha}`（如 `0.5.0-dev.12.a1b2c3d`），便于区分构建；下载入口始终是同一页
+- **正式 Release**：仅在 GitHub 上 **Publish release** 时触发；本地 `git tag` + `push` **不会**启动。也可手动运行 `Release` 工作流做验证。
+  - 版本取自该 Release 的 Tag（如 `v0.5.0`），写入 `package.json`
+  - 构建 win-x64 + macOS，上传 Artifact，并把安装包与 `SHA256SUMS.txt` 附到该 Release
+  - 手动 `workflow_dispatch` 默认只上传 Artifact；勾选 `create_release` 才会创建/更新 Release
+  - CI 构建**未代码签名**；Windows SmartScreen / macOS Gatekeeper 可能提示
+
 首次安装依赖时，Electron 会下载与当前平台对应的 Chromium runtime。若下载被网络策略阻断，需要配置可访问 Electron 发布包的网络或镜像后重新执行 `npm install`。
 
 应用入口统一为 Electron 桌面窗口。Vite 仅作为开发期间的 renderer 服务，不再自动打开浏览器，也不提供独立浏览器产品入口。
@@ -42,14 +58,36 @@ SuperPoE2 是一个基于 React + PixiJS/WebGL 2D 的 PoE2 离线构筑规划工
 
 ### 初始化上游仓库
 
-两个上游仓库都位于 `upstreams/` 下，均为本地只读 Git checkout，不随本项目提交。首次初始化时执行：
+两个上游仓库都位于 `upstreams/` 下，均为本地只读 Git checkout，不随本项目提交（非 submodule，`.gitignore` 忽略）。
+
+**一键克隆/更新上游并打本地 Electron 包**（推荐）：
+
+```powershell
+# Windows (PowerShell)
+.\scripts\build-local.ps1
+```
+
+```bash
+# macOS / Linux
+./scripts/build-local.sh
+```
+
+默认流程：`git clone` 或 `git pull --ff-only` 两个上游 → `npm install` → `npm run dist:electron`。安装包产物在仓库内 `release/`。Vite 前端产物在 `dist/`，Electron main 在 `dist-electron/`。
+
+| 场景 | Windows | macOS / Linux |
+| --- | --- | --- |
+| 只打安装包，不碰上游 | `.\scripts\build-local.ps1 -SkipUpstreams` | `./scripts/build-local.sh --skip-upstreams` |
+| 只准备环境，不打包 | `.\scripts\build-local.ps1 -SkipPackage` | `./scripts/build-local.sh --skip-package` |
+| 更新上游后重跑资源管线再打包 | `.\scripts\build-local.ps1 -WithPipeline -TreeVersion 0_5` | `./scripts/build-local.sh --with-pipeline --tree-version 0_5` |
+
+纯手动初始化也可以：
 
 ```bash
 git clone https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2.git upstreams/PathOfBuilding-PoE2
 git clone https://github.com/Chuanhsing/PoeCharm2.git upstreams/PoeCharm2
 ```
 
-更新 PoB2 上游数据后，重新生成 Web 端数据和资源：
+更新上游数据后，重新生成 Web 端数据和资源：
 
 ```bash
 git -C upstreams/PathOfBuilding-PoE2 pull
@@ -57,7 +95,7 @@ git -C upstreams/PoeCharm2 pull
 npm run pipeline:all -- 0_5
 ```
 
-`upstreams/` 在 `.gitignore` 中忽略。不要在两个上游目录内修改源码或 CSV；需要更新时在各自仓库中执行 `git pull`，再运行相应 pipeline。`public/` 下的生成运行资产必须提交。
+不要在两个上游目录内修改源码或 CSV；需要更新时在各自仓库中执行 `git pull`，再运行相应 pipeline。`public/` 下的生成运行资产必须提交。新机器若只运行现有前端，可不拉 `upstreams/`（`public/` 已提交）。
 
 ## 常用命令
 

@@ -17,6 +17,7 @@
     "preview": "vite preview",
     "test:server": "vitest run",
     "test:client-calc": "vitest run --config vitest.client.config.ts",
+    "test:ci": "vitest run --config vitest.client.config.ts --exclude src/engine/pobLuaRuntime.test.ts",
     "test:lua": "cd scripts/spec && busted .",
     "pipeline:tree": "python scripts/gen_tree_data.py 0_4",
     "pipeline:orbit": "python scripts/copy_orbit_png.py",
@@ -40,10 +41,42 @@
       "package.json"
     ],
     "directories": {
-      "buildResources": "build"
+      "buildResources": "build",
+      "output": "release"
     },
     "win": {
-      "target": "nsis"
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.games",
+      "identity": null
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   },
   "dependencies": {

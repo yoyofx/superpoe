@@ -1,0 +1,251 @@
+name: Release
+
+# Trigger only when a GitHub Release is published (UI / API), not on local git tag push.
+# Optional workflow_dispatch for dry-run builds without publishing.
+on:
+  release:
+    types:
+      - published
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without leading v (e.g. 0.5.0). Leave empty to use package.json."
+        required: false
+        type: string
+      create_release:
+        description: "Create/update GitHub Release and upload assets (false = artifacts only)"
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.event.release.tag_name || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Resolve version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      is_prerelease: ${{ steps.version.outputs.is_prerelease }}
+      publish_release: ${{ steps.version.outputs.publish_release }}
+      checkout_ref: ${{ steps.version.outputs.checkout_ref }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # release.published: build the tagged commit, not default branch tip
+          ref: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref }}
+
+      - name: Resolve release version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          pkg_version="$(node -p "require('./package.json').version")"
+          publish_release=false
+          raw=""
+          checkout_ref="${{ github.ref }}"
+
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            raw="${{ github.event.release.tag_name }}"
+            publish_release=true
+            checkout_ref="${{ github.event.release.tag_name }}"
+          elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            input_version="${{ inputs.version }}"
+            if [[ -n "${input_version}" ]]; then
+              raw="${input_version}"
+            else
+              raw="${pkg_version}"
+            fi
+            if [[ "${{ inputs.create_release }}" == "true" ]]; then
+              publish_release=true
+            fi
+          else
+            echo "Unsupported event: ${{ github.event_name }}" >&2
+            exit 1
+          fi
+
+          # Strip optional leading v
+          version="${raw#v}"
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid version '${raw}'. Expected semver like 0.5.0 or v0.5.0-beta.1" >&2
+            exit 1
+          fi
+
+          tag="v${version}"
+          is_prerelease=false
+          if [[ "${{ github.event_name }}" == "release" && "${{ github.event.release.prerelease }}" == "true" ]]; then
+            is_prerelease=true
+          elif [[ "${version}" =~ (alpha|beta|rc|pre|dev|snapshot) ]]; then
+            is_prerelease=true
+          fi
+
+          {
+            echo "version=${version}"
+            echo "tag=${tag}"
+            echo "is_prerelease=${is_prerelease}"
+            echo "publish_release=${publish_release}"
+            echo "checkout_ref=${checkout_ref}"
+          } >> "${GITHUB_OUTPUT}"
+
+          echo "Resolved version=${version} tag=${tag} publish_release=${publish_release} checkout_ref=${checkout_ref} package.json=${pkg_version}"
+
+  build:
+    name: Build ${{ matrix.label }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: win-x64
+            electron_args: --win --x64
+            artifact_name: superpoe2-release-win-x64
+          - os: macos-latest
+            label: macOS
+            electron_args: --mac
+            artifact_name: superpoe2-release-macos
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.checkout_ref }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply release version from GitHub Release
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.prepare.outputs.version }}"
+          npm version "${version}" --no-git-tag-version --allow-same-version
+          node -e "const p=require('./package.json'); if (p.version !== process.argv[1]) process.exit(1); console.log('package.json version =', p.version)" "${version}"
+
+      - name: Run non-long unit tests
+        run: npm run test:ci
+
+      - name: Build Electron package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npm run build:electron
+          npx electron-builder ${{ matrix.electron_args }} --publish never
+
+      - name: Collect release artifacts and checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifact
+
+          shopt -s nullglob
+          for f in release/*.{exe,dmg,zip,AppImage,blockmap,yml,yaml}; do
+            if [[ -f "$f" ]]; then
+              cp -a "$f" artifact/
+            fi
+          done
+
+          if [[ -z "$(ls -A artifact 2>/dev/null || true)" ]]; then
+            for f in release/*; do
+              if [[ -f "$f" ]]; then
+                cp -a "$f" artifact/
+              fi
+            done
+          fi
+
+          node <<'NODE'
+          const fs = require('node:fs')
+          const path = require('node:path')
+          const crypto = require('node:crypto')
+          const dir = 'artifact'
+          const files = fs
+            .readdirSync(dir)
+            .filter((name) => fs.statSync(path.join(dir, name)).isFile())
+            .sort()
+          if (files.length === 0) {
+            console.error('No release artifacts found under release/')
+            process.exit(1)
+          }
+          const lines = files.map((name) => {
+            const hash = crypto
+              .createHash('sha256')
+              .update(fs.readFileSync(path.join(dir, name)))
+              .digest('hex')
+            return `${hash}  ${name}`
+          })
+          fs.writeFileSync(path.join(dir, 'SHA256SUMS.txt'), `${lines.join('\n')}\n`)
+          console.log(lines.join('\n'))
+          NODE
+
+          ls -la artifact
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: artifact/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish:
+    name: Upload Release assets
+    needs: [prepare, build]
+    if: needs.prepare.outputs.publish_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-assets
+          pattern: superpoe2-release-*
+          merge-multiple: true
+
+      - name: List assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          find dist-assets -type f | sort
+          test -n "$(find dist-assets -type f | head -1)"
+
+      # Attach installers to the existing GitHub Release (created in the UI).
+      # workflow_dispatch + create_release: create the release if missing.
+      - name: Upload assets to GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: SuperPoE2 ${{ needs.prepare.outputs.tag }}
+          generate_release_notes: ${{ github.event_name == 'workflow_dispatch' }}
+          prerelease: ${{ needs.prepare.outputs.is_prerelease == 'true' }}
+          body: |
+            ## SuperPoE2 ${{ needs.prepare.outputs.tag }}
+
+            Automated Electron build from GitHub Actions.
+
+            **Platforms**
+            - Windows x64 installer (NSIS)
+            - macOS (DMG / ZIP)
+
+            **Notes**
+            - Builds are **not code-signed**. On Windows SmartScreen / Defender may warn; on macOS use right-click → Open for first launch.
+            - SHA-256 checksums are attached (`SHA256SUMS.txt`).
+            - Runtime assets are taken from the committed `public/` tree (no upstream pipeline in CI).
+          files: |
+            dist-assets/**
+          fail_on_unmatched_files: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

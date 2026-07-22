@@ -31,7 +31,7 @@ SuperPoE2 的目标不是只展示天赋树，而是形成一套可以长期维�
 | 功能 | 状态 | 当前能力 |
 | --- | --- | --- |
 | Electron 桌面壳 | 已完成 | 支持开发运行和安装包构建；renderer 保持 React、PixiJS、Web Worker 与 WASM 架构 |
-| GitHub 自动发布 | 规划中（P0） | 推送版本 Tag 后自动构建 Windows Electron 安装包，创建 GitHub Release 并上传附件 |
+| GitHub 自动发布 | 可用，待完善 | `dev` 推送构建并滚动更新固定 Pre-release `releases/tag/dev`；正式版在 GitHub Publish Release 后按 Tag 打包（未签名；本地 tag push 不触发） |
 | 构筑中心 | 已完成 | 启动后默认进入构筑中心，支持搜索、最近打开、列表、打开和删除 |
 | 新建构筑向导 | 已完成 | 支持职业、可选升华、名称和天赋树版本三步创建 |
 | 统一导入窗口 | 已完成 | PoB Code、WeGame 分享链接、构筑 JSON 共用一个导入入口，并先显示解析预览 |
@@ -125,25 +125,23 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 
 路线图使用依赖顺序而不是固定日期。每个里程碑完成后都应形成一个可独立验收的版本。
 
-### M0：GitHub Tag 自动构建与 Release 附件（P0）
+### M0：GitHub Release 自动构建与附件（P0）
 
-目标：优先建立可重复、可追踪的 Windows 发布流程，避免正式版本依赖开发机手工打包和上传。
+目标：优先建立可重复、可追踪的 Windows / macOS 发布流程，避免正式版本依赖开发机手工打包和上传。
 
-- 新增 GitHub Actions 发布工作流，正式触发条件为推送 `v*` Tag，例如 `v0.5.0`。
-- 发布前校验 Tag、`package.json` 版本和界面应用版本完全一致；不一致时立即失败，不创建 Release。
-- 使用固定的 Windows runner 和 Node.js 主版本，执行 `npm ci`，禁止工作流隐式修改 lockfile。
-- 按顺序运行前端生产构建、Electron 主进程构建和约定的非长时自动测试；任一步失败都不得生成发布版本。
-- 使用 Electron Builder 构建 Windows x64 安装包；后续需要便携版时，在同一工作流增加 portable/zip 目标，不维护第二套发布脚本。
-- 复用仓库中已提交的 `public/` 运行资源，不在发布工作流临时同步 PoB2、PoeCharm2 或在线抓取物品资源，保证同一提交可重复构建。
-- 自动创建与 Tag 同名的 GitHub Release，并使用 GitHub 自动生成的 Release Notes；`beta`、`rc` 等预发布 Tag 自动标记为 prerelease。
-- Release 至少上传 Windows 安装程序、对应的 SHA-256 校验文件；启用自动更新后再上传 `latest.yml` 和 blockmap。
-- 同时保存 GitHub Actions 构建产物，设置明确的保留天数，方便 Release 上传失败时排查和恢复。
-- 工作流只使用最小化 `contents: write` 权限和仓库 `GITHUB_TOKEN`；代码签名证书必须使用 GitHub Secrets，不得写入仓库或构建日志。
-- 未配置代码签名时，Release Notes 和附件名称必须明确标注为未签名测试版，不能伪装成正式签名发行版。
-- 增加 `workflow_dispatch` 手动验证入口；手动运行只生成 Actions Artifact，默认不创建正式 Release，避免误发布。
-- 为重复 Tag、已存在 Release、附件上传中断和构建取消定义可恢复策略，禁止静默覆盖来源不明的已有附件。
+- [x] 新增 GitHub Actions 发布工作流：仅在 GitHub **Publish release** 时触发（`release: published`），不响应本地 `git tag` push；另支持手动 `workflow_dispatch`。
+- [x] 发布构建前用 Release Tag 版本写入 `package.json`（界面版本从 `package.json` 读取，不再写死测试期望）。
+- [x] 固定 Node.js 22，`npm ci`，不在工作流修改 lockfile。
+- [x] 运行非长时自动测试（`npm run test:ci`，排除 WASM 长时用例）；前端 + Electron main 构建后由 electron-builder 打包。
+- [x] Windows x64 NSIS + macOS DMG/ZIP；`dev` 推送上传 Artifact，并滚动更新固定 Pre-release Tag `dev`（`/releases/tag/dev`，附件每次覆盖；包内版本 `x.y.z-dev.<run>.<sha>`）。
+- [x] 复用仓库已提交的 `public/` 运行资源，CI 不拉上游、不跑资源管线。
+- [x] 将安装包与 `SHA256SUMS.txt` 上传到已发布的 GitHub Release；Release 勾选 pre-release 或版本含 `beta`/`rc` 等时标记 prerelease。
+- [x] 同时保留 Actions 构建产物（Release 30 天 / Dev 14 天）。
+- [x] 最小 `contents: write` + `GITHUB_TOKEN`；未配置代码签名时 Release 说明明确标注未签名。
+- [x] `workflow_dispatch` 默认只生成 Artifact，避免误发布。
+- [ ] 代码签名证书、自动更新（`latest.yml`/blockmap 可已产出但未启用渠道）、重复 Release 严格防覆盖策略仍待完善。
 
-**完成标准**：推送一个与 `package.json` 一致的测试 Tag 后，无需开发机参与即可完成 Windows 构建、创建 GitHub Release、上传安装包和 SHA-256 附件；在干净 Windows 环境下载附件后能够安装并启动 SuperPoE2。
+**完成标准（当前）**：在 GitHub 上 Publish 与版本一致的 Release 后，无需开发机即可完成 win-x64 + macOS 构建并上传附件；干净机器下载安装包可启动（未签名环境需接受系统安全提示）。
 
 ### M1：布局、工作流与构筑管理可靠化（P0）
 
@@ -325,11 +323,11 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 - 社区构筑浏览与更新提醒。
 - 插件系统或第三方数据扩展。
 - 移动端完整编辑；近期只保证桌面窗口连续自适应。
-- macOS/Linux 安装包。
+- Linux 安装包；macOS 已有 CI 未签名 DMG/ZIP，正式签名与公证仍待完善。
 
 ## 7. 近期推荐执行顺序
 
-1. 优先完成 M0 GitHub Tag 自动构建与 Release 附件工作流，并用测试 Tag 验证可重复发布。
+1. 优先完成 M0 GitHub Release 自动构建与附件工作流，并用测试 Release 验证可重复发布。
 2. 完成本轮构筑中心、统一导入、保存入口和保存提示的回归。
 3. 实施 M1 文件级保存与 localStorage 迁移，不继续扩大只存在内存或浏览器存储中的业务数据。
 4. 定义 `BuildDocument` 和 schema version，再开始装备/技能编辑，避免重复改保存格式。
@@ -344,7 +342,7 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 ## 8. 每个里程碑的共同验收要求
 
 - `npm run build` 通过。
-- 发布 Tag 必须与应用版本一致，并由 GitHub Actions 生成 Release 和可校验附件，禁止用开发机手工产物替换。
+- 正式发布须在 GitHub 上 Publish Release，并由 Actions 生成可校验附件；禁止用开发机手工产物替换。
 - 非 Lua 长时测试全部通过；计算相关测试单独运行并设置明确超时。
 - Electron 开发模式与打包后的桌面应用均无新增 console error。
 - 关键流程至少覆盖一次实际界面回归，不只验证函数测试。
