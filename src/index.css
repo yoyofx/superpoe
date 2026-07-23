@@ -379,6 +379,27 @@ svg { flex: 0 0 auto; }
 .settings-toggle-row { cursor: pointer; }
 .settings-toggle-row input { width: 16px; height: 16px; flex: none; accent-color: #a88c4f; cursor: pointer; }
 .settings-about .settings-row { min-height: 40px; }
+.settings-row > input[type="number"] { width: 5em; height: 30px; padding: 0 6px; border: 1px solid #484338; background: #0d0f0d; color: #c8beaa; font-size: 11px; outline: 0; text-align: center; }
+.update-check-result { margin-left: 8px; color: #a88c4f; font-size: 10px; }
+.update-dialog { width: min(480px, calc(100vw - 32px)); }
+.update-info { padding: 12px 18px; color: #c8beaa; font-size: 12px; line-height: 1.6; }
+.update-info p { margin: 4px 0; }
+.update-channel-label, .update-date { color: #999287; font-size: 11px; }
+.update-progress { padding: 8px 18px 16px; }
+.update-progress-bar { width: 100%; height: 8px; background: #1e1e1a; border-radius: 4px; overflow: hidden; }
+.update-progress-fill { height: 100%; background: linear-gradient(90deg, #a88c4f, #d4a853); border-radius: 4px; transition: width 0.3s ease; }
+.update-progress-text { display: block; margin-top: 4px; text-align: center; color: #c8beaa; font-size: 10px; }
+.update-error { padding: 4px 18px 8px; color: #e85f5f; font-size: 11px; }
+.settings-proxy-block { padding: 0 18px 12px; border-top: 1px solid #2d2d27; }
+.settings-proxy-header { padding-left: 0; padding-right: 0; border-top: 0; }
+.settings-proxy-hint { margin: 0 0 8px; color: #777168; font-size: 10px; line-height: 1.5; }
+.settings-proxy-list { margin: 0 0 8px; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.settings-proxy-item { min-height: 32px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 4px 8px; border: 1px solid #2d2d27; background: #121410; color: #c8beaa; font-size: 10px; }
+.settings-proxy-item > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.settings-proxy-item .icon-command { width: 24px; height: 24px; flex: none; }
+.settings-proxy-item .icon-command svg { width: 12px; height: 12px; }
+.settings-proxy-add { display: flex; align-items: center; gap: 8px; }
+.settings-proxy-add > input { flex: 1; min-width: 0; height: 30px; padding: 0 9px; border: 1px solid #484338; background: #0d0f0d; color: #c8beaa; font-size: 11px; outline: 0; }
 .settings-dialog > .dialog-footer { justify-content: flex-end; }
 .settings-dialog > .dialog-footer > span { flex: 1; }
 .confirm-dialog { width: min(430px, calc(100vw - 32px)); display: flex; flex-direction: column; align-items: center; padding: 24px; text-align: center; }

@@ -84,6 +84,32 @@ jobs:
           npm version "${version}" --no-git-tag-version --allow-same-version
           node -e "const p=require('./package.json'); if (p.version !== process.argv[1]) process.exit(1); console.log('package.json version =', p.version)" "${version}"
 
+      - name: Bake GitHub repository identity for updater
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs')
+          const pkgPath = 'package.json'
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+          const [owner, name] = (process.env.GITHUB_REPOSITORY || '').split('/')
+          if (!owner || !name) {
+            console.error('GITHUB_REPOSITORY is required (owner/name)')
+            process.exit(1)
+          }
+          pkg.repository = {
+            type: 'git',
+            url: `https://github.com/${owner}/${name}.git`,
+          }
+          pkg.superpoe = {
+            ...(pkg.superpoe || {}),
+            githubOwner: owner,
+            githubRepo: name,
+          }
+          fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
+          console.log(`Baked updater repo identity: ${owner}/${name}`)
+          NODE
+
       - name: Run non-long unit tests
         run: npm run test:ci
 

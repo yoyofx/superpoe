@@ -1,9 +1,10 @@
-import { useEffect } from 'react'
-import { Globe2, Info, Languages, ShieldAlert, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { Globe2, Info, Languages, Plus, RefreshCw, ShieldAlert, Trash2, X } from 'lucide-react'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
-import type { AppSettings } from '@/engine/appSettings'
+import type { AppSettings, UpdateChannel } from '@/engine/appSettings'
 import { LANGUAGE_OPTIONS, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
+import { triggerManualUpdateCheck } from '@/components/UpdateDialog'
 
 interface GlobalSettingsDialogProps {
   open: boolean
@@ -15,6 +16,9 @@ interface GlobalSettingsDialogProps {
 export function GlobalSettingsDialog({ open, settings, onChange, onClose }: GlobalSettingsDialogProps) {
   const { lang, setLanguage } = useTranslation()
   const zh = lang === 'zh-rCN'
+  const [checking, setChecking] = useState(false)
+  const [checkResult, setCheckResult] = useState<string | null>(null)
+  const [proxyDraft, setProxyDraft] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -63,6 +67,92 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose }: Glob
               <span>{zh ? '离开未保存构筑前确认' : 'Confirm before leaving an unsaved build'}</span>
               <input type="checkbox" checked={settings.confirmUnsavedExit} onChange={(event) => onChange({ ...settings, confirmUnsavedExit: event.target.checked })} />
             </label>
+          </section>
+
+          <section className="settings-section">
+            <header><RefreshCw /><h3>{zh ? '自动更新' : 'Auto Update'}</h3></header>
+            <label className="settings-row">
+              <span>{zh ? '更新通道' : 'Update channel'}</span>
+              <select value={settings.updateChannel} onChange={(event) => onChange({ ...settings, updateChannel: event.target.value as UpdateChannel })}>
+                <option value="release">{zh ? '正式通道 (Release)' : 'Release'}</option>
+                <option value="dev">{zh ? '预览通道 (Dev)' : 'Dev'}</option>
+              </select>
+            </label>
+            <label className="settings-row">
+              <span>{zh ? '检查间隔（分钟）' : 'Check interval (minutes)'}</span>
+              <input type="number" min={10} step={10} value={settings.updateCheckIntervalMinutes} onChange={(event) => {
+                const val = parseInt(event.target.value, 10)
+                if (val >= 10) onChange({ ...settings, updateCheckIntervalMinutes: val })
+              }} style={{ width: '5em' }} />
+            </label>
+            <div className="settings-row">
+              <span>{zh ? '手动检查' : 'Manual check'}</span>
+              <button type="button" className="secondary-command" disabled={checking} onClick={async () => {
+                setChecking(true)
+                setCheckResult(null)
+                const found = await triggerManualUpdateCheck()
+                setCheckResult(found ? (zh ? '发现新版本' : 'Update found') : (zh ? '已是最新版本' : 'Up to date'))
+                setChecking(false)
+              }}>
+                {checking ? (zh ? '检查中...' : 'Checking...') : (zh ? '立即检查' : 'Check now')}
+              </button>
+              {checkResult && <span className="update-check-result">{checkResult}</span>}
+            </div>
+            <div className="settings-proxy-block">
+              <div className="settings-row settings-proxy-header">
+                <span>{zh ? 'GitHub 代理域名（用户配置）' : 'GitHub proxy domains (user)'}</span>
+              </div>
+              <p className="settings-proxy-hint">
+                {zh
+                  ? '直连失败后按列表依次重试。拼接规则：{代理域名}/https://github.com/... 内置代理始终生效。'
+                  : 'On direct failure, proxies are tried in order as {proxy}/https://github.com/... Built-in proxies always apply.'}
+              </p>
+              {settings.proxyDomains.length > 0 && (
+                <ul className="settings-proxy-list">
+                  {settings.proxyDomains.map((domain) => (
+                    <li key={domain} className="settings-proxy-item">
+                      <span title={domain}>{domain}</span>
+                      <button
+                        type="button"
+                        className="icon-command"
+                        aria-label={zh ? '删除代理' : 'Remove proxy'}
+                        onClick={() => onChange({ ...settings, proxyDomains: settings.proxyDomains.filter((d) => d !== domain) })}
+                      >
+                        <Trash2 />
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="settings-proxy-add">
+                <input
+                  type="url"
+                  value={proxyDraft}
+                  placeholder="https://example-proxy.example"
+                  onChange={(event) => setProxyDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key !== 'Enter') return
+                    event.preventDefault()
+                    const normalized = proxyDraft.trim().replace(/\/+$/, '')
+                    if (!normalized || settings.proxyDomains.includes(normalized)) return
+                    onChange({ ...settings, proxyDomains: [...settings.proxyDomains, normalized] })
+                    setProxyDraft('')
+                  }}
+                />
+                <button
+                  type="button"
+                  className="secondary-command"
+                  onClick={() => {
+                    const normalized = proxyDraft.trim().replace(/\/+$/, '')
+                    if (!normalized || settings.proxyDomains.includes(normalized)) return
+                    onChange({ ...settings, proxyDomains: [...settings.proxyDomains, normalized] })
+                    setProxyDraft('')
+                  }}
+                >
+                  <Plus /> {zh ? '添加' : 'Add'}
+                </button>
+              </div>
+            </div>
           </section>
 
           <section className="settings-section settings-about">

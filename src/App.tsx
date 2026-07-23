@@ -17,6 +17,7 @@ import type { SavedBuild } from '@/types/tree'
 import { SkillsPanel } from '@/components/SkillsPanel'
 import { GlobalSettingsDialog } from '@/components/GlobalSettingsDialog'
 import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/appSettings'
+import { UpdateDialog } from '@/components/UpdateDialog'
 
 export default function App() {
   const { t, lang } = useTranslation()
@@ -254,6 +255,7 @@ export default function App() {
       <NewBuildDialog open={newBuildOpen} defaultRealm={appSettings.defaultRealm} onClose={() => setNewBuildOpen(false)} onCreate={(input) => void handleCreateBuild(input)} />
       <UnifiedImportDialog open={importOpen} hasCurrentBuild={screen === 'editor'} defaultRealm={appSettings.defaultRealm} onClose={() => setImportOpen(false)} onConfirm={handleImportConfirmation} />
       <GlobalSettingsDialog open={settingsOpen} settings={appSettings} onChange={handleSettingsChange} onClose={() => setSettingsOpen(false)} />
+      <UpdateDialog settings={appSettings} />
       {leaveConfirmOpen && <div className="modal-backdrop"><section className="confirm-dialog" role="alertdialog" aria-modal="true"><AlertTriangle /><h2>{lang === 'zh-rCN' ? '离开当前构筑？' : 'Leave current build?'}</h2><p>{lang === 'zh-rCN' ? '当前构筑有未保存修改。离开后仍会保留自动草稿，但不会出现在命名构筑列表中。' : 'This build has unsaved changes. The draft remains locally, but it will not appear as a named build.'}</p><footer><button className="secondary-command" onClick={() => setLeaveConfirmOpen(false)}>{lang === 'zh-rCN' ? '继续编辑' : 'Keep editing'}</button><button className="primary-command" onClick={() => { setLeaveConfirmOpen(false); setScreen('center') }}>{lang === 'zh-rCN' ? '离开' : 'Leave'}</button></footer></section></div>}
       {saveNotice && <div className={`save-notice ${saveNotice.type}`} role="status" aria-live="polite">
         {saveNotice.type === 'success' ? <CheckCircle2 /> : <XCircle />}

@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseWeGameShareCode, requestPoe2dbBuild } from './poe2dbClient.js'
-
+import { setupAutoUpdater } from './updater.js'
+import type { UpdateChannel } from './updater.js'
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
@@ -48,11 +49,24 @@ function createWindow(): BrowserWindow {
   return window
 }
 
+let updateChannel: UpdateChannel = 'release'
+let updateCheckIntervalMinutes = 60
+
 app.whenReady().then(() => {
   ipcMain.handle('pob2:import-wegame', async (_event, url: unknown) => {
     const shareCode = parseWeGameShareCode(url)
     return requestPoe2dbBuild(shareCode)
   })
+
+  ipcMain.on('updater:set-config', (_event, config: { channel?: UpdateChannel; intervalMinutes?: number }) => {
+    if (config.channel) updateChannel = config.channel
+    if (config.intervalMinutes && config.intervalMinutes >= 10) updateCheckIntervalMinutes = config.intervalMinutes
+  })
+
+  setupAutoUpdater(
+    () => updateChannel,
+    () => updateCheckIntervalMinutes,
+  )
 
   createWindow()
   app.on('activate', () => {

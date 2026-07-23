@@ -1,6 +1,6 @@
 # SuperPoE2 产品路线图
 
-> 更新日期：2026-07-22
+> 更新日期：2026-07-23
 > 产品方向：面向 Windows 桌面端的 PoE2 离线构筑规划工具。Electron 是唯一应用入口，renderer 继续使用 React、PixiJS、Web Worker 与 WASM 技术栈。
 
 ## 1. 路线图目标
@@ -32,6 +32,7 @@ SuperPoE2 的目标不是只展示天赋树，而是形成一套可以长期维�
 | --- | --- | --- |
 | Electron 桌面壳 | 已完成 | 支持开发运行和安装包构建；renderer 保持 React、PixiJS、Web Worker 与 WASM 架构 |
 | GitHub 自动发布 | 可用，待完善 | `dev` 推送构建并滚动更新固定 Pre-release `releases/tag/dev`；正式版在 GitHub Publish Release 后按 Tag 打包（未签名；本地 tag push 不触发） |
+| 应用自动更新 | 可用，待完善 | Electron 主进程按更新通道轮询 GitHub `latest.yml`，弹窗确认后下载对应平台安装包；支持 `release`/`dev` 通道、可配置检查间隔与 GitHub 代理域名回退（未签名） |
 | 构筑中心 | 已完成 | 启动后默认进入构筑中心，支持搜索、最近打开、列表、打开和删除 |
 | 新建构筑向导 | 已完成 | 支持职业、可选升华、名称和天赋树版本三步创建 |
 | 统一导入窗口 | 已完成 | PoB Code、WeGame 分享链接、构筑 JSON 共用一个导入入口，并先显示解析预览 |
@@ -139,9 +140,12 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 - [x] 同时保留 Actions 构建产物（Release 30 天 / Dev 14 天）。
 - [x] 最小 `contents: write` + `GITHUB_TOKEN`；未配置代码签名时 Release 说明明确标注未签名。
 - [x] `workflow_dispatch` 默认只生成 Artifact，避免误发布。
-- [ ] 代码签名证书、自动更新（`latest.yml`/blockmap 可已产出但未启用渠道）、重复 Release 严格防覆盖策略仍待完善。
+- [x] 应用内自动更新：按通道读取 GitHub Release 的 `latest.yml`（`release` → `releases/latest`，`dev` → 固定 Tag `dev`），发现新版本弹窗确认后下载对应平台安装包并启动安装；默认每小时检查，间隔可在设置中调整。
+- [x] 自动更新仓库身份可由 CI 注入：构建时写入 `package.json` 的 `repository` / `superpoe.githubOwner|githubRepo`，运行时也可被 `SUPERPOE_GITHUB_OWNER`/`SUPERPOE_GITHUB_REPO` 或 `GITHUB_REPOSITORY` 覆盖。
+- [x] GitHub 访问失败时按代理域名列表回退：内置代理 + 用户自定义代理并集去重，URL 规则为 `{代理域名}/https://github.com/...`；网络异常静默跳过当次检查。
+- [ ] 代码签名证书、重复 Release 严格防覆盖策略、自动更新签名校验仍待完善。
 
-**完成标准（当前）**：在 GitHub 上 Publish 与版本一致的 Release 后，无需开发机即可完成 win-x64 + macOS 构建并上传附件；干净机器下载安装包可启动（未签名环境需接受系统安全提示）。
+**完成标准（当前）**：在 GitHub 上 Publish 与版本一致的 Release 后，无需开发机即可完成 win-x64 + macOS 构建并上传附件；干净机器下载安装包可启动（未签名环境需接受系统安全提示）；已安装客户端可按通道检测并下载安装更新。
 
 ### M1：布局、工作流与构筑管理可靠化（P0）
 
@@ -305,14 +309,15 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 目标：形成普通用户可以安装、升级、备份和诊断的 Windows 应用。
 
 - 固定产品名称、应用数据目录、图标、安装器和版本信息。
-- 增加设置页：语言、画质/DPR、资源目录、自动保存间隔和更新通道。
+- 设置页完善：语言、画质/DPR、资源目录、自动保存间隔、更新通道、检查间隔与自定义 GitHub 代理域名。
+- [x] 应用内自动更新（`release`/`dev` 通道、`latest.yml` 轮询、弹窗确认下载安装、代理回退）；安装包与更新源仍未代码签名。
 - 增加日志和诊断包导出，不暴露 Lua/WASM 等内部概念给普通用户。
 - 增加启动恢复、worker 崩溃恢复和资源损坏提示。
 - 建立 Windows 安装、覆盖升级、卸载保留数据和干净机器回归测试。
 - 复用 M0 的 Tag 发布工作流，不再增加人工打包或手工上传附件流程。
-- 评估代码签名与自动更新；未签名版本必须明确发布方式和安全提示。
+- 评估代码签名与更新包完整性校验；未签名版本必须明确发布方式和安全提示。
 
-**完成标准**：在没有 Node、Python 和 LuaJIT 的干净 Windows 机器上安装后，可以离线新建、导入、编辑、保存和计算构筑。
+**完成标准**：在没有 Node、Python 和 LuaJIT 的干净 Windows 机器上安装后，可以离线新建、导入、编辑、保存和计算构筑，并可通过应用内更新升级到新版本。
 
 ## 6. 候选功能（P2）
 
