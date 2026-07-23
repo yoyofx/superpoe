@@ -4,6 +4,7 @@ import { get as httpsGet } from 'node:https'
 import { get as httpGet, type IncomingMessage } from 'node:http'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
+import { parseLatestYml, pickInstallerFileName, shouldOfferUpdate, getLatestYmlFileName, type LatestYml } from './updateVersion.js'
 
 export type UpdateChannel = 'release' | 'dev'
 
@@ -45,13 +46,6 @@ function toProxiedUrl(proxyDomain: string, originalUrl: string): string {
 }
 
 
-interface LatestYml {
-  version: string
-  path: string
-  sha512: string
-  releaseDate: string
-  files: { url: string; sha512: string; size: number }[]
-}
 
 export interface UpdateInfo {
   version: string
@@ -60,6 +54,18 @@ export interface UpdateInfo {
   downloadUrl: string
   fileName: string
   releaseDate: string
+}
+
+export type UpdateCheckStatus = 'available' | 'up-to-date' | 'error'
+
+export interface UpdateCheckResult {
+  status: UpdateCheckStatus
+  channel: UpdateChannel
+  currentVersion: string
+  /** Present when status === 'available' */
+  update?: UpdateInfo
+  /** Present when status === 'error' */
+  error?: string
 }
 
 const DEFAULT_REPO_OWNER = 'yoyofx'
@@ -124,10 +130,11 @@ function resolveGithubRepo(): GithubRepoIdentity {
 
 function getLatestYmlUrl(channel: UpdateChannel): string {
   const { owner, name } = resolveGithubRepo()
+  const manifest = getLatestYmlFileName(process.platform)
   if (channel === 'dev') {
-    return `${GITHUB_BASE}/${owner}/${name}/releases/download/dev/latest.yml`
+    return `${GITHUB_BASE}/${owner}/${name}/releases/download/dev/${manifest}`
   }
-  return `${GITHUB_BASE}/${owner}/${name}/releases/latest/download/latest.yml`
+  return `${GITHUB_BASE}/${owner}/${name}/releases/latest/download/${manifest}`
 }
 
 function getAssetDownloadUrl(channel: UpdateChannel, fileName: string, version: string): string {
@@ -259,84 +266,7 @@ function httpsDownload(url: string, destPath: string, onProgress: (percent: numb
   })
 }
 
-function parseLatestYml(raw: string): LatestYml | null {
-  try {
-    const lines = raw.split('\n')
-    const result: Partial<LatestYml> = {}
-    const files: LatestYml['files'] = []
-    let inFiles = false
-    let currentFile: Partial<LatestYml['files'][0]> = {}
 
-    for (const line of lines) {
-      const trimmed = line.trim()
-      if (trimmed.startsWith('version:')) {
-        result.version = trimmed.slice('version:'.length).trim().replace(/^['"]|['"]$/g, '')
-        inFiles = false
-      } else if (trimmed.startsWith('path:') && !inFiles) {
-        result.path = trimmed.slice('path:'.length).trim().replace(/^['"]|['"]$/g, '')
-      } else if (trimmed.startsWith('sha512:') && !inFiles) {
-        result.sha512 = trimmed.slice('sha512:'.length).trim().replace(/^['"]|['"]$/g, '')
-      } else if (trimmed.startsWith('releaseDate:')) {
-        result.releaseDate = trimmed.slice('releaseDate:'.length).trim().replace(/^['"]|['"]$/g, '')
-        inFiles = false
-      } else if (trimmed === 'files:') {
-        inFiles = true
-      } else if (inFiles && trimmed.startsWith('- url:')) {
-        if (currentFile.url) {
-          files.push(currentFile as LatestYml['files'][0])
-        }
-        currentFile = { url: trimmed.slice('- url:'.length).trim().replace(/^['"]|['"]$/g, '') }
-      } else if (inFiles && trimmed.startsWith('sha512:')) {
-        currentFile.sha512 = trimmed.slice('sha512:'.length).trim().replace(/^['"]|['"]$/g, '')
-      } else if (inFiles && trimmed.startsWith('size:')) {
-        currentFile.size = parseInt(trimmed.slice('size:'.length).trim(), 10)
-      }
-    }
-    if (currentFile.url) files.push(currentFile as LatestYml['files'][0])
-    result.files = files
-
-    if (!result.version || !result.path) return null
-    return result as LatestYml
-  } catch {
-    return null
-  }
-}
-
-function compareVersions(a: string, b: string): number {
-  const parseVer = (v: string) => {
-    const dashIdx = v.indexOf('-')
-    const core = dashIdx >= 0 ? v.slice(0, dashIdx) : v
-    const pre = dashIdx >= 0 ? v.slice(dashIdx + 1) : ''
-    return { parts: core.split('.').map(Number), pre }
-  }
-  const av = parseVer(a)
-  const bv = parseVer(b)
-  for (let i = 0; i < Math.max(av.parts.length, bv.parts.length); i++) {
-    const diff = (av.parts[i] || 0) - (bv.parts[i] || 0)
-    if (diff !== 0) return diff
-  }
-  if (!av.pre && bv.pre) return 1
-  if (av.pre && !bv.pre) return -1
-  if (av.pre && bv.pre) return av.pre.localeCompare(bv.pre)
-  return 0
-}
-
-function getPlatformInstallerName(latestYml: LatestYml): string {
-  if (process.platform === 'win32') {
-    const exe = latestYml.files.find(f => f.url.endsWith('.exe'))
-    return exe ? exe.url : latestYml.path
-  }
-  if (process.platform === 'darwin') {
-    const dmg = latestYml.files.find(f => f.url.endsWith('.dmg'))
-    if (dmg) return dmg.url
-    const zip = latestYml.files.find(f => f.url.endsWith('.zip'))
-    if (zip) return zip.url
-    return latestYml.path
-  }
-  const appImage = latestYml.files.find(f => f.url.endsWith('.AppImage'))
-  if (appImage) return appImage.url
-  return latestYml.path
-}
 
 let checkTimer: ReturnType<typeof setInterval> | undefined
 let isDownloading = false
@@ -347,33 +277,54 @@ function sendToAllWindows(channel: string, ...args: unknown[]) {
   }
 }
 
-async function checkForUpdate(updateChannel: UpdateChannel): Promise<UpdateInfo | null> {
+async function checkForUpdate(updateChannel: UpdateChannel): Promise<UpdateCheckResult> {
+  const currentVersion = app.getVersion()
   try {
     const url = getLatestYmlUrl(updateChannel)
     const raw = await fetchWithProxyFallback(url)
     const yml = parseLatestYml(raw)
-    if (!yml) return null
+    if (!yml) {
+      return {
+        status: 'error',
+        channel: updateChannel,
+        currentVersion,
+        error: 'Failed to parse latest.yml',
+      }
+    }
+    // release: only newer semver; dev: any different rolling build is an update
+    const shouldUpdate = shouldOfferUpdate(updateChannel, yml.version, currentVersion)
 
-    const currentVersion = app.getVersion()
-    const shouldUpdate = updateChannel === 'dev'
-      ? yml.version !== currentVersion
-      : compareVersions(yml.version, currentVersion) > 0
+    if (!shouldUpdate) {
+      return {
+        status: 'up-to-date',
+        channel: updateChannel,
+        currentVersion,
+      }
+    }
 
-    if (!shouldUpdate) return null
-
-    const fileName = getPlatformInstallerName(yml)
+    const fileName = pickInstallerFileName(yml)
     const downloadUrl = getAssetDownloadUrl(updateChannel, fileName, yml.version)
 
     return {
-      version: yml.version,
-      currentVersion,
+      status: 'available',
       channel: updateChannel,
-      downloadUrl,
-      fileName,
-      releaseDate: yml.releaseDate || '',
+      currentVersion,
+      update: {
+        version: yml.version,
+        currentVersion,
+        channel: updateChannel,
+        downloadUrl,
+        fileName,
+        releaseDate: yml.releaseDate || '',
+      },
     }
-  } catch {
-    return null
+  } catch (err) {
+    return {
+      status: 'error',
+      channel: updateChannel,
+      currentVersion,
+      error: err instanceof Error ? err.message : 'Update check failed',
+    }
   }
 }
 
@@ -415,9 +366,11 @@ async function downloadAndInstall(info: UpdateInfo): Promise<void> {
 }
 
 export function setupAutoUpdater(getChannel: () => UpdateChannel, getIntervalMinutes: () => number): void {
-  ipcMain.handle('updater:check', async () => {
-    const info = await checkForUpdate(getChannel())
-    return info
+  ipcMain.handle('updater:check', async (_event, channelOverride?: unknown) => {
+    const channel = channelOverride === 'dev' || channelOverride === 'release'
+      ? channelOverride
+      : getChannel()
+    return checkForUpdate(channel)
   })
 
   ipcMain.handle('updater:download', async (_event, info: UpdateInfo) => {
@@ -439,9 +392,9 @@ export function setupAutoUpdater(getChannel: () => UpdateChannel, getIntervalMin
   })
 
   const runCheck = async () => {
-    const info = await checkForUpdate(getChannel())
-    if (info) {
-      sendToAllWindows('updater:update-available', info)
+    const result = await checkForUpdate(getChannel())
+    if (result.status === 'available' && result.update) {
+      sendToAllWindows('updater:update-available', result.update)
     }
   }
 

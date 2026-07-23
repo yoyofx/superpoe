@@ -9,6 +9,16 @@ export interface UpdateInfo {
   releaseDate: string
 }
 
+export type UpdateCheckStatus = 'available' | 'up-to-date' | 'error'
+
+export interface UpdateCheckResult {
+  status: UpdateCheckStatus
+  channel: 'release' | 'dev'
+  currentVersion: string
+  update?: UpdateInfo
+  error?: string
+}
+
 export interface ProxyDomainsInfo {
   builtin: string[]
   user: string[]
@@ -20,7 +30,7 @@ declare global {
       importWeGame(url: string): Promise<{ code: string; sourceUrl: string }>
     }
     pob2Updater?: {
-      check(): Promise<UpdateInfo | null>
+      check(channel?: 'release' | 'dev'): Promise<UpdateCheckResult>
       download(info: UpdateInfo): Promise<void>
       setConfig(config: { channel?: string; intervalMinutes?: number }): void
       setProxyDomains(domains: string[]): void

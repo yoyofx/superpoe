@@ -5,7 +5,7 @@ contextBridge.exposeInMainWorld('pob2Desktop', {
 })
 
 contextBridge.exposeInMainWorld('pob2Updater', {
-  check: () => ipcRenderer.invoke('updater:check'),
+  check: (channel?: string) => ipcRenderer.invoke('updater:check', channel),
   download: (info: unknown) => ipcRenderer.invoke('updater:download', info),
   setConfig: (config: { channel?: string; intervalMinutes?: number }) => ipcRenderer.send('updater:set-config', config),
   setProxyDomains: (domains: string[]) => ipcRenderer.send('updater:set-proxy-domains', domains),

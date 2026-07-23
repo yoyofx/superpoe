@@ -90,8 +90,18 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose }: Glob
               <button type="button" className="secondary-command" disabled={checking} onClick={async () => {
                 setChecking(true)
                 setCheckResult(null)
-                const found = await triggerManualUpdateCheck()
-                setCheckResult(found ? (zh ? '发现新版本' : 'Update found') : (zh ? '已是最新版本' : 'Up to date'))
+                const status = await triggerManualUpdateCheck(settings.updateChannel)
+                if (status === 'available') {
+                  setCheckResult(zh ? '发现新版本' : 'Update found')
+                } else if (status === 'up-to-date') {
+                  setCheckResult(zh
+                    ? `已是最新版本（${settings.updateChannel === 'dev' ? '预览' : '正式'}通道）`
+                    : `Up to date (${settings.updateChannel} channel)`)
+                } else if (status === 'unavailable') {
+                  setCheckResult(zh ? '仅桌面版支持检查更新' : 'Desktop app only')
+                } else {
+                  setCheckResult(zh ? '检查失败（网络/代理）' : 'Check failed (network/proxy)')
+                }
                 setChecking(false)
               }}>
                 {checking ? (zh ? '检查中...' : 'Checking...') : (zh ? '立即检查' : 'Check now')}

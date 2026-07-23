@@ -162,12 +162,16 @@ export function UpdateDialog({ settings }: UpdateDialogProps) {
 }
 
 /** Trigger a manual update check. Dispatches custom event if update found. */
-export async function triggerManualUpdateCheck(): Promise<boolean> {
-  if (!window.pob2Updater) return false
-  const info = await window.pob2Updater.check()
-  if (info) {
-    window.dispatchEvent(new CustomEvent('superpoe:update-found', { detail: info }))
-    return true
+export async function triggerManualUpdateCheck(channel?: 'release' | 'dev'): Promise<'available' | 'up-to-date' | 'error' | 'unavailable'> {
+  if (!window.pob2Updater) return 'unavailable'
+  // Pass channel explicitly so check does not depend on async set-config race.
+  if (channel) {
+    window.pob2Updater.setConfig({ channel })
   }
-  return false
+  const result = await window.pob2Updater.check(channel)
+  if (result.status === 'available' && result.update) {
+    window.dispatchEvent(new CustomEvent('superpoe:update-found', { detail: result.update }))
+    return 'available'
+  }
+  return result.status
 }
