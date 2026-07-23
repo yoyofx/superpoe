@@ -59,6 +59,9 @@ svg { flex: 0 0 auto; }
 .realm-tag { display: inline-flex; align-items: center; justify-content: center; min-height: 18px; padding: 1px 6px; border: 1px solid #4d665e; background: #13201c; color: #7eb39e; font-size: 8px; font-style: normal; font-weight: 500; line-height: 1; white-space: nowrap; }
 .realm-tag.cn { border-color: #71443e; background: #241412; color: #d47a70; }
 .current-build > .realm-tag { flex: 0 0 auto; }
+.build-realm-select { width: 78px; height: 24px; flex: 0 0 auto; padding: 0 20px 0 7px; border: 1px solid #4d665e; border-radius: 0; background: #13201c; color: #7eb39e; font-size: 9px; cursor: pointer; }
+.build-realm-select.cn { border-color: #71443e; background: #241412; color: #d47a70; }
+.build-realm-select:hover { filter: brightness(1.18); }
 .save-state { display: inline-flex; align-items: center; gap: 5px; color: #747168; font-size: 10px; white-space: nowrap; }
 .save-state i { width: 5px; height: 5px; border-radius: 50%; background: #55a676; }
 
@@ -333,6 +336,7 @@ svg { flex: 0 0 auto; }
 .build-table th:last-child { width: 44px; }
 .build-name-cell { max-width: 100%; display: flex; align-items: center; gap: 8px; border: 0; background: transparent; color: #d1c6ae; cursor: pointer; }
 .build-name-cell > span { width: 26px; height: 26px; display: grid; place-items: center; flex: 0 0 auto; border: 1px solid #5f5338; color: #ae965e; font: 500 11px Georgia, serif; }
+.build-name-cell > span img { width: 100%; height: 100%; display: block; object-fit: cover; }
 .build-name-cell strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 500; }
 .build-name-cell .realm-tag { flex: 0 0 auto; margin-left: 2px; }
 .build-table td > strong, .build-table td > small { display: block; }

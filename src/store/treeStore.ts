@@ -8,7 +8,7 @@ import { create } from 'zustand'
 
 import type { BuildRealm, TreeData, SavedBuild } from '@/types/tree'
 import { LANGUAGE_OPTIONS, getLocalizedSearchText, loadTranslations, type Language } from '@/i18n/translationLoader'
-import { decodeBuildCode, encodeBuildCode, getEncodeClassPayload } from '@/engine/buildCode'
+import { decodeBuildCode, encodeBuildCode, getBuildCharacterLevel, getEncodeClassPayload } from '@/engine/buildCode'
 import { calculateBuild } from '@/engine/pobLuaClient'
 import { clearPersistedImportedBuild, getInitialImportedBuildCode } from '@/engine/buildPersistence'
 import { DEFAULT_BUILD_REALM, inferBuildRealm } from '@/engine/buildRealm'
@@ -2280,7 +2280,11 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       if (raw) {
         const builds = JSON.parse(raw) as SavedBuild[]
         if (Array.isArray(builds)) {
-          const normalized = builds.map((build) => ({ ...build, realm: inferBuildRealm(build) }))
+          const normalized = builds.map((build) => ({
+            ...build,
+            realm: inferBuildRealm(build),
+            characterLevel: build.characterLevel || getBuildCharacterLevel(build.importedBuildCode) || 1,
+          }))
           set({ savedBuilds: normalized })
           localStorage.setItem('pob2-saved-builds', JSON.stringify(normalized))
         }
@@ -2304,6 +2308,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       treeVersion,
       selectedClassId,
       selectedAscendancyId,
+      characterLevel: getBuildCharacterLevel(importedBuildCode) || existing?.characterLevel || 1,
       importedBuildCode,
       source: source || existing?.source || (importedBuildCode ? 'pob' : 'local'),
       realm: buildRealm,
@@ -2361,6 +2366,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       availableNodes: rebuilt.availableNodes,
       selectedClassId,
       selectedAscendancyId,
+      buildRealm: inferBuildRealm(build),
       importedBuildCode: build.importedBuildCode || null,
       weaponSetMode: build.weaponSetMode,
       nodeWeaponSets: rebuilt.nodeWeaponSets,

@@ -1,11 +1,15 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, MoreVertical, Plus, Search, Settings, Trash2 } from 'lucide-react'
+import { FallbackImage } from '@/components/FallbackImage'
 import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { useTreeStore } from '@/store/treeStore'
 import type { SavedBuild } from '@/types/tree'
 import { buildRealmLabel } from '@/engine/buildRealm'
+import { getBuildCharacterLevel } from '@/engine/buildCode'
+import { getTreeAssetUrl, loadTreeAssetIndex } from '@/engine/treeAssetIndex'
+import type { SpriteIndex } from '@/engine/spriteLoader'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 
 interface BuildCenterProps {
@@ -45,6 +49,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
   const [query, setQuery] = useState('')
   const [rowMenu, setRowMenu] = useState<RowMenuState | null>(null)
   const [page, setPage] = useState(1)
+  const [assetIndexes, setAssetIndexes] = useState<Record<string, SpriteIndex>>({})
   const zh = lang === 'zh-rCN'
 
   const builds = useMemo(() => {
@@ -68,6 +73,16 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
   useEffect(() => {
     setPage(1)
   }, [query])
+
+  useEffect(() => {
+    const versions = [...new Set(savedBuilds.map((build) => build.treeVersion).filter(Boolean))]
+    let active = true
+    void Promise.all(versions.map(async (version) => [version, await loadTreeAssetIndex(version)] as const))
+      .then((entries) => {
+        if (active) setAssetIndexes(Object.fromEntries(entries))
+      })
+    return () => { active = false }
+  }, [savedBuilds])
 
   useEffect(() => {
     if (page > pageCount) setPage(pageCount)
@@ -117,6 +132,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
     return {
       name: cls ? translateGameText(cls.displayName || cls.name, lang) : build.selectedClassId,
       ascendancy: asc ? translateGameText(asc.displayName || asc.name, lang) : '',
+      imageUrl: getTreeAssetUrl(assetIndexes[build.treeVersion] || {}, asc?.background?.image || cls?.background?.image),
     }
   }
   const sourceLabel = (build: SavedBuild) => {
@@ -173,9 +189,10 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
                   <thead><tr><th>{zh ? '构筑名' : 'Build'}</th><th>{zh ? '职业 / 升华' : 'Class / Ascendancy'}</th><th>{zh ? '版本' : 'Version'}</th><th>{zh ? '天赋点数' : 'Passives'}</th><th>{zh ? '修改时间' : 'Modified'}</th><th>{zh ? '来源' : 'Source'}</th><th aria-label={zh ? '操作' : 'Actions'} /></tr></thead>
                   <tbody>{pagedBuilds.map((build) => {
                     const info = buildClass(build)
+                    const characterLevel = build.characterLevel || getBuildCharacterLevel(build.importedBuildCode) || 1
                     return <tr key={build.id} onDoubleClick={() => onOpen(build)}>
-                      <td><button className="build-name-cell" onClick={() => onOpen(build)}><span>{info.name.slice(0, 1)}</span><strong>{build.name}</strong><em className={`realm-tag ${build.realm}`}>{buildRealmLabel(build.realm, zh)}</em></button></td>
-                      <td><strong>{info.name}</strong><small>{info.ascendancy || (zh ? '未选择升华' : 'No ascendancy')}</small></td>
+                      <td><button className="build-name-cell" onClick={() => onOpen(build)}><span><FallbackImage src={info.imageUrl || undefined} alt="" decoding="async" fallback={info.name.slice(0, 1)} /></span><strong>{build.name}</strong><em className={`realm-tag ${build.realm}`}>{buildRealmLabel(build.realm, zh)}</em></button></td>
+                      <td><strong>Lv.{characterLevel} · {info.name}</strong><small>{info.ascendancy || (zh ? '未选择升华' : 'No ascendancy')}</small></td>
                       <td>{build.treeVersion.replace('_', '.')}</td>
                       <td>{build.allocatedNodes.length}</td>
                       <td>{formatUpdatedAt(build.updatedAt, lang)}</td>

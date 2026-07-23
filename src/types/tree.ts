@@ -310,6 +310,7 @@ export interface SavedBuild {
   treeVersion: string
   selectedClassId: string
   selectedAscendancyId: string
+  characterLevel?: number
   importedBuildCode?: string | null
   source?: 'local' | 'pob' | 'wegame' | 'json'
   realm: BuildRealm

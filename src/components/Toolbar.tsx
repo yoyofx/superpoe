@@ -20,7 +20,7 @@ import {
 } from 'lucide-react'
 import { ExportPanel } from '@/components/ExportPanel'
 import { FallbackImage } from '@/components/FallbackImage'
-import { decodeCodeToXml } from '@/engine/buildCode'
+import { getBuildCharacterLevel } from '@/engine/buildCode'
 import { getTreeAssetUrl, loadTreeAssetIndex } from '@/engine/treeAssetIndex'
 import type { SpriteIndex } from '@/engine/spriteLoader'
 import { translateGameText } from '@/i18n/translationLoader'
@@ -76,6 +76,7 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
   const buildRealm = useTreeStore((state) => state.buildRealm)
   const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
   const setZoom = useTreeStore((state) => state.setZoom)
+  const setBuildRealm = useTreeStore((state) => state.setBuildRealm)
   const selectClass = useTreeStore((state) => state.selectClass)
   const selectAscendancy = useTreeStore((state) => state.selectAscendancy)
   const setTreeEditMode = useTreeStore((state) => state.setTreeEditMode)
@@ -117,12 +118,7 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
   )
   const characterLevel = useMemo(() => {
     if (!importedBuildCode) return '1'
-    try {
-      const buildTag = decodeCodeToXml(importedBuildCode).match(/<Build\b([^>]*)>/i)?.[1] || ''
-      return buildTag.match(/\blevel="([^"]+)"/i)?.[1] || '--'
-    } catch {
-      return '--'
-    }
+    return String(getBuildCharacterLevel(importedBuildCode) || '--')
   }, [importedBuildCode])
   const viewLabels = useMemo(() => lang === 'zh-rCN'
     ? { passive: '天赋', equipment: '装备', skills: '技能', calculation: '计算' }
@@ -201,7 +197,16 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
               <span><i>{lang === 'zh-rCN' ? '已分配天赋' : 'Allocated passives'}</i><b>{allocatedNodes.size}</b></span>
             </span>
           </span>
-          <span className={`realm-tag ${buildRealm}`}>{buildRealmLabel(buildRealm, lang === 'zh-rCN')}</span>
+          <select
+            className={`build-realm-select ${buildRealm}`}
+            value={buildRealm}
+            onChange={(event) => setBuildRealm(event.target.value as 'cn' | 'global')}
+            aria-label={lang === 'zh-rCN' ? '游戏服务器' : 'Game realm'}
+            title={lang === 'zh-rCN' ? '修改当前构筑的游戏服务器' : 'Change this build realm'}
+          >
+            <option value="cn">{lang === 'zh-rCN' ? '腾讯服' : 'Tencent CN'}</option>
+            <option value="global">{lang === 'zh-rCN' ? '国际服' : 'Global'}</option>
+          </select>
           <span className={`save-state ${saveStatus}`}><i />{saveLabels[saveStatus]}</span>
         </div>
 

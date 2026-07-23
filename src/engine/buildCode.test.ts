@@ -1,12 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { deflate } from 'pako'
-import { decodeBuildCode, encodeBuildCode } from '@/engine/buildCode'
+import { decodeBuildCode, encodeBuildCode, getBuildCharacterLevel } from '@/engine/buildCode'
 
 function encodeXml(xml: string): string {
   return Buffer.from(deflate(new TextEncoder().encode(xml))).toString('base64url')
 }
 
 describe('front-end build code encode/decode', () => {
+  it('reads the character level from build metadata', () => {
+    const code = encodeXml('<?xml version="1.0"?><PathOfBuilding2><Build level="96"/></PathOfBuilding2>')
+    expect(getBuildCharacterLevel(code)).toBe(96)
+    expect(getBuildCharacterLevel('invalid-code')).toBeNull()
+  })
+
   it('round-trips simple nodes', () => {
     const nodes = ['61419', '65413', '10131']
     const encoded = encodeBuildCode({ nodes, treeVersion: '0_5' })

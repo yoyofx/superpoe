@@ -96,6 +96,17 @@ export function decodeCodeToXml(code: string): string {
   return new TextDecoder().decode(inflated)
 }
 
+export function getBuildCharacterLevel(code?: string | null): number | null {
+  if (!code) return null
+  try {
+    const buildAttrs = decodeCodeToXml(code).match(/<Build\b([^>]*)>/i)?.[1]
+    const level = Number(buildAttrs?.match(/\blevel="([^"]+)"/i)?.[1])
+    return Number.isInteger(level) && level > 0 ? level : null
+  } catch {
+    return null
+  }
+}
+
 function encodeXmlToCode(xml: string): string {
   const deflated = deflate(new TextEncoder().encode(xml))
   return btoa(bytesToBinary(deflated)).replace(/\+/g, '-').replace(/\//g, '_')
