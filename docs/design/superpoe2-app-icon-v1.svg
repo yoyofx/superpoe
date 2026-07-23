@@ -1,0 +1,105 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="steel" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#4f514c"/>
+      <stop offset="0.18" stop-color="#171a18"/>
+      <stop offset="0.52" stop-color="#343631"/>
+      <stop offset="0.78" stop-color="#0b0d0c"/>
+      <stop offset="1" stop-color="#55564e"/>
+    </linearGradient>
+    <linearGradient id="steelEdge" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#8b897b"/>
+      <stop offset="0.18" stop-color="#282b27"/>
+      <stop offset="0.82" stop-color="#090b0a"/>
+      <stop offset="1" stop-color="#535349"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0.85" y2="1">
+      <stop offset="0" stop-color="#fff0a8"/>
+      <stop offset="0.16" stop-color="#d5ad54"/>
+      <stop offset="0.48" stop-color="#76501f"/>
+      <stop offset="0.72" stop-color="#c6953f"/>
+      <stop offset="1" stop-color="#4a2d12"/>
+    </linearGradient>
+    <radialGradient id="core" cx="42%" cy="34%" r="76%">
+      <stop offset="0" stop-color="#29443b"/>
+      <stop offset="0.38" stop-color="#10241f"/>
+      <stop offset="0.76" stop-color="#07100e"/>
+      <stop offset="1" stop-color="#020504"/>
+    </radialGradient>
+    <radialGradient id="emerald" cx="38%" cy="30%" r="70%">
+      <stop offset="0" stop-color="#d4ffe0"/>
+      <stop offset="0.18" stop-color="#62e293"/>
+      <stop offset="0.58" stop-color="#08724f"/>
+      <stop offset="1" stop-color="#02271d"/>
+    </radialGradient>
+    <radialGradient id="ruby" cx="38%" cy="30%" r="70%">
+      <stop offset="0" stop-color="#ffd1bd"/>
+      <stop offset="0.2" stop-color="#ef6b55"/>
+      <stop offset="0.62" stop-color="#7e201b"/>
+      <stop offset="1" stop-color="#2b0707"/>
+    </radialGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="170%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="24" result="blur"/>
+      <feOffset dy="24" result="offset"/>
+      <feColorMatrix in="offset" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .75 0"/>
+      <feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="innerGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur stdDeviation="13" result="glow"/>
+      <feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
+    <filter id="metalTexture" x="-10%" y="-10%" width="120%" height="120%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.55" numOctaves="2" seed="8" result="noise"/>
+      <feColorMatrix in="noise" values="1 0 0 0 0 0 1 0 0 0 0 0 1 0 0 0 0 0 .11 0" result="grain"/>
+      <feBlend in="SourceGraphic" in2="grain" mode="overlay"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#shadow)">
+    <path fill="url(#steelEdge)" stroke="#090a09" stroke-width="18" stroke-linejoin="round"
+      d="M512 42 724 96 895 237 976 430 953 645 838 828 650 950 430 976 237 895 96 724 42 512 96 300 237 129 430 48Z"/>
+    <path fill="url(#gold)" stroke="#1d1308" stroke-width="16" stroke-linejoin="round"
+      d="M512 82 704 131 858 258 931 434 910 626 807 791 637 901 439 924 263 851 136 697 88 512 136 320 263 166 439 94Z"/>
+    <path fill="url(#steel)" stroke="#a47b36" stroke-width="8" stroke-linejoin="round"
+      d="M512 121 684 165 824 280 889 439 871 610 778 758 625 858 448 878 289 812 175 673 132 512 175 339 289 201 448 132Z"/>
+    <path fill="url(#core)" stroke="#090b09" stroke-width="20"
+      d="M512 172 657 209 775 307 830 443 815 587 737 713 607 798 457 816 321 760 224 642 188 512 224 366 321 248 457 181Z"/>
+
+    <g opacity=".8" fill="#0b0e0c" stroke="#6f582d" stroke-width="8">
+      <path d="M512 143 547 178 512 213 477 178Z"/>
+      <path d="M847 471 882 506 847 541 812 506Z"/>
+      <path d="M512 811 547 846 512 881 477 846Z"/>
+      <path d="M177 471 212 506 177 541 142 506Z"/>
+    </g>
+
+    <g fill="none" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M326 333 430 403 584 395 697 304" stroke="#181007" stroke-width="42"/>
+      <path d="M326 333 430 403 584 395 697 304" stroke="url(#gold)" stroke-width="22"/>
+      <path d="M312 700 422 623 599 633 708 718" stroke="#181007" stroke-width="42"/>
+      <path d="M312 700 422 623 599 633 708 718" stroke="url(#gold)" stroke-width="22"/>
+    </g>
+
+    <g filter="url(#innerGlow)">
+      <circle cx="315" cy="326" r="61" fill="#0a0d0b" stroke="url(#gold)" stroke-width="19"/>
+      <circle cx="315" cy="326" r="38" fill="url(#ruby)" stroke="#29100d" stroke-width="8"/>
+      <circle cx="704" cy="301" r="61" fill="#0a0d0b" stroke="url(#gold)" stroke-width="19"/>
+      <circle cx="704" cy="301" r="38" fill="url(#emerald)" stroke="#04251a" stroke-width="8"/>
+      <circle cx="302" cy="710" r="61" fill="#0a0d0b" stroke="url(#gold)" stroke-width="19"/>
+      <circle cx="302" cy="710" r="38" fill="url(#emerald)" stroke="#04251a" stroke-width="8"/>
+      <circle cx="715" cy="724" r="61" fill="#0a0d0b" stroke="url(#gold)" stroke-width="19"/>
+      <circle cx="715" cy="724" r="38" fill="url(#ruby)" stroke="#29100d" stroke-width="8"/>
+    </g>
+
+    <g filter="url(#metalTexture)">
+      <text x="498" y="696" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif"
+        font-size="524" font-weight="700" font-style="italic" fill="#120c05" stroke="#090604" stroke-width="44" paint-order="stroke">S</text>
+      <text x="490" y="682" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif"
+        font-size="524" font-weight="700" font-style="italic" fill="url(#gold)" stroke="#e0bb64" stroke-width="7" paint-order="stroke">S</text>
+      <text x="473" y="655" text-anchor="middle" font-family="Georgia, 'Times New Roman', serif"
+        font-size="500" font-weight="700" font-style="italic" fill="none" stroke="#fff0aa" stroke-opacity=".3" stroke-width="5">S</text>
+    </g>
+
+    <path d="M270 211C386 126 625 115 770 213" fill="none" stroke="#fff0b0" stroke-opacity=".22" stroke-width="15" stroke-linecap="round"/>
+    <path d="M172 576C202 747 343 858 504 883" fill="none" stroke="#020302" stroke-opacity=".65" stroke-width="18" stroke-linecap="round"/>
+  </g>
+</svg>

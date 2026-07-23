@@ -34,8 +34,7 @@ svg { flex: 0 0 auto; }
 .app-command-bar { height: 52px; display: grid; grid-template-columns: 210px minmax(250px, 1fr) auto; border-bottom: 1px solid #302f2a; }
 
 .app-brand { display: flex; align-items: center; gap: 10px; padding: 0 16px; border-right: 1px solid #35332d; }
-.app-brand-mark { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid #9b8453; background: #171814; color: #ddc78d; font: 18px Georgia, serif; transform: rotate(45deg); box-shadow: inset 0 0 0 3px #0d0f0d; }
-.app-brand-mark i { font-style: normal; transform: rotate(-45deg); }
+.app-brand-logo { width: 34px; height: 34px; flex: 0 0 auto; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .72)); }
 .app-brand > span:last-child { min-width: 0; }
 .app-brand strong { display: block; color: #e1d5b7; font: 500 18px Georgia, serif; }
 .app-brand small { display: block; color: #716c60; font-size: 10px; margin-top: 1px; }
@@ -289,6 +288,7 @@ svg { flex: 0 0 auto; }
 .center-app-bar, .build-center-content { position: relative; z-index: 1; }
 .center-app-bar { height: 58px; display: grid; grid-template-columns: 220px minmax(260px, 560px) 1fr; align-items: center; border-bottom: 1px solid #504a3b; background: rgba(9, 11, 11, .97); }
 .center-brand { height: 100%; }
+.center-brand .app-brand-logo { width: 38px; height: 38px; }
 .build-search { position: relative; width: calc(100% - 28px); height: 34px; margin-inline: 14px; }
 .build-search svg { position: absolute; z-index: 1; left: 10px; top: 9px; width: 15px; height: 15px; color: #6f6b63; }
 .build-search input { width: 100%; height: 100%; padding: 0 12px 0 34px; border: 1px solid #454137; background: #121411; color: #d4ccbd; font-size: 12px; }
@@ -341,7 +341,7 @@ svg { flex: 0 0 auto; }
 .source-tag { display: inline-block; padding: 2px 6px; border: 1px solid #454137; color: #7d786e; font-size: 8px; }
 .source-tag.imported { border-color: #4e614f; color: #7d9f80; }
 .build-row-actions { position: relative; padding-inline: 5px !important; }
-.row-menu { position: absolute; z-index: 5; right: 35px; top: 5px; width: 100px; padding: 3px; border: 1px solid #4a4538; background: #141613; box-shadow: 0 8px 20px #000; }
+.row-menu { position: fixed; z-index: 1200; width: 108px; padding: 3px; border: 1px solid #4a4538; background: #141613; box-shadow: 0 8px 20px #000; }
 .row-menu button { width: 100%; min-height: 27px; display: flex; align-items: center; gap: 6px; padding: 0 8px; border: 0; background: transparent; color: #a19a8e; font-size: 9px; text-align: left; cursor: pointer; }
 .row-menu button:hover { background: #20211d; color: #d4cab5; }
 .row-menu button.danger { color: #c96d68; }

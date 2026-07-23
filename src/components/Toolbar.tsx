@@ -169,7 +169,7 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
     <header className="workbench-header">
       <div className="app-command-bar">
         <div className="app-brand" aria-label={SUPERPOE_NAME}>
-          <span className="app-brand-mark"><i>S</i></span>
+          <img className="app-brand-logo" src="/assets/ui/superpoe2-logo.png" alt="" />
           <span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span>
         </div>
 

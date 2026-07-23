@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, MoreVertical, Plus, Search, Settings, Trash2 } from 'lucide-react'
 import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
@@ -14,7 +15,15 @@ interface BuildCenterProps {
   onSettings: () => void
 }
 
-const BUILDS_PER_PAGE = 10
+const BUILDS_PER_PAGE = 5
+const ROW_MENU_WIDTH = 108
+const ROW_MENU_HEIGHT = 64
+
+interface RowMenuState {
+  buildId: string
+  left: number
+  top: number
+}
 
 function formatUpdatedAt(value: string, lang: Language): string {
   const date = new Date(value)
@@ -34,7 +43,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
   const savedBuilds = useTreeStore((state) => state.savedBuilds)
   const deleteBuild = useTreeStore((state) => state.deleteBuild)
   const [query, setQuery] = useState('')
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [rowMenu, setRowMenu] = useState<RowMenuState | null>(null)
   const [page, setPage] = useState(1)
   const zh = lang === 'zh-rCN'
 
@@ -64,6 +73,44 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
     if (page > pageCount) setPage(pageCount)
   }, [page, pageCount])
 
+  useEffect(() => {
+    if (!rowMenu) return
+    const closeMenu = (event?: Event) => {
+      if (event?.target instanceof Element && event.target.closest('.row-menu, [data-build-menu-trigger]')) return
+      setRowMenu(null)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setRowMenu(null)
+    }
+    document.addEventListener('pointerdown', closeMenu)
+    window.addEventListener('resize', closeMenu)
+    window.addEventListener('scroll', closeMenu, true)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeMenu)
+      window.removeEventListener('resize', closeMenu)
+      window.removeEventListener('scroll', closeMenu, true)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [rowMenu])
+
+  useEffect(() => {
+    setRowMenu(null)
+  }, [currentPage, query])
+
+  const toggleRowMenu = (buildId: string, button: HTMLButtonElement) => {
+    if (rowMenu?.buildId === buildId) {
+      setRowMenu(null)
+      return
+    }
+    const rect = button.getBoundingClientRect()
+    const left = Math.max(8, Math.min(window.innerWidth - ROW_MENU_WIDTH - 8, rect.right - ROW_MENU_WIDTH))
+    const top = rect.bottom + ROW_MENU_HEIGHT + 8 <= window.innerHeight
+      ? rect.bottom + 4
+      : Math.max(8, rect.top - ROW_MENU_HEIGHT - 4)
+    setRowMenu({ buildId, left, top })
+  }
+
   const buildClass = (build: SavedBuild) => {
     const cls = treeData?.constants.classes[build.selectedClassId]
     const asc = cls?.ascendancies.find((item) => (item.id || item.name) === build.selectedAscendancyId)
@@ -83,7 +130,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
   return (
     <div className="build-center">
       <header className="center-app-bar">
-        <div className="app-brand center-brand"><span className="app-brand-mark"><i>S</i></span><span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span></div>
+        <div className="app-brand center-brand"><img className="app-brand-logo" src="/assets/ui/superpoe2-logo.png" alt="" /><span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span></div>
         <label className="build-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={zh ? '搜索构筑名称、职业或升华' : 'Search builds, classes, or ascendancies'} /></label>
         <div className="center-actions">
           <button className="icon-command" onClick={onSettings} title={zh ? '全局设置' : 'Global settings'} aria-label={zh ? '全局设置' : 'Global settings'}><Settings /></button>
@@ -133,7 +180,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
                       <td>{build.allocatedNodes.length}</td>
                       <td>{formatUpdatedAt(build.updatedAt, lang)}</td>
                       <td><span className={`source-tag ${(build.source && build.source !== 'local') || build.importedBuildCode ? 'imported' : ''}`}>{sourceLabel(build)}</span></td>
-                      <td className="build-row-actions"><button className="icon-command compact" onClick={() => setOpenMenuId((id) => id === build.id ? null : build.id)} aria-label={zh ? '更多操作' : 'More actions'}><MoreVertical /></button>{openMenuId === build.id && <div className="row-menu"><button onClick={() => onOpen(build)}>{zh ? '打开' : 'Open'}</button><button className="danger" onClick={() => { deleteBuild(build.id); setOpenMenuId(null) }}><Trash2 />{zh ? '删除' : 'Delete'}</button></div>}</td>
+                      <td className="build-row-actions"><button className="icon-command compact" data-build-menu-trigger onClick={(event) => toggleRowMenu(build.id, event.currentTarget)} aria-expanded={rowMenu?.buildId === build.id} aria-label={zh ? '更多操作' : 'More actions'}><MoreVertical /></button></td>
                     </tr>
                   })}</tbody>
                 </table>
@@ -151,6 +198,17 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
           </section>
         </>}
       </main>
+      {rowMenu && (() => {
+        const build = savedBuilds.find((item) => item.id === rowMenu.buildId)
+        if (!build) return null
+        return createPortal(
+          <div className="row-menu" style={{ left: rowMenu.left, top: rowMenu.top }} role="menu">
+            <button role="menuitem" onClick={() => { setRowMenu(null); onOpen(build) }}>{zh ? '打开' : 'Open'}</button>
+            <button role="menuitem" className="danger" onClick={() => { deleteBuild(build.id); setRowMenu(null) }}><Trash2 />{zh ? '删除' : 'Delete'}</button>
+          </div>,
+          document.body,
+        )
+      })()}
     </div>
   )
 }

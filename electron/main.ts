@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, ipcMain, Menu, net, protocol, shell } from 'electron'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -83,8 +83,13 @@ function registerAppProtocol(): void {
 }
 
 function createWindow(): BrowserWindow {
+  const iconPath = rendererUrl
+    ? path.join(app.getAppPath(), 'build', 'icon.png')
+    : path.join(process.resourcesPath, 'icon.png')
   const window = new BrowserWindow({
     title: productName,
+    icon: iconPath,
+    autoHideMenuBar: true,
     width: 1440,
     height: 960,
     minWidth: 1024,
@@ -116,6 +121,8 @@ let updateChannel: UpdateChannel = 'release'
 let updateCheckIntervalMinutes = 60
 
 app.whenReady().then(() => {
+  Menu.setApplicationMenu(null)
+
   if (!rendererUrl) {
     registerAppProtocol()
   }
