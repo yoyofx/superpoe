@@ -3,6 +3,7 @@ import type { EquipmentItem } from '@/types/equipment'
 export interface RuneDetailVariant {
   type: string
   stats: string[]
+  localizedStats?: Record<string, string[]>
 }
 
 export interface RuneDetail {
@@ -17,6 +18,21 @@ export interface RuneDetailIndex {
 
 let runeDetailPromise: Promise<RuneDetailIndex | null> | null = null
 
+export function normalizeRuneDetailIndex(value: unknown): RuneDetailIndex | null {
+  if (!value || typeof value !== 'object') return null
+  const lookup = (value as { lookup?: unknown }).lookup
+  if (!lookup || typeof lookup !== 'object' || Array.isArray(lookup)) return null
+  const entries = Object.entries(lookup).filter((entry): entry is [string, RuneDetail] => {
+    const detail = entry[1]
+    return !!detail && typeof detail === 'object'
+      && typeof (detail as RuneDetail).name === 'string'
+      && !!(detail as RuneDetail).variants
+      && typeof (detail as RuneDetail).variants === 'object'
+      && !Array.isArray((detail as RuneDetail).variants)
+  })
+  return { lookup: Object.fromEntries(entries) }
+}
+
 function normalizeRuneKey(value: string): string {
   return value.replace(/[^a-z0-9]+/gi, '').toLowerCase()
 }
@@ -24,7 +40,7 @@ function normalizeRuneKey(value: string): string {
 export function loadRuneDetails(): Promise<RuneDetailIndex | null> {
   if (!runeDetailPromise) {
     runeDetailPromise = fetch('/data/rune-details.json')
-      .then(async (response) => response.ok ? response.json() as Promise<RuneDetailIndex> : null)
+      .then(async (response) => response.ok ? normalizeRuneDetailIndex(await response.json()) : null)
       .catch(() => null)
   }
   return runeDetailPromise
@@ -58,8 +74,8 @@ export function resolveRuneVariant(
             : []
 
   for (const category of candidates) {
-    if (category && detail.variants[category]) return { category, variant: detail.variants[category] }
+    if (category && detail.variants?.[category]) return { category, variant: detail.variants[category] }
   }
-  const fallback = Object.entries(detail.variants)[0]
+  const fallback = Object.entries(detail.variants || {})[0]
   return fallback ? { category: fallback[0], variant: fallback[1] } : undefined
 }

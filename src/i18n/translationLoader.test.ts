@@ -243,6 +243,14 @@ describe('translationLoader', () => {
     expect(getLocalizedNodeDisplay(node, 'zh-rTW').name).toBe('能量護盾')
   })
 
+  it('falls back to source text when the optional translation manifest is missing', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404 })))
+
+    await expect(loadTranslations('zh-rCN')).resolves.toBeUndefined()
+    expect(isTranslationLoaded('zh-rCN')).toBe(true)
+    expect(getLocalizedNodeDisplay(node, 'zh-rCN').name).toBe('Energy Shield')
+  })
+
   it('localizes granted ascendancy skill details from node stats', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === '/data/Translate/translation-files.json') {

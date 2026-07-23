@@ -20,6 +20,7 @@ tsconfig.tsbuildinfo
 *.log
 log.txt
 _tsc*.txt
+.cache/
 
 # Python cache
 __pycache__/

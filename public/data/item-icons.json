@@ -41,6 +41,27 @@
   ],
   "items": [
     {
+      "slug": "Exsanguinate",
+      "name": "Exsanguinate",
+      "iconName": "BloodTendrilsSkill",
+      "source": "https://cdn.poe2db.tw/image/Art/2DArt/SkillIcons/4K/BloodTendrilsSkill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/BloodTendrilsSkill.webp"
+    },
+    {
+      "slug": "Soulrend",
+      "name": "Soulrend",
+      "iconName": "Soulrend",
+      "source": "https://cdn.poe2db.tw/image/Art/2DArt/SkillIcons/4K/Soulrend.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/Soulrend.webp"
+    },
+    {
+      "slug": "Wither",
+      "name": "Wither",
+      "iconName": "Wither",
+      "source": "https://cdn.poe2db.tw/image/Art/2DArt/SkillIcons/4K/Wither.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/Wither.webp"
+    },
+    {
       "slug": "Absent_Amulet",
       "name": "",
       "iconName": "AbsentAmulet",
@@ -5932,6 +5953,7 @@
       "name": "Amanamu's Gaze",
       "iconName": "AmanamusGaze",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/AbyssalEyeSocketables/AmanamusGaze.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/AbyssalEyeSocketables/AmanamusGaze.webp"
     },
     {
@@ -5939,6 +5961,7 @@
       "name": "Kurgal's Gaze",
       "iconName": "KurgalsGaze",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/AbyssalEyeSocketables/KurgalsGaze.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/AbyssalEyeSocketables/KurgalsGaze.webp"
     },
     {
@@ -5946,6 +5969,7 @@
       "name": "Tecrod's Gaze",
       "iconName": "TecrodsGaze",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/AbyssalEyeSocketables/TecrodsGaze.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/AbyssalEyeSocketables/TecrodsGaze.webp"
     },
     {
@@ -5953,6 +5977,7 @@
       "name": "Ulaman's Gaze",
       "iconName": "UlamansGaze",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/AbyssalEyeSocketables/UlamansGaze.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/AbyssalEyeSocketables/UlamansGaze.webp"
     },
     {
@@ -5968,6 +5993,7 @@
       "name": "Raven-Touched Shard",
       "iconName": "DeliriumEndgameSocketable",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Delirium/DeliriumEndgameSocketable.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Delirium/DeliriumEndgameSocketable.webp"
     },
     {
@@ -6711,6 +6737,7 @@
       "name": "Greater Ward Rune",
       "iconName": "AddedWardGreater",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/AddedWardGreater.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/AddedWardGreater.webp"
     },
     {
@@ -6718,6 +6745,7 @@
       "name": "Lesser Ward Rune",
       "iconName": "AddedWardLesser",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/AddedWardLesser.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/AddedWardLesser.webp"
     },
     {
@@ -6725,6 +6753,7 @@
       "name": "Ward Rune",
       "iconName": "AddedWardNormal",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/AddedWardNormal.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/AddedWardNormal.webp"
     },
     {
@@ -6732,6 +6761,7 @@
       "name": "Perfect Ward Rune",
       "iconName": "AddedWardPerfect",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/AddedWardPerfect.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/AddedWardPerfect.webp"
     },
     {
@@ -6794,6 +6824,7 @@
       "name": "Rune of Vitality",
       "iconName": "EarlyMythicRune1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EarlyMythicRune1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EarlyMythicRune1.webp"
     },
     {
@@ -6801,6 +6832,7 @@
       "name": "Rune of Consistency",
       "iconName": "EarlyMythicRune10",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EarlyMythicRune10.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EarlyMythicRune10.webp"
     },
     {
@@ -6808,6 +6840,7 @@
       "name": "Rune of Reach",
       "iconName": "EarlyMythicRune11",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EarlyMythicRune11.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EarlyMythicRune11.webp"
     },
     {
@@ -6815,6 +6848,7 @@
       "name": "Rune of Vital Flame",
       "iconName": "EarlyMythicRune12",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EarlyMythicRune12.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EarlyMythicRune12.webp"
     },
     {
@@ -6822,6 +6856,7 @@
       "name": "Rune of Confrontation",
       "iconName": "EarlyMythicRune13",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EarlyMythicRune13.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EarlyMythicRune13.webp"
     },
     {
@@ -6829,6 +6864,7 @@
       "name": "Rune of the Hunt",
       "iconName": "EarlyMythicRune2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EarlyMythicRune2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EarlyMythicRune2.webp"
     },
     {
@@ -6844,6 +6880,7 @@
       "name": "Rune of Culmination",
       "iconName": "EarlyMythicRune4",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EarlyMythicRune4.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EarlyMythicRune4.webp"
     },
     {
@@ -6851,6 +6888,7 @@
       "name": "Rune of Renown",
       "iconName": "EarlyMythicRune5",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EarlyMythicRune5.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EarlyMythicRune5.webp"
     },
     {
@@ -6858,6 +6896,7 @@
       "name": "Rune of Accumulation",
       "iconName": "EarlyMythicRune6",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EarlyMythicRune6.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EarlyMythicRune6.webp"
     },
     {
@@ -6865,6 +6904,7 @@
       "name": "Rune of Foundations",
       "iconName": "EarlyMythicRune7",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EarlyMythicRune7.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EarlyMythicRune7.webp"
     },
     {
@@ -6872,6 +6912,7 @@
       "name": "Rune of the Prism",
       "iconName": "EarlyMythicRune8",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EarlyMythicRune8.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EarlyMythicRune8.webp"
     },
     {
@@ -6879,6 +6920,7 @@
       "name": "Rune of the Blossom",
       "iconName": "EarlyMythicRune9",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EarlyMythicRune9.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EarlyMythicRune9.webp"
     },
     {
@@ -6886,6 +6928,7 @@
       "name": "Ancient Rune of Splinters",
       "iconName": "EndgameRune1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EndgameRune1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EndgameRune1.webp"
     },
     {
@@ -6893,6 +6936,7 @@
       "name": "Ancient Rune of the Horde",
       "iconName": "EndgameRune10",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EndgameRune10.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EndgameRune10.webp"
     },
     {
@@ -6900,6 +6944,7 @@
       "name": "Ancient Rune of Animosity",
       "iconName": "EndgameRune11",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EndgameRune11.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EndgameRune11.webp"
     },
     {
@@ -6915,6 +6960,7 @@
       "name": "Ancient Rune of Retaliation",
       "iconName": "EndgameRune13",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EndgameRune13.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EndgameRune13.webp"
     },
     {
@@ -6922,6 +6968,7 @@
       "name": "Ancient Rune of Dueling",
       "iconName": "EndgameRune2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EndgameRune2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EndgameRune2.webp"
     },
     {
@@ -6929,6 +6976,7 @@
       "name": "Ancient Rune of the Titan",
       "iconName": "EndgameRune3",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EndgameRune3.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EndgameRune3.webp"
     },
     {
@@ -6936,6 +6984,7 @@
       "name": "Ancient Rune of Shattering",
       "iconName": "EndgameRune4",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EndgameRune4.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EndgameRune4.webp"
     },
     {
@@ -6943,6 +6992,7 @@
       "name": "Ancient Rune of Prowess",
       "iconName": "EndgameRune5",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EndgameRune5.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EndgameRune5.webp"
     },
     {
@@ -6950,6 +7000,7 @@
       "name": "Ancient Rune of Control",
       "iconName": "EndgameRune6",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EndgameRune6.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EndgameRune6.webp"
     },
     {
@@ -6957,6 +7008,7 @@
       "name": "Ancient Rune of Discovery",
       "iconName": "EndgameRune7",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EndgameRune7.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EndgameRune7.webp"
     },
     {
@@ -6964,6 +7016,7 @@
       "name": "Ancient Rune of Decay",
       "iconName": "EndgameRune8",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EndgameRune8.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EndgameRune8.webp"
     },
     {
@@ -6971,6 +7024,7 @@
       "name": "Ancient Rune of Witchcraft",
       "iconName": "EndgameRune9",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/EndgameRune9.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/EndgameRune9.webp"
     },
     {
@@ -6978,6 +7032,7 @@
       "name": "Emergent Vigour",
       "iconName": "ExpeditionReligionAncientAugment",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/ExpeditionReligionAncientAugment.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/ExpeditionReligionAncientAugment.webp"
     },
     {
@@ -6985,6 +7040,7 @@
       "name": "Emergent Possibility",
       "iconName": "ExpeditionScienceAncientAugment",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/ExpeditionScienceAncientAugment.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/ExpeditionScienceAncientAugment.webp"
     },
     {
@@ -6992,6 +7048,7 @@
       "name": "Emergent Protection",
       "iconName": "ExpeditionValorAncientAugment",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/ExpeditionValorAncientAugment.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/ExpeditionValorAncientAugment.webp"
     },
     {
@@ -6999,6 +7056,7 @@
       "name": "Emergent Instinct",
       "iconName": "ExpeditionWarAncientAugment",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/ExpeditionWarAncientAugment.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/ExpeditionWarAncientAugment.webp"
     },
     {
@@ -7006,6 +7064,7 @@
       "name": "Astrid's Creativity",
       "iconName": "GameWarpRune1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/GameWarpRune1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/GameWarpRune1.webp"
     },
     {
@@ -7013,6 +7072,7 @@
       "name": "Serle's Triumph",
       "iconName": "GameWarpRune2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/GameWarpRune2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/GameWarpRune2.webp"
     },
     {
@@ -7028,6 +7088,7 @@
       "name": "Katla's Gloom",
       "iconName": "GameWarpRuneChaos",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/GameWarpRuneChaos.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/GameWarpRuneChaos.webp"
     },
     {
@@ -7035,6 +7096,7 @@
       "name": "Medved's Tending",
       "iconName": "GameWarpRuneCold",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/GameWarpRuneCold.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/GameWarpRuneCold.webp"
     },
     {
@@ -7042,6 +7104,7 @@
       "name": "Kolr's Hunt",
       "iconName": "GameWarpRuneDex",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/GameWarpRuneDex.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/GameWarpRuneDex.webp"
     },
     {
@@ -7049,6 +7112,7 @@
       "name": "Thrud's Might",
       "iconName": "GameWarpRuneFire",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/GameWarpRuneFire.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/GameWarpRuneFire.webp"
     },
     {
@@ -7056,6 +7120,7 @@
       "name": "Vorana's Carnage",
       "iconName": "GameWarpRunePhysical",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/GameWarpRunePhysical.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/GameWarpRunePhysical.webp"
     },
     {
@@ -7063,6 +7128,7 @@
       "name": "Uhtred's Sidereus",
       "iconName": "GameWarpRuneTime",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/GameWarpRuneTime.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/GameWarpRuneTime.webp"
     },
     {
@@ -7171,6 +7237,7 @@
       "name": "Warding Rune of Reinforcement",
       "iconName": "RunicWard1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard1.webp"
     },
     {
@@ -7178,6 +7245,7 @@
       "name": "Warding Rune of Stability",
       "iconName": "RunicWard10",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard10.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard10.webp"
     },
     {
@@ -7185,6 +7253,7 @@
       "name": "Warding Rune of Glancing",
       "iconName": "RunicWard13",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard13.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard13.webp"
     },
     {
@@ -7192,6 +7261,7 @@
       "name": "Warding Rune of Heart",
       "iconName": "RunicWard14",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard14.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard14.webp"
     },
     {
@@ -7207,6 +7277,7 @@
       "name": "Warding Rune of Annihilation",
       "iconName": "RunicWard16",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard16.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard16.webp"
     },
     {
@@ -7214,6 +7285,7 @@
       "name": "Warding Rune of Armature",
       "iconName": "RunicWard18",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard18.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard18.webp"
     },
     {
@@ -7221,6 +7293,7 @@
       "name": "Warding Rune of Obsession",
       "iconName": "RunicWard19",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard19.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard19.webp"
     },
     {
@@ -7228,6 +7301,7 @@
       "name": "Warding Rune of Protection",
       "iconName": "RunicWard2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard2.webp"
     },
     {
@@ -7235,6 +7309,7 @@
       "name": "Warding Rune of Equinox",
       "iconName": "RunicWard20",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard20.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard20.webp"
     },
     {
@@ -7242,6 +7317,7 @@
       "name": "Warding Rune of Salvaging",
       "iconName": "RunicWard21",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard21.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard21.webp"
     },
     {
@@ -7249,6 +7325,7 @@
       "name": "Warding Rune of Bodyguards",
       "iconName": "RunicWard23",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard23.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard23.webp"
     },
     {
@@ -7256,6 +7333,7 @@
       "name": "Warding Rune of Hollowing",
       "iconName": "RunicWard24",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard24.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard24.webp"
     },
     {
@@ -7263,6 +7341,7 @@
       "name": "Warding Rune of Disintegration",
       "iconName": "RunicWard3",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard3.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard3.webp"
     },
     {
@@ -7270,6 +7349,7 @@
       "name": "Warding Rune of Desperation",
       "iconName": "RunicWard4",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard4.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard4.webp"
     },
     {
@@ -7277,6 +7357,7 @@
       "name": "Warding Rune of Symbiosis",
       "iconName": "RunicWard8",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard8.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard8.webp"
     },
     {
@@ -7284,6 +7365,7 @@
       "name": "Warding Rune of Courage",
       "iconName": "RunicWard9",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/RunicWard9.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/RunicWard9.webp"
     },
     {
@@ -7313,6 +7395,7 @@
       "name": "Masterwork Rune",
       "iconName": "UpgradeRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/UpgradeRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/UpgradeRune.webp"
     },
     {
@@ -7320,6 +7403,7 @@
       "name": "Greater Charging Rune",
       "iconName": "WardRegenerationGreater",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/WardRegenerationGreater.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/WardRegenerationGreater.webp"
     },
     {
@@ -7327,6 +7411,7 @@
       "name": "Lesser Charging Rune",
       "iconName": "WardRegenerationLesser",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/WardRegenerationLesser.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/WardRegenerationLesser.webp"
     },
     {
@@ -7334,6 +7419,7 @@
       "name": "Charging Rune",
       "iconName": "WardRegenerationNormal",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/WardRegenerationNormal.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/WardRegenerationNormal.webp"
     },
     {
@@ -7341,6 +7427,7 @@
       "name": "Perfect Charging Rune",
       "iconName": "WardRegenerationPerfect",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Expedition2/WardRegenerationPerfect.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Expedition2/WardRegenerationPerfect.webp"
     },
     {
@@ -7367,6 +7454,7 @@
       "name": "Guatelitzi's Thesis",
       "iconName": "SoulCoreBlood",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/PerfectSoulCores/SoulCoreBlood.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/PerfectSoulCores/SoulCoreBlood.webp"
     },
     {
@@ -7374,6 +7462,7 @@
       "name": "Citaqualotl's Thesis",
       "iconName": "SoulCoreSacrifice",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/PerfectSoulCores/SoulCoreSacrifice.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/PerfectSoulCores/SoulCoreSacrifice.webp"
     },
     {
@@ -7381,6 +7470,7 @@
       "name": "Quipolatl's Thesis",
       "iconName": "SoulCoreScience",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/PerfectSoulCores/SoulCoreScience.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/PerfectSoulCores/SoulCoreScience.webp"
     },
     {
@@ -7388,6 +7478,7 @@
       "name": "Jiquani's Thesis",
       "iconName": "SoulCoreSoul",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/PerfectSoulCores/SoulCoreSoul.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/PerfectSoulCores/SoulCoreSoul.webp"
     },
     {
@@ -7499,6 +7590,7 @@
       "name": "Glacial Rune",
       "iconName": "ColdRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/ColdRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/ColdRune.webp"
     },
     {
@@ -7506,6 +7598,7 @@
       "name": "Lesser Glacial Rune",
       "iconName": "ColdRuneTier1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/ColdRuneTier1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/ColdRuneTier1.webp"
     },
     {
@@ -7513,6 +7606,7 @@
       "name": "Greater Glacial Rune",
       "iconName": "ColdRuneTier2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/ColdRuneTier2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/ColdRuneTier2.webp"
     },
     {
@@ -7520,6 +7614,7 @@
       "name": "Adept Rune",
       "iconName": "DexRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/DexRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/DexRune.webp"
     },
     {
@@ -7527,6 +7622,7 @@
       "name": "Lesser Adept Rune",
       "iconName": "DexRuneTier1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/DexRuneTier1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/DexRuneTier1.webp"
     },
     {
@@ -7534,6 +7630,7 @@
       "name": "Greater Adept Rune",
       "iconName": "DexRuneTier3",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/DexRuneTier3.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/DexRuneTier3.webp"
     },
     {
@@ -7541,6 +7638,7 @@
       "name": "Iron Rune",
       "iconName": "EnhanceRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/EnhanceRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/EnhanceRune.webp"
     },
     {
@@ -7548,6 +7646,7 @@
       "name": "Lesser Iron Rune",
       "iconName": "EnhanceRuneTier1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/EnhanceRuneTier1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/EnhanceRuneTier1.webp"
     },
     {
@@ -7555,6 +7654,7 @@
       "name": "Greater Iron Rune",
       "iconName": "EnhanceRuneTier2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/EnhanceRuneTier2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/EnhanceRuneTier2.webp"
     },
     {
@@ -7562,6 +7662,7 @@
       "name": "Desert Rune",
       "iconName": "FireRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/FireRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/FireRune.webp"
     },
     {
@@ -7569,6 +7670,7 @@
       "name": "Lesser Desert Rune",
       "iconName": "FireRuneTier1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/FireRuneTier1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/FireRuneTier1.webp"
     },
     {
@@ -7576,6 +7678,7 @@
       "name": "Greater Desert Rune",
       "iconName": "FireRuneTier2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/FireRuneTier2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/FireRuneTier2.webp"
     },
     {
@@ -7583,6 +7686,7 @@
       "name": "Resolve Rune",
       "iconName": "IntRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/IntRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/IntRune.webp"
     },
     {
@@ -7590,6 +7694,7 @@
       "name": "Lesser Resolve Rune",
       "iconName": "IntRuneTier1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/IntRuneTier1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/IntRuneTier1.webp"
     },
     {
@@ -7597,6 +7702,7 @@
       "name": "Greater Resolve Rune",
       "iconName": "IntRuneTier3",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/IntRuneTier3.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/IntRuneTier3.webp"
     },
     {
@@ -7604,6 +7710,7 @@
       "name": "Rebirth Rune",
       "iconName": "LifeRecoveryRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/LifeRecoveryRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/LifeRecoveryRune.webp"
     },
     {
@@ -7611,6 +7718,7 @@
       "name": "Lesser Rebirth Rune",
       "iconName": "LifeRecoveryRuneTier1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/LifeRecoveryRuneTier1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/LifeRecoveryRuneTier1.webp"
     },
     {
@@ -7618,6 +7726,7 @@
       "name": "Greater Rebirth Rune",
       "iconName": "LifeRecoveryRuneTier2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/LifeRecoveryRuneTier2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/LifeRecoveryRuneTier2.webp"
     },
     {
@@ -7625,6 +7734,7 @@
       "name": "Body Rune",
       "iconName": "LifeRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/LifeRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/LifeRune.webp"
     },
     {
@@ -7632,6 +7742,7 @@
       "name": "Lesser Body Rune",
       "iconName": "LifeRuneTier1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/LifeRuneTier1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/LifeRuneTier1.webp"
     },
     {
@@ -7639,6 +7750,7 @@
       "name": "Greater Body Rune",
       "iconName": "LifeRuneTier2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/LifeRuneTier2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/LifeRuneTier2.webp"
     },
     {
@@ -7646,6 +7758,7 @@
       "name": "Storm Rune",
       "iconName": "LightningRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/LightningRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/LightningRune.webp"
     },
     {
@@ -7653,6 +7766,7 @@
       "name": "Greater Rune of Leadership",
       "iconName": "LightningRuneSpecial1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/LightningRuneSpecial1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/LightningRuneSpecial1.webp"
     },
     {
@@ -7660,6 +7774,7 @@
       "name": "Greater Rune of Tithing",
       "iconName": "LightningRuneSpecial2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/LightningRuneSpecial2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/LightningRuneSpecial2.webp"
     },
     {
@@ -7667,6 +7782,7 @@
       "name": "Greater Rune of Alacrity",
       "iconName": "LightningRuneSpecial3",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/LightningRuneSpecial3.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/LightningRuneSpecial3.webp"
     },
     {
@@ -7674,6 +7790,7 @@
       "name": "Greater Rune of Nobility",
       "iconName": "LightningRuneSpecial4",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/LightningRuneSpecial4.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/LightningRuneSpecial4.webp"
     },
     {
@@ -7681,6 +7798,7 @@
       "name": "Lesser Storm Rune",
       "iconName": "LightningRuneTier1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/LightningRuneTier1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/LightningRuneTier1.webp"
     },
     {
@@ -7688,6 +7806,7 @@
       "name": "Greater Storm Rune",
       "iconName": "LightningRuneTier2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/LightningRuneTier2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/LightningRuneTier2.webp"
     },
     {
@@ -7695,6 +7814,7 @@
       "name": "Inspiration Rune",
       "iconName": "ManaRecoveryRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/ManaRecoveryRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/ManaRecoveryRune.webp"
     },
     {
@@ -7702,6 +7822,7 @@
       "name": "Lesser Inspiration Rune",
       "iconName": "ManaRecoveryRuneTier1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/ManaRecoveryRuneTier1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/ManaRecoveryRuneTier1.webp"
     },
     {
@@ -7709,6 +7830,7 @@
       "name": "Greater Inspiration Rune",
       "iconName": "ManaRecoveryRuneTier2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/ManaRecoveryRuneTier2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/ManaRecoveryRuneTier2.webp"
     },
     {
@@ -7716,6 +7838,7 @@
       "name": "Mind Rune",
       "iconName": "ManaRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/ManaRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/ManaRune.webp"
     },
     {
@@ -7723,6 +7846,7 @@
       "name": "Lesser Mind Rune",
       "iconName": "ManaRuneTier1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/ManaRuneTier1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/ManaRuneTier1.webp"
     },
     {
@@ -7730,6 +7854,7 @@
       "name": "Greater Mind Rune",
       "iconName": "ManaRuneTier2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/ManaRuneTier2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/ManaRuneTier2.webp"
     },
     {
@@ -7737,6 +7862,7 @@
       "name": "Hedgewitch Assandra's Rune of Wisdom",
       "iconName": "NewRune1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune1.webp"
     },
     {
@@ -7744,6 +7870,7 @@
       "name": "Craiceann's Rune of Recovery",
       "iconName": "NewRune10",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune10.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune10.webp"
     },
     {
@@ -7751,6 +7878,7 @@
       "name": "Courtesan Mannan's Rune of Cruelty",
       "iconName": "NewRune11",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune11.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune11.webp"
     },
     {
@@ -7758,6 +7886,7 @@
       "name": "Thane Grannell's Rune of Mastery",
       "iconName": "NewRune12",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune12.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune12.webp"
     },
     {
@@ -7765,6 +7894,7 @@
       "name": "Fenumus' Rune of Spinning",
       "iconName": "NewRune13",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune13.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune13.webp"
     },
     {
@@ -7772,6 +7902,7 @@
       "name": "Countess Seske's Rune of Archery",
       "iconName": "NewRune14",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune14.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune14.webp"
     },
     {
@@ -7779,6 +7910,7 @@
       "name": "Thane Girt's Rune of Wildness",
       "iconName": "NewRune15",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune15.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune15.webp"
     },
     {
@@ -7786,6 +7918,7 @@
       "name": "Fenumus' Rune of Draining",
       "iconName": "NewRune16",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune16.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune16.webp"
     },
     {
@@ -7793,6 +7926,7 @@
       "name": "Thane Myrk's Rune of Summer",
       "iconName": "NewRune17",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune17.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune17.webp"
     },
     {
@@ -7800,6 +7934,7 @@
       "name": "Lady Hestra's Rune of Winter",
       "iconName": "NewRune18",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune18.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune18.webp"
     },
     {
@@ -7807,6 +7942,7 @@
       "name": "Thane Leld's Rune of Spring",
       "iconName": "NewRune19",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune19.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune19.webp"
     },
     {
@@ -7814,6 +7950,7 @@
       "name": "Saqawal's Rune of the Sky",
       "iconName": "NewRune2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune2.webp"
     },
     {
@@ -7821,6 +7958,7 @@
       "name": "The Greatwolf's Rune of Claws",
       "iconName": "NewRune20",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune20.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune20.webp"
     },
     {
@@ -7828,6 +7966,7 @@
       "name": "The Greatwolf's Rune of Willpower",
       "iconName": "NewRune21",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune21.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune21.webp"
     },
     {
@@ -7835,6 +7974,7 @@
       "name": "Fenumus' Rune of Agony",
       "iconName": "NewRune3",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune3.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune3.webp"
     },
     {
@@ -7842,6 +7982,7 @@
       "name": "Farrul's Rune of Grace",
       "iconName": "NewRune4",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune4.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune4.webp"
     },
     {
@@ -7849,6 +7990,7 @@
       "name": "Farrul's Rune of the Chase",
       "iconName": "NewRune5",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune5.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune5.webp"
     },
     {
@@ -7856,6 +7998,7 @@
       "name": "Craiceann's Rune of Warding",
       "iconName": "NewRune6",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune6.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune6.webp"
     },
     {
@@ -7863,6 +8006,7 @@
       "name": "Saqawal's Rune of Memory",
       "iconName": "NewRune7",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune7.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune7.webp"
     },
     {
@@ -7870,6 +8014,7 @@
       "name": "Saqawal's Rune of Erosion",
       "iconName": "NewRune8",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune8.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune8.webp"
     },
     {
@@ -7877,6 +8022,7 @@
       "name": "Farrul's Rune of the Hunt",
       "iconName": "NewRune9",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/NewRune9.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/NewRune9.webp"
     },
     {
@@ -7892,6 +8038,7 @@
       "name": "Perfect Glacial Rune",
       "iconName": "PerfectRuneCold",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PerfectRuneCold.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PerfectRuneCold.webp"
     },
     {
@@ -7899,6 +8046,7 @@
       "name": "Perfect Adept Rune",
       "iconName": "PerfectRuneDexterity",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PerfectRuneDexterity.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PerfectRuneDexterity.webp"
     },
     {
@@ -7906,6 +8054,7 @@
       "name": "Perfect Iron Rune",
       "iconName": "PerfectRuneEnhance",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PerfectRuneEnhance.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PerfectRuneEnhance.webp"
     },
     {
@@ -7913,6 +8062,7 @@
       "name": "Perfect Desert Rune",
       "iconName": "PerfectRuneFire",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PerfectRuneFire.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PerfectRuneFire.webp"
     },
     {
@@ -7920,6 +8070,7 @@
       "name": "Perfect Resolve Rune",
       "iconName": "PerfectRuneIntelligence",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PerfectRuneIntelligence.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PerfectRuneIntelligence.webp"
     },
     {
@@ -7927,6 +8078,7 @@
       "name": "Perfect Body Rune",
       "iconName": "PerfectRuneLife",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PerfectRuneLife.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PerfectRuneLife.webp"
     },
     {
@@ -7934,6 +8086,7 @@
       "name": "Perfect Rebirth Rune",
       "iconName": "PerfectRuneLifeRecovery",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PerfectRuneLifeRecovery.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PerfectRuneLifeRecovery.webp"
     },
     {
@@ -7941,6 +8094,7 @@
       "name": "Perfect Storm Rune",
       "iconName": "PerfectRuneLightning",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PerfectRuneLightning.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PerfectRuneLightning.webp"
     },
     {
@@ -7948,6 +8102,7 @@
       "name": "Perfect Mind Rune",
       "iconName": "PerfectRuneMana",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PerfectRuneMana.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PerfectRuneMana.webp"
     },
     {
@@ -7955,6 +8110,7 @@
       "name": "Perfect Inspiration Rune",
       "iconName": "PerfectRuneManaRecovery",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PerfectRuneManaRecovery.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PerfectRuneManaRecovery.webp"
     },
     {
@@ -7962,6 +8118,7 @@
       "name": "Perfect Robust Rune",
       "iconName": "PerfectRuneStrength",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PerfectRuneStrength.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PerfectRuneStrength.webp"
     },
     {
@@ -7969,6 +8126,7 @@
       "name": "Perfect Stone Rune",
       "iconName": "PerfectRuneStun",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PerfectRuneStun.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PerfectRuneStun.webp"
     },
     {
@@ -7976,6 +8134,7 @@
       "name": "Tempered Rune",
       "iconName": "PhyDmgRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PhyDmgRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PhyDmgRune.webp"
     },
     {
@@ -7983,6 +8142,7 @@
       "name": "Lesser Tempered Rune",
       "iconName": "PhyDmgRuneTier1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PhyDmgRuneTier1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PhyDmgRuneTier1.webp"
     },
     {
@@ -7990,6 +8150,7 @@
       "name": "Greater Tempered Rune",
       "iconName": "PhyDmgRuneTier3",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/PhyDmgRuneTier3.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/PhyDmgRuneTier3.webp"
     },
     {
@@ -7997,6 +8158,7 @@
       "name": "Robust Rune",
       "iconName": "StrengthRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/StrengthRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/StrengthRune.webp"
     },
     {
@@ -8004,6 +8166,7 @@
       "name": "Lesser Robust Rune",
       "iconName": "StrengthRuneTier1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/StrengthRuneTier1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/StrengthRuneTier1.webp"
     },
     {
@@ -8011,6 +8174,7 @@
       "name": "Greater Robust Rune",
       "iconName": "StrengthRuneTier3",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/StrengthRuneTier3.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/StrengthRuneTier3.webp"
     },
     {
@@ -8018,6 +8182,7 @@
       "name": "Stone Rune",
       "iconName": "StunRune",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/StunRune.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/StunRune.webp"
     },
     {
@@ -8025,6 +8190,7 @@
       "name": "Lesser Stone Rune",
       "iconName": "StunRuneTier1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/StunRuneTier1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/StunRuneTier1.webp"
     },
     {
@@ -8032,6 +8198,7 @@
       "name": "Greater Stone Rune",
       "iconName": "StunRuneTier2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/Runes/StunRuneTier2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/Runes/StunRuneTier2.webp"
     },
     {
@@ -8039,6 +8206,7 @@
       "name": "Soul Core of Tacati",
       "iconName": "GreaterSoulCoreChaos",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreChaos.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreChaos.webp"
     },
     {
@@ -8046,6 +8214,7 @@
       "name": "Soul Core of Tzamoto",
       "iconName": "GreaterSoulCoreCold",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreCold.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreCold.webp"
     },
     {
@@ -8053,6 +8222,7 @@
       "name": "Soul Core of Ticaba",
       "iconName": "GreaterSoulCoreCrit",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreCrit.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreCrit.webp"
     },
     {
@@ -8060,6 +8230,7 @@
       "name": "Soul Core of Cholotl",
       "iconName": "GreaterSoulCoreDex",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreDex.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreDex.webp"
     },
     {
@@ -8067,6 +8238,7 @@
       "name": "Soul Core of Citaqualotl",
       "iconName": "GreaterSoulCoreElementalResist",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreElementalResist.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreElementalResist.webp"
     },
     {
@@ -8074,6 +8246,7 @@
       "name": "Soul Core of Puhuarte",
       "iconName": "GreaterSoulCoreFire",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreFire.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreFire.webp"
     },
     {
@@ -8081,6 +8254,7 @@
       "name": "Soul Core of Jiquani",
       "iconName": "GreaterSoulCoreLife",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreLife.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreLife.webp"
     },
     {
@@ -8088,6 +8262,7 @@
       "name": "Soul Core of Xopec",
       "iconName": "GreaterSoulCoreLightning",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreLightning.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreLightning.webp"
     },
     {
@@ -8095,6 +8270,7 @@
       "name": "Soul Core of Zalatl",
       "iconName": "GreaterSoulCoreMana",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreMana.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreMana.webp"
     },
     {
@@ -8110,6 +8286,7 @@
       "name": "Soul Core of Quipolatl",
       "iconName": "GreaterSoulCoreSpeed",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreSpeed.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreSpeed.webp"
     },
     {
@@ -8117,6 +8294,7 @@
       "name": "Soul Core of Atmohua",
       "iconName": "GreaterSoulCoreStrength",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreStrength.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreStrength.webp"
     },
     {
@@ -8124,6 +8302,7 @@
       "name": "Soul Core of Topotante",
       "iconName": "GreaterSoulCoreTriElement",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreTriElement.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreTriElement.webp"
     },
     {
@@ -8131,6 +8310,7 @@
       "name": "Soul Core of Azcapa",
       "iconName": "GreaterSoulCoreWealthRarity",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreWealthRarity.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreWealthRarity.webp"
     },
     {
@@ -8138,6 +8318,7 @@
       "name": "Soul Core of Zantipi",
       "iconName": "GreaterSoulCoreint",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/GreaterSoulCoreint.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/GreaterSoulCoreint.webp"
     },
     {
@@ -8145,6 +8326,7 @@
       "name": "Tacati's Soul Core of Affliction",
       "iconName": "NewSoulCoreChaos1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreChaos1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreChaos1.webp"
     },
     {
@@ -8152,6 +8334,7 @@
       "name": "Citaqualotl's Soul Core of Foulness",
       "iconName": "NewSoulCoreChaos2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreChaos2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreChaos2.webp"
     },
     {
@@ -8159,6 +8342,7 @@
       "name": "Uromoti's Soul Core of Attenuation",
       "iconName": "NewSoulCoreCurses2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreCurses2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreCurses2.webp"
     },
     {
@@ -8166,6 +8350,7 @@
       "name": "Guatelitzi's Soul Core of Endurance",
       "iconName": "NewSoulCoreEnduranceCharge",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreEnduranceCharge.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreEnduranceCharge.webp"
     },
     {
@@ -8173,6 +8358,7 @@
       "name": "Atmohua's Soul Core of Retreat",
       "iconName": "NewSoulCoreEnergyShield",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreEnergyShield.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreEnergyShield.webp"
     },
     {
@@ -8180,6 +8366,7 @@
       "name": "Topotante's Soul Core of Dampening",
       "iconName": "NewSoulCoreFire",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreFire.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreFire.webp"
     },
     {
@@ -8187,6 +8374,7 @@
       "name": "Opiloti's Soul Core of Assault",
       "iconName": "NewSoulCoreFrenzyCharge",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreFrenzyCharge.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreFrenzyCharge.webp"
     },
     {
@@ -8194,6 +8382,7 @@
       "name": "Hayoxi's Soul Core of Heatproofing",
       "iconName": "NewSoulCoreIce",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreIce.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreIce.webp"
     },
     {
@@ -8201,6 +8390,7 @@
       "name": "Zalatl's Soul Core of Insulation",
       "iconName": "NewSoulCoreLightning",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreLightning.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreLightning.webp"
     },
     {
@@ -8208,6 +8398,7 @@
       "name": "Xipocado's Soul Core of Dominion",
       "iconName": "NewSoulCoreMinion",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreMinion.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreMinion.webp"
     },
     {
@@ -8215,6 +8406,7 @@
       "name": "Xopec's Soul Core of Power",
       "iconName": "NewSoulCorePowerCharge",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCorePowerCharge.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCorePowerCharge.webp"
     },
     {
@@ -8222,6 +8414,7 @@
       "name": "Cholotl's Soul Core of War",
       "iconName": "NewSoulCoreProjectile",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreProjectile.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreProjectile.webp"
     },
     {
@@ -8229,6 +8422,7 @@
       "name": "Tzamoto's Soul Core of Ferocity",
       "iconName": "NewSoulCoreRage",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreRage.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreRage.webp"
     },
     {
@@ -8236,6 +8430,7 @@
       "name": "Quipolatl's Soul Core of Flow",
       "iconName": "NewSoulCoreTimeCooldown",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreTimeCooldown.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreTimeCooldown.webp"
     },
     {
@@ -8243,6 +8438,7 @@
       "name": "Estazunti's Soul Core of Convalescence",
       "iconName": "NewSoulCoreTimeSlow",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/SoulCores/NewSoulCoreTimeSlow.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/SoulCores/NewSoulCoreTimeSlow.webp"
     },
     {
@@ -8250,6 +8446,7 @@
       "name": "Bear Idol",
       "iconName": "AzmeriSocketableBear",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableBear.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableBear.webp"
     },
     {
@@ -8257,6 +8454,7 @@
       "name": "Idol of Grold",
       "iconName": "AzmeriSocketableBearSpecial",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableBearSpecial.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableBearSpecial.webp"
     },
     {
@@ -8264,6 +8462,7 @@
       "name": "Boar Idol",
       "iconName": "AzmeriSocketableBoar",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableBoar.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableBoar.webp"
     },
     {
@@ -8279,6 +8478,7 @@
       "name": "Idol of Egrin",
       "iconName": "AzmeriSocketableCatSpecial",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableCatSpecial.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableCatSpecial.webp"
     },
     {
@@ -8286,6 +8486,7 @@
       "name": "Fox Idol",
       "iconName": "AzmeriSocketableFox",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableFox.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableFox.webp"
     },
     {
@@ -8293,6 +8494,7 @@
       "name": "Hawk Idol",
       "iconName": "AzmeriSocketableHawk",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableHawk.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableHawk.webp"
     },
     {
@@ -8300,6 +8502,7 @@
       "name": "Primate Idol",
       "iconName": "AzmeriSocketableMonkey",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableMonkey.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableMonkey.webp"
     },
     {
@@ -8307,6 +8510,7 @@
       "name": "Idol of Ralakesh",
       "iconName": "AzmeriSocketableMonkeySpecial",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableMonkeySpecial.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableMonkeySpecial.webp"
     },
     {
@@ -8314,6 +8518,7 @@
       "name": "Owl Idol",
       "iconName": "AzmeriSocketableOwl",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableOwl.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableOwl.webp"
     },
     {
@@ -8321,6 +8526,7 @@
       "name": "Idol of Eeshta",
       "iconName": "AzmeriSocketableOwlSpecial",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableOwlSpecial.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableOwlSpecial.webp"
     },
     {
@@ -8328,6 +8534,7 @@
       "name": "Ox Idol",
       "iconName": "AzmeriSocketableOx",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableOx.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableOx.webp"
     },
     {
@@ -8335,6 +8542,7 @@
       "name": "Panther Idol",
       "iconName": "AzmeriSocketablePanther",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketablePanther.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketablePanther.webp"
     },
     {
@@ -8342,6 +8550,7 @@
       "name": "Rabbit Idol",
       "iconName": "AzmeriSocketableRabbit",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableRabbit.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableRabbit.webp"
     },
     {
@@ -8349,6 +8558,7 @@
       "name": "Snake Idol",
       "iconName": "AzmeriSocketableSnake",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableSnake.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableSnake.webp"
     },
     {
@@ -8356,6 +8566,7 @@
       "name": "Idol of Thruldana",
       "iconName": "AzmeriSocketableSnakeSpecial",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableSnakeSpecial.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableSnakeSpecial.webp"
     },
     {
@@ -8363,6 +8574,7 @@
       "name": "Stag Idol",
       "iconName": "AzmeriSocketableStag",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableStag.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableStag.webp"
     },
     {
@@ -8378,6 +8590,7 @@
       "name": "Stoat Idol",
       "iconName": "AzmeriSocketableStoat",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableStoat.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableStoat.webp"
     },
     {
@@ -8385,6 +8598,7 @@
       "name": "Wolf Idol",
       "iconName": "AzmeriSocketableWolf",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableWolf.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableWolf.webp"
     },
     {
@@ -8392,6 +8606,7 @@
       "name": "Idol of Sirrius",
       "iconName": "AzmeriSocketableWolfSpecial",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableWolfSpecial.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/AzmeriSocketableWolfSpecial.webp"
     },
     {
@@ -8399,6 +8614,7 @@
       "name": "Idol of Alira",
       "iconName": "IdoloAlira",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/IdoloAlira.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/IdoloAlira.webp"
     },
     {
@@ -8406,6 +8622,7 @@
       "name": "Idol of Kraityn",
       "iconName": "IdoloKraityn",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/IdoloKraityn.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/IdoloKraityn.webp"
     },
     {
@@ -8421,6 +8638,7 @@
       "name": "Idol of Greust",
       "iconName": "IdolofGreust",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/IdolofGreust.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/IdolofGreust.webp"
     },
     {
@@ -8428,6 +8646,7 @@
       "name": "Idol of Oak",
       "iconName": "IdolofOak",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/IdolofOak.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/IdolofOak.webp"
     },
     {
@@ -8435,6 +8654,7 @@
       "name": "Idol of Silk",
       "iconName": "IdolofSilk",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/IdolofSilk.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/IdolofSilk.webp"
     },
     {
@@ -8442,6 +8662,7 @@
       "name": "Idol of Yeena",
       "iconName": "IdolofYeena",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/IdolofYeena.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/IdolofYeena.webp"
     },
     {
@@ -8449,6 +8670,7 @@
       "name": "Idol of the Sycophant",
       "iconName": "RitualCorruptedIdol1",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/RitualCorruptedIdol1.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/RitualCorruptedIdol1.webp"
     },
     {
@@ -8456,6 +8678,7 @@
       "name": "Idol of the Martyr",
       "iconName": "RitualCorruptedIdol2",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/RitualCorruptedIdol2.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/RitualCorruptedIdol2.webp"
     },
     {
@@ -8463,6 +8686,7 @@
       "name": "Idol of the Pharisee",
       "iconName": "RitualCorruptedIdol3",
       "source": "https://cdn.poe2db.tw/image/Art/2DItems/Currency/TormentedSpiritSocketables/RitualCorruptedIdol3.webp",
+      "aliases": [],
       "path": "/assets/items/poe2db/Art/2DItems/Currency/TormentedSpiritSocketables/RitualCorruptedIdol3.webp"
     },
     {
@@ -13537,9 +13761,580 @@
         "Runemastered Warding Quarterstaff"
       ],
       "path": "/assets/items/poe2db/Art/2DItems/Weapons/TwoHandWeapons/WarStaves/Warstaff10.webp"
+    },
+    {
+      "slug": "Alchemist's_Boon",
+      "name": "Alchemist's Boon",
+      "iconName": "alchemistsboonskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/alchemistsboonskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/alchemistsboonskill.webp"
+    },
+    {
+      "slug": "Archmage",
+      "name": "Archmage",
+      "iconName": "archmageskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/archmageskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/archmageskill.webp"
+    },
+    {
+      "slug": "Attrition",
+      "name": "Attrition",
+      "iconName": "attritionskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/attritionskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/attritionskill.webp"
+    },
+    {
+      "slug": "Mirror_of_Refraction",
+      "name": "Mirror of Refraction",
+      "iconName": "atzirisrule",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/atzirisrule.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/atzirisrule.webp"
+    },
+    {
+      "slug": "Berserk",
+      "name": "Berserk",
+      "iconName": "beserkskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/beserkskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/beserkskill.webp"
+    },
+    {
+      "slug": "Bone_Blast",
+      "name": "Bone Blast",
+      "iconName": "boneblastweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/boneblastweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/boneblastweaponskill.webp"
+    },
+    {
+      "slug": "Magma_Barrier",
+      "name": "Magma Barrier",
+      "iconName": "brutemagmabarrier",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/brutemagmabarrier.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/brutemagmabarrier.webp"
+    },
+    {
+      "slug": "Scavenged_Plating",
+      "name": "Scavenged Plating",
+      "iconName": "brutescavengedplating",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/brutescavengedplating.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/brutescavengedplating.webp"
+    },
+    {
+      "slug": "Raise_Shield",
+      "name": "Raise Shield",
+      "iconName": "bruteshieldblock",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/bruteshieldblock.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/bruteshieldblock.webp"
+    },
+    {
+      "slug": "Trail_of_Caltrops",
+      "name": "Trail of Caltrops",
+      "iconName": "caltropsondodgeskillicon",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/caltropsondodgeskillicon.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/caltropsondodgeskillicon.webp"
+    },
+    {
+      "slug": "Cast_on_Critical",
+      "name": "Cast on Critical",
+      "iconName": "castoncritskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/castoncritskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/castoncritskill.webp"
+    },
+    {
+      "slug": "Cast_on_Dodge",
+      "name": "Cast on Dodge",
+      "iconName": "castondodgerollskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/castondodgerollskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/castondodgerollskill.webp"
+    },
+    {
+      "slug": "Cast_on_Elemental_Ailment",
+      "name": "Cast on Elemental Ailment",
+      "iconName": "castonfreezeshockignite",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/castonfreezeshockignite.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/castonfreezeshockignite.webp"
+    },
+    {
+      "slug": "Cast_on_Minion_Death",
+      "name": "Cast on Minion Death",
+      "iconName": "castonminiondeath",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/castonminiondeath.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/castonminiondeath.webp"
+    },
+    {
+      "slug": "Eternal_Rage",
+      "name": "Eternal Rage",
+      "iconName": "ceaselessrageskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/ceaselessrageskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/ceaselessrageskill.webp"
+    },
+    {
+      "slug": "Chaos_Bolt",
+      "name": "Chaos Bolt",
+      "iconName": "chaosboltweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/chaosboltweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/chaosboltweaponskill.webp"
+    },
+    {
+      "slug": "Charge_Regulation",
+      "name": "Charge Regulation",
+      "iconName": "chargemasterydeath",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/chargemasterydeath.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/chargemasterydeath.webp"
+    },
+    {
+      "slug": "Heart_of_Ice",
+      "name": "Heart of Ice",
+      "iconName": "chillingauraskillstaff",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/chillingauraskillstaff.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/chillingauraskillstaff.webp"
+    },
+    {
+      "slug": "Coiling_Bolts",
+      "name": "Coiling Bolts",
+      "iconName": "coilofundoingskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/coilofundoingskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/coilofundoingskill.webp"
+    },
+    {
+      "slug": "Convalescence",
+      "name": "Convalescence",
+      "iconName": "convalescenceskillicon",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/convalescenceskillicon.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/convalescenceskillicon.webp"
+    },
+    {
+      "slug": "Dark_Pact",
+      "name": "Dark Pact",
+      "iconName": "deathpactskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/deathpactskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/deathpactskill.webp"
+    },
+    {
+      "slug": "Decompose",
+      "name": "Decompose",
+      "iconName": "decomposeskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/decomposeskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/decomposeskill.webp"
+    },
+    {
+      "slug": "Defiance_Banner",
+      "name": "Defiance Banner",
+      "iconName": "defiancebannerskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/defiancebannerskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/defiancebannerskill.webp"
+    },
+    {
+      "slug": "Discipline",
+      "name": "Discipline",
+      "iconName": "disciplineweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/disciplineweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/disciplineweaponskill.webp"
+    },
+    {
+      "slug": "Dread_Banner",
+      "name": "Dread Banner",
+      "iconName": "dreadbannerskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/dreadbannerskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/dreadbannerskill.webp"
+    },
+    {
+      "slug": "Barkskin",
+      "name": "Barkskin",
+      "iconName": "druidbarkskin",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/druidbarkskin.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/druidbarkskin.webp"
+    },
+    {
+      "slug": "Feral_Invocation",
+      "name": "Feral Invocation",
+      "iconName": "druidferalinvocation",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/druidferalinvocation.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/druidferalinvocation.webp"
+    },
+    {
+      "slug": "Wolf_Pack",
+      "name": "Wolf Pack",
+      "iconName": "druidsummonwolf",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/druidsummonwolf.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/druidsummonwolf.webp"
+    },
+    {
+      "slug": "Savage_Fury",
+      "name": "Savage Fury",
+      "iconName": "druidwildbeast",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/druidwildbeast.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/druidwildbeast.webp"
+    },
+    {
+      "slug": "Elemental_Conflux",
+      "name": "Elemental Conflux",
+      "iconName": "elementalconfluxskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/elementalconfluxskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/elementalconfluxskill.webp"
+    },
+    {
+      "slug": "Elemental_Invocation",
+      "name": "Elemental Invocation",
+      "iconName": "elementalinvocationskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/elementalinvocationskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/elementalinvocationskill.webp"
+    },
+    {
+      "slug": "Enervating_Nova",
+      "name": "Enervating Nova",
+      "iconName": "enervatingnovaweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/enervatingnovaweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/enervatingnovaweaponskill.webp"
+    },
+    {
+      "slug": "Firebolt",
+      "name": "Firebolt",
+      "iconName": "fireballskillstaff",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/fireballskillstaff.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/fireballskillstaff.webp"
+    },
+    {
+      "slug": "Freezing_Shards",
+      "name": "Freezing Shards",
+      "iconName": "freezingshardsstaff",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/freezingshardsstaff.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/freezingshardsstaff.webp"
+    },
+    {
+      "slug": "Galvanic_Field",
+      "name": "Galvanic Field",
+      "iconName": "galvanicfieldweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/galvanicfieldweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/galvanicfieldweaponskill.webp"
+    },
+    {
+      "slug": "Sacrifice",
+      "name": "Sacrifice",
+      "iconName": "harvesterskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/harvesterskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/harvesterskill.webp"
+    },
+    {
+      "slug": "Herald_of_Plague",
+      "name": "Herald of Plague",
+      "iconName": "heraldofagonyskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/heraldofagonyskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldofagonyskill.webp"
+    },
+    {
+      "slug": "Herald_of_Ash",
+      "name": "Herald of Ash",
+      "iconName": "heraldofashskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/heraldofashskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldofashskill.webp"
+    },
+    {
+      "slug": "Herald_of_Blood",
+      "name": "Herald of Blood",
+      "iconName": "heraldofbloodskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/heraldofbloodskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldofbloodskill.webp"
+    },
+    {
+      "slug": "Herald_of_Ice",
+      "name": "Herald of Ice",
+      "iconName": "heraldoficeskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/heraldoficeskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldoficeskill.webp"
+    },
+    {
+      "slug": "Herald_of_Thunder",
+      "name": "Herald of Thunder",
+      "iconName": "heraldofthunderskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/heraldofthunderskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldofthunderskill.webp"
+    },
+    {
+      "slug": "Parry",
+      "name": "Parry",
+      "iconName": "huntressbucklerparry",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/huntressbucklerparry.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/huntressbucklerparry.webp"
+    },
+    {
+      "slug": "Spear_Throw",
+      "name": "Spear Throw",
+      "iconName": "huntressicespear",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/huntressicespear.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/huntressicespear.webp"
+    },
+    {
+      "slug": "Trinity",
+      "name": "Trinity",
+      "iconName": "huntresstrinityskillicon",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/huntresstrinityskillicon.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/huntresstrinityskillicon.webp"
+    },
+    {
+      "slug": "Lightning_Bolt",
+      "name": "Lightning Bolt",
+      "iconName": "lightningboltskillstaff",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/lightningboltskillstaff.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/lightningboltskillstaff.webp"
+    },
+    {
+      "slug": "Mirage_Archer",
+      "name": "Mirage Archer",
+      "iconName": "lingeringmirageskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/lingeringmirageskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/lingeringmirageskill.webp"
+    },
+    {
+      "slug": "Malice",
+      "name": "Malice",
+      "iconName": "maliceweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/maliceweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/maliceweaponskill.webp"
+    },
+    {
+      "slug": "Mana_Drain",
+      "name": "Mana Drain",
+      "iconName": "manadrainweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/manadrainweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/manadrainweaponskill.webp"
+    },
+    {
+      "slug": "Reaper's_Invocation",
+      "name": "Reaper's Invocation",
+      "iconName": "meleeinvocationskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/meleeinvocationskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/meleeinvocationskill.webp"
+    },
+    {
+      "slug": "Shard_Scavenger",
+      "name": "Shard Scavenger",
+      "iconName": "mercsharddespoiler",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/mercsharddespoiler.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/mercsharddespoiler.webp"
+    },
+    {
+      "slug": "Ghost_Dance",
+      "name": "Ghost Dance",
+      "iconName": "monkghostdance",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/monkghostdance.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/monkghostdance.webp"
+    },
+    {
+      "slug": "Lingering_Illusion",
+      "name": "Lingering Illusion",
+      "iconName": "monklingeringillusion",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/monklingeringillusion.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/monklingeringillusion.webp"
+    },
+    {
+      "slug": "Overwhelming_Presence",
+      "name": "Overwhelming Presence",
+      "iconName": "overwhelmingpressureskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/overwhelmingpressureskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/overwhelmingpressureskill.webp"
+    },
+    {
+      "slug": "Power_Siphon",
+      "name": "Power Siphon",
+      "iconName": "powersiphonweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/powersiphonweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/powersiphonweaponskill.webp"
+    },
+    {
+      "slug": "Purity_of_Ice",
+      "name": "Purity of Ice",
+      "iconName": "purityofcoldweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/purityofcoldweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/purityofcoldweaponskill.webp"
+    },
+    {
+      "slug": "Purity_of_Fire",
+      "name": "Purity of Fire",
+      "iconName": "purityoffireweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/purityoffireweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/purityoffireweaponskill.webp"
+    },
+    {
+      "slug": "Purity_of_Lightning",
+      "name": "Purity of Lightning",
+      "iconName": "purityoflightningweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/purityoflightningweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/purityoflightningweaponskill.webp"
+    },
+    {
+      "slug": "Combat_Frenzy",
+      "name": "Combat Frenzy",
+      "iconName": "rangercombatfrenzyskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/rangercombatfrenzyskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/rangercombatfrenzyskill.webp"
+    },
+    {
+      "slug": "Plague_Bearer",
+      "name": "Plague Bearer",
+      "iconName": "rangerplaguebearerskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/rangerplaguebearerskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/rangerplaguebearerskill.webp"
+    },
+    {
+      "slug": "Wind_Dancer",
+      "name": "Wind Dancer",
+      "iconName": "rangerwinddancerskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/rangerwinddancerskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/rangerwinddancerskill.webp"
+    },
+    {
+      "slug": "Reap",
+      "name": "Reap",
+      "iconName": "reapweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/reapweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/reapweaponskill.webp"
+    },
+    {
+      "slug": "Rhoa_Mount",
+      "name": "Rhoa Mount",
+      "iconName": "rhoamountskillicon",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/rhoamountskillicon.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/rhoamountskillicon.webp"
+    },
+    {
+      "slug": "Spiraling_Conspiracy",
+      "name": "Spiraling Conspiracy",
+      "iconName": "roostoftheravenkingswarm",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/roostoftheravenkingswarm.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/roostoftheravenkingswarm.webp"
+    },
+    {
+      "slug": "Sigil_of_Power",
+      "name": "Sigil of Power",
+      "iconName": "sigilofpowerweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/sigilofpowerweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sigilofpowerweaponskill.webp"
+    },
+    {
+      "slug": "Siphon_Elements",
+      "name": "Siphon Elements",
+      "iconName": "siphonelements",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/siphonelements.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/siphonelements.webp"
+    },
+    {
+      "slug": "Arctic_Armour",
+      "name": "Arctic Armour",
+      "iconName": "sorceressarcticarmour",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/sorceressarcticarmour.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceressarcticarmour.webp"
+    },
+    {
+      "slug": "Barrier_Invocation",
+      "name": "Barrier Invocation",
+      "iconName": "sorceressbarrierinvocation",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/sorceressbarrierinvocation.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceressbarrierinvocation.webp"
+    },
+    {
+      "slug": "Blink",
+      "name": "Blink",
+      "iconName": "sorceressblinkreservation",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/sorceressblinkreservation.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceressblinkreservation.webp"
+    },
+    {
+      "slug": "Mana_Remnants",
+      "name": "Mana Remnants",
+      "iconName": "sorceressenergyremnants",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/sorceressenergyremnants.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceressenergyremnants.webp"
+    },
+    {
+      "slug": "Solar_Orb",
+      "name": "Solar Orb",
+      "iconName": "sorceresssolarorb",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/sorceresssolarorb.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceresssolarorb.webp"
+    },
+    {
+      "slug": "Unleash",
+      "name": "Unleash",
+      "iconName": "sorceresstemporalistunleash",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/sorceresstemporalistunleash.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceresstemporalistunleash.webp"
+    },
+    {
+      "slug": "Spellslinger",
+      "name": "Spellslinger",
+      "iconName": "spellslingerweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/spellslingerweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/spellslingerweaponskill.webp"
+    },
+    {
+      "slug": "Time_of_Need",
+      "name": "Time of Need",
+      "iconName": "timeofneedskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/timeofneedskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/timeofneedskill.webp"
+    },
+    {
+      "slug": "Volatile_Dead",
+      "name": "Volatile Dead",
+      "iconName": "volatiledeadweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/volatiledeadweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/volatiledeadweaponskill.webp"
+    },
+    {
+      "slug": "War_Banner",
+      "name": "War Banner",
+      "iconName": "warbannerskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/warbannerskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/warbannerskill.webp"
+    },
+    {
+      "slug": "Iron_Ward",
+      "name": "Iron Ward",
+      "iconName": "wardingsteel",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/wardingsteel.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/wardingsteel.webp"
+    },
+    {
+      "slug": "Feast_of_Flesh",
+      "name": "Feast of Flesh",
+      "iconName": "weaponfeastofflesh",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/weaponfeastofflesh.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/weaponfeastofflesh.webp"
+    },
+    {
+      "slug": "Ravenous_Swarm",
+      "name": "Ravenous Swarm",
+      "iconName": "witchravenousswarm",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/witchravenousswarm.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/witchravenousswarm.webp"
+    },
+    {
+      "slug": "Raging_Spirits",
+      "name": "Raging Spirits",
+      "iconName": "witchreservationraginspirits",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/witchreservationraginspirits.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/witchreservationraginspirits.webp"
+    },
+    {
+      "slug": "Withering_Presence",
+      "name": "Withering Presence",
+      "iconName": "witchwitheringpresence",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/witchwitheringpresence.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/witchwitheringpresence.webp"
+    },
+    {
+      "slug": "Fulmination",
+      "name": "Fulmination",
+      "iconName": "wrathauraweaponskill",
+      "source": "https://cdn.poe2db.tw/image/art/2dart/skillicons/4k/wrathauraweaponskill.webp",
+      "path": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/wrathauraweaponskill.webp"
     }
   ],
   "lookup": {
+    "bloodtendrilsskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/BloodTendrilsSkill.webp",
+    "exsanguinate": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/BloodTendrilsSkill.webp",
+    "soulrend": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/Soulrend.webp",
+    "wither": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/Wither.webp",
     "absentamulet": "/assets/items/poe2db/Art/2DItems/Amulets/Basetypes/AbsentAmulet.webp",
     "amberamulet": "/assets/items/poe2db/Art/2DItems/Amulets/Basetypes/AmberAmulet.webp",
     "azureamulet": "/assets/items/poe2db/Art/2DItems/Amulets/Basetypes/AzureAmulet.webp",
@@ -17116,6 +17911,165 @@
     "smoothquarterstaff": "/assets/items/poe2db/Art/2DItems/Weapons/TwoHandWeapons/WarStaves/Warstaff10.webp",
     "wardingquarterstaff": "/assets/items/poe2db/Art/2DItems/Weapons/TwoHandWeapons/WarStaves/Warstaff10.webp",
     "warstaff10": "/assets/items/poe2db/Art/2DItems/Weapons/TwoHandWeapons/WarStaves/Warstaff10.webp",
+    "alchemistsboon": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/alchemistsboonskill.webp",
+    "alchemistsboonskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/alchemistsboonskill.webp",
+    "archmage": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/archmageskill.webp",
+    "archmageskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/archmageskill.webp",
+    "attrition": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/attritionskill.webp",
+    "attritionskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/attritionskill.webp",
+    "mirrorofrefraction": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/atzirisrule.webp",
+    "berserk": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/beserkskill.webp",
+    "beserkskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/beserkskill.webp",
+    "boneblast": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/boneblastweaponskill.webp",
+    "boneblastweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/boneblastweaponskill.webp",
+    "brutemagmabarrier": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/brutemagmabarrier.webp",
+    "magmabarrier": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/brutemagmabarrier.webp",
+    "brutescavengedplating": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/brutescavengedplating.webp",
+    "scavengedplating": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/brutescavengedplating.webp",
+    "bruteshieldblock": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/bruteshieldblock.webp",
+    "raiseshield": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/bruteshieldblock.webp",
+    "caltropsondodgeskillicon": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/caltropsondodgeskillicon.webp",
+    "trailofcaltrops": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/caltropsondodgeskillicon.webp",
+    "castoncritical": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/castoncritskill.webp",
+    "castoncritskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/castoncritskill.webp",
+    "castondodge": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/castondodgerollskill.webp",
+    "castondodgerollskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/castondodgerollskill.webp",
+    "castonelementalailment": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/castonfreezeshockignite.webp",
+    "castonfreezeshockignite": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/castonfreezeshockignite.webp",
+    "castonminiondeath": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/castonminiondeath.webp",
+    "ceaselessrageskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/ceaselessrageskill.webp",
+    "eternalrage": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/ceaselessrageskill.webp",
+    "chaosbolt": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/chaosboltweaponskill.webp",
+    "chaosboltweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/chaosboltweaponskill.webp",
+    "chargemasterydeath": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/chargemasterydeath.webp",
+    "chargeregulation": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/chargemasterydeath.webp",
+    "chillingauraskillstaff": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/chillingauraskillstaff.webp",
+    "heartofice": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/chillingauraskillstaff.webp",
+    "coilingbolts": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/coilofundoingskill.webp",
+    "coilofundoingskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/coilofundoingskill.webp",
+    "convalescence": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/convalescenceskillicon.webp",
+    "convalescenceskillicon": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/convalescenceskillicon.webp",
+    "darkpact": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/deathpactskill.webp",
+    "deathpactskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/deathpactskill.webp",
+    "decompose": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/decomposeskill.webp",
+    "decomposeskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/decomposeskill.webp",
+    "defiancebanner": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/defiancebannerskill.webp",
+    "defiancebannerskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/defiancebannerskill.webp",
+    "discipline": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/disciplineweaponskill.webp",
+    "disciplineweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/disciplineweaponskill.webp",
+    "dreadbanner": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/dreadbannerskill.webp",
+    "dreadbannerskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/dreadbannerskill.webp",
+    "barkskin": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/druidbarkskin.webp",
+    "druidbarkskin": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/druidbarkskin.webp",
+    "druidferalinvocation": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/druidferalinvocation.webp",
+    "feralinvocation": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/druidferalinvocation.webp",
+    "druidsummonwolf": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/druidsummonwolf.webp",
+    "wolfpack": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/druidsummonwolf.webp",
+    "druidwildbeast": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/druidwildbeast.webp",
+    "savagefury": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/druidwildbeast.webp",
+    "elementalconflux": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/elementalconfluxskill.webp",
+    "elementalconfluxskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/elementalconfluxskill.webp",
+    "elementalinvocation": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/elementalinvocationskill.webp",
+    "elementalinvocationskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/elementalinvocationskill.webp",
+    "enervatingnova": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/enervatingnovaweaponskill.webp",
+    "enervatingnovaweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/enervatingnovaweaponskill.webp",
+    "fireballskillstaff": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/fireballskillstaff.webp",
+    "firebolt": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/fireballskillstaff.webp",
+    "freezingshards": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/freezingshardsstaff.webp",
+    "freezingshardsstaff": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/freezingshardsstaff.webp",
+    "galvanicfield": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/galvanicfieldweaponskill.webp",
+    "galvanicfieldweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/galvanicfieldweaponskill.webp",
+    "harvesterskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/harvesterskill.webp",
+    "sacrifice": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/harvesterskill.webp",
+    "heraldofagonyskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldofagonyskill.webp",
+    "heraldofplague": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldofagonyskill.webp",
+    "heraldofash": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldofashskill.webp",
+    "heraldofashskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldofashskill.webp",
+    "heraldofblood": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldofbloodskill.webp",
+    "heraldofbloodskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldofbloodskill.webp",
+    "heraldofice": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldoficeskill.webp",
+    "heraldoficeskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldoficeskill.webp",
+    "heraldofthunder": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldofthunderskill.webp",
+    "heraldofthunderskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/heraldofthunderskill.webp",
+    "huntressbucklerparry": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/huntressbucklerparry.webp",
+    "parry": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/huntressbucklerparry.webp",
+    "huntressicespear": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/huntressicespear.webp",
+    "spearthrow": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/huntressicespear.webp",
+    "huntresstrinityskillicon": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/huntresstrinityskillicon.webp",
+    "trinity": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/huntresstrinityskillicon.webp",
+    "lightningbolt": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/lightningboltskillstaff.webp",
+    "lightningboltskillstaff": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/lightningboltskillstaff.webp",
+    "lingeringmirageskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/lingeringmirageskill.webp",
+    "miragearcher": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/lingeringmirageskill.webp",
+    "malice": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/maliceweaponskill.webp",
+    "maliceweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/maliceweaponskill.webp",
+    "manadrain": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/manadrainweaponskill.webp",
+    "manadrainweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/manadrainweaponskill.webp",
+    "meleeinvocationskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/meleeinvocationskill.webp",
+    "reapersinvocation": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/meleeinvocationskill.webp",
+    "mercsharddespoiler": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/mercsharddespoiler.webp",
+    "shardscavenger": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/mercsharddespoiler.webp",
+    "ghostdance": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/monkghostdance.webp",
+    "monkghostdance": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/monkghostdance.webp",
+    "lingeringillusion": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/monklingeringillusion.webp",
+    "monklingeringillusion": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/monklingeringillusion.webp",
+    "overwhelmingpresence": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/overwhelmingpressureskill.webp",
+    "overwhelmingpressureskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/overwhelmingpressureskill.webp",
+    "powersiphon": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/powersiphonweaponskill.webp",
+    "powersiphonweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/powersiphonweaponskill.webp",
+    "purityofcoldweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/purityofcoldweaponskill.webp",
+    "purityofice": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/purityofcoldweaponskill.webp",
+    "purityoffire": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/purityoffireweaponskill.webp",
+    "purityoffireweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/purityoffireweaponskill.webp",
+    "purityoflightning": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/purityoflightningweaponskill.webp",
+    "purityoflightningweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/purityoflightningweaponskill.webp",
+    "combatfrenzy": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/rangercombatfrenzyskill.webp",
+    "rangercombatfrenzyskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/rangercombatfrenzyskill.webp",
+    "plaguebearer": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/rangerplaguebearerskill.webp",
+    "rangerplaguebearerskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/rangerplaguebearerskill.webp",
+    "rangerwinddancerskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/rangerwinddancerskill.webp",
+    "winddancer": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/rangerwinddancerskill.webp",
+    "reap": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/reapweaponskill.webp",
+    "reapweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/reapweaponskill.webp",
+    "rhoamount": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/rhoamountskillicon.webp",
+    "rhoamountskillicon": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/rhoamountskillicon.webp",
+    "roostoftheravenkingswarm": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/roostoftheravenkingswarm.webp",
+    "spiralingconspiracy": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/roostoftheravenkingswarm.webp",
+    "sigilofpower": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sigilofpowerweaponskill.webp",
+    "sigilofpowerweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sigilofpowerweaponskill.webp",
+    "siphonelements": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/siphonelements.webp",
+    "arcticarmour": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceressarcticarmour.webp",
+    "sorceressarcticarmour": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceressarcticarmour.webp",
+    "barrierinvocation": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceressbarrierinvocation.webp",
+    "sorceressbarrierinvocation": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceressbarrierinvocation.webp",
+    "blink": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceressblinkreservation.webp",
+    "sorceressblinkreservation": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceressblinkreservation.webp",
+    "manaremnants": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceressenergyremnants.webp",
+    "sorceressenergyremnants": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceressenergyremnants.webp",
+    "solarorb": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceresssolarorb.webp",
+    "sorceresssolarorb": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceresssolarorb.webp",
+    "sorceresstemporalistunleash": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceresstemporalistunleash.webp",
+    "unleash": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/sorceresstemporalistunleash.webp",
+    "spellslinger": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/spellslingerweaponskill.webp",
+    "spellslingerweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/spellslingerweaponskill.webp",
+    "timeofneed": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/timeofneedskill.webp",
+    "timeofneedskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/timeofneedskill.webp",
+    "volatiledead": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/volatiledeadweaponskill.webp",
+    "volatiledeadweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/volatiledeadweaponskill.webp",
+    "warbanner": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/warbannerskill.webp",
+    "warbannerskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/warbannerskill.webp",
+    "ironward": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/wardingsteel.webp",
+    "wardingsteel": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/wardingsteel.webp",
+    "feastofflesh": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/weaponfeastofflesh.webp",
+    "weaponfeastofflesh": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/weaponfeastofflesh.webp",
+    "ravenousswarm": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/witchravenousswarm.webp",
+    "witchravenousswarm": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/witchravenousswarm.webp",
+    "ragingspirits": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/witchreservationraginspirits.webp",
+    "witchreservationraginspirits": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/witchreservationraginspirits.webp",
+    "witchwitheringpresence": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/witchwitheringpresence.webp",
+    "witheringpresence": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/witchwitheringpresence.webp",
+    "fulmination": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/wrathauraweaponskill.webp",
+    "wrathauraweaponskill": "/assets/items/poe2db/Art/2DArt/SkillIcons/4K/wrathauraweaponskill.webp",
     "energybladeonehanded": "/assets/items/poe2db/Art/2DItems/Weapons/OneHandWeapons/OneHandSwords/Basetypes/1HSword01.webp",
     "energybladetwohanded": "/assets/items/poe2db/Art/2DItems/Weapons/TwoHandWeapons/TwoHandSwords/Basetypes/2HSword01.webp",
     "shrinesceptrepurityoffire": "/assets/items/poe2db/Art/2DItems/Weapons/OneHandWeapons/Scepters/Basetypes/Sceptre06a.webp",
@@ -17129,5 +18083,5 @@
     "Shrine Sceptre (Purity of Cold)": "Shrine Sceptre",
     "Shrine Sceptre (Purity of Lighting)": "Shrine Sceptre"
   },
-  "contentHash": "27a46bee69fc823ed188d46b75e2bd35a25677474abdd1f9b3c59ab4a3cefdfa"
+  "contentHash": "80bf8f4db4abb6c7abffec3f6ccf4e3b9f1ab872359cf7b06dfda995fcb6e803"
 }

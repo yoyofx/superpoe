@@ -1,5 +1,10 @@
 import type { CalcApiResponse } from '@/types/calc'
-import { calculateWithLuaEngine, installBuildHelpers, installHostCompatibility, type PobLuaManifest } from '@/engine/pobLuaRuntime'
+import {
+  calculateWithLuaEngine,
+  installBuildHelpers,
+  installHostCompatibility,
+  type PobLuaManifest,
+} from '@/engine/pobLuaRuntime'
 import { LuaFactory } from 'wasmoon'
 import wasmUrl from 'wasmoon/dist/glue.wasm?url'
 
@@ -23,6 +28,14 @@ let luaFactory: LuaFactory | null = null
 let luaWasm: Awaited<ReturnType<LuaFactory['getLuaModule']>> | null = null
 let lua: Awaited<ReturnType<LuaFactory['createEngine']>> | null = null
 let mountedFiles = false
+const MOUNT_FETCH_CONCURRENCY = 24
+
+function assetUrl(path: string): string {
+  if (self.location.protocol === 'file:') {
+    return new URL(`../pob-lua/${path}`, self.location.href).href
+  }
+  return new URL(`/pob-lua/${path}`, self.location.origin).href
+}
 
 function respond(message: WorkerResponse) {
   self.postMessage(message)
@@ -31,7 +44,7 @@ function respond(message: WorkerResponse) {
 async function fetchText(path: string): Promise<string> {
   const cached = fileCache.get(path)
   if (cached != null) return cached
-  const response = await fetch(`/pob-lua/${path}`)
+  const response = await fetch(assetUrl(path))
   if (!response.ok) throw new Error(`Missing Lua bundle file: ${path}`)
   const text = await response.text()
   fileCache.set(path, text)
@@ -40,7 +53,7 @@ async function fetchText(path: string): Promise<string> {
 
 async function loadManifest(): Promise<PobLuaManifest> {
   if (manifest) return manifest
-  const response = await fetch('/pob-lua/manifest.json')
+  const response = await fetch(assetUrl('manifest.json'))
   if (!response.ok) {
     throw new Error('Missing /pob-lua/manifest.json. Run python scripts/build_pob_lua_bundle.py first.')
   }
@@ -73,10 +86,16 @@ async function init(): Promise<void> {
 
 async function mountBundleFiles(loadedManifest: PobLuaManifest): Promise<void> {
   if (!luaFactory || !luaWasm || mountedFiles) return
-  for (const entry of loadedManifest.files) {
-    if (!entry.path.endsWith('.lua')) continue
-    const text = await fetchText(entry.path)
-    luaFactory.mountFileSync(luaWasm, `/${entry.path}`, text)
+  const luaEntries = loadedManifest.files.filter((entry) => entry.path.endsWith('.lua'))
+  for (let start = 0; start < luaEntries.length; start += MOUNT_FETCH_CONCURRENCY) {
+    const batch = luaEntries.slice(start, start + MOUNT_FETCH_CONCURRENCY)
+    const files = await Promise.all(batch.map(async (entry) => ({
+      path: entry.path,
+      text: await fetchText(entry.path),
+    })))
+    for (const file of files) {
+      luaFactory.mountFileSync(luaWasm, `/${file.path}`, file.text)
+    }
   }
   // A minimal manifest makes Launch.lua treat the runtime as repository/dev
   // mode, which disables the desktop updater in the browser worker.

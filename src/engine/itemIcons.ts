@@ -1,10 +1,22 @@
 import type { EquipmentItem } from '@/types/equipment'
+import { buildSkillIconLookup, loadSkillCatalog } from '@/engine/skillCatalog'
 
 export interface ItemIconIndex {
   lookup?: Record<string, string>
 }
 
 let itemIconIndexPromise: Promise<ItemIconIndex | null> | null = null
+
+export function normalizeItemIconIndex(value: unknown): ItemIconIndex | null {
+  if (!value || typeof value !== 'object') return null
+  const lookup = (value as { lookup?: unknown }).lookup
+  if (!lookup || typeof lookup !== 'object' || Array.isArray(lookup)) return null
+  return {
+    lookup: Object.fromEntries(Object.entries(lookup).filter((entry): entry is [string, string] => (
+      typeof entry[1] === 'string' && entry[1].length > 0
+    ))),
+  }
+}
 
 function normalizeItemKey(value: string): string {
   return value
@@ -28,8 +40,13 @@ function resolveContainedIcon(value: string, lookup: Record<string, string>): st
 
 export async function loadItemIconIndex(): Promise<ItemIconIndex | null> {
   if (!itemIconIndexPromise) {
-    itemIconIndexPromise = fetch('/data/item-icons.json')
-      .then(async (response) => response.ok ? response.json() as Promise<ItemIconIndex> : null)
+    itemIconIndexPromise = Promise.all([
+      fetch('/data/item-icons.json').then(async (response) => response.ok ? normalizeItemIconIndex(await response.json()) : null),
+      loadSkillCatalog(),
+    ])
+      .then(([items, skills]) => items || skills
+        ? { lookup: { ...buildSkillIconLookup(skills), ...items?.lookup } }
+        : null)
       .catch(() => null)
   }
   return itemIconIndexPromise

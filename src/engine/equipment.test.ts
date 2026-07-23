@@ -16,10 +16,25 @@ describe('equipment XML parser', () => {
       rarity: 'UNIQUE', name: 'The Vertex', baseType: 'Tribal Mask', itemLevel: '83', levelReq: '50',
     })
     expect(result?.itemsById['7'].lines).toEqual(['+16% to Chaos Resistance'])
+    expect(result?.itemsById['7'].modifiers).toEqual([
+      { text: '+16% to Chaos Resistance', tags: [], group: 'implicit' },
+    ])
   })
 
   it('returns null when the build has no items section', () => {
     expect(parseEquipmentXml('<PathOfBuilding2><Tree/></PathOfBuilding2>')).toBeNull()
+  })
+
+  it('preserves PoB modifier groups and style tags', () => {
+    const result = parseEquipmentXml(`<PathOfBuilding2><Items>
+      <Item id="12">Rarity: RARE\nEmpyrean Cry\nSinister Quarterstaff\nImplicits: 2\n{enchant}{rune}+20 to maximum Life\nGrants Skill: Test\n{crafted}+8 to Strength</Item>
+    </Items></PathOfBuilding2>`)
+
+    expect(result?.itemsById['12'].modifiers).toEqual([
+      { text: '+20 to maximum Life', tags: ['enchant', 'rune'], group: 'rune' },
+      { text: 'Grants Skill: Test', tags: [], group: 'implicit' },
+      { text: '+8 to Strength', tags: ['crafted'], group: 'explicit' },
+    ])
   })
 
   it('keeps equipment sockets and their rune order separate from skill groups', () => {

@@ -6,6 +6,7 @@ import { useTranslation } from '@/i18n/useTranslation'
 import type { BuildRealm } from '@/types/tree'
 import { getTreeAssetUrl, loadTreeAssetIndex } from '@/engine/treeAssetIndex'
 import type { SpriteIndex } from '@/engine/spriteLoader'
+import { FallbackImage } from '@/components/FallbackImage'
 
 export interface NewBuildInput {
   name: string
@@ -72,7 +73,7 @@ export function NewBuildDialog({ open, defaultRealm, onClose, onCreate }: NewBui
           {step === 1 && <div className="class-choice-grid">{classes.map(([id, cls]) => {
             const label = translateGameText(cls.displayName || cls.name, lang)
             const imageUrl = getTreeAssetUrl(assetIndex, cls.background?.image)
-            return <button key={id} className={classId === id ? 'active' : ''} onClick={() => { setClassId(id); setAscendancyId('') }}><span className="choice-art">{imageUrl ? <img src={imageUrl} alt="" decoding="async" /> : label.slice(0, 1)}</span><span className="choice-copy"><strong>{label}</strong><small>{cls.ascendancies.length} {zh ? '个升华' : 'ascendancies'}</small></span>{classId === id && <Check />}</button>
+            return <button key={id} className={classId === id ? 'active' : ''} onClick={() => { setClassId(id); setAscendancyId('') }}><span className="choice-art"><FallbackImage src={imageUrl || undefined} alt="" decoding="async" fallback={label.slice(0, 1)} /></span><span className="choice-copy"><strong>{label}</strong><small>{cls.ascendancies.length} {zh ? '个升华' : 'ascendancies'}</small></span>{classId === id && <Check />}</button>
           })}</div>}
 
           {step === 2 && <div className="ascendancy-choice-list">
@@ -80,7 +81,7 @@ export function NewBuildDialog({ open, defaultRealm, onClose, onCreate }: NewBui
               const id = asc.id || asc.name
               const label = translateGameText(asc.displayName || asc.name, lang)
               const imageUrl = getTreeAssetUrl(assetIndex, asc.background?.image)
-              return <button key={id} className={ascendancyId === id ? 'active' : ''} onClick={() => setAscendancyId(id)}><span className="choice-art">{imageUrl ? <img src={imageUrl} alt="" decoding="async" /> : label.slice(0, 1)}</span><span className="choice-copy"><strong>{label}</strong><small>{classLabel}</small></span>{ascendancyId === id && <Check />}</button>
+              return <button key={id} className={ascendancyId === id ? 'active' : ''} onClick={() => setAscendancyId(id)}><span className="choice-art"><FallbackImage src={imageUrl || undefined} alt="" decoding="async" fallback={label.slice(0, 1)} /></span><span className="choice-copy"><strong>{label}</strong><small>{classLabel}</small></span>{ascendancyId === id && <Check />}</button>
             })}
           </div>}
 

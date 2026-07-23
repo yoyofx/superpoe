@@ -1,5 +1,5 @@
 import { XMLParser } from 'fast-xml-parser'
-import type { EquipmentData, EquipmentItem, EquipmentSet } from '@/types/equipment'
+import type { EquipmentData, EquipmentItem, EquipmentModifier, EquipmentModifierGroup, EquipmentSet } from '@/types/equipment'
 
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (value == null) return []
@@ -26,6 +26,15 @@ function parseItem(id: string, rawValue: unknown): EquipmentItem {
   const baseType = magicBase || (!isMetadataLine(lines[2]) ? lines[2] : name)
   const valueOf = (label: string) => lines.find((line) => line.startsWith(label))?.slice(label.length).trim()
   const detailStart = lines.findIndex((line) => /^Implicits:\s*\d+/i.test(line))
+  const implicitCount = detailStart >= 0 ? Number(lines[detailStart].match(/\d+/)?.[0] || 0) : 0
+  const detailLines = detailStart >= 0 ? lines.slice(detailStart + 1) : lines.slice(3)
+  const modifiers: EquipmentModifier[] = detailLines.map((line, index) => {
+    const tags = Array.from(line.matchAll(/\{([^}]+)\}/g), (match) => match[1].toLowerCase())
+    let group: EquipmentModifierGroup = index < implicitCount ? 'implicit' : 'explicit'
+    if (tags.includes('rune')) group = 'rune'
+    else if (tags.includes('enchant')) group = 'enchant'
+    return { text: line.replace(/\{[^}]+\}/g, '').trim(), tags, group }
+  }).filter((modifier) => modifier.text)
   const socketValues = lines.filter((line) => line.startsWith('Sockets:')).map((line) => line.slice('Sockets:'.length).trim())
   const socketCount = socketValues.reduce((count, value) => count + (value.match(/\b(?:S|J)\b/g) || []).length, 0)
   const runes = lines.filter((line) => line.startsWith('Rune:')).map((line) => line.slice('Rune:'.length).trim())
@@ -41,7 +50,8 @@ function parseItem(id: string, rawValue: unknown): EquipmentItem {
     sockets: socketValues.join(' ') || undefined,
     socketCount,
     runes,
-    lines: detailStart >= 0 ? lines.slice(detailStart + 1) : lines.slice(3),
+    lines: detailLines,
+    modifiers,
     raw,
   }
 }

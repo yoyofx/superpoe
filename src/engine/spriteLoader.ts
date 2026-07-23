@@ -57,7 +57,13 @@ class SpriteLoader {
     try {
       const resp = await fetch(`/assets/dds/${version}/sprite-index.json`);
       if (!resp.ok) return null;
-      return await resp.json();
+      const value = await resp.json();
+      if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+      return Object.fromEntries(Object.entries(value).filter(([, info]) => {
+        if (!info || typeof info !== 'object') return false;
+        const sprite = info as Partial<SpriteInfo>;
+        return typeof sprite.file === 'string' && typeof sprite.w === 'number' && typeof sprite.h === 'number';
+      })) as SpriteIndex;
     } catch {
       return null;
     }

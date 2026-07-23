@@ -16,6 +16,8 @@ const numericDictionaries = new Map<Language, Map<string, string>>()
 const templateDictionaries = new Map<Language, TranslationTemplate[]>()
 const templateKeys = new Map<Language, Set<string>>()
 const searchTextCaches = new Map<Language, WeakMap<TreeNode, string>>()
+const translationResultCaches = new Map<Language, Map<string, string>>()
+const MAX_TRANSLATION_CACHE_ENTRIES = 20_000
 
 const TRANSLATION_MANIFEST = '/data/Translate/translation-files.json'
 
@@ -210,13 +212,20 @@ function applyTemplate(template: TranslationTemplate, source: string): string | 
 }
 
 async function getTranslationFiles(language: Language): Promise<string[]> {
-  const response = await fetch(TRANSLATION_MANIFEST)
-  if (!response.ok) throw new Error('Translation manifest is unavailable')
-  const manifest = await response.json() as TranslationManifest | Partial<Record<Language, string[]>>
-  const languageFiles = 'languages' in manifest
-    ? manifest.languages?.[language]
-    : manifest[language]
-  return (languageFiles || []).filter((file) => file.endsWith('.csv'))
+  try {
+    const response = await fetch(TRANSLATION_MANIFEST)
+    if (!response.ok) return []
+    const manifest = await response.json() as TranslationManifest | Partial<Record<Language, string[]>>
+    if (!manifest || typeof manifest !== 'object') return []
+    const languageFiles = 'languages' in manifest
+      ? manifest.languages?.[language]
+      : manifest[language]
+    return Array.isArray(languageFiles)
+      ? languageFiles.filter((file): file is string => typeof file === 'string' && file.endsWith('.csv'))
+      : []
+  } catch {
+    return []
+  }
 }
 
 function addTranslationEntry(
@@ -246,27 +255,47 @@ function addTranslationEntry(
 function translateText(value: string, language: Language): string {
   if (language === 'en') return value
   const key = normalizeKey(value)
+  const canCache = loadedLanguages.has(language)
+  const resultCache = canCache
+    ? (translationResultCaches.get(language) || new Map<string, string>())
+    : undefined
+  if (resultCache && !translationResultCaches.has(language)) {
+    translationResultCaches.set(language, resultCache)
+  }
+  const cached = resultCache?.get(key)
+  if (cached !== undefined) return cached
+
+  const remember = (result: string) => {
+    if (resultCache) {
+      if (resultCache.size >= MAX_TRANSLATION_CACHE_ENTRIES) {
+        const oldest = resultCache.keys().next().value
+        if (oldest !== undefined) resultCache.delete(oldest)
+      }
+      resultCache.set(key, result)
+    }
+    return result
+  }
   const exact = dictionaries.get(language)?.get(key)
-  if (exact) return exact
+  if (exact) return remember(exact)
 
   const numeric = applyNumericEntry(numericDictionaries.get(language), key)
-  if (numeric) return numeric
+  if (numeric) return remember(numeric)
 
   const templates = templateDictionaries.get(language) || []
   for (const template of templates) {
     const translated = applyTemplate(template, key)
-    if (translated) return translated
+    if (translated) return remember(translated)
   }
 
   if (key.includes('\n')) {
     const lines = key.split('\n')
     const translatedLines = lines.map((line) => line.trim() ? translateText(line, language) : line)
     if (translatedLines.some((line, index) => line !== lines[index])) {
-      return translatedLines.join('\n')
+      return remember(translatedLines.join('\n'))
     }
   }
 
-  return value
+  return remember(value)
 }
 
 /** Translate game-provided names and stat lines using the loaded PoB dictionaries. */
@@ -327,12 +356,13 @@ export async function loadTranslations(language: Language): Promise<void> {
 
   const translationFiles = await getTranslationFiles(language)
   const fileRows = await Promise.all(translationFiles.map(async (file) => {
-    const response = await fetch(`/data/Translate/${language}/${file}`)
-    if (!response.ok) {
-      if (response.status === 404) return
-      throw new Error(`Failed to load translation file: ${file}`)
+    try {
+      const response = await fetch(`/data/Translate/${language}/${file}`)
+      if (!response.ok) return
+      return parseCsvRows(await response.text())
+    } catch {
+      return
     }
-    return parseCsvRows(await response.text())
   }))
 
   // Requests run concurrently, but merging follows the source manifest order.
@@ -359,6 +389,7 @@ export async function loadTranslations(language: Language): Promise<void> {
 
   templates.sort((a, b) => b.literalLength - a.literalLength || a.placeholderCount - b.placeholderCount)
 
+  translationResultCaches.delete(language)
   loadedLanguages.add(language)
 }
 
@@ -422,4 +453,5 @@ export function resetTranslationsForTest(): void {
   templateDictionaries.clear()
   templateKeys.clear()
   searchTextCaches.clear()
+  translationResultCaches.clear()
 }

@@ -19,6 +19,7 @@ import {
   ZoomOut,
 } from 'lucide-react'
 import { ExportPanel } from '@/components/ExportPanel'
+import { FallbackImage } from '@/components/FallbackImage'
 import { decodeCodeToXml } from '@/engine/buildCode'
 import { getTreeAssetUrl, loadTreeAssetIndex } from '@/engine/treeAssetIndex'
 import type { SpriteIndex } from '@/engine/spriteLoader'
@@ -176,9 +177,7 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
           <button className="icon-command compact back-command" onClick={onHome} title={lang === 'zh-rCN' ? '返回构筑中心' : 'Back to build center'} aria-label={lang === 'zh-rCN' ? '返回构筑中心' : 'Back to build center'}><ArrowLeft /></button>
           <span className="current-build-profile">
             <span className="class-emblem">
-              {characterImageUrl
-                ? <img src={characterImageUrl} alt="" decoding="async" />
-                : className.slice(0, 1)}
+              <FallbackImage src={characterImageUrl || undefined} alt="" decoding="async" fallback={className.slice(0, 1)} />
             </span>
             <span className="current-build-copy">
               <input
@@ -214,6 +213,7 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
           <button className="icon-command" onClick={onImport} title={t('toolbar.importTitle')} aria-label={t('toolbar.importTitle')}><Upload /></button>
           <button className="icon-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')} aria-label={t('toolbar.exportTitle')}><Download /></button>
           <button className="primary-command" onClick={onSave}><Save />{lang === 'zh-rCN' ? '保存' : 'Save'}</button>
+          <button className="icon-command" onClick={onSettings} title={lang === 'zh-rCN' ? '全局设置' : 'Global settings'} aria-label={lang === 'zh-rCN' ? '全局设置' : 'Global settings'}><Settings /></button>
           <button className="icon-command" title={lang === 'zh-rCN' ? '更多操作' : 'More'} aria-label={lang === 'zh-rCN' ? '更多操作' : 'More'}><MoreVertical /></button>
         </div>
       </div>
@@ -263,7 +263,6 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
           {activeView === 'calculation' && <button className="primary-command" onClick={openCalculate} disabled={!allocatedNodes.size || calcLoading}><Calculator />{calcLoading ? t('stats.calculating') : t('toolbar.calc')}</button>}
 
           <span className="toolbar-spacer" />
-          <button className="icon-command compact" onClick={onSettings} title={lang === 'zh-rCN' ? '全局设置' : 'Global settings'} aria-label={lang === 'zh-rCN' ? '全局设置' : 'Global settings'}><Settings /></button>
           <button className="icon-command compact" title={lang === 'zh-rCN' ? '帮助' : 'Help'} aria-label={lang === 'zh-rCN' ? '帮助' : 'Help'}><CircleHelp /></button>
         </div>
       </div>

@@ -39,12 +39,20 @@ ASSET_PATTERNS = [
     "oraclenormalpassiveheader",
     "oraclenotablepassiveheader",
     "oraclekeystonepassiveheader",
-    # Item/skill icons (for future phases)
+    # Original item tooltip headers and separators
+    "itemsheader",
+    "runicitemsheader",
+    "itemsseparator",
+    # Item/skill icons
     "game_ui_small.png",
     "fractureditemsymbol.png",
     "veileditemsymbol.png",
     "vaalitemicon.png",
     "gemhovermodbg.png",
+    "gemhovertitle.png",
+    "gemhovertitleunique.png",
+    "gemhoverimageempty.png",
+    "skillpanelskilliconframe.png",
     "hovermodbgabyss.png",
 ]
 
@@ -66,7 +74,9 @@ def copy_assets(web_dir: Path, dry_run: bool = False) -> int:
 
     for pattern in ASSET_PATTERNS:
         pattern_lower = pattern.lower()
-        copy_all_matches = "passiveheader" in pattern_lower
+        copy_all_matches = any(prefix in pattern_lower for prefix in (
+            "passiveheader", "itemsheader", "runicitemsheader", "itemsseparator"
+        ))
         for src_path in sorted(src_dir.iterdir()):
             if not src_path.is_file():
                 continue

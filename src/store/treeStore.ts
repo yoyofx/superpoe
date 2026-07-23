@@ -13,6 +13,7 @@ import { calculateBuild } from '@/engine/pobLuaClient'
 import { clearPersistedImportedBuild, getInitialImportedBuildCode } from '@/engine/buildPersistence'
 import { DEFAULT_BUILD_REALM, inferBuildRealm } from '@/engine/buildRealm'
 import { getRenderTreePoint, getSelectedAscendancyProjection } from '@/engine/treeRenderShared'
+import { parseTreeDataResource } from '@/engine/treeDataResource'
 import { resolveTreeAscendancy, resolveTreeClass } from '@/engine/treeClassResolution'
 import {
   cleanAttributeSelections,
@@ -1053,7 +1054,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      const data: TreeData = await resp.json()
+      const data = parseTreeDataResource(await resp.json(), treeVersion)
       const classes = data.constants.classes || {}
       const selectedClassExists = !!classes[get().selectedClassId]
       const nextClassId = selectedClassExists
@@ -1538,7 +1539,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       // Ignore storage failures in private mode or restricted environments.
     }
     set({ language })
-    void loadTranslations(language).finally(() => {
+    void loadTranslations(language).catch(() => undefined).finally(() => {
       set((state) => ({ translationRevision: state.translationRevision + 1 }))
       get().performSearch(get().searchQuery)
     })

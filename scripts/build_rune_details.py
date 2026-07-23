@@ -11,7 +11,12 @@ from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE = ROOT / "upstreams" / "PathOfBuilding-PoE2" / "src" / "Data" / "ModRunes.lua"
+SKILLS_SOURCE = ROOT / "upstreams" / "PathOfBuilding-PoE2" / "src" / "Data" / "Skills"
+BASES_SOURCE = ROOT / "upstreams" / "PathOfBuilding-PoE2" / "src" / "Data" / "Bases"
+DATA_SOURCE = ROOT / "upstreams" / "PathOfBuilding-PoE2" / "src" / "Data"
+EXPORT_UNIQUES_SOURCE = ROOT / "upstreams" / "PathOfBuilding-PoE2" / "src" / "Export" / "Uniques"
 OUTPUT = ROOT / "public" / "data" / "rune-details.json"
+SKILL_CATALOG = ROOT / "public" / "data" / "skill-catalog.json"
 POE2DB_RUNE_PAGES = {
     "zh-rCN": [
         "https://poe2db.tw/cn/Rune",
@@ -124,10 +129,78 @@ def parse_mod_runes(text: str) -> dict[str, object]:
     return details
 
 
+def granted_skill_names() -> set[str]:
+    names: set[str] = set()
+    paths = list(DATA_SOURCE.rglob("*.lua")) if DATA_SOURCE.is_dir() else []
+    if EXPORT_UNIQUES_SOURCE.is_dir():
+        paths.extend(EXPORT_UNIQUES_SOURCE.glob("*.lua"))
+    for path in paths:
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for value in re.findall(r"Grants Skill:\s*([^\\\"\r\n]+)", text):
+            name = re.sub(r"^Level\s+(?:\([^)]*\)|#|\d+)\s+", "", value).strip()
+            if name:
+                names.add(name)
+    return names
+
+
+def parse_granted_skills(names: set[str]) -> dict[str, object]:
+    skills: dict[str, object] = {}
+    if not SKILLS_SOURCE.is_dir():
+        return skills
+    name_pattern = re.compile(r'^\s*name\s*=\s*"((?:\\.|[^"])*)",?')
+    description_pattern = re.compile(r'^\s*description\s*=\s*"((?:\\.|[^"])*)",?')
+
+    for path in SKILLS_SOURCE.glob("*.lua"):
+        current_name: str | None = None
+        for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+            name_match = name_pattern.match(line)
+            if name_match:
+                current_name = json.loads(f'"{name_match.group(1)}"')
+                continue
+            description_match = description_pattern.match(line)
+            if not description_match or current_name not in names:
+                continue
+            description = json.loads(f'"{description_match.group(1)}"')
+            key = normalize(current_name)
+            if key not in skills and description:
+                skills[key] = {
+                    "name": current_name,
+                    "variants": {
+                        "skill": {"type": "Skill", "stats": [description]},
+                    },
+                }
+    return skills
+
+
+def apply_skill_localizations(skills: dict[str, object]) -> None:
+    if not SKILL_CATALOG.is_file():
+        return
+    try:
+        catalog = json.loads(SKILL_CATALOG.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return
+    entries = catalog.get("entries", {})
+    lookup = catalog.get("lookup", {})
+    for key, detail in skills.items():
+        skill_id = lookup.get(key)
+        entry = entries.get(skill_id, {}) if skill_id else {}
+        if entry.get("localizedNames"):
+            detail["localizedNames"] = entry["localizedNames"]  # type: ignore[index]
+        descriptions = entry.get("localizedDescriptions", {})
+        if descriptions:
+            detail["variants"]["skill"]["localizedStats"] = {  # type: ignore[index]
+                language: [description] for language, description in descriptions.items() if description
+            }
+
+
 def main() -> None:
     if not SOURCE.is_file():
         raise SystemExit(f"Missing PoB rune data: {SOURCE}")
     lookup = parse_mod_runes(SOURCE.read_text(encoding="utf-8", errors="replace"))
+    skill_lookup = parse_granted_skills(granted_skill_names())
+    apply_skill_localizations(skill_lookup)
+    for key, detail in skill_lookup.items():
+        lookup.setdefault(key, detail)
     localized = load_localized_names()
     translated = 0
     for key, names in localized.items():
@@ -136,12 +209,15 @@ def main() -> None:
             translated += 1
     payload = {
         "schemaVersion": 1,
-        "source": "upstreams/PathOfBuilding-PoE2/src/Data/ModRunes.lua",
+        "source": [
+            "upstreams/PathOfBuilding-PoE2/src/Data/ModRunes.lua",
+            "upstreams/PathOfBuilding-PoE2/src/Data/Skills/*.lua",
+        ],
         "lookup": lookup,
     }
     OUTPUT.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"[ok] {len(lookup)} definitions, {translated} localized names -> {OUTPUT}")
+    print(f"[ok] {len(lookup)} definitions ({len(skill_lookup)} granted skills), {translated} localized names -> {OUTPUT}")
 
 
 if __name__ == "__main__":

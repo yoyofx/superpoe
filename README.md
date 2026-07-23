@@ -52,6 +52,8 @@ SuperPoE2 是一个基于 React + PixiJS/WebGL 2D 的 PoE2 离线构筑规划工
 
 ## 数据来源
 
+所有上游数据、图片、翻译和 Lua 运行时资源统一遵守 [上游资源与生成管线标准](docs/resource-pipeline-standard.md)。上游是唯一事实来源；`public/` 是可重复生成并随应用发布的运行时产物，禁止手工修补。
+
 - `upstreams/PathOfBuilding-PoE2/` 来源于 [PathOfBuildingCommunity/PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)，用于预处理脚本、Headless 校验和计算。
 - `upstreams/PoeCharm2/` 来源于 [Chuanhsing/PoeCharm2](https://github.com/Chuanhsing/PoeCharm2)，用于同步 Web 端翻译数据。
 - `public/data/tree-web-{version}.json` 是 Web 端生成产物，不是原生游戏文件，也不是 PoB2 上游文件。需要从 `upstreams/PathOfBuilding-PoE2/src/TreeData/{version}/tree.lua` / `tree.json` 重新生成时，运行 `npm run pipeline:all -- {version}`。
@@ -157,6 +159,13 @@ npm run pipeline:ui
 npm run pipeline:dds
 npm run pipeline:connectors
 npm run pipeline:lua
+npm run pipeline:translations
+npm run pipeline:items
+npm run pipeline:skills
+npm run pipeline:skill-catalog
+npm run pipeline:rune-details
+npm run pipeline:item-bases
+npm run pipeline:manifest -- 0_5
 npm run pipeline:check
 npm run pipeline:all
 ```
@@ -169,7 +178,9 @@ npm run pipeline:all
 npm run pipeline:all -- 0_5
 ```
 
-该命令会生成 `public/data/tree-web-0_5.json`，复制/生成对应版本资源，并更新 `public/data/tree-versions.json`。前端版本下拉读取这个 manifest；资源管线只保留最新两个版本，生成 `0_6` 后会自动清理 `0_4` 及更早版本的 `tree-web` 数据、DDS、orbit 和 connector 运行资产。
+该命令会生成 `public/data/tree-web-0_5.json`，复制/生成对应版本资源，并更新 `public/data/tree-versions.json`。它也会联网刷新 PoE2DB 的物品和技能离线资源，生成统一技能目录、Lua bundle 和全局资源 manifest，最后执行引用与覆盖率校验。前端版本下拉读取 tree manifest；资源管线只保留最新两个版本，生成 `0_6` 后会自动清理 `0_4` 及更早版本的 `tree-web` 数据、DDS、orbit 和 connector 运行资产。
+
+普通的 `npm run build` 和桌面应用运行不会联网抓取资源。只有主动执行 `pipeline:items`、`pipeline:skills` 或 `pipeline:all` 时才会访问 PoE2DB；生成后的本地资源需要随仓库提交。
 
 不传版本号时默认处理 `0_4`：
 
@@ -222,7 +233,7 @@ npm run pipeline:translations
 
 ## 物品图标上游
 
-纯 PoB Code 不带装备图标 URL。`npm run pipeline:items` 会从 [PoE2DB](https://poe2db.tw/us/Items) 的公开物品目录下载装备、珠宝、药剂和咒符图标到 `public/assets/items/poe2db/`，并生成 `public/data/item-icons.json`。前端应读取本地索引和本地图片，不在运行时热链 PoE2DB。WeGame 链接导入仍优先使用其返回的精确官方图标 URL；无 URL 的纯 PoB Code 则按传奇名或底材名查询该离线索引。
+纯 PoB Code 不带装备图标 URL。`npm run pipeline:items` 会从 [PoE2DB](https://poe2db.tw/us/Items) 的公开目录下载装备、珠宝、药剂、咒符和技能图标。物品资源写入 `public/assets/items/poe2db/` 和 `public/data/item-icons.json`；主动技能与辅助宝石写入 `public/assets/skills/poe2db/` 和 `public/data/skill-icons.json`。前端只读取这些本地资源，不在运行时热链 PoE2DB。WeGame 链接导入仍优先使用其返回的精确官方图标 URL。
 
 装备面板会优先使用导入数据携带的精确图标 URL；没有该 URL 时，传奇装备按名称匹配，普通、魔法和稀有装备按底材匹配本地索引。
 
@@ -230,7 +241,13 @@ npm run pipeline:translations
 npm run pipeline:items
 ```
 
-该命令会以 `upstreams/PathOfBuilding-PoE2/src/Data/Bases/`、`Data/Uniques/`、`Data/ModRunes.lua` 的完整底材、传奇、符文/灵魂核心清单校验分类页结果，并自动补抓缺失物品的 PoE2DB 详情页图标。仅诊断分类页时可传 `-- --skip-pob-bases --skip-pob-uniques --skip-pob-runes`，但该模式不保证覆盖完整。
+该命令会以 `upstreams/PathOfBuilding-PoE2/src/Data/Bases/`、`Data/Uniques/`、`Data/ModRunes.lua` 和 `Data/Gems.lua` 校验资源覆盖，并解析 PoE2DB 的 `Skill_Gems`、`Support_Gems` 列表。只需刷新主动技能和辅助宝石时运行 `npm run pipeline:skills`。`pipeline:rune-details` 同时从 `Data/Skills/` 写入装备授予技能的原版描述，供装备孔位 tooltip 使用。仅诊断物品分类页时可传 `-- --skip-pob-bases --skip-pob-uniques --skip-pob-runes --skip-pob-skills`，但该模式不保证覆盖完整。
+
+`npm run pipeline:skill-catalog` 会把 PoB `Data/Gems.lua`、`Data/Skills/*.lua` 与本地图片索引合并为 `public/data/skill-catalog.json`。前端技能面板、辅助宝石和装备授予技能都以该 catalog 为统一读取入口；当前用户可见技能均有本地图片，无法从可信上游取得的描述保持为空，不人工编造。
+
+装备授予技能的英文名称和描述以 PoB 技能 ID 为主键，`pipeline:skills` 会从 PoE2DB 的 `cn/tw/kr` 页面同步对应的简中、繁中和韩文名称与描述。生成数据写入 `skill-icons.json`、`skill-catalog.json` 和 `rune-details.json`，装备孔位 tooltip 优先显示当前语言的结构化描述；缺失时依次回退 PoeCharm2 通用翻译和 PoB 英文原文。首次同步会联网请求，后续运行复用 `.cache/poe2db/skill-localizations/`。
+
+`npm run pipeline:manifest -- 0_5` 会生成 `public/data/resource-manifest.json`，记录 PoB/PoeCharm2 上游提交、资源覆盖统计、警告以及每个运行时文件的大小和 SHA-256。该文件既是发布审计结果，也是全量管线的最终完整性门禁。
 
 PoB 中的 `Energy Blade` 是隐藏的技能生成武器，PoE2DB 没有独立物品图；三种 `Shrine Sceptre (Purity ...)` 也只是同一底材的技能变体。索引会分别回退到对应的一手剑/双手剑和 `Shrine Sceptre` 图标。
 

@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { resolveItemIcon } from '@/engine/itemIcons'
+import { normalizeItemIconIndex, resolveItemIcon, resolveItemIconName } from '@/engine/itemIcons'
 import type { EquipmentItem } from '@/types/equipment'
 
 const index = {
@@ -15,6 +15,13 @@ function item(overrides: Partial<EquipmentItem>): EquipmentItem {
 }
 
 describe('item icon resolver', () => {
+  it('rejects malformed indexes and filters invalid paths', () => {
+    expect(normalizeItemIconIndex({ entries: {} })).toBeNull()
+    expect(normalizeItemIconIndex({ lookup: { valid: '/valid.webp', invalid: 7 } })).toEqual({
+      lookup: { valid: '/valid.webp' },
+    })
+  })
+
   it('uses a supplied exact image before the local fallback index', () => {
     expect(resolveItemIcon(item({ imageUrl: 'https://cdn.example/item.png' }), index)).toBe('https://cdn.example/item.png')
   })
@@ -50,5 +57,13 @@ describe('item icon resolver', () => {
       expect(path, baseType).toMatch(/^\/assets\/items\/poe2db\//)
       expect(existsSync(`public${path}`), baseType).toBe(true)
     }
+  })
+
+  it('resolves equipment-granted skills used as socket contents', () => {
+    const generatedIndex = JSON.parse(readFileSync('public/data/item-icons.json', 'utf8'))
+    const path = resolveItemIconName('Spear Throw', generatedIndex)
+
+    expect(path).toMatch(/^\/assets\/items\/poe2db\/.*\/SkillIcons\//i)
+    expect(existsSync(`public${path}`)).toBe(true)
   })
 })

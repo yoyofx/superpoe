@@ -9,6 +9,7 @@ import { translateGameText } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { useTreeStore } from '@/store/treeStore'
 import type { BuildRealm, TreeData } from '@/types/tree'
+import { parseTreeDataResource } from '@/engine/treeDataResource'
 
 export type ImportKind = 'pob' | 'wegame' | 'json'
 export type ImportMode = 'new' | 'replace'
@@ -50,7 +51,7 @@ async function loadPreviewTreeData(version: string, currentTreeData: TreeData | 
   if (!pending) {
     pending = fetch(`/data/tree-web-${version}.json`).then(async (response) => {
       if (!response.ok) throw new Error(`Passive tree data ${version} is unavailable`)
-      return response.json() as Promise<TreeData>
+      return parseTreeDataResource(await response.json(), version)
     })
     previewTreeCache.set(version, pending)
   }

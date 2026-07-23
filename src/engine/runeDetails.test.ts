@@ -1,5 +1,6 @@
+import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
-import { resolveRuneVariant, type RuneDetail } from '@/engine/runeDetails'
+import { normalizeRuneDetailIndex, resolveRuneVariant, type RuneDetail } from '@/engine/runeDetails'
 import type { EquipmentItem } from '@/types/equipment'
 
 const item: EquipmentItem = {
@@ -23,6 +24,12 @@ const detail: RuneDetail = {
 }
 
 describe('rune details', () => {
+  it('ignores malformed optional detail entries', () => {
+    expect(normalizeRuneDetailIndex({ entries: {} })).toBeNull()
+    expect(normalizeRuneDetailIndex({ lookup: { bad: null, valid: { name: 'Rune', variants: {} } } }))
+      .toEqual({ lookup: { valid: { name: 'Rune', variants: {} } } })
+  })
+
   it('uses the modifier variant matching the equipped slot', () => {
     expect(resolveRuneVariant(detail, item, 'Weapon 1')).toEqual({
       category: 'weapon',
@@ -36,5 +43,19 @@ describe('rune details', () => {
       category: 'armour',
       variant: detail.variants.armour,
     })
+  })
+
+  it('includes descriptions for skills granted by equipment bases', () => {
+    const generated = JSON.parse(readFileSync('public/data/rune-details.json', 'utf8'))
+    expect(generated.lookup.spearthrow).toMatchObject({
+      name: 'Spear Throw',
+      variants: {
+        skill: {
+          type: 'Skill',
+          stats: [expect.stringContaining('Hurl your Spear')],
+        },
+      },
+    })
+    expect(generated.lookup.acidicconcoction.variants.skill.localizedStats['zh-rCN'][0]).toContain('消耗魔力药剂')
   })
 })

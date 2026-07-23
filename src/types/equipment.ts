@@ -1,5 +1,13 @@
 export type ItemRarity = 'NORMAL' | 'MAGIC' | 'RARE' | 'UNIQUE' | string
 
+export type EquipmentModifierGroup = 'enchant' | 'rune' | 'implicit' | 'explicit'
+
+export interface EquipmentModifier {
+  text: string
+  tags: string[]
+  group: EquipmentModifierGroup
+}
+
 export interface EquipmentItem {
   id: string
   rarity: ItemRarity
@@ -12,6 +20,7 @@ export interface EquipmentItem {
   socketCount: number
   runes: string[]
   lines: string[]
+  modifiers?: EquipmentModifier[]
   raw: string
   imageUrl?: string
 }

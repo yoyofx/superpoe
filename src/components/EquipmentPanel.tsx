@@ -1,6 +1,7 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
 import { ChevronDown, ChevronRight, PackageOpen, Upload } from 'lucide-react'
+import { FallbackImage } from '@/components/FallbackImage'
 import { decodeCodeToXml } from '@/engine/buildCode'
 import {
   aggregateEquipmentAffixes,
@@ -8,6 +9,8 @@ import {
   type EquipmentAffixSummary,
 } from '@/engine/equipmentAffixes'
 import { parseEquipmentXml } from '@/engine/equipment'
+import { deriveItemDisplayStats } from '@/engine/itemDisplayStats'
+import { loadItemBaseData, resolveItemBaseData, type ItemBaseData } from '@/engine/itemBaseData'
 import { loadItemIconIndex, resolveItemIcon, resolveItemIconName, type ItemIconIndex } from '@/engine/itemIcons'
 import {
   loadRuneDetails,
@@ -18,7 +21,7 @@ import {
 import { translateGameText } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { useTreeStore } from '@/store/treeStore'
-import type { EquipmentItem, EquipmentSlot } from '@/types/equipment'
+import type { EquipmentItem, EquipmentSet, EquipmentSlot } from '@/types/equipment'
 import {
   fitPaperDoll,
   getActivePaperDollSlots,
@@ -56,7 +59,31 @@ const RARITY_CLASS: Record<string, string> = {
   MAGIC: 'rarity-magic',
   RARE: 'rarity-rare',
   UNIQUE: 'rarity-unique',
+  RELIC: 'rarity-relic',
 }
+
+const ITEM_STAT_LABELS: Record<string, { en: string; zh: string }> = {
+  physicalDamage: { en: 'Physical Damage', zh: '物理伤害' },
+  fireDamage: { en: 'Fire Damage', zh: '火焰伤害' },
+  coldDamage: { en: 'Cold Damage', zh: '冰霜伤害' },
+  lightningDamage: { en: 'Lightning Damage', zh: '闪电伤害' },
+  chaosDamage: { en: 'Chaos Damage', zh: '混沌伤害' },
+  criticalHitChance: { en: 'Critical Hit Chance', zh: '暴击率' },
+  attacksPerSecond: { en: 'Attacks per Second', zh: '每秒攻击次数' },
+  reloadTime: { en: 'Reload Time', zh: '装填时间' },
+  weaponRange: { en: 'Weapon Range', zh: '武器范围' },
+  blockChance: { en: 'Chance to Block', zh: '格挡几率' },
+  armour: { en: 'Armour', zh: '护甲' },
+  evasion: { en: 'Evasion Rating', zh: '闪避值' },
+  energyShield: { en: 'Energy Shield', zh: '能量护盾' },
+  runicWard: { en: 'Runic Ward', zh: '符文结界' },
+  lifeRecovery: { en: 'Life Recovery', zh: '生命恢复' },
+  manaRecovery: { en: 'Mana Recovery', zh: '魔力恢复' },
+  duration: { en: 'Duration', zh: '持续时间' },
+  charges: { en: 'Charges Used / Maximum', zh: '消耗充能 / 最大充能' },
+}
+
+const MODIFIER_GROUP_ORDER = ['enchant', 'rune', 'implicit', 'explicit'] as const
 
 type EquipmentAffixGroup = 'attack' | 'defence' | 'attributes' | 'important' | 'other'
 
@@ -143,6 +170,80 @@ function AffixSummaryRow({
   )
 }
 
+const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
+  activeSet,
+  itemSets,
+  weaponSet,
+  affixesByGroup,
+  affixCount,
+  collapsedCategories,
+  expandedAffixes,
+  onSelectSet,
+  onToggleCategory,
+  onToggleAffix,
+  onSelectSource,
+}: {
+  activeSet: EquipmentSet
+  itemSets: EquipmentSet[]
+  weaponSet: 1 | 2
+  affixesByGroup: Map<EquipmentAffixGroup, EquipmentAffixSummary[]>
+  affixCount: number
+  collapsedCategories: Set<EquipmentAffixGroup>
+  expandedAffixes: Set<string>
+  onSelectSet: (setId: string) => void
+  onToggleCategory: (group: EquipmentAffixGroup) => void
+  onToggleAffix: (key: string) => void
+  onSelectSource: (itemId: string) => void
+}) {
+  const { t, lang } = useTranslation()
+
+  return (
+    <aside className="equipment-loadouts">
+      <div className="equipment-affix-heading">
+        <span>{lang === 'zh-rCN' ? '已装备词缀' : 'Equipped modifiers'}</span>
+        <strong>{lang === 'zh-rCN' ? `武器组 ${weaponSet === 1 ? 'I' : 'II'}` : `Weapon set ${weaponSet === 1 ? 'I' : 'II'}`}</strong>
+      </div>
+      <label className="equipment-loadout-select">
+        <span>{lang === 'zh-rCN' ? '装备方案' : 'Loadout'}</span>
+        <select value={activeSet.id} onChange={(event) => onSelectSet(event.target.value)}>
+          {itemSets.map((set, index) => {
+            const title = /^Set \d+$/i.test(set.title) ? t('equipment.defaultSet', { number: index + 1 }) : set.title
+            return <option key={set.id} value={set.id}>{title}</option>
+          })}
+        </select>
+      </label>
+      <div className="equipment-affix-list">
+        {AFFIX_GROUP_ORDER.map((group) => {
+          const summaries = affixesByGroup.get(group)
+          if (!summaries?.length) return null
+          const collapsed = collapsedCategories.has(group)
+          const label = AFFIX_GROUP_LABELS[group]
+          return <section className="equipment-affix-category" key={group}>
+            <button
+              className="equipment-affix-category-toggle"
+              type="button"
+              onClick={() => onToggleCategory(group)}
+              aria-expanded={!collapsed}
+            >
+              <span>{lang === 'zh-rCN' ? label.zh : label.en}</span>
+              <small>{summaries.length}</small>
+              {collapsed ? <ChevronRight /> : <ChevronDown />}
+            </button>
+            {!collapsed && summaries.map((summary) => <AffixSummaryRow
+              key={summary.key}
+              summary={summary}
+              expanded={expandedAffixes.has(summary.key)}
+              onToggle={() => onToggleAffix(summary.key)}
+              onSelectSource={onSelectSource}
+            />)}
+          </section>
+        })}
+        {!affixCount && <div className="equipment-affix-empty">{lang === 'zh-rCN' ? '当前装备没有可汇总的词缀' : 'No equipped modifiers to summarize'}</div>}
+      </div>
+    </aside>
+  )
+})
+
 function SocketedRunes({
   item,
   index,
@@ -179,11 +280,11 @@ function SocketedRunes({
 
   const typeLabel = (value: string) => {
     if (lang !== 'zh-rCN') return value
-    return ({ Rune: '符文', SoulCore: '灵魂核心', Idol: '雕像', CongealedMist: '凝结迷雾', Jewel: '珠宝' } as Record<string, string>)[value] || value
+    return ({ Rune: '符文', SoulCore: '灵魂核心', Idol: '雕像', CongealedMist: '凝结迷雾', Jewel: '珠宝', Skill: '技能' } as Record<string, string>)[value] || value
   }
   const categoryLabel = (value: string) => {
     if (lang !== 'zh-rCN') return value
-    return ({ weapon: '武器', wand: '法杖', staff: '长杖', sceptre: '权杖', shield: '盾牌', buckler: '圆盾', armour: '护甲', helmet: '头盔', 'body armour': '胸甲', gloves: '手套', boots: '鞋子' } as Record<string, string>)[value] || value
+    return ({ weapon: '武器', wand: '法杖', staff: '长杖', sceptre: '权杖', shield: '盾牌', buckler: '圆盾', armour: '护甲', helmet: '头盔', 'body armour': '胸甲', gloves: '手套', boots: '鞋子', skill: '装备授予' } as Record<string, string>)[value] || value
   }
   const translateRuneStat = (value: string) => {
     if (!value.startsWith('Bonded:')) return translateGameText(value, lang)
@@ -208,7 +309,7 @@ function SocketedRunes({
         const tooltipCategory = socketedItem ? translateGameText(socketedItem.baseType, lang) : categoryLabel(resolved?.category || '')
         const tooltipStats = socketedItem
           ? socketedItem.lines.map((line) => translateGameText(line.replace(/\{[^}]+\}/g, ''), lang))
-          : (resolved?.variant.stats || []).map(translateRuneStat)
+          : (resolved?.variant.localizedStats?.[lang] || resolved?.variant.stats || []).map(translateRuneStat)
         return (
           <span
             key={`${rune}-${socketIndex}`}
@@ -230,7 +331,7 @@ function SocketedRunes({
             }}
           >
             <span className="rune-socket" aria-label={label || 'Empty socket'}>
-              {imageUrl ? <img src={imageUrl} alt={label} /> : <span>{socketedItem ? 'J' : (rune ? 'R' : '')}</span>}
+              <FallbackImage src={imageUrl} alt={label} fallback={<span>{socketedItem ? 'J' : (rune ? 'R' : '')}</span>} />
             </span>
             {!compact && <span className="socket-copy"><strong>{label || 'Empty'}</strong><small>{socketedItem ? `${typeLabel('Jewel')} · ${tooltipCategory}` : (resolved ? `${typeLabel(resolved.variant.type)} · ${categoryLabel(resolved.category)}` : (rune ? 'Rune / Soul Core / Idol' : 'Empty socket'))}</small></span>}
           </span>
@@ -243,7 +344,7 @@ function SocketedRunes({
           role="tooltip"
         >
           <header>
-            <span className="rune-tooltip-icon">{tooltip.imageUrl && <img src={tooltip.imageUrl} alt="" />}</span>
+            <span className="rune-tooltip-icon"><FallbackImage src={tooltip.imageUrl} alt="" /></span>
             <span><strong>{tooltip.label}</strong><small>{[tooltip.type, tooltip.category].filter(Boolean).join(' · ')}</small></span>
           </header>
           {tooltip.stats.length
@@ -256,34 +357,54 @@ function SocketedRunes({
   )
 }
 
-function ItemDetail({ item, imageUrl, itemIconIndex, runeDetails, slotName, socketedItems }: { item: EquipmentItem; imageUrl?: string; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[] }) {
+function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketedItems }: { item: EquipmentItem; base?: ItemBaseData; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[] }) {
   const { t, lang } = useTranslation()
   useTreeStore((state) => state.translationRevision)
   const translateItemText = (value: string) => translateGameText(value.replace(/\{[^}]+\}/g, ''), lang)
   const rarityClass = RARITY_CLASS[item.rarity] || RARITY_CLASS.NORMAL
+  const rarityKey = rarityClass.replace('rarity-', '')
+  const runicHeader = /^(?:Runeforged|Runemastered)\b/i.test(item.baseType)
+  const displayStats = deriveItemDisplayStats(item, base)
+  const modifiers = item.modifiers || item.lines.map((line) => ({ text: line.replace(/\{[^}]+\}/g, ''), tags: [], group: 'explicit' as const }))
+  const modifierGroups = MODIFIER_GROUP_ORDER
+    .map((group) => ({ group, entries: modifiers.filter((modifier) => modifier.group === group) }))
+    .filter(({ entries }) => entries.length)
+  const requirements = base?.requirements || {}
 
   return (
     <aside className="equipment-inspector">
-      <header className={`inspector-title ${rarityClass}`}>
-        <span>{lang === 'zh-rCN' ? '已选择装备' : 'Selected item'}</span>
-        <h2>{translateItemText(item.name)}</h2>
-        <p>{translateItemText(item.baseType)}</p>
+      <header className={`inspector-title item-header-${rarityKey} ${runicHeader ? 'runic-item-header' : ''} ${rarityClass}`}>
+        <div className="item-header-copy">
+          <h2>{translateItemText(item.name)}</h2>
+          {item.name !== item.baseType && <p>{translateItemText(item.baseType)}</p>}
+        </div>
       </header>
 
       <div className="inspector-scroll">
-        <div className="item-art-frame">{imageUrl && <img src={imageUrl} alt="" />}</div>
+        <div className="item-property-type">{translateItemText(base?.subType || base?.type || item.baseType)}</div>
+        {displayStats.length > 0 && <div className="item-display-stats">
+          {displayStats.map((stat) => <div key={stat.key}>
+            <span>{ITEM_STAT_LABELS[stat.key]?.[lang === 'zh-rCN' ? 'zh' : 'en'] || stat.key}:</span>
+            <strong className={stat.tone ? `stat-${stat.tone}` : ''}>{stat.value}</strong>
+          </div>)}
+        </div>}
         <div className="item-metadata">
           {item.itemLevel && <span>{t('equipment.itemLevel', { value: item.itemLevel })}</span>}
           {item.levelReq && <span>{t('equipment.levelReq', { value: item.levelReq })}</span>}
+          {requirements.str && <span>{lang === 'zh-rCN' ? `力量 ${requirements.str}` : `Str ${requirements.str}`}</span>}
+          {requirements.dex && <span>{lang === 'zh-rCN' ? `敏捷 ${requirements.dex}` : `Dex ${requirements.dex}`}</span>}
+          {requirements.int && <span>{lang === 'zh-rCN' ? `智慧 ${requirements.int}` : `Int ${requirements.int}`}</span>}
           {item.quality && <span>{t('equipment.quality', { value: item.quality })}</span>}
           {item.sockets && <span>{t('equipment.sockets', { value: item.sockets })}</span>}
         </div>
 
-        <div className="ornament-rule" />
         <div className="item-modifiers">
-          {item.lines.map((line, index) => (
-            <p key={`${line}-${index}`} className={line.includes('{') ? 'mod-special' : ''}>{translateItemText(line)}</p>
-          ))}
+          {modifierGroups.map(({ group, entries }) => <section className={`modifier-group modifier-${group}`} key={group}>
+            {entries.map((modifier, index) => {
+              const styleTag = modifier.tags.find((tag) => ['crafted', 'fractured', 'mutated', 'rune', 'enchant'].includes(tag))
+              return <p key={`${modifier.text}-${index}`} className={styleTag ? `mod-${styleTag}` : ''}>{translateItemText(modifier.text)}</p>
+            })}
+          </section>)}
         </div>
 
         {!!Math.max(item.socketCount, socketedItems?.length || 0) && <>
@@ -336,9 +457,12 @@ function PaperDollSlot({
       className={`paper-doll-slot ${weaponClass} ${rarityClass} ${selected ? 'selected' : ''}`}
       style={paperDollRectStyle(layout.rect)}
     >
-      {imageUrl
-        ? <img className="slot-item-image" src={imageUrl} alt={itemName} />
-        : item && <span className="missing-item-glyph">{itemName.slice(0, 1)}</span>}
+      {item && <FallbackImage
+        className="slot-item-image"
+        src={imageUrl}
+        alt={itemName}
+        fallback={<span className="missing-item-glyph">{itemName.slice(0, 1)}</span>}
+      />}
       {item && <SocketedRunes item={item} index={itemIconIndex} details={runeDetails} slotName={slotName} socketedItems={socketedItems} compact />}
     </button>
   )
@@ -366,9 +490,11 @@ export function EquipmentPanel() {
   const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
   const [itemIconIndex, setItemIconIndex] = useState<ItemIconIndex | null>(null)
   const [runeDetails, setRuneDetails] = useState<RuneDetailIndex | null>(null)
+  const [itemBases, setItemBases] = useState<Record<string, ItemBaseData>>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
   const [weaponSet, setWeaponSet] = useState<1 | 2>(1)
+  const [paperDollBackgroundAvailable, setPaperDollBackgroundAvailable] = useState(true)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<EquipmentAffixGroup>>(new Set())
   const [expandedAffixes, setExpandedAffixes] = useState<Set<string>>(new Set())
   const { hostRef, size: paperDollSize } = usePaperDollSize()
@@ -377,6 +503,7 @@ export function EquipmentPanel() {
     let mounted = true
     loadItemIconIndex().then((index) => mounted && setItemIconIndex(index))
     loadRuneDetails().then((details) => mounted && setRuneDetails(details))
+    loadItemBaseData().then((index) => mounted && setItemBases(index.bases)).catch(() => {})
     return () => { mounted = false }
   }, [])
 
@@ -388,20 +515,26 @@ export function EquipmentPanel() {
   const activeSet = equipment?.itemSets.find((set) => set.id === activeSetId) || equipment?.itemSets[0]
   const activeSlotNames = new Set(getActivePaperDollSlots(weaponSet).map((slot) => slot.slotName))
   const equipped = activeSet?.slots.filter((slot) => activeSlotNames.has(slot.name) && slot.itemId) || []
+  const affixInput = useMemo(() => ({
+    activeSet,
+    weaponSet,
+    itemsById: equipment?.itemsById || {},
+  }), [activeSet, equipment?.itemsById, weaponSet])
+  const deferredAffixInput = useDeferredValue(affixInput)
   const affixSlots = useMemo(() => {
-    if (!activeSet) return []
-    const visibleSlots = new Set(getActivePaperDollSlots(weaponSet).map((slot) => slot.slotName))
-    const result: EquipmentSlot[] = activeSet.slots
+    if (!deferredAffixInput.activeSet) return []
+    const visibleSlots = new Set(getActivePaperDollSlots(deferredAffixInput.weaponSet).map((slot) => slot.slotName))
+    const result: EquipmentSlot[] = deferredAffixInput.activeSet.slots
       .filter((slot) => slot.active && slot.itemId && visibleSlots.has(slot.name))
-    for (const slot of activeSet.slots) {
+    for (const slot of deferredAffixInput.activeSet.slots) {
       const socketSlot = getSocketSlotInfo(slot.name)
       if (slot.active && slot.itemId && socketSlot && visibleSlots.has(socketSlot.parent)) result.push(slot)
     }
     return result
-  }, [activeSet, weaponSet])
+  }, [deferredAffixInput])
   const affixSummaries = useMemo(
-    () => aggregateEquipmentAffixes(affixSlots, equipment?.itemsById || {}),
-    [affixSlots, equipment?.itemsById],
+    () => aggregateEquipmentAffixes(affixSlots, deferredAffixInput.itemsById),
+    [affixSlots, deferredAffixInput.itemsById],
   )
   const affixesByGroup = useMemo(() => {
     const groups = new Map<EquipmentAffixGroup, EquipmentAffixSummary[]>()
@@ -419,7 +552,6 @@ export function EquipmentPanel() {
   const firstItem = equipped.map((slot) => equipment?.itemsById[slot.itemId]).find(Boolean)
   const selected = (selectedId && equipment?.itemsById[selectedId]) || firstItem
   const selectedSlotName = selected ? activeSet?.slots.find((slot) => slot.itemId === selected.id)?.name : undefined
-  const selectedImageUrl = selected ? resolveItemIcon(selected, itemIconIndex) : undefined
 
   useEffect(() => {
     if (activeSet) setWeaponSet(activeSet.useSecondWeaponSet ? 2 : 1)
@@ -429,6 +561,27 @@ export function EquipmentPanel() {
     setCollapsedCategories(new Set())
     setExpandedAffixes(new Set())
   }, [activeSet?.id])
+
+  const handleSelectSet = useCallback((setId: string) => {
+    setSelectedSetId(setId)
+    setSelectedId(null)
+  }, [])
+  const handleToggleCategory = useCallback((group: EquipmentAffixGroup) => {
+    setCollapsedCategories((current) => {
+      const next = new Set(current)
+      if (next.has(group)) next.delete(group)
+      else next.add(group)
+      return next
+    })
+  }, [])
+  const handleToggleAffix = useCallback((key: string) => {
+    setExpandedAffixes((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }, [])
 
   const itemForSlot = (slotName: string) => {
     const slot = activeSet?.slots.find((entry) => entry.name === slotName)
@@ -466,70 +619,35 @@ export function EquipmentPanel() {
 
   return (
     <section className="equipment-workspace">
-      <aside className="equipment-loadouts">
-        <div className="equipment-affix-heading">
-          <span>{lang === 'zh-rCN' ? '已装备词缀' : 'Equipped modifiers'}</span>
-          <strong>{lang === 'zh-rCN' ? `武器组 ${weaponSet === 1 ? 'I' : 'II'}` : `Weapon set ${weaponSet === 1 ? 'I' : 'II'}`}</strong>
-        </div>
-        <label className="equipment-loadout-select">
-          <span>{lang === 'zh-rCN' ? '装备方案' : 'Loadout'}</span>
-          <select value={activeSet.id} onChange={(event) => { setSelectedSetId(event.target.value); setSelectedId(null) }}>
-            {equipment.itemSets.map((set, index) => {
-              const title = /^Set \d+$/i.test(set.title) ? t('equipment.defaultSet', { number: index + 1 }) : set.title
-              return <option key={set.id} value={set.id}>{title}</option>
-            })}
-          </select>
-        </label>
-        <div className="equipment-affix-list">
-          {AFFIX_GROUP_ORDER.map((group) => {
-            const summaries = affixesByGroup.get(group)
-            if (!summaries?.length) return null
-            const collapsed = collapsedCategories.has(group)
-            const label = AFFIX_GROUP_LABELS[group]
-            return <section className="equipment-affix-category" key={group}>
-              <button
-                className="equipment-affix-category-toggle"
-                type="button"
-                onClick={() => setCollapsedCategories((current) => {
-                  const next = new Set(current)
-                  if (next.has(group)) next.delete(group)
-                  else next.add(group)
-                  return next
-                })}
-                aria-expanded={!collapsed}
-              >
-                <span>{lang === 'zh-rCN' ? label.zh : label.en}</span>
-                <small>{summaries.length}</small>
-                {collapsed ? <ChevronRight /> : <ChevronDown />}
-              </button>
-              {!collapsed && summaries.map((summary) => <AffixSummaryRow
-                key={summary.key}
-                summary={summary}
-                expanded={expandedAffixes.has(summary.key)}
-                onToggle={() => setExpandedAffixes((current) => {
-                  const next = new Set(current)
-                  if (next.has(summary.key)) next.delete(summary.key)
-                  else next.add(summary.key)
-                  return next
-                })}
-                onSelectSource={setSelectedId}
-              />)}
-            </section>
-          })}
-          {!affixSummaries.length && <div className="equipment-affix-empty">{lang === 'zh-rCN' ? '当前装备没有可汇总的词缀' : 'No equipped modifiers to summarize'}</div>}
-        </div>
-      </aside>
+      <EquipmentAffixSidebar
+        activeSet={activeSet}
+        itemSets={equipment.itemSets}
+        weaponSet={deferredAffixInput.weaponSet}
+        affixesByGroup={affixesByGroup}
+        affixCount={affixSummaries.length}
+        collapsedCategories={collapsedCategories}
+        expandedAffixes={expandedAffixes}
+        onSelectSet={handleSelectSet}
+        onToggleCategory={handleToggleCategory}
+        onToggleAffix={handleToggleAffix}
+        onSelectSource={setSelectedId}
+      />
 
       <div className="paper-doll-stage">
         <header className="paper-doll-heading"><span>{t('equipment.title')}</span><small>{lang === 'zh-rCN' ? '选择装备查看完整属性' : 'Select an item to inspect its properties'}</small></header>
         <div ref={hostRef} className="paper-doll-frame-host">
           <div
-            className="paper-doll-frame"
+            className={`paper-doll-frame ${paperDollBackgroundAvailable ? '' : 'background-missing'}`}
             style={paperDollStyle}
             data-source-width={PAPER_DOLL_WIDTH}
             data-source-height={PAPER_DOLL_HEIGHT}
           >
-            <img className="paper-doll-background" src="/assets/ui/workbench/equip-bg-D8S81SLb.png" alt="" />
+            {paperDollBackgroundAvailable && <img
+              className="paper-doll-background"
+              src="/assets/ui/workbench/equip-bg-D8S81SLb.png"
+              alt=""
+              onError={() => setPaperDollBackgroundAvailable(false)}
+            />}
             {PAPER_DOLL_WEAPON_SET_CONTROLS.map((control) => {
               const roman = control.weaponSet === 1 ? 'I' : 'II'
               const label = lang === 'zh-rCN' ? `切换到武器组 ${roman}` : `Switch to weapon set ${roman}`
@@ -569,7 +687,7 @@ export function EquipmentPanel() {
       </div>
 
       {selected
-        ? <ItemDetail item={selected} imageUrl={selectedImageUrl} itemIconIndex={itemIconIndex} runeDetails={runeDetails} slotName={selectedSlotName} socketedItems={selectedSlotName ? socketedItemsForSlot(selectedSlotName) : []} />
+        ? <ItemDetail item={selected} base={resolveItemBaseData(selected.baseType, itemBases)} itemIconIndex={itemIconIndex} runeDetails={runeDetails} slotName={selectedSlotName} socketedItems={selectedSlotName ? socketedItemsForSlot(selectedSlotName) : []} />
         : <aside className="equipment-inspector empty-inspector"><ChevronRight /><span>{lang === 'zh-rCN' ? '选择一件装备' : 'Select an item'}</span></aside>}
     </section>
   )
