@@ -128,7 +128,7 @@ function getAffixGroup(summary: EquipmentAffixSummary): EquipmentAffixGroup {
 }
 
 function getSocketSlotInfo(slotName: string): { parent: string; index: number } | null {
-  const match = slotName.match(/^(.+?)\s+(?:Jewel Socket|珠宝(?:插槽|孔)|珠寶(?:插槽|孔))\s*(\d+)$/i)
+  const match = slotName.match(/^(.+?)\s+(?:Jewel Socket|Abyssal Socket|珠宝(?:插槽|孔)|珠寶(?:插槽|孔))\s*(\d+)$/i)
   return match ? { parent: match[1].trim(), index: Number(match[2]) } : null
 }
 
@@ -251,6 +251,7 @@ function SocketedRunes({
   slotName,
   socketedItems = [],
   compact = false,
+  onSelectSocketedItem,
 }: {
   item: EquipmentItem
   index: ItemIconIndex | null
@@ -258,6 +259,7 @@ function SocketedRunes({
   slotName?: string
   socketedItems?: EquipmentItem[]
   compact?: boolean
+  onSelectSocketedItem?: (item: EquipmentItem) => void
 }) {
   const { lang } = useTranslation()
   useTreeStore((state) => state.translationRevision)
@@ -271,10 +273,14 @@ function SocketedRunes({
     category: string
     stats: string[]
   } | null>(null)
-  const socketContents = [
-    ...item.runes.map((rune) => ({ rune, item: undefined as EquipmentItem | undefined })),
-    ...socketedItems.map((socketedItem) => ({ rune: '', item: socketedItem })),
-  ]
+  const socketContents = item.runes.map((rune) => ({ rune, item: undefined as EquipmentItem | undefined }))
+  const normalizeSocketContent = (value: string) => value.replace(/[^a-z0-9]+/gi, '').toLowerCase()
+  for (const socketedItem of socketedItems) {
+    const aliases = new Set([socketedItem.name, socketedItem.baseType].map(normalizeSocketContent))
+    const placeholderIndex = socketContents.findIndex((content) => !content.item && aliases.has(normalizeSocketContent(content.rune)))
+    if (placeholderIndex >= 0) socketContents[placeholderIndex] = { rune: '', item: socketedItem }
+    else socketContents.push({ rune: '', item: socketedItem })
+  }
   const socketCount = Math.max(item.socketCount, socketContents.length)
   if (!socketCount) return null
 
@@ -312,8 +318,13 @@ function SocketedRunes({
           : (resolved?.variant.localizedStats?.[lang] || resolved?.variant.stats || []).map(translateRuneStat)
         return (
           <span
-            key={`${rune}-${socketIndex}`}
-            className={centerLastSocket ? 'socket-entry center-last' : 'socket-entry'}
+            key={`${rune}-${socketedItem?.id || ''}-${socketIndex}`}
+            className={`${centerLastSocket ? 'socket-entry center-last' : 'socket-entry'} ${socketedItem && onSelectSocketedItem ? 'selectable' : ''}`}
+            onClick={(event) => {
+              if (!socketedItem || !onSelectSocketedItem) return
+              event.stopPropagation()
+              onSelectSocketedItem(socketedItem)
+            }}
             onMouseOver={(event) => {
               if (!rune && !socketedItem) return
               const rect = event.currentTarget.getBoundingClientRect()
@@ -426,6 +437,7 @@ function PaperDollSlot({
   selected,
   activeWeaponSet,
   onSelect,
+  onSelectSocketedItem,
 }: {
   layout: PaperDollSlotLayout
   item?: EquipmentItem
@@ -436,6 +448,7 @@ function PaperDollSlot({
   selected: boolean
   activeWeaponSet: 1 | 2
   onSelect: () => void
+  onSelectSocketedItem: (item: EquipmentItem) => void
 }) {
   const { t, lang } = useTranslation()
   useTreeStore((state) => state.translationRevision)
@@ -463,7 +476,15 @@ function PaperDollSlot({
         alt={itemName}
         fallback={<span className="missing-item-glyph">{itemName.slice(0, 1)}</span>}
       />}
-      {item && <SocketedRunes item={item} index={itemIconIndex} details={runeDetails} slotName={slotName} socketedItems={socketedItems} compact />}
+      {item && <SocketedRunes
+        item={item}
+        index={itemIconIndex}
+        details={runeDetails}
+        slotName={slotName}
+        socketedItems={socketedItems}
+        compact
+        onSelectSocketedItem={onSelectSocketedItem}
+      />}
     </button>
   )
 }
@@ -590,9 +611,9 @@ export function EquipmentPanel() {
 
   const socketedItemsForSlot = (slotName: string) => activeSet?.slots
     .map((slot) => {
-      const match = slot.name.match(/^(.+?)\s+(?:Jewel Socket|珠宝(?:插槽|孔)|珠寶(?:插槽|孔))\s*(\d+)$/i)
-      return match && match[1].trim().toLowerCase() === slotName.toLowerCase()
-        ? { order: Number(match[2]), item: equipment?.itemsById[slot.itemId] }
+      const socketSlot = getSocketSlotInfo(slot.name)
+      return socketSlot && socketSlot.parent.toLowerCase() === slotName.toLowerCase()
+        ? { order: socketSlot.index, item: equipment?.itemsById[slot.itemId] }
         : null
     })
     .filter((entry): entry is { order: number; item: EquipmentItem } => Boolean(entry?.item))
@@ -674,12 +695,13 @@ export function EquipmentPanel() {
                 itemIconIndex={itemIconIndex}
                 runeDetails={runeDetails}
                 socketedItems={socketedItems}
-                selected={item?.id === selected?.id}
+                selected={item?.id === selected?.id || socketedItems.some((socketedItem) => socketedItem.id === selected?.id)}
                 activeWeaponSet={weaponSet}
                 onSelect={() => {
                   if (slot.weaponSet) setWeaponSet(slot.weaponSet)
                   if (item) setSelectedId(item.id)
                 }}
+                onSelectSocketedItem={(socketedItem) => setSelectedId(socketedItem.id)}
               />
             })}
           </div>

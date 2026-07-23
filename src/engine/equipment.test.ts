@@ -79,6 +79,23 @@ describe('equipment XML parser', () => {
     })
   })
 
+  it('uses the jewel base for opaque rare names emitted by game exports', () => {
+    const result = parseEquipmentXml(`<PathOfBuilding2><Items>
+      <Item id="17">Rarity: RARE\nRARE EHNQhgOm\nEmerald\nItem Level: 79\nImplicits: 1\n{crafted}+10% to Lightning Resistance\n22% increased Critical Damage Bonus for Attack Damage</Item>
+      <ItemSet id="1"><Slot name="Gloves Abyssal Socket 1" itemId="17"/></ItemSet>
+    </Items></PathOfBuilding2>`)
+
+    expect(result?.itemsById['17']).toMatchObject({
+      name: 'Emerald',
+      baseType: 'Emerald',
+      lines: [
+        '{crafted}+10% to Lightning Resistance',
+        '22% increased Critical Damage Bonus for Attack Damage',
+      ],
+    })
+    expect(result?.itemSets[0].slots[0].name).toBe('Gloves Abyssal Socket 1')
+  })
+
   it('preserves both primary and swap weapon slots', () => {
     const result = parseEquipmentXml(`<PathOfBuilding2><Items activeItemSet="1">
       <Item id="1">Rarity: NORMAL\nQuarterstaff</Item>
