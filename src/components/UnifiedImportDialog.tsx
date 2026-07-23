@@ -21,6 +21,7 @@ export interface ImportConfirmation {
   code?: string
   suggestedName: string
   realm: BuildRealm
+  sourceUrl?: string
 }
 
 interface ImportPreview {
@@ -183,7 +184,15 @@ export function UnifiedImportDialog({ open, hasCurrentBuild, defaultRealm, onClo
     setLoading(true)
     setError(null)
     try {
-      await onConfirm({ kind, mode, value: value.trim(), code: convertedCode, realm, suggestedName: `${preview.className}${preview.ascendancyName !== '-' ? ` · ${preview.ascendancyName}` : ''}` })
+      await onConfirm({
+        kind,
+        mode,
+        value: value.trim(),
+        code: convertedCode,
+        realm,
+        sourceUrl: kind === 'wegame' ? value.trim() : undefined,
+        suggestedName: `${preview.className}${preview.ascendancyName !== '-' ? ` · ${preview.ascendancyName}` : ''}`,
+      })
       onClose()
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : String(reason))

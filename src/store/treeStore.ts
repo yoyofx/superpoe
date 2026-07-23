@@ -750,7 +750,7 @@ interface TreeStore {
 
 
   // ---- Saved Builds (Phase 16.7) ----
-  saveBuild: (name: string, id?: string | null, source?: SavedBuild['source']) => string
+  saveBuild: (name: string, id?: string | null, source?: SavedBuild['source'], sourceUrl?: string | null) => string
   loadBuild: (id: string) => Promise<void>
   deleteBuild: (id: string) => void
   exportBuildJSON: () => string
@@ -2294,7 +2294,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   setBuildRealm: (realm) => set({ buildRealm: realm }),
 
-  saveBuild: (name, id, source) => {
+  saveBuild: (name, id, source, sourceUrl) => {
     const { allocatedNodes, treeVersion, selectedClassId, selectedAscendancyId,
             weaponSetMode, nodeWeaponSets, nodeAttributeSelections, masterySelections, savedBuilds, treeData, importedBuildCode, buildRealm } = get()
     const now = new Date().toISOString()
@@ -2311,6 +2311,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       characterLevel: getBuildCharacterLevel(importedBuildCode) || existing?.characterLevel || 1,
       importedBuildCode,
       source: source || existing?.source || (importedBuildCode ? 'pob' : 'local'),
+      sourceUrl: sourceUrl || null,
       realm: buildRealm,
       weaponSetMode,
       nodeWeaponSets: { ...nodeWeaponSets },

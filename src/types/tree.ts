@@ -313,6 +313,7 @@ export interface SavedBuild {
   characterLevel?: number
   importedBuildCode?: string | null
   source?: 'local' | 'pob' | 'wegame' | 'json'
+  sourceUrl?: string | null
   realm: BuildRealm
   weaponSetMode: 0 | 1 | 2
   nodeWeaponSets: Record<string, 1 | 2>

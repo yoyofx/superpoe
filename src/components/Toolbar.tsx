@@ -41,6 +41,7 @@ interface ToolbarProps {
   activeView: WorkspaceView
   onViewChange: (view: WorkspaceView) => void
   buildName: string
+  buildSourceUrl?: string | null
   onBuildNameChange: (name: string) => void
   saveStatus: 'saved' | 'dirty' | 'saving' | 'error'
   onHome: () => void
@@ -58,7 +59,7 @@ const VIEW_ICONS = {
 
 const VIEW_ORDER: WorkspaceView[] = ['equipment', 'passive', 'skills', 'calculation']
 
-export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange, saveStatus, onHome, onImport, onSave, onSettings }: ToolbarProps) {
+export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onImport, onSave, onSettings }: ToolbarProps) {
   const { t, lang } = useTranslation()
   const zoom = useTreeStore((state) => state.zoom)
   const treeVersion = useTreeStore((state) => state.treeVersion)
@@ -273,7 +274,7 @@ export function Toolbar({ activeView, onViewChange, buildName, onBuildNameChange
       </div>
 
       {activeMenu && <div className="command-popover">
-        {activeMenu === 'export' && <ExportPanel embedded />}
+        {activeMenu === 'export' && <ExportPanel embedded buildName={buildName} sourceUrl={buildSourceUrl} />}
       </div>}
     </header>
   )

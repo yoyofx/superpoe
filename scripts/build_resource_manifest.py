@@ -114,12 +114,34 @@ def validate_and_collect(version: str) -> tuple[dict[str, Any], list[str]]:
     validate_local_paths("skill-index", indexed_skill_paths, errors)
 
     versions = [value for value in tree_versions if isinstance(value, str)]
+    planner_passive_counts: dict[str, int] = {}
     if version not in versions:
         errors.append(f"tree: requested version {version} is absent from tree-versions.json")
     for tree_version in versions:
         tree_path = DATA / f"tree-web-{tree_version}.json"
         if not tree_path.is_file() or tree_path.stat().st_size == 0:
             errors.append(f"tree: missing data/tree-web-{tree_version}.json")
+        else:
+            tree = load_json(tree_path)
+            planner_path = DATA / f"build-planner-passives-{tree_version}.json"
+            if not planner_path.is_file():
+                errors.append(f"planner: missing data/build-planner-passives-{tree_version}.json")
+            else:
+                planner = load_json(planner_path)
+                planner_nodes = planner.get("nodes", {})
+                required_nodes = {
+                    str(node_id)
+                    for node_id, node in tree.get("nodes", {}).items()
+                    if node.get("type") not in {"ClassStart", "AscendClassStart", "OnlyImage"}
+                }
+                missing_nodes = required_nodes - planner_nodes.keys()
+                if planner.get("treeVersion") != tree_version:
+                    errors.append(f"planner: version mismatch in {planner_path.name}")
+                if missing_nodes:
+                    errors.append(
+                        f"planner: {tree_version} is missing {len(missing_nodes)} allocatable passive ids"
+                    )
+                planner_passive_counts[tree_version] = len(planner_nodes)
         for asset_dir in ("dds", "orbit", "connectors"):
             path = PUBLIC / "assets" / asset_dir / tree_version
             if not path.is_dir() or not any(file.is_file() for file in path.rglob("*")):
@@ -138,6 +160,7 @@ def validate_and_collect(version: str) -> tuple[dict[str, Any], list[str]]:
 
     stats = {
         "treeVersions": versions,
+        "buildPlannerPassives": planner_passive_counts,
         "itemIcons": len(item_icons.get("items", [])),
         "itemBases": len(item_bases.get("bases", {})),
         "runeDetails": len(rune_details.get("lookup", {})),

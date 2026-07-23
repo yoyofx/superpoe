@@ -1,5 +1,5 @@
-import { app, BrowserWindow, ipcMain, Menu, net, protocol, shell } from 'electron'
-import { readFileSync } from 'node:fs'
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseWeGameShareCode, requestPoe2dbBuild } from './poe2dbClient.js'
@@ -16,6 +16,43 @@ const packageMetadata = JSON.parse(readFileSync(path.join(app.getAppPath(), 'pac
 const productName = packageMetadata.build?.productName || packageMetadata.name
 
 if (!productName) throw new Error('package.json must define build.productName or name')
+
+interface GameBuildFilePayload {
+  content: string
+  fileName: string
+}
+
+function validateGameBuildPayload(value: unknown): GameBuildFilePayload {
+  if (!value || typeof value !== 'object') throw new Error('Invalid game build payload')
+  const payload = value as Partial<GameBuildFilePayload>
+  if (typeof payload.content !== 'string' || !payload.content || payload.content.length > 5_000_000) {
+    throw new Error('Invalid game build content')
+  }
+  const parsed = JSON.parse(payload.content) as { name?: unknown }
+  if (!parsed || typeof parsed !== 'object' || typeof parsed.name !== 'string') {
+    throw new Error('Game build must contain a name')
+  }
+  const baseName = path.basename(typeof payload.fileName === 'string' ? payload.fileName : 'SuperPoE2 Build.build')
+  const safeName = baseName.replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ').trim() || 'SuperPoE2 Build.build'
+  return { content: payload.content, fileName: safeName.toLowerCase().endsWith('.build') ? safeName : `${safeName}.build` }
+}
+
+function getGameBuildPlannerDirectory(): string {
+  if (process.platform === 'linux') {
+    const steamOsPath = path.join(
+      app.getPath('home'),
+      '.local', 'share', 'Steam', 'steamapps', 'compatdata', '2315204395', 'pfx',
+      'drive_c', 'users', 'steamuser', 'Documents', 'My Games', 'Path of Exile 2', 'BuildPlanner',
+    )
+    if (existsSync(path.dirname(steamOsPath))) return steamOsPath
+  }
+  return path.join(app.getPath('documents'), 'My Games', 'Path of Exile 2', 'BuildPlanner')
+}
+
+function writeGameBuildFile(filePath: string, content: string): void {
+  mkdirSync(path.dirname(filePath), { recursive: true })
+  writeFileSync(filePath, content, 'utf8')
+}
 
 const appDataPath = app.getPath('appData')
 const userDataPath = path.join(appDataPath, productName)
@@ -130,6 +167,26 @@ app.whenReady().then(() => {
   ipcMain.handle('pob2:import-wegame', async (_event, url: unknown) => {
     const shareCode = parseWeGameShareCode(url)
     return requestPoe2dbBuild(shareCode)
+  })
+
+  ipcMain.handle('pob2:save-game-build', async (_event, value: unknown) => {
+    const payload = validateGameBuildPayload(value)
+    const result = await dialog.showSaveDialog({
+      title: '保存游戏规划器文件',
+      defaultPath: path.join(getGameBuildPlannerDirectory(), payload.fileName),
+      filters: [{ name: 'Path of Exile 2 Build Planner', extensions: ['build'] }],
+      properties: ['createDirectory', 'showOverwriteConfirmation'],
+    })
+    if (result.canceled || !result.filePath) return { canceled: true }
+    writeGameBuildFile(result.filePath, payload.content)
+    return { canceled: false, filePath: result.filePath }
+  })
+
+  ipcMain.handle('pob2:install-game-build', async (_event, value: unknown) => {
+    const payload = validateGameBuildPayload(value)
+    const filePath = path.join(getGameBuildPlannerDirectory(), payload.fileName)
+    writeGameBuildFile(filePath, payload.content)
+    return { canceled: false, filePath }
   })
 
   ipcMain.on('updater:set-config', (_event, config: { channel?: UpdateChannel; intervalMinutes?: number }) => {

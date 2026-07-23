@@ -19,6 +19,9 @@ export interface SkillCatalogEntry {
   localizedNames?: Record<string, string>
   localizedDescriptions?: Record<string, string>
   localizationSources?: Record<string, string>
+  plannerParentSkillId?: string
+  plannerSkillId?: string
+  isAscendancySkill?: boolean
   icon?: string | null
   iconSource?: 'pob' | 'poe2db' | 'family-fallback' | null
   iconFallbackFrom?: string

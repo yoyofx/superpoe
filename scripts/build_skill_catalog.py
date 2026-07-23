@@ -56,6 +56,15 @@ def parse_tags(block: str) -> list[str]:
     return sorted(set(re.findall(r'^\s*([a-zA-Z0-9_]+)\s*=\s*true', match.group(1), re.M)))
 
 
+def related_skill_ids(block: str) -> list[str]:
+    values = re.findall(
+        r'^\s*(?:additionalGrantedEffectId|additionalStatSet)\d+\s*=\s*"((?:\\.|[^"])*)"',
+        block,
+        re.M,
+    )
+    return sorted(set(lua_string(value) for value in values))
+
+
 def parse_gems() -> list[dict[str, Any]]:
     if not GEMS_PATH.is_file():
         raise SystemExit(f"Missing PoB gem data: {GEMS_PATH}")
@@ -71,6 +80,7 @@ def parse_gems() -> list[dict[str, Any]]:
             "gameId": field(block, "gameId"),
             "variantId": field(block, "variantId"),
             "skillId": skill_id,
+            "relatedSkillIds": related_skill_ids(block),
             "name": name,
             "baseTypeName": field(block, "baseTypeName"),
             "gemType": field(block, "gemType") or "Unknown",
@@ -276,9 +286,48 @@ def build_catalog() -> dict[str, Any]:
         }
         existing_aliases.update(normalize(str(alias)) for alias in aliases if alias)
 
+    # Build Planner entries reference BaseItemTypes, so secondary forms of an
+    # ascendancy skill must resolve back to the parent virtual gem.
+    for gem in gems:
+        if "SkillGemAscendancy" not in str(gem.get("metadataId", "")) \
+                and "SkillGemAscendancy" not in str(gem.get("gameId", "")):
+            continue
+        parent_skill_id = str(gem["skillId"])
+        for related_skill_id in gem.get("relatedSkillIds", []):
+            related_entry = entries.get(related_skill_id)
+            if related_entry and not related_entry.get("gemIds") and related_entry.get("type") != "support":
+                related_entry["plannerParentSkillId"] = parent_skill_id
+
+    djinn_families = {
+        "SandDjinn": "SummonSandDjinnPlayer",
+        "WaterDjinn": "SummonWaterDjinnPlayer",
+        "FireDjinn": "SummonFireDjinnPlayer",
+    }
+    for skill_id, entry in entries.items():
+        if entry.get("gemIds") or entry.get("type") != "hidden":
+            continue
+        for family, parent_skill_id in djinn_families.items():
+            if family in skill_id:
+                entry["plannerParentSkillId"] = parent_skill_id
+                break
+
     for entry in entries.values():
         for key in ("gemIds", "gameIds", "variantIds", "aliases", "tags", "sourceFiles"):
             entry[key] = sorted(set(filter(None, entry.get(key, []))))
+        planner_source = entry
+        if entry.get("plannerParentSkillId"):
+            planner_source = entries.get(str(entry["plannerParentSkillId"]), entry)
+        planner_skill_id = next((
+            str(value) for value in [*planner_source.get("gameIds", []), *planner_source.get("gemIds", [])]
+            if str(value).startswith("Metadata/Items/")
+        ), None)
+        if planner_skill_id:
+            entry["plannerSkillId"] = planner_skill_id
+        if entry.get("plannerParentSkillId") or any(
+            "SkillGemAscendancy" in str(value)
+            for value in [*entry.get("gameIds", []), *entry.get("gemIds", [])]
+        ):
+            entry["isAscendancySkill"] = True
         icon = resolve_icon(entry, icon_lookup)
         if icon:
             entry["icon"] = icon

@@ -154,6 +154,7 @@ npm run pipeline:all -- 0_5
 
 ```bash
 npm run pipeline:tree
+npm run pipeline:planner
 npm run pipeline:orbit
 npm run pipeline:ui
 npm run pipeline:dds
@@ -169,6 +170,12 @@ npm run pipeline:manifest -- 0_5
 npm run pipeline:check
 npm run pipeline:all
 ```
+
+### 游戏规划器文件
+
+桌面应用的“导出”菜单支持生成 Path of Exile 2 官方实验性 `.build` 规划器文件。可以选择“另存为”，也可以一键安装到游戏的 `BuildPlanner` 目录。导出内容包括天赋、武器组天赋、升华、技能与辅助关系，以及官方格式允许的装备槽位提示；它不会伪造完整稀有装备实例。
+
+天赋规划器使用的字符串 ID 与 PoB 数字节点 ID 不同。`npm run pipeline:planner -- 0_5` 会从 PoE2DB 天赋树数据生成 `public/data/build-planner-passives-0_5.json`，并验证所有可分配节点均已映射。`pipeline:all` 已包含这一步，未来生成新天赋版本时无需手工维护节点映射；映射不完整会直接终止资源流水线。
 
 `npm run pipeline:lua` 会从 `upstreams/PathOfBuilding-PoE2/src` 和 `upstreams/PathOfBuilding-PoE2/runtime/lua` 生成 `public/pob-lua/`。这个目录供浏览器计算 worker 懒加载，不直接修改上游源码。如果上游 PoB2 Lua 文件更新，重新运行该命令即可刷新前端 Lua bundle。
 

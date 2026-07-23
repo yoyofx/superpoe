@@ -27,6 +27,7 @@ if (dryRun) {
   run('Tree and visual assets', 'python', [
     'scripts/extract_game_assets.py', '--version', version, ...extractFlags, '--dry-run',
   ])
+  planned('Game Build Planner passive ids', ['scripts/sync_build_planner_passives.py', version])
   run('Item and skill images', 'python', ['scripts/sync_poe2db_item_icons.py', '--dry-run'])
   planned('Canonical skill catalog', ['scripts/build_skill_catalog.py'])
   planned('Rune and socket details', ['scripts/build_rune_details.py'])
@@ -42,6 +43,7 @@ run('Workbench UI assets', 'python', ['scripts/sync_wegame_ui_assets.py'])
 run('Tree and visual assets', 'python', [
   'scripts/extract_game_assets.py', '--version', version, ...extractFlags,
 ])
+run('Game Build Planner passive ids', 'python', ['scripts/sync_build_planner_passives.py', version])
 run('Item and skill images', 'python', ['scripts/sync_poe2db_item_icons.py'])
 run('Canonical skill catalog', 'python', ['scripts/build_skill_catalog.py'])
 run('Rune and socket details', 'python', ['scripts/build_rune_details.py'])

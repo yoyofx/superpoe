@@ -70,4 +70,30 @@ describe('canonical skill catalog', () => {
     expect(atziri?.localizedNames?.['zh-rCN']).toBe('阿兹里的圣礼')
     expect(atziri?.localizedDescriptions?.['zh-rCN']).toContain('保留生命')
   })
+
+  it('links ascendancy secondary forms to exportable parent skill items', () => {
+    expect(catalog.entries.ExplosiveTeleportSandDjinn.plannerParentSkillId).toBe('SummonSandDjinnPlayer')
+    expect(catalog.entries.ChilledGroundBurstWaterDjinn.plannerParentSkillId).toBe('SummonWaterDjinnPlayer')
+    expect(catalog.entries.MeteorFireDjinn.plannerParentSkillId).toBe('SummonFireDjinnPlayer')
+
+    const linked = Object.values(catalog.entries).filter((entry) => entry.plannerParentSkillId)
+    expect(linked.length).toBeGreaterThan(20)
+    for (const entry of linked) {
+      expect(entry.type, entry.id).not.toBe('support')
+      const parent = catalog.entries[entry.plannerParentSkillId!]
+      expect(parent, entry.id).toBeDefined()
+      expect([...parent.gameIds, ...parent.gemIds].some((id) => id.startsWith('Metadata/Items/')), entry.id).toBe(true)
+    }
+  })
+
+  it('gives every ascendancy skill form a planner item id', () => {
+    const ascendancySkills = Object.values(catalog.entries).filter((entry) => entry.isAscendancySkill)
+    expect(ascendancySkills.length).toBeGreaterThan(60)
+    for (const entry of ascendancySkills) {
+      expect(entry.plannerSkillId, entry.id).toMatch(/^Metadata\/Items\//)
+    }
+
+    const primaryPlannerIds = new Set(ascendancySkills.map((entry) => entry.plannerSkillId))
+    expect(primaryPlannerIds.size).toBeGreaterThan(40)
+  })
 })

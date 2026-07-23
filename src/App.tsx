@@ -28,6 +28,7 @@ export default function App() {
   const [buildName, setBuildName] = useState(lang === 'zh-rCN' ? '未命名构筑' : 'Untitled build')
   const [activeBuildId, setActiveBuildId] = useState<string | null>(null)
   const [buildSource, setBuildSource] = useState<SavedBuild['source']>('local')
+  const [buildSourceUrl, setBuildSourceUrl] = useState<string | null>(null)
   const [saveStatus, setSaveStatus] = useState<'saved' | 'dirty' | 'saving' | 'error'>('saved')
   const [saveNotice, setSaveNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [newBuildOpen, setNewBuildOpen] = useState(false)
@@ -146,10 +147,11 @@ export default function App() {
     setSaveStatus('saved')
   }, [])
 
-  const enterEditor = useCallback((name: string, id: string | null = null, source: SavedBuild['source'] = 'local') => {
+  const enterEditor = useCallback((name: string, id: string | null = null, source: SavedBuild['source'] = 'local', sourceUrl: string | null = null) => {
     setBuildName(name)
     setActiveBuildId(id)
     setBuildSource(source)
+    setBuildSourceUrl(sourceUrl)
     setActiveView('equipment')
     setScreen('editor')
     window.setTimeout(markClean, 0)
@@ -157,7 +159,7 @@ export default function App() {
 
   const handleOpenBuild = useCallback(async (build: SavedBuild) => {
     await Promise.resolve(loadBuild(build.id))
-    enterEditor(build.name, build.id, build.source || (build.importedBuildCode ? 'pob' : 'local'))
+    enterEditor(build.name, build.id, build.source || (build.importedBuildCode ? 'pob' : 'local'), build.sourceUrl || null)
   }, [enterEditor, loadBuild])
 
   const handleCreateBuild = useCallback(async (input: NewBuildInput) => {
@@ -185,6 +187,7 @@ export default function App() {
       setActiveBuildId(null)
     }
     setBuildSource(confirmation.kind)
+    setBuildSourceUrl(confirmation.sourceUrl || null)
     setActiveView('equipment')
     setScreen('editor')
     window.setTimeout(markClean, 0)
@@ -193,7 +196,7 @@ export default function App() {
   const handleSave = useCallback(() => {
     setSaveStatus('saving')
     try {
-      const savedId = saveBuild(buildName.trim() || (lang === 'zh-rCN' ? '未命名构筑' : 'Untitled build'), activeBuildId, buildSource)
+      const savedId = saveBuild(buildName.trim() || (lang === 'zh-rCN' ? '未命名构筑' : 'Untitled build'), activeBuildId, buildSource, buildSourceUrl)
       setActiveBuildId(savedId)
       markClean()
       setSaveNotice({ type: 'success', message: lang === 'zh-rCN' ? '构筑已保存' : 'Build saved' })
@@ -201,7 +204,7 @@ export default function App() {
       setSaveStatus('error')
       setSaveNotice({ type: 'error', message: lang === 'zh-rCN' ? '保存失败，请检查本地存储空间' : 'Save failed. Check local storage availability.' })
     }
-  }, [activeBuildId, buildName, buildSource, lang, markClean, saveBuild])
+  }, [activeBuildId, buildName, buildSource, buildSourceUrl, lang, markClean, saveBuild])
 
   const handleBuildNameChange = useCallback((name: string) => {
     setBuildName(name)
@@ -239,7 +242,7 @@ export default function App() {
   return (
     <div className="superpoe-app">
       {screen === 'center' ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onSettings={() => setSettingsOpen(true)} /> : <>
-      <Toolbar activeView={activeView} onViewChange={setActiveView} buildName={buildName} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} onSettings={() => setSettingsOpen(true)} />
+      <Toolbar activeView={activeView} onViewChange={setActiveView} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} onSettings={() => setSettingsOpen(true)} />
       <main className="workspace-view">
         {activeView === 'passive' && (
           <section className="passive-workspace">

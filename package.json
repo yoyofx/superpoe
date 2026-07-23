@@ -21,6 +21,7 @@
     "test:ci": "vitest run --config vitest.client.config.ts --exclude src/engine/pobLuaRuntime.test.ts",
     "test:lua": "cd scripts/spec && busted .",
     "pipeline:tree": "python scripts/gen_tree_data.py 0_4",
+    "pipeline:planner": "python scripts/sync_build_planner_passives.py",
     "pipeline:orbit": "python scripts/copy_orbit_png.py",
     "pipeline:ui": "python scripts/copy_ui_assets.py",
     "pipeline:workbench-ui": "python scripts/sync_wegame_ui_assets.py",

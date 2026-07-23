@@ -28,6 +28,8 @@ declare global {
   interface Window {
     pob2Desktop?: {
       importWeGame(url: string): Promise<{ code: string; sourceUrl: string }>
+      saveGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
+      installGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: false; filePath: string }>
     }
     pob2Updater?: {
       check(channel?: 'release' | 'dev'): Promise<UpdateCheckResult>

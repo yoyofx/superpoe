@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, MoreVertical, Plus, Search, Settings, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, ListFilter, MoreVertical, Plus, Search, Settings, Trash2 } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
@@ -49,30 +49,40 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
   const [query, setQuery] = useState('')
   const [rowMenu, setRowMenu] = useState<RowMenuState | null>(null)
   const [page, setPage] = useState(1)
+  const [versionFilter, setVersionFilter] = useState('all')
   const [assetIndexes, setAssetIndexes] = useState<Record<string, SpriteIndex>>({})
   const zh = lang === 'zh-rCN'
 
+  const sortedBuilds = useMemo(() => [...savedBuilds].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [savedBuilds])
   const builds = useMemo(() => {
     const normalized = query.trim().toLowerCase()
-    const sorted = [...savedBuilds].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-    if (!normalized) return sorted
-    return sorted.filter((build) => {
+    if (!normalized) return sortedBuilds
+    return sortedBuilds.filter((build) => {
       const cls = treeData?.constants.classes[build.selectedClassId]
       const asc = cls?.ascendancies.find((item) => (item.id || item.name) === build.selectedAscendancyId)
       return [build.name, cls?.name, cls?.displayName, asc?.name, asc?.displayName, buildRealmLabel(build.realm, zh)]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(normalized))
     })
-  }, [query, savedBuilds, treeData, zh])
-  const recentBuilds = builds.slice(0, 4)
-  const pageCount = Math.max(1, Math.ceil(builds.length / BUILDS_PER_PAGE))
+  }, [query, sortedBuilds, treeData, zh])
+  const buildVersions = useMemo(() => [...new Set(savedBuilds.map((build) => build.treeVersion).filter(Boolean))]
+    .sort((a, b) => b.localeCompare(a, undefined, { numeric: true })), [savedBuilds])
+  const filteredBuilds = useMemo(() => versionFilter === 'all'
+    ? builds
+    : builds.filter((build) => build.treeVersion === versionFilter), [builds, versionFilter])
+  const recentBuilds = sortedBuilds.slice(0, 4)
+  const pageCount = Math.max(1, Math.ceil(filteredBuilds.length / BUILDS_PER_PAGE))
   const currentPage = Math.min(page, pageCount)
   const pageStart = (currentPage - 1) * BUILDS_PER_PAGE
-  const pagedBuilds = builds.slice(pageStart, pageStart + BUILDS_PER_PAGE)
+  const pagedBuilds = filteredBuilds.slice(pageStart, pageStart + BUILDS_PER_PAGE)
 
   useEffect(() => {
     setPage(1)
-  }, [query])
+  }, [query, versionFilter])
+
+  useEffect(() => {
+    if (versionFilter !== 'all' && !buildVersions.includes(versionFilter)) setVersionFilter('all')
+  }, [buildVersions, versionFilter])
 
   useEffect(() => {
     const versions = [...new Set(savedBuilds.map((build) => build.treeVersion).filter(Boolean))]
@@ -111,7 +121,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
 
   useEffect(() => {
     setRowMenu(null)
-  }, [currentPage, query])
+  }, [currentPage, query, versionFilter])
 
   const toggleRowMenu = (buildId: string, button: HTMLButtonElement) => {
     if (rowMenu?.buildId === buildId) {
@@ -147,19 +157,17 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
     <div className="build-center">
       <header className="center-app-bar">
         <div className="app-brand center-brand"><img className="app-brand-logo" src="/assets/ui/superpoe2-logo.png" alt="" /><span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span></div>
-        <label className="build-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={zh ? '搜索构筑名称、职业或升华' : 'Search builds, classes, or ascendancies'} /></label>
         <div className="center-actions">
           <button className="icon-command" onClick={onSettings} title={zh ? '全局设置' : 'Global settings'} aria-label={zh ? '全局设置' : 'Global settings'}><Settings /></button>
           <button className="icon-command" title={zh ? '帮助' : 'Help'} aria-label={zh ? '帮助' : 'Help'}><CircleHelp /></button>
         </div>
-      </header>
-
-      <main className="build-center-content">
         <div className="center-command-row">
           <div><h1>{zh ? '构筑中心' : 'Build center'}</h1><p>{zh ? '管理本地构筑，或从 PoB、WeGame 和 JSON 导入。' : 'Manage local builds or import from PoB, WeGame, and JSON.'}</p></div>
           <div><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button></div>
         </div>
+      </header>
 
+      <main className="build-center-content">
         {savedBuilds.length === 0 ? (
           <section className="center-empty-state">
             <span className="empty-build-mark">S</span>
@@ -182,7 +190,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
           </section>
 
           <section className="build-table-section">
-            <div className="center-section-title"><h2>{zh ? '我的构筑' : 'My builds'}</h2><span>{builds.length}</span></div>
+            <div className="center-section-title"><h2>{zh ? '我的构筑' : 'My builds'}</h2><span>{filteredBuilds.length}</span><label className="build-list-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={zh ? '搜索构筑、职业或升华' : 'Search builds, classes, or ascendancies'} /></label><label className="build-version-filter"><ListFilter /><select value={versionFilter} onChange={(event) => setVersionFilter(event.target.value)} aria-label={zh ? '按版本筛选构筑' : 'Filter builds by version'}><option value="all">{zh ? '全部版本' : 'All versions'}</option>{buildVersions.map((version) => <option key={version} value={version}>{version.replace('_', '.')}</option>)}</select></label></div>
             <div className="build-table-wrap">
               <div className="build-table-viewport">
                 <table className="build-table">
@@ -201,10 +209,10 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
                     </tr>
                   })}</tbody>
                 </table>
-                {builds.length === 0 && <div className="table-empty">{zh ? '没有匹配的构筑' : 'No matching builds'}</div>}
+                {filteredBuilds.length === 0 && <div className="table-empty">{zh ? '没有匹配的构筑' : 'No matching builds'}</div>}
               </div>
               <footer className="build-pagination">
-                <span>{builds.length === 0 ? '0' : `${pageStart + 1}-${Math.min(pageStart + BUILDS_PER_PAGE, builds.length)}`} / {builds.length}</span>
+                <span>{filteredBuilds.length === 0 ? '0' : `${pageStart + 1}-${Math.min(pageStart + BUILDS_PER_PAGE, filteredBuilds.length)}`} / {filteredBuilds.length}</span>
                 <div>
                   <button className="icon-command compact" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} title={zh ? '上一页' : 'Previous page'} aria-label={zh ? '上一页' : 'Previous page'}><ChevronLeft /></button>
                   <span>{currentPage} / {pageCount}</span>
