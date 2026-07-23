@@ -18,11 +18,16 @@ function parseItem(id: string, rawValue: unknown): EquipmentItem {
     return result
   }, [])
   const rarity = lines[0]?.replace(/^Rarity:\s*/i, '') || 'NORMAL'
+  const isMetadataLine = (value: string | undefined) => !value || /^(?:Unique ID|Item Level|LevelReq|Quality|Sockets|Rune|Implicits):/i.test(value)
   const magicBase = rarity.toUpperCase() === 'MAGIC'
     ? lines[1]?.match(/^MAGIC\s+(.+?)\s+[a-f0-9]{8,}$/i)?.[1]
     : undefined
-  const isMetadataLine = (value: string | undefined) => !value || /^(?:Unique ID|Item Level|LevelReq|Quality|Sockets|Rune|Implicits):/i.test(value)
-  const name = magicBase || lines[1] || 'Unknown item'
+  const generatedRareBase = rarity.toUpperCase() === 'RARE'
+    && /^RARE\s+\S+$/i.test(lines[1] || '')
+    && !isMetadataLine(lines[2])
+    ? lines[2]
+    : undefined
+  const name = magicBase || generatedRareBase || lines[1] || 'Unknown item'
   const baseType = magicBase || (!isMetadataLine(lines[2]) ? lines[2] : name)
   const valueOf = (label: string) => lines.find((line) => line.startsWith(label))?.slice(label.length).trim()
   const detailStart = lines.findIndex((line) => /^Implicits:\s*\d+/i.test(line))
