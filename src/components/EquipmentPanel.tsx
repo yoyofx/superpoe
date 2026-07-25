@@ -9,7 +9,7 @@ import {
   type EquipmentAffixSummary,
 } from '@/engine/equipmentAffixes'
 import { parseEquipmentXml } from '@/engine/equipment'
-import { deriveItemDisplayStats } from '@/engine/itemDisplayStats'
+import { deriveItemDisplayRequirements, deriveItemDisplayStats, deriveWeaponComparisonStats } from '@/engine/itemDisplayStats'
 import { loadItemBaseData, resolveItemBaseData, type ItemBaseData } from '@/engine/itemBaseData'
 import { loadItemIconIndex, resolveItemIcon, resolveItemIconName, type ItemIconIndex } from '@/engine/itemIcons'
 import {
@@ -18,7 +18,7 @@ import {
   resolveRuneVariant,
   type RuneDetailIndex,
 } from '@/engine/runeDetails'
-import { translateGameText } from '@/i18n/translationLoader'
+import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { useTreeStore } from '@/store/treeStore'
 import type { EquipmentItem, EquipmentSet, EquipmentSlot } from '@/types/equipment'
@@ -63,15 +63,13 @@ const RARITY_CLASS: Record<string, string> = {
 }
 
 const ITEM_STAT_LABELS: Record<string, { en: string; zh: string }> = {
+  quality: { en: 'Quality', zh: '品质' },
   physicalDamage: { en: 'Physical Damage', zh: '物理伤害' },
-  fireDamage: { en: 'Fire Damage', zh: '火焰伤害' },
-  coldDamage: { en: 'Cold Damage', zh: '冰霜伤害' },
-  lightningDamage: { en: 'Lightning Damage', zh: '闪电伤害' },
+  elementalDamage: { en: 'Elemental Damage', zh: '元素伤害' },
   chaosDamage: { en: 'Chaos Damage', zh: '混沌伤害' },
   criticalHitChance: { en: 'Critical Hit Chance', zh: '暴击率' },
   attacksPerSecond: { en: 'Attacks per Second', zh: '每秒攻击次数' },
   reloadTime: { en: 'Reload Time', zh: '装填时间' },
-  weaponRange: { en: 'Weapon Range', zh: '武器范围' },
   blockChance: { en: 'Chance to Block', zh: '格挡几率' },
   armour: { en: 'Armour', zh: '护甲' },
   evasion: { en: 'Evasion Rating', zh: '闪避值' },
@@ -84,6 +82,24 @@ const ITEM_STAT_LABELS: Record<string, { en: string; zh: string }> = {
 }
 
 const MODIFIER_GROUP_ORDER = ['enchant', 'rune', 'implicit', 'explicit'] as const
+
+function translateItemName(value: string, rarity: string, language: Language): string {
+  const translated = translateGameText(value, language)
+  if (language === 'en' || translated !== value || rarity.toUpperCase() !== 'RARE') return translated
+
+  const parts = value.split(/\s+/).filter(Boolean)
+  const translatedParts = parts.map((part) => translateGameText(part, language))
+  return translatedParts.some((part, index) => part !== parts[index]) ? translatedParts.join(' ') : value
+}
+
+function itemClassLabel(item: EquipmentItem, base: ItemBaseData | undefined, language: Language): string {
+  if (/\bQuarterstaff\b/i.test(item.baseType)) {
+    if (language === 'zh-rCN') return '节杖'
+    if (language === 'zh-rTW') return '細杖'
+    return translateGameText('Quarterstaff', language)
+  }
+  return translateGameText(base?.subType || base?.type || item.baseType, language)
+}
 
 type EquipmentAffixGroup = 'attack' | 'defence' | 'attributes' | 'important' | 'other'
 
@@ -376,36 +392,55 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
   const rarityKey = rarityClass.replace('rarity-', '')
   const runicHeader = /^(?:Runeforged|Runemastered)\b/i.test(item.baseType)
   const displayStats = deriveItemDisplayStats(item, base)
-  const modifiers = item.modifiers || item.lines.map((line) => ({ text: line.replace(/\{[^}]+\}/g, ''), tags: [], group: 'explicit' as const }))
+  const weaponComparisonStats = deriveWeaponComparisonStats(item, base)
+  const modifiers = (item.modifiers || item.lines.map((line) => ({ text: line.replace(/\{[^}]+\}/g, ''), tags: [], group: 'explicit' as const })))
+    .filter((modifier) => !/^Bonded\s*:/i.test(modifier.text))
   const modifierGroups = MODIFIER_GROUP_ORDER
     .map((group) => ({ group, entries: modifiers.filter((modifier) => modifier.group === group) }))
     .filter(({ entries }) => entries.length)
   const requirements = base?.requirements || {}
+  const displayRequirements = deriveItemDisplayRequirements(item, base)
+  const attributeRequirements = ([
+    ['str', '力量', 'Str'],
+    ['dex', '敏捷', 'Dex'],
+    ['int', '智慧', 'Int'],
+  ] as const).filter(([field]) => requirements[field])
+  const propertyType = itemClassLabel(item, base, lang)
 
   return (
     <aside className="equipment-inspector">
       <header className={`inspector-title item-header-${rarityKey} ${runicHeader ? 'runic-item-header' : ''} ${rarityClass}`}>
         <div className="item-header-copy">
-          <h2>{translateItemText(item.name)}</h2>
+          <h2>{translateItemName(item.name, item.rarity, lang)}</h2>
           {item.name !== item.baseType && <p>{translateItemText(item.baseType)}</p>}
         </div>
       </header>
 
       <div className="inspector-scroll">
-        <div className="item-property-type">{translateItemText(base?.subType || base?.type || item.baseType)}</div>
+        <div className="item-property-type">
+          {propertyType}{item.itemLevel ? `: ${t('equipment.itemLevel', { value: item.itemLevel })}` : ''}
+        </div>
         {displayStats.length > 0 && <div className="item-display-stats">
           {displayStats.map((stat) => <div key={stat.key}>
             <span>{ITEM_STAT_LABELS[stat.key]?.[lang === 'zh-rCN' ? 'zh' : 'en'] || stat.key}:</span>
-            <strong className={stat.tone ? `stat-${stat.tone}` : ''}>{stat.value}</strong>
+            <strong className={[stat.tone ? `stat-${stat.tone}` : '', stat.augmented ? 'stat-augmented' : ''].filter(Boolean).join(' ')}>
+              {stat.segments
+                ? stat.segments.map((segment, index) => <span className={`stat-${segment.tone}`} key={`${segment.tone}-${segment.value}`}>{index ? ', ' : ''}{segment.value}</span>)
+                : stat.value}
+            </strong>
           </div>)}
         </div>}
         <div className="item-metadata">
-          {item.itemLevel && <span>{t('equipment.itemLevel', { value: item.itemLevel })}</span>}
           {item.levelReq && <span>{t('equipment.levelReq', { value: item.levelReq })}</span>}
-          {requirements.str && <span>{lang === 'zh-rCN' ? `力量 ${requirements.str}` : `Str ${requirements.str}`}</span>}
-          {requirements.dex && <span>{lang === 'zh-rCN' ? `敏捷 ${requirements.dex}` : `Dex ${requirements.dex}`}</span>}
-          {requirements.int && <span>{lang === 'zh-rCN' ? `智慧 ${requirements.int}` : `Int ${requirements.int}`}</span>}
-          {item.quality && <span>{t('equipment.quality', { value: item.quality })}</span>}
+          {attributeRequirements.map(([field, zhLabel, enLabel]) => {
+            const value = displayRequirements[field] || requirements[field]
+            const augmented = value !== requirements[field]
+            return <span key={field}>
+              {lang === 'zh-rCN'
+                ? <><strong className={augmented ? 'requirement-augmented' : ''}>{value}</strong> {zhLabel}</>
+                : <>{enLabel} <strong className={augmented ? 'requirement-augmented' : ''}>{value}</strong></>}
+            </span>
+          })}
           {item.sockets && <span>{t('equipment.sockets', { value: item.sockets })}</span>}
         </div>
 
@@ -417,6 +452,12 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
             })}
           </section>)}
         </div>
+
+        {weaponComparisonStats.length > 0 && <div className="weapon-comparison-stats">
+          {weaponComparisonStats.map((stat) => <span key={stat.key}>
+            <strong>{stat.key}</strong> {stat.value}
+          </span>)}
+        </div>}
 
         {!!Math.max(item.socketCount, socketedItems?.length || 0) && <>
           <div className="inspector-section-title"><span>{lang === 'zh-rCN' ? '孔位镶嵌物' : 'Socketed items'}</span><small>{Math.max(item.socketCount, item.runes.length + (socketedItems?.length || 0))}</small></div>

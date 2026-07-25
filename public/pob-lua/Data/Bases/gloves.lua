@@ -641,7 +641,7 @@ itemBases["Runeforged Grand Bracers"] = {
 	socketLimit = 3,
 	tags = { armour = true, default = true, dex_armour = true, gloves = true, runeforged = true, },
 	implicitModTypes = { },
-	armour = { Evasion = 96, Ward = 63, },
+	armour = { Evasion = 109, Ward = 63, },
 	req = { level = 70, dex = 87, },
 }
 itemBases["Runeforged Barbed Bracers"] = {

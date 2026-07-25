@@ -245,15 +245,20 @@ svg { flex: 0 0 auto; }
 .item-property-type { color: #7f7f7f; font-size: 10px; text-align: center; }
 .item-display-stats { display: grid; gap: 3px; margin-top: 7px; font-size: 10px; text-align: center; }
 .item-display-stats span { color: #7f7f7f; }
-.item-display-stats strong { margin-left: 5px; color: #8888ff; font-weight: 500; }
+.item-display-stats strong { margin-left: 5px; color: #c8c8c8; font-weight: 500; }
 .item-display-stats .stat-physical { color: #c8c8c8; }
-.item-display-stats .stat-fire { color: #ff9900; }
+.item-display-stats .stat-fire { color: #d84a36; }
 .item-display-stats .stat-cold { color: #3f6db3; }
 .item-display-stats .stat-lightning { color: #ffff77; }
 .item-display-stats .stat-chaos { color: #d02090; }
+.item-display-stats .stat-augmented { color: #8888ff; }
 .item-metadata { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 12px; padding: 11px 4px; color: #77736c; font-size: 9px; }
+.item-metadata strong { color: inherit; font-weight: 500; }
+.item-metadata .requirement-augmented { color: #8888ff; }
 .item-modifiers { color: #aaa395; font-size: 10px; line-height: 1.65; text-align: center; }
 .item-modifiers p + p { margin-top: 2px; }
+.weapon-comparison-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #39352c; color: #c8c8c8; font-size: 10px; font-variant-numeric: tabular-nums; }
+.weapon-comparison-stats strong { color: #9e8c66; font-weight: 600; }
 .modifier-group { position: relative; padding-top: 10px; margin-top: 8px; }
 .modifier-group::before { content: ""; position: absolute; top: 0; left: 9%; width: 82%; height: 4px; background-position: center; background-repeat: no-repeat; background-size: 100% 100%; opacity: .9; }
 .rarity-normal + .inspector-scroll .modifier-group::before { background-image: url('/assets/ui/itemsseparatorwhite.png'); }

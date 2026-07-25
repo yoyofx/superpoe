@@ -3,7 +3,7 @@
   "source": "upstreams/PathOfBuilding-PoE2/src",
   "runtime": "upstreams/PathOfBuilding-PoE2/runtime/lua",
   "fileCount": 1063,
-  "totalBytes": 40109392,
+  "totalBytes": 40109391,
   "files": [
     {
       "path": "base64.lua",
@@ -477,8 +477,8 @@
     },
     {
       "path": "Data/Bases/gloves.lua",
-      "hash": "14b0cb59d22f2e93773a739ff7a17768ae9d4f686a1af330541358ab9f58a563",
-      "size": 67366
+      "hash": "d68144a2284edce8cfab9238df7754981c63626c786a4f4c68ec50ddbf924f6a",
+      "size": 67365
     },
     {
       "path": "Data/Bases/helmet.lua",
