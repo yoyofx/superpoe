@@ -1,6 +1,8 @@
 import type { EquipmentItem, EquipmentSlot } from '@/types/equipment'
+import type { EquipmentModifierRecipient } from '@/types/equipmentSemantics'
 
 export type EquipmentAffixCategory = 'attributes' | 'resources' | 'resistances' | 'defences' | 'addedDamage' | 'skillLevels' | 'offence' | 'utility' | 'special'
+export type EquipmentAffixSemanticGroup = 'flatDamage' | 'increased' | 'gain' | 'moreLess' | 'skillLevels' | 'grantedSkills' | 'speed' | 'critical' | 'accuracyPenetration' | 'ailments' | 'offenceOther'
 
 export interface EquipmentAffixSource {
   itemId: string
@@ -13,6 +15,8 @@ export interface EquipmentAffixSource {
 export interface EquipmentAffixSummary {
   key: string
   category: EquipmentAffixCategory
+  semanticGroup?: EquipmentAffixSemanticGroup
+  recipient?: EquipmentModifierRecipient
   text: string
   sources: EquipmentAffixSource[]
 }

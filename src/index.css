@@ -154,6 +154,7 @@ svg { flex: 0 0 auto; }
 .equipment-affix-row svg { width: 11px; height: 11px; margin-top: 2px; color: #766846; transition: transform .12s ease; }
 .equipment-affix.expanded > .equipment-affix-row svg { transform: rotate(90deg); }
 .equipment-affix-row span { min-width: 0; font-size: 11px; line-height: 1.45; overflow-wrap: anywhere; }
+.equipment-affix-recipient { display: inline-block; margin-right: 5px; padding: 0 3px; border: 1px solid #4d493f; color: #a99568; font-size: 8px; font-style: normal; line-height: 1.45; vertical-align: 1px; }
 .equipment-affix-row small { min-width: 16px; color: #756e62; font-size: 9px; text-align: right; }
 .equipment-affix-sources { margin: 0 4px 5px 22px; border-left: 1px solid #3d382d; }
 .equipment-affix-sources button { width: 100%; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 6px; align-items: center; padding: 5px 6px; border: 0; background: transparent; color: #716d65; text-align: left; cursor: pointer; }
@@ -162,6 +163,16 @@ svg { flex: 0 0 auto; }
 .equipment-affix-sources strong { min-width: 0; font-size: 9px; font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .equipment-affix-sources i { padding: 1px 4px; border: 1px solid #4e614e; color: #78a276; font-size: 8px; font-style: normal; }
 .equipment-affix-empty { padding: 28px 8px; color: #625f58; font-size: 10px; line-height: 1.6; text-align: center; }
+.equipment-character-summary { padding-top: 10px; }
+.equipment-character-summary section { padding: 0 3px 10px; }
+.equipment-character-summary h3 { margin: 0 0 5px; padding: 7px 2px 6px; border-bottom: 1px solid #403b31; color: #c5ad76; font: 500 12px Georgia, "Microsoft YaHei", serif; letter-spacing: 0; }
+.equipment-character-row { min-height: 28px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 3px 5px; color: #aaa397; }
+.equipment-character-row span { min-width: 0; font-size: 11px; line-height: 1.4; overflow-wrap: anywhere; }
+.equipment-character-row strong { color: #b59a62; font: 500 12px Georgia, "Microsoft YaHei", serif; text-align: right; white-space: nowrap; }
+.equipment-character-state { display: grid; gap: 10px; justify-items: center; padding: 42px 8px; color: #777269; font-size: 10px; line-height: 1.5; text-align: center; }
+.equipment-character-state.error { color: #b67a72; }
+.equipment-character-state button { min-height: 28px; padding: 0 10px; border: 1px solid #514936; background: #191a16; color: #c5ad76; font-size: 10px; cursor: pointer; }
+.equipment-character-state button:hover { border-color: #756642; background: #20211b; }
 
 .paper-doll-stage { min-width: 0; min-height: 0; display: grid; grid-template-rows: 45px minmax(0, 1fr); padding: 0 12px 10px; background: rgba(7, 9, 9, .72); overflow: hidden; }
 .paper-doll-heading { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid #343129; }

@@ -4,8 +4,8 @@ import { ChevronDown, ChevronRight, PackageOpen, Upload } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import { decodeCodeToXml } from '@/engine/buildCode'
 import {
-  aggregateEquipmentAffixes,
   type EquipmentAffixCategory,
+  type EquipmentAffixSemanticGroup,
   type EquipmentAffixSummary,
 } from '@/engine/equipmentAffixes'
 import { parseEquipmentXml } from '@/engine/equipment'
@@ -24,6 +24,7 @@ import { useTranslation } from '@/i18n/useTranslation'
 import { useTreeStore } from '@/store/treeStore'
 import type { EquipmentItem, EquipmentSet, EquipmentSlot } from '@/types/equipment'
 import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
+import type { CalcResult } from '@/types/calc'
 import { inspectEquipment } from '@/engine/pobLuaClient'
 import {
   fitPaperDoll,
@@ -104,7 +105,8 @@ function itemClassLabel(item: EquipmentItem, base: ItemBaseData | undefined, lan
   return translateGameText(base?.subType || base?.type || item.baseType, language)
 }
 
-type EquipmentAffixGroup = 'attack' | 'defence' | 'attributes' | 'important' | 'other'
+type EquipmentAffixGroup = 'attack' | 'defence' | 'life' | 'mana' | 'resistances' | 'defenceOther' | 'attributes' | 'important' | 'other' | EquipmentAffixSemanticGroup
+type EquipmentSidebarView = EquipmentSemanticView | 'character'
 
 const AFFIX_CATEGORY_ORDER: EquipmentAffixCategory[] = [
   'addedDamage',
@@ -118,15 +120,51 @@ const AFFIX_CATEGORY_ORDER: EquipmentAffixCategory[] = [
   'special',
 ]
 
-const AFFIX_GROUP_ORDER: EquipmentAffixGroup[] = ['attack', 'defence', 'attributes', 'important', 'other']
+const DEFENCE_GROUP_ORDER: EquipmentAffixGroup[] = ['life', 'mana', 'resistances', 'defenceOther']
+const OFFENCE_GROUP_ORDER: EquipmentAffixGroup[] = [
+  'flatDamage',
+  'increased',
+  'gain',
+  'moreLess',
+  'skillLevels',
+  'speed',
+  'critical',
+  'accuracyPenetration',
+  'ailments',
+  'offenceOther',
+  'grantedSkills',
+]
 
 const AFFIX_GROUP_LABELS: Record<EquipmentAffixGroup, { en: string; zh: string }> = {
   attack: { en: 'Offence', zh: '进攻' },
   defence: { en: 'Defence', zh: '防御' },
+  life: { en: 'Life', zh: '生命' },
+  mana: { en: 'Mana', zh: '魔力' },
+  resistances: { en: 'Resistances', zh: '抗性' },
+  defenceOther: { en: 'Other Defences', zh: '其他防御' },
   attributes: { en: 'Attributes', zh: '属性' },
   important: { en: 'Important', zh: '重要' },
   other: { en: 'Other', zh: '其他' },
+  flatDamage: { en: 'Flat Damage', zh: '点伤' },
+  increased: { en: 'Increased', zh: 'Increased' },
+  gain: { en: 'Gain', zh: 'Gain' },
+  moreLess: { en: 'More / Less', zh: 'More / Less' },
+  skillLevels: { en: 'Skill Level +', zh: '技能等级 +' },
+  grantedSkills: { en: 'Granted Skills', zh: '装备技能' },
+  speed: { en: 'Speed', zh: '速度' },
+  critical: { en: 'Critical', zh: '暴击' },
+  accuracyPenetration: { en: 'Accuracy / Penetration', zh: '命中 / 穿透' },
+  ailments: { en: 'Ailments / DoT', zh: '异常 / 持续伤害' },
+  offenceOther: { en: 'Other Offence', zh: '其他进攻' },
 }
+
+const RECIPIENT_LABELS = {
+  minion: { en: 'Minion', zh: '召唤物' },
+  companion: { en: 'Companion', zh: '同伴' },
+  ally: { en: 'Allies', zh: '友军' },
+  'player-and-allies': { en: 'You + Allies', zh: '自身与友军' },
+  enemy: { en: 'Enemy', zh: '敌人' },
+} as const
 
 const IMPORTANT_AFFIX_PATTERN = /accuracy|chance to hit|penetrat|enemies?.*resistance|resistance.*enemies?|breaks? armour|armour break|ignore[sd]? armour|damage over time|bleed(?:ing)?|poison|ignite|命中|穿透|敌人.*抗性|抗性.*敌人|减抗|破甲|无视护甲|持续伤害|流血|中毒|点燃/i
 const BONDED_AFFIX_PATTERN = /^\s*(?:bonded|羁绊)\s*[:：]/i
@@ -135,6 +173,7 @@ const ENEMY_STUN_THRESHOLD_PATTERN = /enem(?:y|ies).*stun threshold|stun thresho
 
 function getAffixGroup(summary: EquipmentAffixSummary): EquipmentAffixGroup {
   const { category, text } = summary
+  if (summary.semanticGroup) return summary.semanticGroup
   if (summary.sources.every((source) => /^(?:Flask|Charm)\s+\d+$/i.test(source.slotName))) return 'other'
   if (FLASK_AFFIX_PATTERN.test(text)) return 'other'
   if (BONDED_AFFIX_PATTERN.test(text)) return 'other'
@@ -144,6 +183,24 @@ function getAffixGroup(summary: EquipmentAffixSummary): EquipmentAffixGroup {
   if (category === 'resources' || category === 'resistances' || category === 'defences') return 'defence'
   if (category === 'attributes') return 'attributes'
   return 'other'
+}
+
+function getDefenceAffixGroup(summary: EquipmentAffixSummary): EquipmentAffixGroup {
+  if (summary.category === 'resistances') return 'resistances'
+  if (/\blife\b/i.test(summary.text)) return 'life'
+  if (/\bmana\b/i.test(summary.text)) return 'mana'
+  return 'defenceOther'
+}
+
+function defenceAffixRank(summary: EquipmentAffixSummary): number {
+  const text = summary.text.toLowerCase()
+  const maximumOffset = /maximum/.test(text) ? 10 : 0
+  if (/all elemental resistances?/.test(text)) return maximumOffset
+  if (/fire resistance/.test(text)) return 1 + maximumOffset
+  if (/cold resistance/.test(text)) return 2 + maximumOffset
+  if (/lightning resistance/.test(text)) return 3 + maximumOffset
+  if (/chaos resistance/.test(text)) return 4 + maximumOffset
+  return 20
 }
 
 function getSocketSlotInfo(slotName: string): { parent: string; index: number } | null {
@@ -164,12 +221,15 @@ function AffixSummaryRow({
 }) {
   const { t, lang } = useTranslation()
   const translatedText = translateGameText(summary.text, lang)
+  const recipient = summary.recipient && summary.recipient !== 'player'
+    ? RECIPIENT_LABELS[summary.recipient]
+    : undefined
 
   return (
     <div className={`equipment-affix ${expanded ? 'expanded' : ''}`}>
       <button className="equipment-affix-row" type="button" onClick={onToggle} aria-expanded={expanded}>
         <ChevronRight />
-        <span>{translatedText}</span>
+        <span>{recipient && <em className="equipment-affix-recipient">{lang === 'zh-rCN' ? recipient.zh : recipient.en}</em>}{translatedText}</span>
         <small>{summary.sources.length > 1 ? summary.sources.length : ''}</small>
       </button>
       {expanded && <div className="equipment-affix-sources">
@@ -189,6 +249,63 @@ function AffixSummaryRow({
   )
 }
 
+function characterNumber(value: number | undefined, suffix = ''): string {
+  return value == null ? '-' : `${Math.round(value)}${suffix}`
+}
+
+function CharacterSummary({ result, loading, error, onCalculate }: {
+  result: CalcResult | null
+  loading: boolean
+  error: string | null
+  onCalculate: () => void
+}) {
+  const { lang } = useTranslation()
+  const zh = lang === 'zh-rCN'
+
+  if (loading) return <div className="equipment-character-state">{zh ? '人物数据计算中' : 'Calculating character stats'}</div>
+  if (error) return <div className="equipment-character-state error"><span>{error}</span><button type="button" onClick={onCalculate}>{zh ? '重新计算' : 'Retry'}</button></div>
+  if (!result) return <div className="equipment-character-state"><button type="button" onClick={onCalculate}>{zh ? '计算人物数据' : 'Calculate character stats'}</button></div>
+
+  const movement = (result.EffectiveMovementSpeedMod ?? result.MovementSpeedMod ?? 1) * 100
+  const block = result.EffectiveBlockChance ?? result.BlockChance
+  const rows = (entries: Array<[string, string]>) => entries.map(([label, value]) => (
+    <div className="equipment-character-row" key={label}><span>{label}</span><strong>{value}</strong></div>
+  ))
+
+  return <div className="equipment-character-summary">
+    <section>
+      <h3>{zh ? '属性' : 'Attributes'}</h3>
+      {rows([
+        [zh ? '属性' : 'Attributes', `${characterNumber(result.Str)}/${characterNumber(result.Dex)}/${characterNumber(result.Int)}`],
+        [zh ? '移动速度' : 'Movement Speed', characterNumber(movement, '%')],
+      ])}
+    </section>
+    <section>
+      <h3>{zh ? '防御' : 'Defence'}</h3>
+      {rows([
+        [zh ? '生命值' : 'Life', characterNumber(result.Life)],
+        [zh ? '能量护盾' : 'Energy Shield', characterNumber(result.EnergyShield)],
+        [zh ? '精神' : 'Spirit', characterNumber(result.Spirit)],
+        [zh ? '魔力' : 'Mana', characterNumber(result.Mana)],
+        [zh ? '护甲' : 'Armour', characterNumber(result.Armour)],
+        [zh ? '物理伤害减免' : 'Physical Damage Reduction', characterNumber(result.PhysicalDamageReduction ?? result.ArmourPhysicalDamageReduction, '%')],
+        [zh ? '闪避值' : 'Evasion Rating', characterNumber(result.Evasion)],
+        [zh ? '闪避率' : 'Evade Chance', characterNumber(result.EvadeChance, '%')],
+        [zh ? '格挡率' : 'Block Chance', characterNumber(block, '%')],
+        [zh ? '抗性' : 'Resistances', `${characterNumber(result.FireResist, '%')}/${characterNumber(result.ColdResist, '%')}/${characterNumber(result.LightningResist, '%')}/${characterNumber(result.ChaosResist, '%')}`],
+      ])}
+    </section>
+    <section>
+      <h3>{zh ? '充能' : 'Charges'}</h3>
+      {rows([
+        [zh ? '暴击球数量上限' : 'Maximum Power Charges', characterNumber(result.PowerChargesMax)],
+        [zh ? '狂怒球数量上限' : 'Maximum Frenzy Charges', characterNumber(result.FrenzyChargesMax)],
+        [zh ? '耐力球数量上限' : 'Maximum Endurance Charges', characterNumber(result.EnduranceChargesMax)],
+      ])}
+    </section>
+  </div>
+}
+
 const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
   activeSet,
   itemSets,
@@ -197,6 +314,9 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
   affixCount,
   semanticView,
   semanticsLoading,
+  calcResult,
+  calcLoading,
+  calcError,
   collapsedCategories,
   expandedAffixes,
   onSelectSet,
@@ -204,35 +324,47 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
   onToggleCategory,
   onToggleAffix,
   onSelectSource,
+  onCalculate,
 }: {
   activeSet: EquipmentSet
   itemSets: EquipmentSet[]
   weaponSet: 1 | 2
   affixesByGroup: Map<EquipmentAffixGroup, EquipmentAffixSummary[]>
   affixCount: number
-  semanticView: EquipmentSemanticView | 'all'
+  semanticView: EquipmentSidebarView
   semanticsLoading: boolean
+  calcResult: CalcResult | null
+  calcLoading: boolean
+  calcError: string | null
   collapsedCategories: Set<EquipmentAffixGroup>
   expandedAffixes: Set<string>
   onSelectSet: (setId: string) => void
-  onSelectSemanticView: (view: EquipmentSemanticView | 'all') => void
+  onSelectSemanticView: (view: EquipmentSidebarView) => void
   onToggleCategory: (group: EquipmentAffixGroup) => void
   onToggleAffix: (key: string) => void
   onSelectSource: (itemId: string) => void
+  onCalculate: () => void
 }) {
   const { t, lang } = useTranslation()
+  const groupOrder = semanticView === 'offence'
+    ? OFFENCE_GROUP_ORDER
+    : semanticView === 'defence' ? DEFENCE_GROUP_ORDER : []
 
   return (
     <aside className="equipment-loadouts">
       <div className="equipment-affix-heading">
-        <span>{lang === 'zh-rCN' ? '已装备词缀' : 'Equipped modifiers'}</span>
+        <span>{semanticView === 'character'
+          ? (lang === 'zh-rCN' ? '人物面板' : 'Character')
+          : (lang === 'zh-rCN' ? '已装备词缀' : 'Equipped modifiers')}</span>
         <strong>{lang === 'zh-rCN' ? `武器组 ${weaponSet === 1 ? 'I' : 'II'}` : `Weapon set ${weaponSet === 1 ? 'I' : 'II'}`}</strong>
       </div>
       <div className="equipment-semantic-tabs" role="tablist" aria-label={lang === 'zh-rCN' ? '装备词缀视图' : 'Equipment modifier view'}>
-        {(['offence', 'defence', 'all'] as const).map((view) => {
-          const label = view === 'offence'
+        {(['character', 'offence', 'defence'] as const).map((view) => {
+          const label = view === 'character'
+            ? (lang === 'zh-rCN' ? '人物' : 'Character')
+            : view === 'offence'
             ? (lang === 'zh-rCN' ? '进攻' : 'Offence')
-            : view === 'defence' ? (lang === 'zh-rCN' ? '防御' : 'Defence') : (lang === 'zh-rCN' ? '全部' : 'All')
+            : (lang === 'zh-rCN' ? '防御' : 'Defence')
           return <button
             key={view}
             type="button"
@@ -243,6 +375,7 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
           >{label}</button>
         })}
       </div>
+      {semanticView === 'character' ? <CharacterSummary result={calcResult} loading={calcLoading} error={calcError} onCalculate={onCalculate} /> : <>
       <label className="equipment-loadout-select">
         <span>{lang === 'zh-rCN' ? '装备方案' : 'Loadout'}</span>
         <select value={activeSet.id} onChange={(event) => onSelectSet(event.target.value)}>
@@ -253,7 +386,7 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
         </select>
       </label>
       <div className="equipment-affix-list">
-        {AFFIX_GROUP_ORDER.map((group) => {
+        {groupOrder.map((group) => {
           const summaries = affixesByGroup.get(group)
           if (!summaries?.length) return null
           const collapsed = collapsedCategories.has(group)
@@ -278,10 +411,11 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
             />)}
           </section>
         })}
-        {!affixCount && <div className="equipment-affix-empty">{semanticsLoading && semanticView !== 'all'
+        {!affixCount && <div className="equipment-affix-empty">{semanticsLoading
           ? (lang === 'zh-rCN' ? '装备数据分析中' : 'Analysing equipment')
           : (lang === 'zh-rCN' ? '当前装备没有可汇总的词缀' : 'No equipped modifiers to summarize')}</div>}
       </div>
+      </>}
     </aside>
   )
 })
@@ -576,19 +710,25 @@ function usePaperDollSize() {
 export function EquipmentPanel() {
   const { t, lang } = useTranslation()
   const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
+  const calcResult = useTreeStore((state) => state.calcResult)
+  const calcLoading = useTreeStore((state) => state.calcLoading)
+  const calcError = useTreeStore((state) => state.calcError)
+  const runCalculation = useTreeStore((state) => state.runCalculation)
   const [itemIconIndex, setItemIconIndex] = useState<ItemIconIndex | null>(null)
   const [runeDetails, setRuneDetails] = useState<RuneDetailIndex | null>(null)
   const [itemBases, setItemBases] = useState<Record<string, ItemBaseData>>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
   const [weaponSet, setWeaponSet] = useState<1 | 2>(1)
+  const [weaponSetSyncedFor, setWeaponSetSyncedFor] = useState<string | null>(null)
   const [paperDollBackgroundAvailable, setPaperDollBackgroundAvailable] = useState(true)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<EquipmentAffixGroup>>(new Set())
   const [expandedAffixes, setExpandedAffixes] = useState<Set<string>>(new Set())
-  const [semanticView, setSemanticView] = useState<EquipmentSemanticView | 'all'>('offence')
+  const [semanticView, setSemanticView] = useState<EquipmentSidebarView>('character')
   const [semanticsById, setSemanticsById] = useState<Record<string, EquipmentItemSemantics>>({})
   const [semanticsLoading, setSemanticsLoading] = useState(false)
   const { hostRef, size: paperDollSize } = usePaperDollSize()
+  const lastCalculationSelection = useRef<string | null>(null)
 
   useEffect(() => {
     let mounted = true
@@ -604,6 +744,29 @@ export function EquipmentPanel() {
   }, [importedBuildCode])
   const activeSetId = selectedSetId || equipment?.activeItemSetId
   const activeSet = equipment?.itemSets.find((set) => set.id === activeSetId) || equipment?.itemSets[0]
+
+  useEffect(() => {
+    if (!activeSet) {
+      setWeaponSetSyncedFor(null)
+      return
+    }
+    setWeaponSet(activeSet.useSecondWeaponSet ? 2 : 1)
+    setWeaponSetSyncedFor(activeSet.id)
+  }, [activeSet?.id, activeSet?.useSecondWeaponSet])
+
+  const calculateCharacter = useCallback(() => runCalculation({
+    itemSetId: activeSet?.id,
+    weaponSet,
+  }), [activeSet?.id, weaponSet, runCalculation])
+
+  useEffect(() => {
+    if (semanticView !== 'character' || !importedBuildCode || !activeSet || weaponSetSyncedFor !== activeSet.id || calcLoading) return
+    const selection = `${importedBuildCode}:${activeSet.id}:${weaponSet}`
+    if (lastCalculationSelection.current === selection) return
+    lastCalculationSelection.current = selection
+    void calculateCharacter()
+  }, [semanticView, importedBuildCode, activeSet?.id, weaponSet, weaponSetSyncedFor, calcLoading, calculateCharacter])
+
   const activeSlotNames = new Set(getActivePaperDollSlots(weaponSet).map((slot) => slot.slotName))
   const equipped = activeSet?.slots.filter((slot) => activeSlotNames.has(slot.name) && slot.itemId) || []
   const affixInput = useMemo(() => ({
@@ -623,27 +786,26 @@ export function EquipmentPanel() {
     }
     return result
   }, [deferredAffixInput])
-  const allAffixSummaries = useMemo(
-    () => aggregateEquipmentAffixes(affixSlots, deferredAffixInput.itemsById),
-    [affixSlots, deferredAffixInput.itemsById],
-  )
-  const affixSummaries = useMemo(() => semanticView === 'all'
-    ? allAffixSummaries
+  const affixSummaries = useMemo(() => semanticView === 'character'
+    ? []
     : aggregateEquipmentSemantics(affixSlots, deferredAffixInput.itemsById, semanticsById, semanticView),
-  [affixSlots, deferredAffixInput.itemsById, allAffixSummaries, semanticView, semanticsById])
+  [affixSlots, deferredAffixInput.itemsById, semanticView, semanticsById])
   const affixesByGroup = useMemo(() => {
     const groups = new Map<EquipmentAffixGroup, EquipmentAffixSummary[]>()
-    const ordered = [...affixSummaries].sort((left, right) => (
-      AFFIX_CATEGORY_ORDER.indexOf(left.category) - AFFIX_CATEGORY_ORDER.indexOf(right.category)
-    ))
+    const ordered = [...affixSummaries].sort((left, right) => {
+      if (semanticView === 'defence' && left.category === 'resistances' && right.category === 'resistances') {
+        return defenceAffixRank(left) - defenceAffixRank(right)
+      }
+      return AFFIX_CATEGORY_ORDER.indexOf(left.category) - AFFIX_CATEGORY_ORDER.indexOf(right.category)
+    })
     for (const summary of ordered) {
-      const group = getAffixGroup(summary)
+      const group = semanticView === 'defence' ? getDefenceAffixGroup(summary) : getAffixGroup(summary)
       const entries = groups.get(group) || []
       entries.push(summary)
       groups.set(group, entries)
     }
     return groups
-  }, [affixSummaries])
+  }, [affixSummaries, semanticView])
   const firstItem = equipped.map((slot) => equipment?.itemsById[slot.itemId]).find(Boolean)
   const selected = (selectedId && equipment?.itemsById[selectedId]) || firstItem
   const selectedSlotName = selected ? activeSet?.slots.find((slot) => slot.itemId === selected.id)?.name : undefined
@@ -670,10 +832,6 @@ export function EquipmentPanel() {
       })
     return () => { cancelled = true }
   }, [equipment])
-
-  useEffect(() => {
-    if (activeSet) setWeaponSet(activeSet.useSecondWeaponSet ? 2 : 1)
-  }, [activeSet?.id, activeSet?.useSecondWeaponSet])
 
   useEffect(() => {
     setCollapsedCategories(new Set())
@@ -745,6 +903,9 @@ export function EquipmentPanel() {
         affixCount={affixSummaries.length}
         semanticView={semanticView}
         semanticsLoading={semanticsLoading}
+        calcResult={calcResult}
+        calcLoading={calcLoading}
+        calcError={calcError}
         collapsedCategories={collapsedCategories}
         expandedAffixes={expandedAffixes}
         onSelectSet={handleSelectSet}
@@ -752,6 +913,7 @@ export function EquipmentPanel() {
         onToggleCategory={handleToggleCategory}
         onToggleAffix={handleToggleAffix}
         onSelectSource={setSelectedId}
+        onCalculate={() => { void calculateCharacter() }}
       />
 
       <div className="paper-doll-stage">

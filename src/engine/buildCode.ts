@@ -32,6 +32,8 @@ export interface EncodeBuildCodeInput extends Partial<EncodeClassPayload> {
   nodeWeaponSets?: NodeWeaponSets
   nodeAttributeSelections?: NodeAttributeSelections
   nodeJewels?: NodeJewels
+  activeItemSetId?: string
+  useSecondWeaponSet?: boolean
 }
 
 export interface EncodeBuildCodeResult {
@@ -246,6 +248,38 @@ function replaceTreeXml(baseXml: string, treeXml: string): string {
   return baseXml.replace(/<\/PathOfBuilding2>\s*$/i, `${treeXml}\n</PathOfBuilding2>`)
 }
 
+function upsertTagAttribute(tag: string, name: string, value: string): string {
+  const escapedValue = xmlAttr(value)
+  const attribute = new RegExp(`(\\s${name}\\s*=\\s*)(["'])(.*?)\\2`, 'i')
+  if (attribute.test(tag)) {
+    return tag.replace(attribute, (_match, prefix: string, quote: string) => `${prefix}${quote}${escapedValue}${quote}`)
+  }
+  return tag.replace(/\s*\/?\>$/, (ending) => ` ${name}="${escapedValue}"${ending}`)
+}
+
+export function setBuildEquipmentSelection(
+  xml: string,
+  itemSetId: string,
+  useSecondWeaponSet: boolean,
+): string {
+  if (!itemSetId) return xml
+
+  let matchedItemSet = false
+  const selectedWeaponSet = String(useSecondWeaponSet)
+  const withItemSet = xml.replace(/<ItemSet\b[^>]*>/gi, (tag) => {
+    const id = tag.match(/\bid\s*=\s*(["'])(.*?)\1/i)?.[2]
+    if (id !== itemSetId) return tag
+    matchedItemSet = true
+    return upsertTagAttribute(tag, 'useSecondWeaponSet', selectedWeaponSet)
+  })
+  if (!matchedItemSet) return xml
+
+  return withItemSet.replace(/<Items\b[^>]*>/i, (tag) => {
+    const active = upsertTagAttribute(tag, 'activeItemSet', itemSetId)
+    return upsertTagAttribute(active, 'useSecondWeaponSet', selectedWeaponSet)
+  })
+}
+
 export function getEncodeClassPayload(
   treeData: TreeData | null | undefined,
   selectedClassId: string,
@@ -291,7 +325,7 @@ export function encodeBuildCode(input: EncodeBuildCodeInput): EncodeBuildCodeRes
   })
 
   const classNames = buildClassNames({ className: input.className, ascendancyName: input.ascendancyName })
-  const xml = input.baseCode
+  const buildXml = input.baseCode
     ? replaceTreeXml(decodeCodeToXml(input.baseCode), treeXml)
     : [
       '<?xml version="1.0" encoding="UTF-8"?>',
@@ -301,6 +335,9 @@ export function encodeBuildCode(input: EncodeBuildCodeInput): EncodeBuildCodeRes
       treeXml,
       '</PathOfBuilding2>',
     ].join('\n')
+  const xml = input.activeItemSetId && input.useSecondWeaponSet != null
+    ? setBuildEquipmentSelection(buildXml, input.activeItemSetId, input.useSecondWeaponSet)
+    : buildXml
 
   return {
     code: encodeXmlToCode(xml),

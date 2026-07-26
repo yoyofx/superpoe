@@ -725,7 +725,7 @@ interface TreeStore {
 
 
 
-  runCalculation: () => Promise<void>
+  runCalculation: (selection?: { itemSetId?: string; weaponSet?: 1 | 2 }) => Promise<void>
 
 
 
@@ -2056,7 +2056,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-  runCalculation: async () => {
+  runCalculation: async (selection) => {
 
 
 
@@ -2128,6 +2128,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
         nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
         baseCode: get().importedBuildCode || undefined,
         treeVersion,
+        activeItemSetId: selection?.itemSetId,
+        useSecondWeaponSet: selection?.weaponSet == null ? undefined : selection.weaponSet === 2,
         ...classPayload,
       })
 

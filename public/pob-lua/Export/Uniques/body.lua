@@ -12,8 +12,6 @@ Variant: Gloves
 Variant: Boots
 Variant: Shield
 Sockets: S S S S S S
-Implicits: 1
-BodyArmourImplicitLevelOfAllCorruptedSkillGems1
 UniqueOnlySocketSoulCores1
 UniqueLocalNoAttributeRequirements2
 UniqueAtziriSplendourArmourEvasionAndEnergyShield1
@@ -52,12 +50,14 @@ The Brass Dome
 Champion Cuirass
 Variant: Pre 0.1.1
 Variant: Pre 0.4.0
+Variant: Pre 0.5.0
 Variant: Current
 {variant:1}UniqueLocalIncreasedPhysicalDamageReductionRatingPercent3[300,400]
 {variant:2}UniqueLocalIncreasedPhysicalDamageReductionRatingPercent3[400,500]
-{variant:3}UniqueLocalIncreasedPhysicalDamageReductionRatingPercent3
+{variant:3}UniqueLocalIncreasedPhysicalDamageReductionRatingPercent3[700,800]
+{variant:4}UniqueLocalIncreasedPhysicalDamageReductionRatingPercent3
 {variant:1}UniqueMaximumElementalResistance1[5,5]
-{variant:2,3}UniqueMaximumElementalResistance1
+{variant:2,3,4}UniqueMaximumElementalResistance1
 UniqueStunThreshold3
 UniqueTakeNoExtraDamageFromCriticalStrikes1
 ]],[[
@@ -70,6 +70,16 @@ UniqueLocalIncreasedPhysicalDamageReductionRatingPercent19
 {variant:2}UniqueGlobalChanceToBleed1
 UniqueSlowPotency1
 UniqueAttackerTakesDamage3
+]],[[
+Geofri's Sanctuary
+Revered Vestments
+League: Runes of Aldur
+UniqueLocalIncreasedPhysicalDamageReductionRatingPercent32
+UniqueAllResistances28
+UniqueMaximumEnergyShieldIsPercentOfStrength1
+UniqueEnergyShieldCannotBeConverted1
+UniqueLifeRegenerationPer10Intelligence1
+UniqueZealotsOath1
 ]],[[
 Greed's Embrace
 Vaal Cuirass
@@ -96,8 +106,6 @@ Kaom's Heart
 Conqueror Plate
 Variant: Pre 0.2.1
 Variant: Current
-Implicits: 1
-BodyArmourImplicitIncreasedStunThreshold1
 {variant:1}UniqueIncreasedLife2[1000,1000]
 {variant:2}UniqueIncreasedLife2
 UniqueRemoveSpirit1
@@ -145,6 +153,16 @@ UniqueIncreasedLife3
 UniqueCannotBeIgnited1
 UniquePhysicalAttackDamageTaken1
 ]],[[
+The Auspex
+Exquisite Vest
+League: Runes of Aldur
+UniqueMistRavenCompanionSkill1
+UniqueLocalIncreasedEvasionRatingPercent35
+UniqueIncreasedLife57
+UniqueReducedLocalAttributeRequirements6
+UniqueDeflectChanceLuckyOnLowLife1
+UniqueEnemiesInPresenceGainGruelingMadness1
+]],[[
 Briskwrap
 Rhoahide Coat
 Variant: Pre 0.1.1
@@ -185,17 +203,18 @@ UniqueGlobalEvasionOnFullLife1
 Hyrri's Ire
 Armoured Vest
 Variant: Pre 0.4.0
+Variant: Pre 0.5.0
 Variant: Current
 League: Dawn of the Hunt
-Implicits: 1
-BodyArmourImplicitIncreasedAilmentThreshold1
 {variant:1}UniqueLocalIncreasedEvasionRatingPercent33[100,130]
-{variant:2}UniqueLocalIncreasedEvasionRatingPercent33
-{variant:2}UniqueDamageGainedAsCold2
+{variant:2}UniqueLocalIncreasedEvasionRatingPercent33[200,250]
+{variant:3}UniqueLocalIncreasedEvasionRatingPercent33
+{variant:2}UniqueDamageGainedAsCold2[15,25]
+{variant:3}UniqueDamageGainedAsCold2
 {variant:1}UniqueAddedColdDamage3
 UniqueDexterity38
 {variant:1}UniqueChillDuration2
-{variant:2}FreezeDurationUnique__1
+{variant:2,3}FreezeDurationUnique__1
 UniqueCanEvadeAllDamageNotHitRecently1
 ]],[[
 Quatl's Molt
@@ -234,12 +253,11 @@ UniqueFireDamageTakenAsPhysical1
 Sands of Silk
 Shrouded Vest
 League: Dawn of the Hunt
-Implicits: 1
-Grants Skill: Level (1-20) Blink
+UniqueGrantsBlinkSand1
 UniqueLocalIncreasedEvasionRatingPercent20
-UniqueIncreasedMana38
-UniqueDexterity2
-UniqueIntelligence6
+UniqueIncreasedMana50
+UniqueDexterity25
+UniqueIntelligence28
 UniqueFireResist34
 GlobalCooldownRecoveryUnique__2
 ]],[[
@@ -299,7 +317,7 @@ The Covenant
 Altar Robe
 Variant: Pre 0.4.0
 Variant: Current
-{variant:2}Grants Skill: Level 14 Life Remnants
+{variant:2}UniqueGrantsLifeRemnants1
 UniqueLocalIncreasedEnergyShieldPercent11
 UniqueIncreasedLife25
 {variant:1}UniqueSpellDamageLifeLeech1[500,500]
@@ -352,8 +370,6 @@ Enlightened Robe
 League: Dawn of the Hunt
 Variant: Pre 0.4.0
 Variant: Current
-Implicits: 1
-BodyArmourImplicitManaRegeneration1
 {variant:2}UniqueLocalIncreasedEnergyShieldPercent27
 UniqueIncreasedSpirit11
 UniqueIntelligence39
@@ -425,19 +441,17 @@ Heroic Armour
 League: Dawn of the Hunt
 Variant: Pre 0.4.0
 Variant: Current
-Implicits: 4
-Grants Skill: Level (1-20) Herald of Ash
-Grants Skill: Level (1-20) Herald of Ice
-Grants Skill: Level (1-20) Herald of Thunder
-BodyArmourImplicitIncreasedLife1
+UniqueGrantsHeraldOfAsh1
+UniqueGrantsHeraldOfIce1
+UniqueGrantsHeraldOfThunder1
 UniqueAllResistances20
 UniqueEnemiesInPresenceNoElementalResist1
 {variant:2}UniqueHeraldDamage1
 ]],[[
 Doryani's Prototype
 Scale Mail
-UniqueLocalIncreasedArmourAndEvasion6
-BodyArmourImplicitIncreasedLife1
+UniqueLocalIncreasedArmourAndEvasion13
+UniqueIncreasedLife29
 UniqueArmourAppliesToLightningDamage1
 UniqueNearbyEnemyLightningResistanceEqual1
 UniqueLightningResistNoReduction1
@@ -468,11 +482,10 @@ Ancestral Mail
 League: Rise of the Abyssal
 Variant: Pre 0.4.0
 Variant: Current
-Implicits: 1
-Grants Skill: Level (1-20) Valako's Charge
+ValakosLuckUnique__1
 UniqueLocalIncreasedArmourAndEvasion14
 UniqueIncreasedLife30
-UniqueDexterity44
+UniqueDexterity43
 UniqueLightningResist13
 {variant:1}UniquePhysicalDamageTakenAsLightningPercent1[20,40]
 {variant:2}UniquePhysicalDamageTakenAsLightningPercent1
@@ -513,6 +526,16 @@ UniqueAllResistances6
 UniqueChaosResist19
 UniqueCharmsNoCharges1
 ]],[[
+The Sunken Vessel
+Knight Armour
+League: Runes of Aldur
+UniqueLocalIncreasedArmourAndEvasion34
+UniqueIncreasedLife59
+UniqueLifeRecoveryRate3
+UniqueChanceToAvoidProjectiles1
+UniqueEnemyExtraDamageRollsWithPhysicalDamage1
+UniqueConvertAllArmourToEvasion1
+]],[[
 Widow's Reign
 Knight Armour
 League: Dawn of the Hunt
@@ -537,6 +560,16 @@ UniqueLocalIncreasedArmourAndEnergyShield5
 UniqueReducedBleedDuration1
 UniqueLifeLeechOvercapLife1
 ]],[[
+Decree of Loyalty
+Ancient Mail
+League: Runes of Aldur
+UniqueLocalIncreasedArmourAndEnergyShield29
+UniqueStrengthAndIntelligence3
+UniqueMaximumChaosResist1
+UniqueMaxLifeToConvertToArmourPerChaosResistance1
+UniqueDefendWithXPercentArmourWhileYouHaveEnergyShield1
+UniqueDamageOvertimeDoesNotBypassEnergyShield1
+]],[[
 Enfolding Dawn
 Pilgrim Vestments
 UniqueLocalIncreasedArmourAndEnergyShield5
@@ -544,17 +577,21 @@ UniqueIncreasedSpirit1
 UniqueAllResistances2
 UniqueNoManaPerIntelligence1
 ]],[[
-Husk of Dreams
+Reverie
 Shaman Mantle
 Variant: Pre 0.1.1
+Variant: 0.5.0
 Variant: Current
+{variant:3}UniqueSigilOfLifeSkill1
 UniqueLocalIncreasedArmourAndEnergyShield7
 UniqueFireResist9
-{variant:1}UniqueChaosResist2[13,17]
-{variant:2}UniqueChaosResist2
+{variant:1}UniqueChaosResist7[13,17]
+{variant:2,3}UniqueChaosResist7
 {variant:1}UniqueReducedFlaskChargesUsed1[25,50]
 {variant:2}UniqueReducedFlaskChargesUsed1
-UniqueFlaskChanceToNotConsume1
+{variant:1,2}UniqueFlaskChanceToNotConsume1
+{variant:3}UniqueLifeRegenerationFromLifeFlaskRecovery1
+{variant:3}UniqueLifeFlaskRecoveryAmount1
 ]],[[
 Icetomb
 Mail Vestments
@@ -578,8 +615,6 @@ Corvus Mantle
 League: Dawn of the Hunt
 Variant: Pre 0.4.0
 Variant: Current
-Implicits: 1
-BodyArmourImplicitIncreasedSpirit1
 UniqueLocalIncreasedArmourAndEnergyShield23
 UniqueStrength33
 UniqueIntelligence33
@@ -591,12 +626,23 @@ UniqueLifeRecoupAppliesToEnergyShield1
 Soul Mantle
 Sacrificial Mantle
 League: Dawn of the Hunt
+Variant: Pre 0.5.0
+Variant: Current
 UniqueLocalIncreasedArmourAndEnergyShield12
+{variant:2}UniqueIncreasedSpirit15
 UniqueStrength42
 UniqueIntelligence40
-UniqueIncreasedTotemLife1
+{variant:1}UniqueIncreasedTotemLife1
 UniqueAdditionalTotems1
 UniqueRandomlyCursedWhenTotemsDie1
+]],[[
+The Unleashed
+Revered Vestments
+League: Runes of Aldur
+UniqueLocalIncreasedArmourAndEnergyShield26
+UniqueStrengthAndIntelligence1
+UniqueHitDamageBypassesEnergyShieldWhileBelowHalfEnergyShield1
+UniqueRunicBindingOnSpellHit1
 ]],[[
 Voll's Protector
 {variant:1}Ironclad Vestments
@@ -632,11 +678,9 @@ UniqueBleedsAlwaysAggravated1
 Cospri's Will
 Assassin Garb
 League: Rise of the Abyssal
-Implicits: 2
-Grants Skill: Level (1-20) Withering Presence
-BodyArmourImplicitMovementVelocity1
+UniqueGrantsWitheringPresence1
 UniqueLocalIncreasedEvasionAndEnergyShield18
-UniqueChaosResist32
+UniqueChaosResist30
 UniqueCursesNeverExpire1
 UniqueIgnoreHexproof1
 UniqueWitherNeverExpires1
@@ -650,6 +694,16 @@ Variant: Current
 UniqueLightningResist3
 UniqueReducedDamageIfNotHitRecently1
 UniqueIncreasedEvasionIfHitRecently1
+]],[[
+Forgotten Warden
+Primal Markings
+League: Runes of Aldur
+UniqueSpiritVesselSkill1
+UniqueDeflectionRatingPerMissingEnergyShield1
+UniqueLocalIncreasedEvasionAndEnergyShield20
+UniqueDexterity46
+UniqueCompanionLife1
+UniqueDamageFromDeflectedHitsTakenFromCompanion1
 ]],[[
 Gloomform
 Waxed Jacket
@@ -676,11 +730,13 @@ UniqueShockOnMaxPowerCharges1
 Sierran Inheritance
 Marabout Garb
 Variant: Pre 0.4.0
+Variant: Pre 0.5.0
 Variant: Current
 UniqueLocalIncreasedEvasionAndEnergyShield5
 UniqueLightningResist2
-UniqueEnergyShieldDelay1
-{variant:2}AllDamageTakenCanChillUnique__1
+{variant:1,2}UniqueEnergyShieldDelay1
+{variant:2,3}AllDamageTakenCanChillUnique__1
+{variant:3}UniqueEnergyShieldRechargeRate8
 UniqueReverseChill1
 ]],[[
 Zerphi's Serape

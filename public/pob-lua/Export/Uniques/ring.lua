@@ -5,27 +5,60 @@ return {
 [[
 Andvarius
 Gold Ring
-Implicits: 1
-RingImplicitItemFoundRarityIncrease1
 UniqueItemFoundRarityIncrease5
 UniqueDexterity4
 UniqueAllResistances3
 ]],[[
+Berek's Grip
+Two-Stone Ring
+League: Runes of Aldur
+Base Implicits: false
+Implicits: 1
+RingImplicitColdLightningResistance
+UniqueDexterityAndIntelligence1
+UniqueColdLightningResistance1
+UniqueReducedCriticalDamageTakenWhileChilled1
+UniqueWindSkillsBoostedByShockedGround1
+]],[[
+Berek's Pass
+Two-Stone Ring
+League: Runes of Aldur
+Base Implicits: false
+Implicits: 1
+RingImplicitFireColdResistance
+UniqueStrengthAndIntelligence4
+UniqueFireColdResistance1
+UniqueLifeRegenerationWhileIgnited1
+UniqueWindSkillsBoostedByChilledGround1
+]],[[
+Berek's Respite
+Two-Stone Ring
+League: Runes of Aldur
+Base Implicits: false
+Implicits: 1
+RingImplicitFireLightningResistance
+UniqueStrengthAndDexterity1
+UniqueFireLightningResistance1
+UniqueCriticalDamageBonusWhileShocked1
+UniqueWindSkillsBoostedByIgnitedGround1
+]],[[
 Blackflame
 Amethyst Ring
-Implicits: 1
-BodyArmourImplicitChaosResistance1
+Variant: Pre 0.5.0
+Variant: Current
 UniqueManaRegeneration2
-UniqueIgniteDuration1
+{variant:1}UniqueIgniteEffect1[50,50]
+{variant:2}UniqueIgniteEffect1
+{variant:1}UniqueIgniteDuration1[50,50]
+{variant:2}UniqueIgniteDuration1
 UniqueEnemiesIgniteChaosDamage1
-UniqueIgniteEffect1
+{variant:2}UniqueWitherNeverExpiresOnIgnitedEnemies1
+{variant:2}UniqueWitherInflictedAlsoIncreasesFireDamageTaken1
 ]],[[
 Blackheart
 Iron Ring
 Variant: Pre 0.1.1
 Variant: Current
-Implicits: 1
-RingImplicitPhysicalDamage1
 UniqueLifeRegeneration4
 {variant:1}UniqueAddedChaosDamage1[2,3][4,5]
 {variant:2}UniqueAddedChaosDamage1
@@ -33,19 +66,19 @@ UniqueChanceToIntimidateOnHit1
 ]],[[
 Blistering Bond
 Ruby Ring
-Implicits: 1
-RingImplicitFireResistance1
+Variant: Pre 0.5.0
+Variant: Current
 UniqueIncreasedLife3
 UniqueFireResist18
 UniqueColdResist22
 UniqueSelfBleedFireDamage1
+{variant:2}UniqueFireDamageAlsoContributesToBleed1
+{variant:2}UniqueInflictBleedFireDamage1
 ]],[[
 The Burrower
 Topaz Ring
 Variant: Pre 0.1.1
 Variant: Current
-Implicits: 1
-RingImplicitLightningResistance1
 {variant:1}UniqueColdResist23[-15,-10]
 {variant:2}UniqueColdResist23
 UniqueLightningResist4
@@ -56,9 +89,6 @@ UniqueEnemyExtraDamageRollsWithLightningDamage1
 Bursting Decay
 Unset Ring
 League: Dawn of the Hunt
-Requires Level 60
-Implicits: 1
-RingImplicitAdditionalSkillSlots1
 UniqueItemFoundRarityIncrease22
 UniqueChaosResist34
 UniqueLifeDegenerationPercentGracePeriod3
@@ -66,9 +96,6 @@ UniquePhysicalDamageMaximumLife1
 ]],[[
 Call of the Brotherhood
 Topaz Ring
-Requires Level 32
-Implicits: 1
-RingImplicitLightningResistance1
 UniqueIntelligence6
 UniqueManaRegeneration18
 UniqueFreezeDamageIncrease4
@@ -76,8 +103,6 @@ UniqueLightningDamageConvertToCold1
 ]],[[
 Cracklecreep
 Ruby Ring
-Implicits: 1
-RingImplicitFireResistance1
 UniqueFireDamagePercent1
 UniqueLifeRegeneration9
 UniqueManaRegeneration6
@@ -85,8 +110,6 @@ UniqueRingIgniteProliferation1
 ]],[[
 Death Rush
 Emerald Ring
-Implicits: 1
-RingImplicitIncreasedAccuracy1
 UniqueIncreasedAccuracy7
 UniqueIncreasedEvasionRating1
 UniqueLifeLeech1
@@ -94,8 +117,6 @@ UniqueOnslaughtBuffOnKill1
 ]],[[
 Doedre's Damning
 Lazuli Ring
-Implicits: 1
-RingImplicitIncreasedMana1
 UniqueAllResistances2
 UniqueManaGainedFromEnemyDeath2
 UniqueAdditionalCurseOnEnemies1
@@ -105,19 +126,27 @@ Sapphire Ring
 Variant: Pre 0.2.0
 Variant: Pre 0.4.0
 Variant: Current
-Implicits: 1
-RingImplicitColdResistance1
 {variant:1}UniqueMaximumManaIncrease1[20,20]
 {variant:2}UniqueMaximumManaIncrease1[10,10]
 {variant:3}UniqueMaximumManaIncrease1
 UniqueManaRegeneration3
 UniqueCannotBeChilledOrFrozen1
 ]],[[
+Eshtera's Path
+Ring
+Sockets: J
+Source: Drops from unique{Zarokh, the Temporal}
+Variant: Pre 0.5.0
+Variant: Current
+UniqueOnlySocketSapphireJewel1
+UniqueItemFoundRarityIncrease15
+UniqueAllAttributes9
+{variant:1}UniqueColdResistanceNoPenalty1
+{variant:2}UniqueFireAndColdResPerLightningResItem1
+]],[[
 Evergrasping Ring
 Pearl Ring
 League: Dawn of the Hunt
-Implicits: 1
-RingImplicitIncreasedCastSpeed1
 UniqueIncreasedMana12
 UniqueAlliesInPresenceGainedAsChaos1
 UniqueEnemiesInPresenceGainedAsChaos1
@@ -125,8 +154,6 @@ UniqueEnemiesInPresenceGainedAsChaos1
 Gifts from Above
 Prismatic Ring
 League: Dawn of the Hunt
-Implicits: 1
-RingImplicitAllResistances1
 UniqueCriticalStrikeChance12
 UniqueLightRadius16
 UniqueKilledMonsterItemRarityOnCrit1
@@ -134,16 +161,15 @@ UniqueConsecratedGroundStationaryRing1
 ]],[[
 Glowswarm
 Lazuli Ring
-Implicits: 1
-RingImplicitIncreasedMana1
+Variant: Pre 0.5.0
+Variant: Current
 UniqueIncreasedMana7
 UniqueFlaskManaRecoveryRate3
 UniqueManaFlaskChargeGeneration2
+{variant:2}UniqueGuardFromManaFlask1
 ]],[[
 Heartbound Loop
 Pearl Ring
-Implicits: 1
-RingImplicitIncreasedCastSpeed1
 UniqueMinionLife3
 UniqueLifeRegeneration3
 UniqueManaRegeneration11
@@ -153,9 +179,6 @@ UniqueMinionReviveSpeed2
 Icefang Orbit
 Iron Ring
 League: Dawn of the Hunt
-Requires Level 36
-Implicits: 1
-RingImplicitPhysicalDamage1
 UniqueAddedPhysicalDamage7
 UniqueDexterity37
 UniqueBaseChanceToPoison3
@@ -170,16 +193,16 @@ Mirrored
 ]],[[
 Levinstone
 Topaz Ring
-Implicits: 1
-RingImplicitLightningResistance1
+Variant: Pre 0.5.0
+Variant: Current
 UniqueIncreasedMana7
 UniqueShockChanceIncrease2
-UniqueGlobalLightningGemLevel1
+{variant:1}UniqueGlobalLightningGemLevel1
+{variant:2}UniqueLightningSpellsChain1
+{variant:2}UniqueShockEffect1
 ]],[[
 Ming's Heart
 Amethyst Ring
-Implicits: 1
-BodyArmourImplicitChaosResistance1
 UniqueMaximumLifeIncrease3
 UniqueDamageAddedAsChaos1
 UniqueAllDefences1
@@ -188,24 +211,18 @@ Original Sin
 Amethyst Ring
 Variant: Pre 0.1.1
 Variant: Current
-Implicits: 1
-BodyArmourImplicitChaosResistance1
 {variant:2}UniqueChaosResist21
 UniqueElementalDamageConvertToChaos1
 {variant:1}UniqueChaosResistanceIsZero1
 ]],[[
 Perandus Seal
 Gold Ring
-Implicits: 1
-RingImplicitItemFoundRarityIncrease1
 UniqueIncreasedMana5
 UniqueAllAttributes2
 UniqueGoldFoundIncrease1
 ]],[[
 Polcirkeln
 Sapphire Ring
-Implicits: 1
-RingImplicitColdResistance1
 UniqueColdDamagePercent1
 UniqueIncreasedMana7
 UniqueStrength3
@@ -213,45 +230,40 @@ UniqueChillHitsCauseShattering1
 ]],[[
 Prized Pain
 Iron Ring
+Variant: Pre 0.5.0
+Variant: Current
 League: Dawn of the Hunt
-Requires Level 48
-Implicits: 1
-RingImplicitPhysicalDamage1
 UniqueStrength41
 UniqueLifeCostAsManaCost2
-UniqueThornsDamageOnStun1
+{variant:1}UniqueThornsDamageOnStun1
 UniqueAttackerTakesDamage7
+{variant:2}UniqueChanceToDealThornsDamageOnHit1
 ]],[[
-Seed of Cataclysm
-Lazuli Ring
-Implicits: 1
-RingImplicitIncreasedMana1
-UniqueSpellCriticalStrikeChance2
-UniqueSpellCriticalStrikeMultiplier1
-UniqueChaosResist2
-UniqueManaCostReduction2
-]],[[
-Sekhema's Resolve
+Safrin's Resolve
 Ring
 Sockets: J
 Source: Drops from unique{Zarokh, the Temporal}
-Variant: Ruby
-Variant: Emerald
-Variant: Sapphire
-Requires Level 40
-UniqueItemFoundRarityIncrease20
-UniqueAllAttributes1
+Variant: Pre 0.5.0
+Variant: Current
+UniqueOnlySocketRubyJewel1
+UniqueItemFoundRarityIncrease15
+UniqueAllAttributes9
 {variant:1}UniqueFireResistanceNoPenalty1
-{variant:2}UniqueLightningResistanceNoPenalty1
-{variant:3}UniqueColdResistanceNoPenalty1
-{variant:1}UniqueOnlySocketRubyJewel1
-{variant:2}UniqueOnlySocketEmeraldJewel1
-{variant:3}UniqueOnlySocketSapphireJewel1
+{variant:2}UniqueColdAndLightningResPerFireResItem1
+]],[[
+Seed of Cataclysm
+Lazuli Ring
+Variant: Pre 0.5.0
+Variant: Current
+UniqueSpellCriticalStrikeChance2
+{variant:1}UniqueSpellCriticalStrikeMultiplier1
+UniqueChaosResist2
+UniqueManaCostReduction2
+{variant:2}UniqueSpellCriticalStrikeMultiplierPerSpellCritRecently1
+{variant:2}UniqueChanceForSpellCriticalHitsToBeLucky1
 ]],[[
 Snakepit
 Pearl Ring
-Implicits: 1
-RingImplicitIncreasedCastSpeed1
 UniqueSpellDamage2
 UniqueIncreasedCastSpeed9
 UniqueLeftRingSpellProjectilesCannotChain1
@@ -260,10 +272,15 @@ UniqueRightRingSpellProjectilesChain1
 UniqueRightRingSpellProjectilesCannotFork1
 UniqueSpellsCannotPierce1
 ]],[[
+The Taming
+Prismatic Ring
+League: Runes of Aldur
+UniqueAllResistances29
+UniqueDamagePerElementalAilment1
+UniqueWindSkillsBoostedByAllElementalGrounds1
+]],[[
 Thief's Torment
 Emerald Ring
-Implicits: 1
-RingImplicitIncreasedAccuracy1
 UniqueItemFoundRarityIncrease16
 UniqueAllResistances14
 UniqueLifeGainPerTarget1
@@ -271,12 +288,19 @@ UniqueDisablesOtherRingSlot1
 UniqueManaGainPerTarget1
 UniqueSelfCurseDuration1
 ]],[[
+Veilpiercer
+Amethyst Ring
+League: Runes of Aldur
+UniqueIncreasedMana54
+UniqueIntelligence48
+UniqueIgnoreHexproof2
+UniqueCursesSpreadOnKill1
+UniqueGainDarkWhispers1
+UniqueHitDamageAgainstEnemiesInPresence1
+]],[[
 Venopuncture
 Iron Ring
 League: Dawn of the Hunt
-Requires Level 36
-Implicits: 1
-RingImplicitPhysicalDamage1
 UniqueAddedPhysicalDamage8
 UniqueStrength41
 UniqueChilledWhileBleeding1
@@ -288,9 +312,6 @@ Ventor's Gamble
 Gold Ring
 Variant: Pre 0.2.0
 Variant: Current
-Requires Level 64
-Implicits: 1
-RingImplicitItemFoundRarityIncrease1
 UniqueIncreasedLife39
 UniqueIncreasedSpirit7
 {variant:1}UniqueItemFoundRarityIncrease17[-40,40]
@@ -302,24 +323,30 @@ UniqueLightningResist18
 Vigilant View
 Emerald Ring
 League: Dawn of the Hunt
-Requires Level 26
-Implicits: 1
-RingImplicitIncreasedAccuracy1
 UniqueIncreasedAccuracy12
 UniqueIncreasedEvasionRating3
-UniqueItemFoundRarityIncrease20
-UniqueDexterity37
+UniqueItemFoundRarityIncrease19
+UniqueDexterity33
 UniqueEnemyAccuracyDistanceFalloff1
 UniqueMaximumEvadeChanceOverride1
 ]],[[
 Whisper of the Brotherhood
 Sapphire Ring
-Requires Level 32
-Implicits: 1
-RingImplicitColdResistance1
 UniqueIncreasedSkillSpeed3
-UniqueDexterity2
+UniqueDexterity27
 UniqueManaRegeneration18
 UniqueColdDamageConvertToLightning1
+]],[[
+Zaida's Longevity
+Ring
+Sockets: J
+Source: Drops from unique{Zarokh, the Temporal}
+Variant: Pre 0.5.0
+Variant: Current
+UniqueOnlySocketEmeraldJewel1
+UniqueItemFoundRarityIncrease15
+UniqueAllAttributes9
+{variant:1}UniqueLightningResistanceNoPenalty1
+{variant:2}UniqueFireAndLightningRestPerColdResItem1
 ]],
 }

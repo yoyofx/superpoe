@@ -8,12 +8,12 @@ local skills, mod, flag, skill = ...
 
 skills["SupportAbidingHexPlayer"] = {
 	name = "Abiding Hex",
-	description = "Supports Curse Skills you cast yourself. Supported Skills will consume Power Charges on use, gaining significant Curse duration if they do.",
+	description = "Supports Curse Skills you cast yourself. Supported Skills will consume Power Charges on use, gaining significant Curse duration if they do. Cannot Support Skills which consume Power Charges.",
 	color = 3,
 	support = true,
 	requireSkillTypes = { SkillType.AppliesCurse, },
-	addSkillTypes = { },
-	excludeSkillTypes = { SkillType.Aura, SkillType.UsedByProxy, SkillType.Triggered, SkillType.Persistent, },
+	addSkillTypes = { SkillType.ConsumesCharges, SkillType.SkillConsumesPowerChargesOnUse, SkillType.SupportedByAbidingHex, },
+	excludeSkillTypes = { SkillType.Aura, SkillType.UsedByProxy, SkillType.Triggered, SkillType.Persistent, SkillType.SkillConsumesPowerChargesOnUse, SkillType.SupportedByAbidingHex, SkillType.NOT, SkillType.AND, },
 	gemFamily = { "AbidingHex",},
 	ignoreMinionTypes = true,
 	levels = {
@@ -73,6 +73,8 @@ skills["TriggeredExplosiveGrowthPlayerTwo"] = {
 	skillTypes = { [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.AttackInPlace] = true, [SkillType.Spell] = true, },
 	castTime = 0,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { critChance = 10, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -222,6 +224,8 @@ skills["TriggeredExplosiveGrowthPlayer"] = {
 	skillTypes = { [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.AttackInPlace] = true, [SkillType.Spell] = true, },
 	castTime = 0,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { critChance = 10, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -694,6 +698,38 @@ skills["SupportAtzirisAllurePlayer"] = {
 		},
 	}
 }
+skills["SupportAtzirisCommunionPlayer"] = {
+	name = "Atziri's Communion",
+	description = "Supports Persistent Skills, making them Reserve Life instead of Spirit. Cannot Support Skills which create Minions.",
+	color = 3,
+	support = true,
+	requireSkillTypes = { SkillType.Persistent, },
+	addSkillTypes = { },
+	excludeSkillTypes = { SkillType.CreatesMinion, },
+	gemFamily = { "AtziriCommunionLineage",},
+	isLineage = true,
+	flavourText = {"The Red Communion was meant to transcend the limits", "of the soul, to transfigure the flesh, to bestow immortality.", "It accomplished all of these things... most horribly.", },
+	levels = {
+		[1] = { levelRequirement = 0, },
+	},
+	statSets = {
+		[1] = {
+			label = "Atziri's Communion",
+			incrementalEffectiveness = 0.054999999701977,
+			statDescriptionScope = "gem_stat_descriptions",
+			baseFlags = {
+			},
+			constantStats = {
+				{ "skill_reserves_X_life_permyriad_per_spirit_instead_of_spirit", 66 },
+			},
+			stats = {
+			},
+			levels = {
+				[1] = { actorLevel = 1, },
+			},
+		},
+	}
+}
 skills["SupportBhatairsVengeancePlayer"] = {
 	name = "Bhatair's Vengeance",
 	description = "Supports Attacks and Warcries you use yourself. Freezing an enemy with Supported Skills infuses you and your allies with Cold damage for a short time. ",
@@ -825,8 +861,8 @@ skills["SupportBitingFrostPlayer"] = {
 	color = 3,
 	support = true,
 	requireSkillTypes = { SkillType.Attack, SkillType.Damage, SkillType.CrossbowAmmoSkill, },
-	addSkillTypes = { },
-	excludeSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SupportedByElementalDischarge, },
+	addSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SupportedByBitingFrost, },
+	excludeSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SupportedByBitingFrost, SkillType.NOT, SkillType.AND, },
 	gemFamily = { "BitingFrost",},
 	levels = {
 		[1] = { levelRequirement = 0, manaMultiplier = 20, },
@@ -865,8 +901,8 @@ skills["SupportBitingFrostPlayerTwo"] = {
 	color = 3,
 	support = true,
 	requireSkillTypes = { SkillType.Attack, SkillType.Damage, SkillType.CrossbowAmmoSkill, },
-	addSkillTypes = { },
-	excludeSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SupportedByElementalDischarge, },
+	addSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SupportedByBitingFrost, },
+	excludeSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SupportedByBitingFrost, SkillType.NOT, SkillType.AND, },
 	gemFamily = { "BitingFrost",},
 	levels = {
 		[1] = { levelRequirement = 0, manaMultiplier = 20, },
@@ -920,7 +956,7 @@ skills["SupportBlazingCriticalPlayer"] = {
 			statDescriptionScope = "gem_stat_descriptions",
 			statMap = {
 				["support_blazing_crits_gain_%_fire_damage_with_attacks_on_critical_hit"] = {
-					mod("DamageGainAsFire", "BASE", nil, ModFlag.Attack, 0, { type = "Condition", var = "CritRecently" }),
+					mod("DamageGainAsFire", "BASE", nil, ModFlag.Attack, 0, { type = "Condition", var = "CritRecently" }, { type = "GlobalEffect", effectType = "Buff", effectName = "Blazing Critical", unscalable = true }),
 				},
 				["support_blazing_crits_base_duration_ms"] = {
 					-- Display only
@@ -977,6 +1013,8 @@ skills["TriggeredBoneShrapnelPlayer"] = {
 	skillTypes = { [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Physical] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { critChance = 13, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -1210,6 +1248,8 @@ skills["TriggeredBurningRunesPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -1357,9 +1397,11 @@ skills["TriggeredCatalysingDischargePlayer"] = {
 	hidden = true,
 	icon = "Art/2DArt/SkillIcons/SorceressArcticArmour.dds",
 	description = "Triggered when supported skill is boosted by an Elemental Ground Surface to deal damage of the matching Element.",
-	skillTypes = { [SkillType.Spell] = true, [SkillType.Damage] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.Triggerable] = true, [SkillType.Cooldown] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Area] = true, [SkillType.AttackInPlace] = true, },
+	skillTypes = { [SkillType.Spell] = true, [SkillType.Damage] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.Triggerable] = true, [SkillType.Cooldown] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Area] = true, [SkillType.AttackInPlace] = true, [SkillType.Cold] = true, [SkillType.Fire] = true, [SkillType.Lightning] = true, },
 	castTime = 0,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 1, levelRequirement = 0, storedUses = 1, cost = { Mana = 0, }, },
@@ -2237,6 +2279,8 @@ skills["TriggeredDeadlyCurrentPlayer"] = {
 	castTime = 0,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { cooldown = 0.2, critChance = 10, levelRequirement = 0, storedUses = 6, cost = { Mana = 0, }, },
 		[2] = { cooldown = 0.2, critChance = 10, levelRequirement = 0, storedUses = 6, cost = { Mana = 0, }, },
@@ -2422,8 +2466,8 @@ skills["SupportCreepingChillPlayer"] = {
 	color = 3,
 	support = true,
 	requireSkillTypes = { SkillType.IceCrystal, },
-	addSkillTypes = { },
-	excludeSkillTypes = { },
+	addSkillTypes = { SkillType.ConsumesCharges, SkillType.SkillConsumesPowerChargesOnUse, SkillType.SupportedByCreepingChill, },
+	excludeSkillTypes = { SkillType.SkillConsumesPowerChargesOnUse, SkillType.SupportedByCreepingChill, SkillType.NOT, SkillType.AND, },
 	gemFamily = { "CreepingChill",},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -2454,6 +2498,8 @@ skills["TriggeredCreepingChillPlayer"] = {
 	skillTypes = { [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Cold] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.AttackInPlace] = true, [SkillType.CreatesGroundEffect] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -2831,6 +2877,8 @@ skills["TriggeredDecayingHexPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -3088,6 +3136,8 @@ skills["ChaosFrogExplosionPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { critChance = 7, levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { critChance = 7, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -3217,6 +3267,8 @@ skills["TriggeredCurseZoneHazardExplosionPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { critChance = 7, levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { critChance = 7, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -3333,8 +3385,8 @@ skills["SupportDrainedAilmentPlayer"] = {
 	color = 3,
 	support = true,
 	requireSkillTypes = { SkillType.Spell, SkillType.DamageOverTime, SkillType.AND, },
-	addSkillTypes = { },
-	excludeSkillTypes = { },
+	addSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SkillConsumesIgnite, SkillType.SkillConsumesShock, SkillType.SkillConsumesBleeding, SkillType.SkillConsumesPoison, SkillType.SupportedByDrainedAilment, },
+	excludeSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SkillConsumesIgnite, SkillType.OR, SkillType.SkillConsumesShock, SkillType.OR, SkillType.SkillConsumesBleeding, SkillType.OR, SkillType.SkillConsumesPoison, SkillType.OR, SkillType.SupportedByDrainedAilment, SkillType.NOT, SkillType.AND, },
 	gemFamily = { "DrainAilments",},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -3401,6 +3453,8 @@ skills["TriggeredShockingRiftPlayer"] = {
 	skillTypes = { [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.Area] = true, [SkillType.Sustained] = true, [SkillType.Lightning] = true, [SkillType.AttackInPlace] = true, [SkillType.Damage] = true, [SkillType.Spell] = true, },
 	castTime = 0,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { critChance = 9, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -3618,12 +3672,12 @@ skills["SupportElementalArmyPlayer"] = {
 }
 skills["SupportElementalDischargePlayer"] = {
 	name = "Elemental Discharge",
-	description = "Supports any Spell that Hits enemies, causing it to consume Elemental Ailments on hit to trigger an Elemental Discharge. Cannot support the skills of Minions.",
+	description = "Supports any Spell that Hits enemies, causing it to Consume Elemental Ailments on hit to trigger an Elemental Discharge. Cannot support the skills of Minions or skills which already Consume Elemental Ailments.",
 	color = 3,
 	support = true,
 	requireSkillTypes = { SkillType.Spell, SkillType.Damage, SkillType.AND, },
-	addSkillTypes = { SkillType.SupportedByElementalDischarge, },
-	excludeSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SkillConsumesIgnite, SkillType.SkillConsumesShock, },
+	addSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SkillConsumesIgnite, SkillType.SkillConsumesShock, SkillType.SupportedByElementalDischarge, },
+	excludeSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SkillConsumesIgnite, SkillType.OR, SkillType.SkillConsumesShock, SkillType.OR, SkillType.SupportedByElementalDischarge, SkillType.NOT, SkillType.AND, },
 	gemFamily = { "ElementalDischarge",},
 	ignoreMinionTypes = true,
 	levels = {
@@ -3651,9 +3705,11 @@ skills["TriggeredElementalDischargePlayer"] = {
 	hidden = true,
 	icon = "Art/2DArt/SkillIcons/SorceressArcticArmour.dds",
 	description = "Triggered when supported skill Consumes Ignite, Shock, or Freeze, to deal damage of Types matching the Consumed Ailments.",
-	skillTypes = { [SkillType.Spell] = true, [SkillType.Damage] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.Triggerable] = true, [SkillType.Cooldown] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Area] = true, [SkillType.AttackInPlace] = true, },
+	skillTypes = { [SkillType.Spell] = true, [SkillType.Damage] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.Triggerable] = true, [SkillType.Cooldown] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Area] = true, [SkillType.AttackInPlace] = true, [SkillType.Cold] = true, [SkillType.Fire] = true, [SkillType.Lightning] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 1, critChance = 10, levelRequirement = 0, storedUses = 1, cost = { Mana = 0, }, },
@@ -3816,6 +3872,8 @@ skills["TriggeredSparkEmpowerPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, },
 		[2] = { levelRequirement = 0, },
@@ -3923,6 +3981,8 @@ skills["TriggeredEmpoweredSparkPlayer"] = {
 	skillTypes = { [SkillType.SkillGrantedBySupport] = true, [SkillType.Lightning] = true, [SkillType.Projectile] = true, [SkillType.Triggered] = true, [SkillType.Triggerable] = true, [SkillType.Duration] = true, [SkillType.InbuiltTrigger] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { critChance = 9, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -4232,7 +4292,9 @@ skills["EnervatingNovaPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Trappable] = true, [SkillType.Totemable] = true, [SkillType.Mineable] = true, [SkillType.Multicastable] = true, [SkillType.Triggerable] = true, [SkillType.Lightning] = true, [SkillType.Unleashable] = true, [SkillType.AreaSpell] = true, [SkillType.Nova] = true, [SkillType.Cascadable] = true, [SkillType.UsableWhileMoving] = true, [SkillType.Duration] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_electrocutes_as_though_dealt_damage_+%_final", 2 },
+		{ "active_skill_electrocutes_as_though_dealt_damage_+%_final", 2, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { critChance = 11, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -4747,6 +4809,8 @@ skills["TriggeredFieryDeathPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { critChance = 8, levelRequirement = 0, manaMultiplier = 20, cost = { Mana = 0, }, },
 	},
@@ -5083,12 +5147,12 @@ skills["SupportChillingIcePlayer"] = {
 }
 skills["SupportFrostfirePlayer"] = {
 	name = "Frostfire",
-	description = "Supports any skill that Hits enemies, causing it to Consume Freeze on Igniting a Frozen enemy to boost the effect of the Ignite.",
+	description = "Supports any skill that Hits enemies, causing it to Consume Freeze on Igniting a Frozen enemy to boost the effect of the Ignite. Cannot support skills that Consume Freeze or Ignite.",
 	color = 3,
 	support = true,
 	requireSkillTypes = { SkillType.Attack, SkillType.Damage, SkillType.CrossbowAmmoSkill, },
-	addSkillTypes = { },
-	excludeSkillTypes = { SkillType.SkillConsumesIgnite, SkillType.SupportedByElementalDischarge, },
+	addSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SupportedByFrostfire, },
+	excludeSkillTypes = { SkillType.SkillConsumesIgnite, SkillType.SkillConsumesFreeze, SkillType.SupportedByFrostfire, SkillType.NOT, SkillType.AND, },
 	gemFamily = { "FrostFire",},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -5358,6 +5422,8 @@ skills["SupportTriggeredAnnihilationPlayer"] = {
 	castTime = 0,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { critChance = 9, levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { critChance = 9, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -5615,7 +5681,7 @@ skills["SupportIceBitePlayer"] = {
 			statDescriptionScope = "gem_stat_descriptions",
 			statMap = {
 				["support_ice_bite_buff_grant_%_added_cold_attack_damage"] = {
-					mod("DamageGainAsCold", "BASE", nil, ModFlag.Attack, 0, { type = "Condition", var = "FrozenEnemyRecently" }, { type = "GlobalEffect", effectType = "Buff", effectName = "Ice Bite" }),
+					mod("DamageGainAsCold", "BASE", nil, 0, 0, { type = "Condition", var = "FrozenEnemyRecently" }, { type = "GlobalEffect", effectType = "Buff", effectName = "Ice Bite" }),
 				},
 				["support_ice_bite_base_buff_duration"] = {
 					mod("Duration", "BASE", nil, 0, 0, { type = "Condition", var = "FrozenEnemyRecently" }, { type = "GlobalEffect", effectType = "Buff" }),
@@ -5656,7 +5722,7 @@ skills["SupportIceBitePlayerTwo"] = {
 			statDescriptionScope = "gem_stat_descriptions",
 			statMap = {
 				["support_ice_bite_buff_grant_%_added_cold_attack_damage"] = {
-					mod("DamageGainAsCold", "BASE", nil, ModFlag.Attack, 0, { type = "Condition", var = "FrozenEnemyRecently" }, { type = "GlobalEffect", effectType = "Buff", effectName = "Ice Bite" }),
+					mod("DamageGainAsCold", "BASE", nil, 0, 0, { type = "Condition", var = "FrozenEnemyRecently" }, { type = "GlobalEffect", effectType = "Buff", effectName = "Ice Bite" }),
 				},
 				["support_ice_bite_base_buff_duration"] = {
 					mod("Duration", "BASE", nil, 0, 0, { type = "Condition", var = "FrozenEnemyRecently" }, { type = "GlobalEffect", effectType = "Buff" }),
@@ -5749,6 +5815,8 @@ skills["DoomBlastPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Area] = true, [SkillType.Damage] = true, [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.AreaSpell] = true, [SkillType.Chaos] = true, [SkillType.Cooldown] = true, [SkillType.InbuiltTrigger] = true, [SkillType.SkillGrantedBySupport] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 0.15, critChance = 7, levelRequirement = 0, storedUses = 3, },
@@ -6259,6 +6327,8 @@ skills["TriggeredLivingLightningPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { cooldown = 0.2, levelRequirement = 0, storedUses = 5, cost = { Mana = 0, }, },
 		[2] = { cooldown = 0.2, levelRequirement = 0, storedUses = 5, cost = { Mana = 0, }, },
@@ -6415,6 +6485,8 @@ skills["TriggeredLivingLightningPlayerTwo"] = {
 	minionSkillTypes = { [SkillType.Attack] = true, [SkillType.Lightning] = true, [SkillType.Chains] = true, [SkillType.Melee] = true, [SkillType.Duration] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 0.2, levelRequirement = 0, storedUses = 8, cost = { Mana = 0, }, },
@@ -6713,6 +6785,8 @@ skills["TriggeredManaFlarePlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Damage] = true, [SkillType.SkillGrantedBySupport] = true, [SkillType.Triggerable] = true, [SkillType.Cooldown] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Area] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 1, critChance = 7, levelRequirement = 0, storedUses = 1, cost = { Mana = 0, }, },
@@ -8012,6 +8086,8 @@ skills["TriggeredStaticShocksPlayer"] = {
 	castTime = 0,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { cooldown = 0.4, critChance = 9, levelRequirement = 0, storedUses = 3, cost = { Mana = 0, }, },
 		[2] = { cooldown = 0.4, critChance = 9, levelRequirement = 0, storedUses = 3, cost = { Mana = 0, }, },
@@ -8075,9 +8151,8 @@ skills["TriggeredStaticShocksPlayer"] = {
 				"spell_minimum_base_lightning_damage",
 				"spell_maximum_base_lightning_damage",
 				"never_shock",
-				"shapeshift_ignore_form_check",
-				"usable_with_talisman",
-				"usable_while_shapeshifted",
+				"triggerable_in_any_set",
+				"display_statset_hide_usage_stats",
 			},
 			notMinionStat = {
 				"spell_minimum_base_lightning_damage",
@@ -8721,6 +8796,8 @@ skills["TriggeredXibaquasRendingPlayer"] = {
 	skillTypes = { [SkillType.SkillGrantedBySupport] = true, [SkillType.Area] = true, [SkillType.Fire] = true, [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.AttackInPlace] = true, [SkillType.TargetsDestructibleCorpses] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },

@@ -42,7 +42,8 @@ local function getActor(self, actorType)
 	end
 end
 
-function ModStoreClass:ScaleAddMod(mod, scale)
+-- roundToNearest is reserved for effects that the game rounds instead of truncates.
+function ModStoreClass:ScaleAddMod(mod, scale, roundToNearest)
 	local unscalable = false
 	for _, effects in ipairs(mod) do
 		if effects.unscalable then
@@ -71,6 +72,8 @@ function ModStoreClass:ScaleAddMod(mod, scale)
 			if precision then
 				local power = 10 ^ precision
 				subMod.value = m_floor(subMod.value * scale * power) / power
+			elseif roundToNearest then
+				subMod.value = roundSymmetric(subMod.value * scale)
 			else
 				subMod.value = m_modf(round(subMod.value * scale, 2))
 			end
@@ -85,12 +88,12 @@ function ModStoreClass:CopyList(modList)
 	end
 end
 
-function ModStoreClass:ScaleAddList(modList, scale)
+function ModStoreClass:ScaleAddList(modList, scale, roundToNearest)
 	if scale == 1 then
 		self:AddList(modList)
 	else
 		for i = 1, #modList do
-			self:ScaleAddMod(modList[i], scale)
+			self:ScaleAddMod(modList[i], scale, roundToNearest)
 		end
 	end
 end
@@ -170,6 +173,23 @@ function ModStoreClass:SumPositiveValues(modType, cfg, modName, ...)
 	local modTable = self:Tabulate(modType, cfg, modName)
 	for i = 1, #modTable do
 		if modTable[i].value > 0 then
+			total = total + modTable[i].value
+		end
+	end
+	return total
+end
+
+--- Returns the value of all negative modifiers to a mod added together, ignoring any negative modifiers.
+--- Works by creating a table using Tabulate and then filtering for negative values.
+---
+--- @param modType string # the mod type for which we want to create the table, e.g. "INC" or "MORE"
+--- @param cfg table | nil # passed configuration, may be nil
+--- @param modName string # the name of the mod for which we want to create the table, e.g. "FlaskRecoveryRate", "ActionSpeed", ...
+function ModStoreClass:SumNegativeValues(modType, cfg, modName, ...)
+	local total = 0
+	local modTable = self:Tabulate(modType, cfg, modName)
+	for i = 1, #modTable do
+		if modTable[i].value < 0 then
 			total = total + modTable[i].value
 		end
 	end
@@ -540,8 +560,8 @@ function ModStoreClass:EvalMod(mod, cfg, globalLimits)
 			local stat
 			if tag.statList then
 				stat = 0
-				for _, stat in ipairs(tag.statList) do
-					stat = stat + GetStat(self, stat, cfg)
+				for _, statName in ipairs(tag.statList) do
+					stat = stat + GetStat(self, statName, cfg)
 				end
 			else
 				stat = GetStat(self, tag.stat, cfg)
@@ -572,7 +592,8 @@ function ModStoreClass:EvalMod(mod, cfg, globalLimits)
 				end
 			end
 		elseif tag.type == "Limit" then
-			value = m_min(value, tag.limit or GetMultiplier(self, tag.limitVar, cfg))
+			local limit = tag.limit or GetMultiplier(self, tag.limitVar, cfg)
+			value = tag.neg and m_max(value, -limit) or m_min(value, limit)
 		elseif tag.type == "Condition" then
 			local match = false
 			local allOneH = ((self.actor.weaponData1 and self.actor.weaponData1.countsAsAll1H) and self.actor.weaponData1) or ((self.actor.weaponData2 and self.actor.weaponData2.countsAsAll1H) and self.actor.weaponData2)
@@ -803,6 +824,25 @@ function ModStoreClass:EvalMod(mod, cfg, globalLimits)
 				end
 			else
 				match = cfg and cfg.skillTypes and cfg.skillTypes[tag.skillType]
+			end
+			if tag.neg then
+				match = not match
+			end
+			if not match then
+				return
+			end
+		elseif tag.type == "GemTag" then
+			local match = false
+			local gemTags = cfg and cfg.skillGem and cfg.skillGem.tags
+			if tag.gemTagList then
+				for _, gemTag in pairs(tag.gemTagList) do
+					if gemTags and gemTags[gemTag:lower()] then
+						match = true
+						break
+					end
+				end
+			else
+				match = gemTags and gemTags[tag.gemTag:lower()]
 			end
 			if tag.neg then
 				match = not match

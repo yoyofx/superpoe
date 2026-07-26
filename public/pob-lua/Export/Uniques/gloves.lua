@@ -6,12 +6,19 @@ return {
 Atziri's Acuity
 Moulded Mitts
 Variant: Pre 0.1.1
+Variant: Pre 0.5.0
 Variant: Current
-UniqueLocalIncreasedPhysicalDamageReductionRatingPercent11
+{variant:3}UniqueAtziriHeraldSkill1
+{variant:1,2}UniqueLocalIncreasedPhysicalDamageReductionRatingPercent11[80,100]
+{variant:3}UniqueLocalIncreasedPhysicalDamageReductionRatingPercent11
+{variant:3}UniqueIncreasedLife58
 {variant:1}UniqueCriticalStrikeChance2[20,30]
 {variant:2}UniqueCriticalStrikeChance2
-UniqueIntelligence9
-UniqueCriticalStrikesLeechIsInstant1
+{variant:1,2}UniqueIntelligence9
+{variant:1,2}UniqueCriticalStrikesLeechIsInstant1
+{variant:3}UniqueLifeLeech2
+{variant:3}PercentOfPhysicalHitDamageAsAdditionalBloodLoss
+{variant:3}UniqueVaalPact1
 ]],[[
 Dreadfist
 Bolstered Mitts
@@ -24,6 +31,7 @@ UniqueAttackerTakesDamage8
 ]],[[
 Facebreaker
 Stocky Mitts
+League: Runes of Aldur
 UniqueBaseDamageOverrideForMaceAttacks1
 UniqueStunDamageIncrease1
 UniqueUnarmedAttackDamagePerXStrength1
@@ -85,6 +93,16 @@ UniqueAddedColdDamage1
 {variant:2}UniqueColdResist24
 UniqueFreezeDamageIncrease2
 UniqueChillEffect1
+]],[[
+Horror's Flight
+Engraved Bracers
+League: Runes of Aldur
+UniqueCrushingFearSkill1
+UniqueLocalIncreasedEvasionRatingPercent36
+UniqueIncreasedAttackSpeed16
+UniqueDexterity45
+UniqueAddedChaosDamage5
+UniqueGainFearIncarnateOnCulling1
 ]],[[
 Idle Hands
 Sectioned Bracers
@@ -158,7 +176,7 @@ Variant: Current
 {variant:2}UniqueLocalIncreasedEnergyShield12
 UniqueSpellDamage1
 UniqueIncreasedCastSpeed6
-AmuletImplicitIntelligence1
+UniqueIntelligence18
 ]],[[
 Essentia Sanguis
 Furtive Wraps
@@ -342,18 +360,19 @@ UniqueDoubleOnKillEffects1
 Plaguefinger
 Gauze Wraps
 Variant: Pre 0.1.1
+Variant: Pre 0.5.0
 Variant: Current
 UniqueLocalIncreasedEvasionAndEnergyShield1
 UniqueIncreasedAttackSpeed1
+{variant:3}UniqueCannotInflictElementalAilments1
 {variant:1}UniqueBaseChanceToPoison2[5,10]
-{variant:2}UniqueBaseChanceToPoison2
+{variant:2,3}UniqueBaseChanceToPoison2
 UniqueAllDamageCanPoison1
 ]],[[
 Thunderfist
 Utility Wraps
 League: Rise of the Abyssal
-Implicits: 1
-Grants Skill: Level (1-20) Crackling Palm
+ThunderfistUnique__1
 UniqueLocalIncreasedEvasionAndEnergyShield19
 UniqueIncreasedAttackSpeed13
 UniqueLightningResist29
@@ -366,12 +385,15 @@ Sine Aequo
 Grand Manchettes
 Source: Drops from unique{Arbiter of Ash} in normal{The Burning Monolith}
 Variant: Pre 0.4.0
+Variant: Pre 0.5.0
 Variant: Current
 UniqueIncreasedSkillSpeed1
 {variant:1}UniqueLocalArmourAndEvasionAndEnergyShield3[40,60]
-{variant:2}UniqueLocalArmourAndEvasionAndEnergyShield3
+{variant:2}UniqueLocalArmourAndEvasionAndEnergyShield3[100,150]
+{variant:3}UniqueLocalArmourAndEvasionAndEnergyShield3
 UniqueImmobiliseThreshold1
 {variant:1}UniqueImmobiliseDamageTaken1[25,25]
 {variant:2}UniqueImmobiliseDamageTaken1
+{variant:3}UniqueImmobiliseIncreasedDamageTaken1
 ]],
 }

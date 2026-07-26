@@ -27,8 +27,6 @@ UniqueBurningGroundWhileMovingMaximumLife1
 ]],[[
 Corpsewade
 Iron Greaves
-Implicits: 1
-Grants Skill: Level (1-20) Decompose
 UniqueMovementVelocity1
 UniqueLocalIncreasedPhysicalDamageReductionRatingPercent9
 UniqueStrength11
@@ -162,7 +160,7 @@ Variant: Current
 {variant:2}UniqueLocalIncreasedEnergyShield13
 {variant:1}UniqueStrength9[5,15]
 {variant:2}UniqueStrength9
-{variant:1}UniqueDexterity9[5.15]
+{variant:1}UniqueDexterity9[5,15]
 {variant:2}UniqueDexterity9
 {variant:1}UniqueIntelligence8[5,15]
 {variant:2}UniqueIntelligence8
@@ -200,8 +198,7 @@ UniqueReducedShockDuration1
 Shankgonne
 Covered Sabatons
 League: Rise of the Abyssal
-Implicits: 1
-Grants Skill: Level (1-20) Black Powder Blitz
+BlackPowderBlitzUnique__1
 UniqueLocalIncreasedArmourAndEvasion31
 UniqueItemFoundRarityIncrease23
 UniqueFireResist35
@@ -211,6 +208,16 @@ UniqueCannotSprint1
 ]],
 -- Boots: Armour/Energy Shield
 [[
+Decree of Flight
+Ancient Leggings
+League: Runes of Aldur
+UniqueMovementVelocity29
+UniqueLocalIncreasedArmourAndEnergyShield27
+UniqueDodgeRollSpeed1
+UniqueGuardFromMissingEnergyShieldOnDodge1
+UniqueMaximumGuardBasedOnEnergyShield1
+UniqueDivineFlight1
+]],[[
 Wake of Destruction
 Secured Leggings
 Variant: Pre 0.1.1
@@ -259,11 +266,15 @@ Ab Aeterno
 Grand Cuisses
 Source: Drops from unique{Arbiter of Ash} in normal{The Burning Monolith}
 Variant: Pre 0.4.0
+Variant: Pre 0.5.0
 Variant: Current
 UniqueMovementVelocity22
 {variant:1}UniqueLocalArmourAndEvasionAndEnergyShield4[60,80]
-{variant:2}UniqueLocalArmourAndEvasionAndEnergyShield4
+{variant:2}UniqueLocalArmourAndEvasionAndEnergyShield4[100,150]
+{variant:3}UniqueLocalArmourAndEvasionAndEnergyShield4
 UniqueDodgeRollAvoidAllDamage1
-UniqueSpeedPerDodgeRoll20Seconds1
+{variant:1,2}UniqueSpeedPerDodgeRoll20Seconds1
+{variant:3}UniqueOverencumbranceOnDodge1
+{variant:3}UniqueUnaffectedBySlowsWhileSprinting1
 ]],
 }

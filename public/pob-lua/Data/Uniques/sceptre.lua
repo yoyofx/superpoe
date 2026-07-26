@@ -33,6 +33,7 @@ Variant: Lightning (Pre 0.2.1 )
 Variant: Fire
 Variant: Cold
 Variant: Lightning
+Requires Level 65
 Implicits: 3
 {variant:1,4}Grants Skill: Level (1-20) Purity of Fire
 {variant:2,5}Grants Skill: Level (1-20) Purity of Ice
@@ -49,8 +50,8 @@ Implicits: 3
 ]],[[
 Guiding Palm of the Eye
 Shrine Sceptre
-Requires Level 65
 League: Dawn of the Hunt
+Requires Level 65
 Implicits: 1
 Grants Skill: Level (1-20) Purity of Ice
 Gain 25% of Damage as Extra Cold Damage
@@ -62,8 +63,8 @@ Grants effect of Guided Freezing Shrine
 ]],[[
 Guiding Palm of the Heart
 Shrine Sceptre
-Requires Level 65
 League: Dawn of the Hunt
+Requires Level 65
 Implicits: 1
 Grants Skill: Level (1-20) Purity of Fire
 Gain 25% of Damage as Extra Fire Damage
@@ -75,8 +76,8 @@ Grants effect of Guided Meteoric Shrine
 ]],[[
 Guiding Palm of the Mind
 Shrine Sceptre
-Requires Level 65
 League: Dawn of the Hunt
+Requires Level 65
 Implicits: 1
 Grants Skill: Level (1-20) Purity of Lightning
 Gain 25% of Damage as Extra Lightning Damage
@@ -88,8 +89,8 @@ Grants effect of Guided Tempest Shrine
 ]],[[
 Palm of the Dreamer
 Shrine Sceptre
-Requires Level 65
 League: Dawn of the Hunt
+Requires Level 65
 Implicits: 1
 Grants Skill: Level (1-20) Impurity
 Allies in your Presence deal (13-17) to (25-37) added Attack Chaos Damage
@@ -102,11 +103,25 @@ Grants effect of Dreaming Gloom Shrine
 Sacred Flame
 Shrine Sceptre
 Source: Drops from unique{Arbiter of Ash} in normal{The Burning Monolith}
+Requires Level 55
 Implicits: 1
 Grants Skill: Level (1-20) Purity of Fire
 Gain (40-60)% of Damage as Extra Fire Damage
 Allies in your Presence Regenerate (2-3)% of their Maximum Life per second
 Allies in your Presence Gain (20-30)% of Damage as Extra Fire Damage
 Enemies in your Presence Resist Elemental Damage based on their Lowest Resistance
+]],[[
+Sylvan's Effigy
+Stoic Sceptre
+League: Runes of Aldur
+Requires Level 62
+Implicits: 2
+Grants Skill: Level (1-20) Discipline
+Grants Skill: Level (1-20) Azmerian Wolf
+(50-75)% increased Spirit
+Allies in your Presence Regenerate (50-100) Life per second
++(6-12) to all Attributes
+Companions deal (50-100)% increased damage to your Marked targets
+You can have any number of Companions of different types
 ]],
 }

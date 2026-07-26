@@ -3,6 +3,15 @@
 return {
 -- Weapon: One Handed Mace
 [[
+Brutus' Lead Sprinkler
+Morning Star
+League: Runes of Aldur
+UniqueMoltenShowerSkill1
+UniqueLocalIncreasedPhysicalDamagePercent26
+UniqueLocalIncreasedAttackSpeed33
+UniqueStrength49
+UniqueAddedFireDamageToAttacksPer25Strength
+]],[[
 Brynhand's Mark
 Wooden Club
 Variant: Pre 0.1.1
@@ -30,6 +39,7 @@ UniqueLocalCullingStrikeFrozenEnemies1
 Marohi Erqi
 Totemic Greatclub
 League: Rise of the Abyssal
+Base Implicits: false
 Implicits: 1
 MaceImplicitLocalCrushOnHit1
 UniqueStrengthRequirements3
@@ -44,13 +54,12 @@ Torment Club
 League: Dawn of the Hunt
 Variant: Pre 0.2.1
 Variant: Current
-Implicits: 1
-Grants Skill: Level (1-20) Thundergod's Wrath
+UniqueGrantsCastLightningSpellOnHit1
 UniqueIntelligenceRequirements2
 UniqueStrengthRequirements2
 {variant:1}UniqueLocalIncreasedPhysicalDamagePercent11[150,200]
 {variant:2}UniqueLocalIncreasedPhysicalDamagePercent11
-UniqueLocalIncreasedAttackSpeed20
+UniqueLocalIncreasedAttackSpeed19
 {variant:1}UniqueGlobalLightningGemLevel1
 {variant:2}UniqueGlobalLightningGemLevel2
 ]],[[
@@ -73,6 +82,16 @@ Variant: Current
 UniqueLocalIncreasedAccuracy5
 UniqueLocalIncreasedAttackSpeed10
 UniqueMaximumLightningDamagePerPower1
+]],[[
+Sadist's Mercy
+Flanged Mace
+League: Runes of Aldur
+UniqueHarbingerOfMadnessSkill1
+UniqueLocalIncreasedPhysicalDamagePercent27
+UniqueLocalCriticalStrikeChance11
+UniqueLocalIncreasedAttackSpeed28
+UniqueInflictGruelingMadnessOnHit1
+UniqueEnemiesInPresenceGainPowerPerGruelingMadness1
 ]],[[
 Sculpted Suffering
 Warpick
@@ -144,20 +163,20 @@ UniqueLocalAllDamageCanElectrocute1
 Chober Chaber
 Leaden Greathammer
 Variant: Pre 0.1.1
+Variant: Pre 0.5.0
 Variant: Current
 UniqueIntelligenceRequirements1
 {variant:1}UniqueLocalIncreasedPhysicalDamagePercent4
-{variant:2}UniqueLocalAddedPhysicalDamage12
+{variant:2,3}UniqueLocalAddedPhysicalDamage12
 UniqueIncreasedMana22
-{variant:2}UniqueIncreasedSpirit8
+{variant:2,3}UniqueIncreasedSpirit8
 {variant:1}UniqueLocalCriticalStrikeChance3
 UniqueMinionDamageAffectsYou1
+{variant:3}UniqueGlobalMinionSpellSkillGemLevel3
 ]],[[
 The Empty Roar
 Cultist Greathammer
 League: Dawn of the Hunt
-Implicits: 1
-MaceImplicitSplashDamage1
 UniqueLocalAddedPhysicalDamage15
 UniqueLifeLeechLocal2
 UniqueLocalChanceToBleed1
@@ -193,8 +212,6 @@ Hrimnor's Hymn
 Oak Greathammer
 Variant: Pre 0.1.1
 Variant: Current
-Implicits: 1
-MaceImplicitStunDamageIncrease1
 {variant:1}UniqueLocalIncreasedPhysicalDamagePercent6[60,80]
 {variant:2}UniqueLocalIncreasedPhysicalDamagePercent6
 UniqueStrength3
@@ -203,13 +220,22 @@ UniqueAftershockChance1
 ]],[[
 Quecholli
 Crumbling Maul
-Implicits: 1
-MaceImplicitEnemiesExplodeOnCrit1
 UniqueLocalIncreasedPhysicalDamagePercent4
 UniqueAllAttributes7
 UniqueLifeGainedFromEnemyDeath8
 UniqueLocalCritChanceOverride1
 UniqueLocalNoCriticalStrikeMultiplier1
+]],[[
+Serle's Grit
+Kalguuran Forgehammer
+League: Runes of Aldur
+Sockets: S S S
+RunicTemperingUnique__1
+UniqueMaximumQualityOverride2
+UniqueLocalAddedPhysicalDamage25
+UniqueStrength44
+UniqueChanceForExertedAttackToNoteReduceCount1
+UniqueAddedThornsPerRune
 ]],[[
 Tidebreaker
 Pointed Maul
@@ -219,6 +245,18 @@ UniqueGlobalIncreaseMeleeSkillGemLevel1
 UniqueIntelligence39
 UniqueLocalStunDamageIncrease2
 UniqueLocalAllDamageCanChill1
+]],[[
+Twisted Empyrean
+Aberrant Sledge
+League: Runes of Aldur
+UniqueStarbornOnslaughtSkill1
+UniqueLocalIncreasedPhysicalDamagePercent22
+UniqueLocalAddedColdDamage9
+UniqueIncreasedMana53
+UniqueLocalCriticalStrikeChance12
+UniqueDamageRemovedFromManaBeforeLife2
+UniqueLocalAttacksHaveAddedColdDamageFromPercentMaxMana1
+UniqueMaceSkillFireDamageConvertedToCold1
 ]],[[
 Trephina
 Forge Maul

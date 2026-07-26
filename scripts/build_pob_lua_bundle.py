@@ -26,6 +26,23 @@ INCLUDE_FILES = [
     "Launch.lua",
 ]
 
+BROWSER_SOURCE_PATCHES = {
+    "Classes/TradeHelpers.lua": [
+        (
+            ':gsub("{.-} to {.-}", string.format("(%s to %s)", numberPattern, numberPattern))',
+            ':gsub("{.-} to {.-}", function()\n'
+            '\t\t\t\treturn string.format("(%s to %s)", numberPattern, numberPattern)\n'
+            '\t\t\tend)',
+        ),
+        (
+            '"%%%+%?(%%%-%?" .. numberPattern .. ")")',
+            'function()\n'
+            '\t\t\t\t\treturn "%%%+%?(%%%-%?" .. numberPattern .. ")"\n'
+            '\t\t\t\tend)',
+        ),
+    ],
+}
+
 
 def sha256(path: Path) -> str:
     h = hashlib.sha256()
@@ -65,7 +82,16 @@ def copy_bundle(source: Path, runtime: Path, out: Path) -> dict:
         rel = src.relative_to(source).as_posix()
         dst = out / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
+        if rel in BROWSER_SOURCE_PATCHES or not dst.exists() or sha256(src) != sha256(dst):
+            try:
+                shutil.copy2(src, dst)
+            except OSError as error:
+                raise SystemExit(f"Failed to copy Lua source {rel}: {error}") from error
+            for old, new in BROWSER_SOURCE_PATCHES.get(rel, []):
+                text = dst.read_text(encoding="utf-8")
+                if old not in text:
+                    raise SystemExit(f"Browser compatibility patch no longer matches: {rel}")
+                dst.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
         entries.append({
             "path": rel,
             "hash": sha256(dst),
@@ -75,7 +101,11 @@ def copy_bundle(source: Path, runtime: Path, out: Path) -> dict:
         rel = src.relative_to(runtime).as_posix()
         dst = out / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
+        if not dst.exists() or sha256(src) != sha256(dst):
+            try:
+                shutil.copy2(src, dst)
+            except OSError as error:
+                raise SystemExit(f"Failed to copy Lua runtime {rel}: {error}") from error
         entries.append({
             "path": rel,
             "hash": sha256(dst),
@@ -86,6 +116,7 @@ def copy_bundle(source: Path, runtime: Path, out: Path) -> dict:
         "version": "0_5",
         "source": "upstreams/PathOfBuilding-PoE2/src",
         "runtime": "upstreams/PathOfBuilding-PoE2/runtime/lua",
+        "browserPatches": sorted(BROWSER_SOURCE_PATCHES),
         "fileCount": len(entries),
         "totalBytes": sum(entry["size"] for entry in entries),
         "files": sorted(entries, key=lambda entry: entry["path"].lower()),

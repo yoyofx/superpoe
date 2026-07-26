@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { deflate } from 'pako'
-import { decodeBuildCode, encodeBuildCode, getBuildCharacterLevel } from '@/engine/buildCode'
+import { decodeBuildCode, encodeBuildCode, getBuildCharacterLevel, setBuildEquipmentSelection } from '@/engine/buildCode'
 
 function encodeXml(xml: string): string {
   return Buffer.from(deflate(new TextEncoder().encode(xml))).toString('base64url')
@@ -97,6 +97,37 @@ describe('front-end build code encode/decode', () => {
     expect(decoded.nodes.sort()).toEqual(['3', '4', '5'])
     expect(decoded.treeVersion).toBe('0_5')
     expect(decoded.xml).toContain('className="Sorceress"')
+  })
+
+  it('selects an item set and weapon set without changing other equipment XML', () => {
+    const xml = `<PathOfBuilding2><Items activeItemSet="1" useSecondWeaponSet="false">
+      <Item id="1">Rarity: NORMAL\nTest Item</Item>
+      <ItemSet id="1" useSecondWeaponSet="false"><Slot name="Weapon 1" itemId="1"/></ItemSet>
+      <ItemSet id="2" title="Swap"><Slot name="Weapon 1 Swap" itemId="1"/></ItemSet>
+    </Items></PathOfBuilding2>`
+
+    const selected = setBuildEquipmentSelection(xml, '2', true)
+
+    expect(selected).toContain('<Items activeItemSet="2" useSecondWeaponSet="true">')
+    expect(selected).toContain('<ItemSet id="1" useSecondWeaponSet="false">')
+    expect(selected).toContain('<ItemSet id="2" title="Swap" useSecondWeaponSet="true">')
+    expect(selected).toContain('<Item id="1">Rarity: NORMAL\nTest Item</Item>')
+  })
+
+  it('encodes the selected item set and weapon set into the build code', () => {
+    const baseXml = `<PathOfBuilding2><Items><ItemSet id="1" useSecondWeaponSet="false"/></Items>
+      <Tree activeSpec="1"><Spec treeVersion="0_5" classId="3" ascendClassId="3" nodes="1"/></Tree></PathOfBuilding2>`
+    const encoded = encodeBuildCode({
+      nodes: ['1'],
+      treeVersion: '0_5',
+      baseCode: encodeXml(baseXml),
+      activeItemSetId: '1',
+      useSecondWeaponSet: true,
+    })
+
+    expect(encoded.xml).toContain('<Items activeItemSet="1" useSecondWeaponSet="true">')
+    expect(encoded.xml).toContain('<ItemSet id="1" useSecondWeaponSet="true"/>')
+    expect(decodeBuildCode(encoded.code).xml).toBe(encoded.xml)
   })
 
   it('round-trips passive tree jewels', () => {

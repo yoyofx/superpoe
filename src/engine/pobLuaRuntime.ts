@@ -16,6 +16,16 @@ export function installHostCompatibility(engine: LuaEngine) {
     loadstring = loadstring or load
     math.atan2 = math.atan2 or math.atan
     math.pow = math.pow or function(a, b) return a ^ b end
+    local nativeTostring = tostring
+    tostring = function(value, ...)
+      if type(value) == "number" then
+        local integer = math.tointeger(value)
+        if integer ~= nil then
+          return nativeTostring(integer)
+        end
+      end
+      return nativeTostring(value, ...)
+    end
     local nativeStringFormat = string.format
     string.format = function(fmt, ...)
       local values = { ... }
@@ -130,6 +140,25 @@ export function installBuildHelpers(engine: LuaEngine) {
       launch.promptMsg = nil
     end
 
+    if modLib and type(modLib.parseMod) == "function" and not modLib.__browserParseModCompatible then
+      local nativeParseMod = modLib.parseMod
+      modLib.parseMod = function(line, ...)
+        local normalizedLine = line
+        if type(normalizedLine) == "string" then
+          normalizedLine = normalizedLine:gsub(
+            "^(Fire|Cold|Lightning|Chaos) Resistance is ([%+%-]?[%d%.]+)%%$",
+            "%2%% to %1 Resistance"
+          )
+        end
+        local mods, extra = nativeParseMod(normalizedLine, ...)
+        if type(extra) == "string" and not extra:find("%S") then
+          extra = nil
+        end
+        return mods, extra
+      end
+      modLib.__browserParseModCompatible = true
+    end
+
     local function normalizeBuildXml(xmlText)
       if type(xmlText) ~= "string" then
         return xmlText
@@ -232,26 +261,38 @@ if not xmlText or xmlText == "" then
   return { success = false, error = "Empty XML input" }
 end
 
+xmlText = xmlText:gsub(
+  "(Fire|Cold|Lightning|Chaos) Resistance is ([%+%-]?[%d%.]+)%%",
+  "%2%% to %1 Resistance"
+)
+
 local loadOk, loadErr = pcall(loadBuildFromXML, xmlText, "browser-build")
 if not loadOk then
   return { success = false, error = "loadBuildFromXML failed: " .. tostring(loadErr) }
 end
 
+build = (launch and launch.main and launch.main.modes and launch.main.modes["BUILD"]) or build
 if not build then
   return { success = false, error = "Build object not available after load" }
 end
 
-local mo = mainObject
+local mo = mainObject or launch
 if mo and mo.promptMsg then
   return { success = false, error = "Build load error: " .. tostring(mo.promptMsg) }
 end
 
 local calcOk, calcErr = pcall(function()
-  local calcs = build.calcsTab and build.calcsTab.calcs
-  if not calcs then
-    error("calcs module not available")
+  local calcsTab = build.calcsTab
+  if not calcsTab then
+    error("calcs tab not available")
   end
-  return calcs.buildOutput(build, "MAIN")
+  if not calcsTab.mainEnv or not calcsTab.mainOutput then
+    if GlobalCache and GlobalCache.cachedData then
+      wipeGlobalCache()
+    end
+    calcsTab:BuildOutput()
+  end
+  return calcsTab.mainEnv
 end)
 
 if not calcOk then
@@ -280,10 +321,13 @@ local data = {
   LifeUnreserved = safeNum(output.LifeUnreserved),
   Mana = safeNum(output.Mana),
   ManaUnreserved = safeNum(output.ManaUnreserved),
+  Spirit = safeNum(output.Spirit),
   EnergyShield = safeNum(output.EnergyShield),
   Armour = safeNum(output.Armour),
   Evasion = safeNum(output.Evasion),
   ArmourPhysicalDamageReduction = safeNum(output.ArmourPhysicalDamageReduction),
+  PhysicalDamageReduction = safeNum(output.PhysicalDamageReduction),
+  EvadeChance = safeNum(output.EvadeChance),
   FireResist = safeNum(output.FireResist),
   FireResistTotal = safeNum(output.FireResistTotal),
   ColdResist = safeNum(output.ColdResist),
@@ -294,6 +338,7 @@ local data = {
   ChaosResistTotal = safeNum(output.ChaosResistTotal),
   BlockChance = safeNum(output.BlockChance),
   SpellBlockChance = safeNum(output.SpellBlockChance),
+  EffectiveBlockChance = safeNum(output.EffectiveBlockChance),
   TotalDPS = safeNum(output.TotalDPS),
   FullDPS = safeNum(output.FullDPS),
   FullDotDPS = safeNum(output.FullDotDPS),
@@ -306,6 +351,7 @@ local data = {
   FrenzyChargesMax = safeNum(output.FrenzyChargesMax),
   EnduranceChargesMax = safeNum(output.EnduranceChargesMax),
   MovementSpeedMod = safeNum(output.MovementSpeedMod),
+  EffectiveMovementSpeedMod = safeNum(output.EffectiveMovementSpeedMod),
   ActionSpeedMod = safeNum(output.ActionSpeedMod),
   Ward = safeNum(output.Ward),
   LifeRegen = safeNum(output.LifeRegen),
@@ -378,6 +424,42 @@ local function serializeTags(mod)
   return tags
 end
 
+local function appendTags(target, source)
+  for _, tag in ipairs(source or {}) do
+    table.insert(target, tag)
+  end
+  return target
+end
+
+local function minionRecipient(mod)
+  for _, tag in ipairs(mod) do
+    if type(tag) == "table" and tag.type == "SkillType"
+      and SkillType and tag.skillType == SkillType.CreatesCompanion then
+      return "companion"
+    end
+  end
+  return "minion"
+end
+
+local function skillRecipient(keyword)
+  local normalized = tostring(keyword or ""):lower()
+  if normalized:find("companion", 1, true) then return "companion" end
+  if normalized:find("minion", 1, true) then return "minion" end
+  return "player"
+end
+
+local function skillLevelTag(value)
+  local tag = {
+    type = "SkillLevel",
+    keyword = tostring(value.keyword or "all"):lower(),
+  }
+  for key, requirement in pairs(value.gemRequirements or {}) do
+    local scalar = scalarValue(requirement)
+    if type(key) == "string" and scalar ~= nil then tag[key] = scalar end
+  end
+  return tag
+end
+
 local function signature(mod)
   local value = scalarValue(mod.value)
   return table.concat({
@@ -389,18 +471,53 @@ local function signature(mod)
   }, "|")
 end
 
-local function serializeMod(mod, line, group, scope)
-  return {
-    name = tostring(mod.name or "Unknown"),
+local function serializeMod(mod, line, group, scope, recipient, wrapper, inheritedTags)
+  local name = tostring(mod.name or "Unknown")
+  local value = mod.value
+  local nested = type(value) == "table" and value.mod or nil
+  if name == "GemProperty" and type(value) == "table"
+    and value.key == "level" and type(value.value) == "number" then
+    local tags = appendTags({}, inheritedTags)
+    appendTags(tags, serializeTags(mod))
+    table.insert(tags, skillLevelTag(value))
+    return {{
+      name = "SkillLevel",
+      type = "BASE",
+      value = value.value,
+      flags = decodeFlags(mod.flags or 0, ModFlag),
+      keywordFlags = decodeFlags(mod.keywordFlags or 0, KeywordFlag),
+      tags = tags,
+      scope = scope,
+      recipient = skillRecipient(value.keyword),
+      wrapper = "GemProperty",
+      line = line,
+      group = group,
+    }}
+  end
+  if (name == "MinionModifier" or name == "ExtraAura") and type(nested) == "table" then
+    local nestedRecipient = name == "MinionModifier"
+      and minionRecipient(mod)
+      or (value.onlyAllies and "ally" or "player-and-allies")
+    local tags = appendTags({}, inheritedTags)
+    appendTags(tags, serializeTags(mod))
+    return serializeMod(nested, line, group, scope, nestedRecipient, name, tags)
+  end
+
+  local tags = appendTags({}, inheritedTags)
+  appendTags(tags, serializeTags(mod))
+  return {{
+    name = name,
     type = tostring(mod.type or "Unknown"),
-    value = scalarValue(mod.value),
+    value = scalarValue(value),
     flags = decodeFlags(mod.flags or 0, ModFlag),
     keywordFlags = decodeFlags(mod.keywordFlags or 0, KeywordFlag),
-    tags = serializeTags(mod),
+    tags = tags,
     scope = scope,
+    recipient = recipient or "player",
+    wrapper = wrapper,
     line = line,
     group = group,
-  }
+  }}
 end
 
 local function inspectItem(raw)
@@ -437,7 +554,33 @@ local function inspectItem(raw)
         local key = signature(mod)
         local isGlobal = (globalCounts[key] or 0) > 0
         if isGlobal then globalCounts[key] = globalCounts[key] - 1 end
-        table.insert(entry.modifiers, serializeMod(mod, entry.text, group.name, isGlobal and "global" or "local"))
+        local serialized = serializeMod(mod, entry.text, group.name, isGlobal and "global" or "local")
+        for _, nestedMod in ipairs(serialized) do
+          table.insert(entry.modifiers, nestedMod)
+        end
+      end
+      local level, keyword = entry.text:match("^%+(%d+) to Level of all (.-) Skills$")
+      if level and keyword then
+        local hasSkillLevel = false
+        for _, parsedMod in ipairs(entry.modifiers) do
+          if parsedMod.name == "SkillLevel" then hasSkillLevel = true end
+        end
+        if not hasSkillLevel then
+          entry.modifiers = {}
+          table.insert(entry.modifiers, {
+            name = "SkillLevel",
+            type = "BASE",
+            value = tonumber(level),
+            flags = {},
+            keywordFlags = {},
+            tags = {{ type = "SkillLevel", keyword = keyword:lower() }},
+            scope = "global",
+            recipient = skillRecipient(keyword),
+            wrapper = "GemProperty",
+            line = entry.text,
+            group = group.name,
+          })
+        end
       end
       table.insert(lines, entry)
     end
@@ -446,6 +589,8 @@ local function inspectItem(raw)
   return {
     baseType = item.baseName,
     itemType = item.type,
+    isWeapon = item.base.weapon ~= nil,
+    isArmour = item.base.armour ~= nil,
     lines = lines,
   }
 end
@@ -493,6 +638,12 @@ function normalizeEquipmentSemantics(value: unknown): EquipmentItemSemantics | u
         keywordFlags: asDetachedArray(modifier.keywordFlags).map(String),
         tags: asDetachedArray(modifier.tags).filter((tag): tag is Record<string, string | number | boolean> => Boolean(tag && typeof tag === 'object')),
         scope: modifier.scope === 'global' ? 'global' as const : 'local' as const,
+        recipient: ['minion', 'companion', 'ally', 'player-and-allies', 'enemy'].includes(String(modifier.recipient))
+          ? String(modifier.recipient) as EquipmentItemSemantics['lines'][number]['modifiers'][number]['recipient']
+          : 'player',
+        wrapper: modifier.wrapper === 'MinionModifier' || modifier.wrapper === 'ExtraAura' || modifier.wrapper === 'GemProperty'
+          ? modifier.wrapper as EquipmentItemSemantics['lines'][number]['modifiers'][number]['wrapper']
+          : undefined,
         line: String(modifier.line || text),
         group,
       }]
@@ -502,6 +653,8 @@ function normalizeEquipmentSemantics(value: unknown): EquipmentItemSemantics | u
   return {
     baseType: typeof record.baseType === 'string' ? record.baseType : undefined,
     itemType: typeof record.itemType === 'string' ? record.itemType : undefined,
+    isWeapon: record.isWeapon === true,
+    isArmour: record.isArmour === true,
     lines,
   }
 }

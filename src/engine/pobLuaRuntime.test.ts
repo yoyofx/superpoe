@@ -26,7 +26,7 @@ beforeAll(async () => {
     readFileSync(resolve(luaBundleDir, 'manifest.json'), 'utf8'),
   ) as PobLuaManifest
 
-  luaFactory = new LuaFactory(wasmPath, { CI: 'true' })
+  luaFactory = new LuaFactory(wasmPath)
   luaWasm = await luaFactory.getLuaModule()
 
   for (const entry of manifest.files) {
@@ -51,6 +51,11 @@ afterAll(() => {
 })
 
 describe('PoB Lua front-end runtime', () => {
+  it('formats integral floats like the LuaJIT runtime used by desktop PoB2', () => {
+    expect(lua.doStringSync('return tostring(90.0)')).toBe('90')
+    expect(lua.doStringSync('return tostring(90.25)')).toBe('90.25')
+  })
+
   it('parses equipment semantics and distinguishes local modifiers', () => {
     const ring = [
       'Rarity: RARE',
@@ -58,7 +63,7 @@ describe('PoB Lua front-end runtime', () => {
       'Ruby Ring',
       'Implicits: 0',
       '+30 to maximum Life',
-      '+20% to Fire Resistance',
+      'Fire Resistance is +44%',
     ].join('\n')
     const weapon = [
       'Rarity: RARE',
@@ -76,12 +81,94 @@ describe('PoB Lua front-end runtime', () => {
     const ringMods = result.results[0]?.lines.flatMap((line) => line.modifiers) || []
     expect(ringMods).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'Life', type: 'BASE', value: 30, scope: 'global' }),
-      expect.objectContaining({ name: 'FireResist', type: 'BASE', value: 20, scope: 'global' }),
+      expect.objectContaining({ name: 'FireResist', type: 'BASE', value: 44, scope: 'global' }),
     ]))
     const weaponMods = result.results[1]?.lines.flatMap((line) => line.modifiers) || []
     expect(weaponMods).toEqual(expect.arrayContaining([
       expect.objectContaining({ name: 'Speed', type: 'INC', value: 25, scope: 'local' }),
       expect.objectContaining({ type: 'BASE', value: 3, scope: 'global' }),
+    ]))
+  }, 30000)
+
+  it('calculates local armour values without introducing decimal modifier text', () => {
+    lua.global.set('__testArmourItemRaw', [
+      'Rarity: RARE',
+      'Hate Hold',
+      'Runeforged Grand Bracers',
+      'Item Level: 83',
+      'Quality: +20%',
+      'Implicits: 0',
+      '+166 to Evasion Rating',
+      '90% increased Evasion Rating',
+      '40% increased Evasion Rating',
+    ].join('\n'))
+
+    const evasion = lua.doStringSync(`
+      local item = new("Item", __testArmourItemRaw)
+      return item.armourData and item.armourData.Evasion
+    `)
+
+    expect(evasion).toBe(759)
+  })
+
+  it('unwraps minion, companion and ally equipment modifiers with recipients', () => {
+    const summonItem = [
+      'Rarity: RARE',
+      'Test Circle',
+      'Ruby Ring',
+      'Implicits: 0',
+      'Minions deal 10% increased Damage',
+      'Companions deal 12% increased Damage',
+      'Allies in your Presence Gain 20% of Damage as Extra Chaos Damage',
+      'Allies in your Presence deal 1 to 15 added Attack Lightning Damage',
+      'You and Allies in your Presence have 12% increased Attack Speed',
+    ].join('\n')
+
+    const result = inspectEquipmentWithLuaEngine(lua, [summonItem])
+    const modifiers = result.results[0]?.lines.flatMap((line) => line.modifiers) || []
+
+    expect(result.errors).toEqual({})
+    expect(modifiers).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Damage', type: 'INC', value: 10, recipient: 'minion', wrapper: 'MinionModifier' }),
+      expect.objectContaining({ name: 'Damage', type: 'INC', value: 12, recipient: 'companion', wrapper: 'MinionModifier' }),
+      expect.objectContaining({ name: 'DamageGainAsChaos', type: 'BASE', value: 20, recipient: 'ally', wrapper: 'ExtraAura' }),
+      expect.objectContaining({ name: 'LightningMin', type: 'BASE', value: 1, recipient: 'ally', wrapper: 'ExtraAura' }),
+      expect.objectContaining({ name: 'LightningMax', type: 'BASE', value: 15, recipient: 'ally', wrapper: 'ExtraAura' }),
+      expect.objectContaining({ name: 'Speed', type: 'BASE', value: 12, recipient: 'player-and-allies', wrapper: 'ExtraAura' }),
+    ]))
+  }, 30000)
+
+  it('extracts and scopes attack, spell, elemental, projectile, melee and minion skill levels', () => {
+    const skillItem = [
+      'Rarity: RARE',
+      'Test Level',
+      'Ruby Ring',
+      'Implicits: 0',
+      '+3 to Level of all Attack Skills',
+      '+3 to Level of all Melee Skills',
+      '+2 to Level of all Projectile Skills',
+      '+2 to Level of all Spell Skills',
+      '+2 to Level of all Cold Skills',
+      '+1 to Level of all Fire Skills',
+      '+1 to Level of all Lightning Skills',
+      '+1 to Level of all Chaos Skills',
+      '+2 to Level of all Physical Skills',
+      '+2 to Level of all Minion Skills',
+    ].join('\n')
+
+    const result = inspectEquipmentWithLuaEngine(lua, [skillItem])
+    const modifiers = result.results[0]?.lines.flatMap((line) => line.modifiers) || []
+    const skillLevels = modifiers.filter((modifier) => modifier.name === 'SkillLevel')
+    const keywordOf = (modifier: (typeof skillLevels)[number]) => modifier.tags.find((tag) => tag.type === 'SkillLevel')?.keyword
+
+    expect(result.errors).toEqual({})
+    expect(skillLevels.map(keywordOf)).toEqual(expect.arrayContaining([
+      'attack', 'melee', 'projectile', 'spell', 'cold', 'fire', 'lightning', 'chaos', 'physical', 'minion',
+    ]))
+    expect(skillLevels).toHaveLength(10)
+    expect(skillLevels).toEqual(expect.arrayContaining([
+      expect.objectContaining({ value: 3, recipient: 'player', wrapper: 'GemProperty' }),
+      expect.objectContaining({ value: 2, recipient: 'minion', wrapper: 'GemProperty' }),
     ]))
   }, 30000)
 
@@ -103,6 +190,10 @@ describe('PoB Lua front-end runtime', () => {
     expect(result.data?.Life).toBeGreaterThan(1400)
     expect(result.data?.Mana).toBeGreaterThan(1800)
     expect(result.data?.EnergyShield).toBeGreaterThan(1800)
+    expect(result.data?.Spirit).toBeDefined()
+    expect(result.data?.PhysicalDamageReduction).toBeDefined()
+    expect(result.data?.EffectiveBlockChance).toBeDefined()
+    expect(result.data?.EffectiveMovementSpeedMod).toBeDefined()
     expect(result.data?.FireResistTotal).toBeDefined()
     expect(result.data?.ColdResistTotal).toBeDefined()
     expect(result.data?.LightningResistTotal).toBeDefined()

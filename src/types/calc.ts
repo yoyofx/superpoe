@@ -9,11 +9,14 @@ export interface CalcResult {
   LifeUnreserved: number
   Mana: number
   ManaUnreserved: number
+  Spirit?: number
   EnergyShield: number
   // Defences
   Armour: number
   Evasion: number
   ArmourPhysicalDamageReduction?: number
+  PhysicalDamageReduction?: number
+  EvadeChance?: number
   // Resistances
   FireResist: number
   FireResistTotal: number
@@ -26,6 +29,7 @@ export interface CalcResult {
   // Block
   BlockChance: number
   SpellBlockChance: number
+  EffectiveBlockChance?: number
   // DPS
   TotalDPS: number
   FullDPS: number
@@ -41,6 +45,7 @@ export interface CalcResult {
   EnduranceChargesMax: number
   // Misc
   MovementSpeedMod: number
+  EffectiveMovementSpeedMod?: number
   ActionSpeedMod: number
   Ward: number
   // Regen

@@ -2,6 +2,8 @@ import type { EquipmentModifierGroup } from '@/types/equipment'
 
 export type EquipmentModifierType = 'BASE' | 'INC' | 'MORE' | 'FLAG' | 'LIST' | string
 export type EquipmentModifierScope = 'local' | 'global'
+export type EquipmentModifierRecipient = 'player' | 'minion' | 'companion' | 'ally' | 'player-and-allies' | 'enemy'
+export type EquipmentModifierWrapper = 'MinionModifier' | 'ExtraAura' | 'GemProperty'
 
 export interface EquipmentSemanticTag {
   type?: string
@@ -16,6 +18,8 @@ export interface EquipmentSemanticModifier {
   keywordFlags: string[]
   tags: EquipmentSemanticTag[]
   scope: EquipmentModifierScope
+  recipient: EquipmentModifierRecipient
+  wrapper?: EquipmentModifierWrapper
   line: string
   group: EquipmentModifierGroup
 }
@@ -30,6 +34,8 @@ export interface EquipmentSemanticLine {
 export interface EquipmentItemSemantics {
   baseType?: string
   itemType?: string
+  isWeapon: boolean
+  isArmour: boolean
   lines: EquipmentSemanticLine[]
 }
 

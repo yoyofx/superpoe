@@ -37,7 +37,7 @@ let mountedFiles = false
 let initDurationMs = 0
 let operationQueue = Promise.resolve()
 const equipmentCache = new Map<string, EquipmentItemSemantics>()
-const EQUIPMENT_ANALYSIS_SCHEMA_VERSION = '1'
+const EQUIPMENT_ANALYSIS_SCHEMA_VERSION = '4'
 const MOUNT_FETCH_CONCURRENCY = 24
 
 function assetUrl(path: string): string {
@@ -83,7 +83,7 @@ async function init(): Promise<void> {
         }
       }
 
-      luaFactory = new LuaFactory(wasmUrl, { CI: 'true' })
+      luaFactory = new LuaFactory(wasmUrl)
       luaWasm = await luaFactory.getLuaModule()
       await mountBundleFiles(loadedManifest)
       lua = await luaFactory.createEngine()
