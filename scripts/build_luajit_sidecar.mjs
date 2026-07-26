@@ -59,7 +59,12 @@ if (process.platform === 'win32') {
   cpSync(path.join(checkout, 'src', 'luajit.exe'), path.join(output, 'luajit.exe'))
   cpSync(path.join(checkout, 'src', 'lua51.dll'), path.join(output, 'lua51.dll'))
 } else if (process.platform === 'darwin') {
-  run('make', ['-j2'], { cwd: checkout })
+  const env = {
+    ...process.env,
+    // LuaJIT requires an explicit deployment target on current macOS toolchains.
+    MACOSX_DEPLOYMENT_TARGET: process.env.MACOSX_DEPLOYMENT_TARGET || '11.0',
+  }
+  run('make', ['-j2'], { cwd: checkout, env })
   const executable = path.join(output, 'luajit')
   cpSync(path.join(checkout, 'src', 'luajit'), executable)
   chmodSync(executable, 0o755)
