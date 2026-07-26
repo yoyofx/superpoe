@@ -11,3 +11,6 @@ public/pob-lua/** text eol=lf
 
 # Prebuilt native sidecars are committed verbatim.
 native/bin/** -text
+
+# Chromium LevelDB control files are byte-sensitive, including CURRENT's LF.
+"dev-data/SuperPoE2/Local Storage/leveldb/**" -text
