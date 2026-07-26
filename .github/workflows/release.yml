@@ -110,11 +110,6 @@ jobs:
             expected_arch: x64
             electron_args: --win --x64
             artifact_name: superpoe2-release-win-x64
-          - os: macos-15-intel
-            label: macOS Intel
-            expected_arch: x64
-            electron_args: --mac --x64
-            artifact_name: superpoe2-release-macos-x64
           - os: macos-15
             label: macOS Apple Silicon
             expected_arch: arm64
@@ -296,7 +291,7 @@ jobs:
 
             **Platforms**
             - Windows x64 installer (NSIS)
-            - macOS Intel and Apple Silicon (separate DMG / ZIP packages)
+            - macOS Apple Silicon (DMG / ZIP)
 
             **Notes**
             - Builds are **not code-signed**. On Windows SmartScreen / Defender may warn; on macOS use right-click → Open for first launch.

@@ -5,6 +5,9 @@ import { fileURLToPath } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const platformArch = `${process.platform}-${process.arch}`
+if (platformArch !== 'win32-x64' && platformArch !== 'darwin-arm64') {
+  throw new Error(`Unsupported SuperPoE native target: ${platformArch}`)
+}
 const output = path.join(root, 'native', 'bin', platformArch)
 const required = process.platform === 'win32'
   ? [path.join(output, 'luajit.exe'), path.join(output, 'lua51.dll')]

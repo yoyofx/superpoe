@@ -7,6 +7,10 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lock = JSON.parse(readFileSync(path.join(root, 'pob-runtime.lock.json'), 'utf8'))
 const platformArch = `${process.platform}-${process.arch}`
+const supportedTargets = new Set(['win32-x64', 'darwin-arm64'])
+if (!supportedTargets.has(platformArch)) {
+  throw new Error(`Unsupported SuperPoE native target: ${platformArch}`)
+}
 const output = path.join(root, 'native', 'bin', platformArch)
 const checkout = mkdtempSync(path.join(tmpdir(), 'superpoe-luajit-'))
 

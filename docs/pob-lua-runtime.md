@@ -50,7 +50,8 @@ npm.cmd run native:lua
 npm.cmd run test:native:lua
 ```
 
-macOS requires Git, Xcode Command Line Tools, and `make`:
+macOS Apple Silicon requires Git, Xcode Command Line Tools, and `make`. Intel
+Macs are not a supported build or distribution target:
 
 ```bash
 xcode-select --install
@@ -67,19 +68,17 @@ The build script always checks out the LuaJIT commit from
 ```text
 native/bin/win32-x64/luajit.exe
 native/bin/win32-x64/lua51.dll
-native/bin/darwin-x64/luajit
 native/bin/darwin-arm64/luajit
 ```
 
 ## GitHub Actions
 
 Both `.github/workflows/build-dev.yml` and `.github/workflows/release.yml`
-build three independent packages:
+build two independent packages:
 
 | Job | Runner | Required `process.arch` | Package |
 | --- | --- | --- | --- |
 | Windows x64 | `windows-latest` | `x64` | NSIS |
-| macOS Intel | `macos-15-intel` | `x64` | DMG and ZIP |
 | macOS Apple Silicon | `macos-15` | `arm64` | DMG and ZIP |
 
 Each job performs this release gate:
@@ -109,7 +108,7 @@ pipeline rejects a source snapshot whose normalized hash does not match the
 lock.
 
 To update LuaJIT, change only the locked commit first, build and run the native
-fixture on all three CI jobs, and then review the produced package. Do not copy
+fixture on both CI jobs, and then review the produced package. Do not copy
 an untracked third-party binary into a release.
 
 ## Failure Behavior

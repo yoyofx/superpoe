@@ -59,11 +59,6 @@ jobs:
             expected_arch: x64
             electron_args: --win --x64
             artifact_name: superpoe2-dev-win-x64
-          - os: macos-15-intel
-            label: macOS Intel
-            expected_arch: x64
-            electron_args: --mac --x64
-            artifact_name: superpoe2-dev-macos-x64
           - os: macos-15
             label: macOS Apple Silicon
             expected_arch: arm64
