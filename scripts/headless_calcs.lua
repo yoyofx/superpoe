@@ -156,6 +156,8 @@ local result = {
 		Armour = safeNum(output.Armour),
 		Evasion = safeNum(output.Evasion),
 		ArmourPhysicalDamageReduction = safeNum(output.ArmourPhysicalDamageReduction),
+		DeflectChance = safeNum(output.DeflectChance),
+		DeflectEffect = safeNum(output.DeflectEffect),
 
 		-- Resistances
 		FireResist = safeNum(output.FireResist),

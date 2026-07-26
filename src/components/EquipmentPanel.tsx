@@ -291,6 +291,8 @@ function CharacterSummary({ result, loading, error, onCalculate }: {
         [zh ? '物理伤害减免' : 'Physical Damage Reduction', characterNumber(result.PhysicalDamageReduction ?? result.ArmourPhysicalDamageReduction, '%')],
         [zh ? '闪避值' : 'Evasion Rating', characterNumber(result.Evasion)],
         [zh ? '闪避率' : 'Evade Chance', characterNumber(result.EvadeChance, '%')],
+        [zh ? '偏斜几率' : 'Deflect Chance', characterNumber(result.DeflectChance, '%')],
+        [zh ? '偏斜效果' : 'Deflect Effect', characterNumber(result.DeflectEffect, '%')],
         [zh ? '格挡率' : 'Block Chance', characterNumber(block, '%')],
         [zh ? '抗性' : 'Resistances', `${characterNumber(result.FireResist, '%')}/${characterNumber(result.ColdResist, '%')}/${characterNumber(result.LightningResist, '%')}/${characterNumber(result.ChaosResist, '%')}`],
       ])}

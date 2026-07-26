@@ -60,11 +60,14 @@ lines.on('line', (line) => {
   if (!(data.allocatedNodes > 0) || !(data.Mana > 0)) {
     throw new Error(`Incomplete PoB result: ${JSON.stringify(data)}`)
   }
+  if (!Number.isFinite(data.DeflectChance) || !Number.isFinite(data.DeflectEffect)) {
+    throw new Error(`Missing deflection result: ${JSON.stringify(data)}`)
+  }
   clearTimeout(timeout)
   if (buildCodePath) {
     console.log(JSON.stringify(data, null, 2))
   } else {
-    console.log(`LuaJIT parity fixture passed: level=${data.CharacterLevel}, nodes=${data.allocatedNodes}, mana=${data.Mana}`)
+    console.log(`LuaJIT parity fixture passed: level=${data.CharacterLevel}, nodes=${data.allocatedNodes}, mana=${data.Mana}, deflect=${data.DeflectChance}%/${data.DeflectEffect}%`)
   }
   child.kill()
 })

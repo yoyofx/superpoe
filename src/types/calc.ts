@@ -17,6 +17,8 @@ export interface CalcResult {
   ArmourPhysicalDamageReduction?: number
   PhysicalDamageReduction?: number
   EvadeChance?: number
+  DeflectChance?: number
+  DeflectEffect?: number
   // Resistances
   FireResist: number
   FireResistTotal: number

@@ -109,7 +109,7 @@ local function calculate(payload)
 	local fields = {
 		"Str", "Dex", "Int", "Life", "LifeUnreserved", "Mana", "ManaUnreserved", "Spirit",
 		"EnergyShield", "Armour", "Evasion", "ArmourPhysicalDamageReduction", "PhysicalDamageReduction",
-		"EvadeChance", "FireResist", "FireResistTotal", "ColdResist", "ColdResistTotal",
+		"EvadeChance", "DeflectChance", "DeflectEffect", "FireResist", "FireResistTotal", "ColdResist", "ColdResistTotal",
 		"LightningResist", "LightningResistTotal", "ChaosResist", "ChaosResistTotal", "BlockChance",
 		"SpellBlockChance", "EffectiveBlockChance", "TotalDPS", "FullDPS", "FullDotDPS", "AverageHit",
 		"Speed", "HitSpeed", "CritChance", "CritMultiplier", "PowerChargesMax", "FrenzyChargesMax",

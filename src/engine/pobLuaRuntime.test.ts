@@ -192,6 +192,8 @@ describe('PoB Lua front-end runtime', () => {
     expect(result.data?.EnergyShield).toBeGreaterThan(1800)
     expect(result.data?.Spirit).toBeDefined()
     expect(result.data?.PhysicalDamageReduction).toBeDefined()
+    expect(result.data?.DeflectChance).toBeDefined()
+    expect(result.data?.DeflectEffect).toBeDefined()
     expect(result.data?.EffectiveBlockChance).toBeDefined()
     expect(result.data?.EffectiveMovementSpeedMod).toBeDefined()
     expect(result.data?.FireResistTotal).toBeDefined()
