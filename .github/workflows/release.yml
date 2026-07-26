@@ -186,9 +186,8 @@ jobs:
       - name: Verify pinned PoB runtime
         run: npm run verify:lua
 
-      - name: Build pinned LuaJIT sidecar
-        if: steps.cache-luajit.outputs.cache-hit != 'true'
-        run: npm run native:lua
+      - name: Ensure pinned LuaJIT sidecar
+        run: node scripts/ensure_luajit_sidecar.mjs
 
       - name: Test LuaJIT sidecar against PoB fixture
         run: npm run test:native:lua

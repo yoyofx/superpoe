@@ -8,7 +8,23 @@
   },
   "luajit": {
     "repository": "https://github.com/LuaJIT/LuaJIT.git",
-    "commit": "a471ab78c7b670b4f92dae111fc3c96fb824c768"
+    "commit": "a471ab78c7b670b4f92dae111fc3c96fb824c768",
+    "binaries": [
+      {
+        "platform": "win32",
+        "arch": "x64",
+        "path": "native/bin/win32-x64/luajit.exe",
+        "size": 27348,
+        "sha256": "ff1991045c7ce18c9657e1b02af5f0c10fc9424b9cd8cb55836ec19c749811b0"
+      },
+      {
+        "platform": "win32",
+        "arch": "x64",
+        "path": "native/bin/win32-x64/lua51.dll",
+        "size": 593581,
+        "sha256": "5a30571b91fdc149ed7ec8e7d2d2f08648aa08f0eef923d7af7d8fcbcd1ad8c3"
+      }
+    ]
   },
   "protocolVersion": 1
 }

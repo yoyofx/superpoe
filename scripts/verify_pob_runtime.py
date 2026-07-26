@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 
@@ -80,10 +81,31 @@ def main() -> None:
             )
         print(f"PoB source: {count} files, commit {expected_commit}, hash {actual_hash}")
 
+    for binary in lock["luajit"].get("binaries", []):
+        path = ROOT / binary["path"]
+        if not path.is_file():
+            raise SystemExit(f"Committed LuaJIT binary is missing: {binary['path']}")
+        actual_size = path.stat().st_size
+        if actual_size != binary["size"]:
+            raise SystemExit(
+                f"LuaJIT binary size mismatch for {binary['path']}: "
+                f"expected {binary['size']}, got {actual_size}"
+            )
+        actual_hash = file_hash(path)
+        if actual_hash != binary["sha256"]:
+            raise SystemExit(
+                f"LuaJIT binary hash mismatch for {binary['path']}: "
+                f"expected {binary['sha256']}, got {actual_hash}"
+            )
+        if binary["platform"] == "darwin" and os.name != "nt":
+            if path.stat().st_mode & 0o111 == 0:
+                raise SystemExit(f"LuaJIT binary is not executable: {binary['path']}")
+
     print(
         f"PoB bundle: {manifest['fileCount']} files, {bundle_source_count} pinned source files, "
         "all hashes valid"
     )
+    print(f"LuaJIT binaries: {len(lock['luajit'].get('binaries', []))} files, all hashes valid")
 
 
 if __name__ == "__main__":
