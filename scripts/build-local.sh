@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# One-click local setup and Electron package build for SuperPoE2 (macOS / Linux).
+# One-click local setup and Electron package build for SuperPoE2 (macOS).
+# Linux is not a supported desktop packaging target.
 #
 # - Clone or fast-forward update read-only upstreams under upstreams/
 # - npm install
 # - Optional resource pipeline (public/ is already committed; only when refreshing upstream data)
-# - npm run dist:electron
+# - Build and test the pinned native LuaJIT sidecar through npm run dist:electron
 #
 # Usage:
 #   ./scripts/build-local.sh
@@ -92,7 +93,12 @@ ensure_upstream_repo() {
   git clone "$url" "$path"
 }
 
-step "SuperPoE2 local build (macOS/Linux)"
+if [[ "$(uname -s)" != "Darwin" ]]; then
+  echo "error: native desktop packaging is supported on macOS and Windows only" >&2
+  exit 1
+fi
+
+step "SuperPoE2 local build (macOS)"
 echo "Repo root: $ROOT"
 
 need_cmd git

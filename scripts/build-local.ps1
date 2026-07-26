@@ -7,6 +7,7 @@
   - Clone or fast-forward update read-only upstreams under upstreams/
   - npm install
   - Optional resource pipeline (public/ is already committed; only needed when refreshing upstream data)
+  - Build and test the pinned native LuaJIT sidecar
   - npm run dist:electron  (local installer / package)
 
 .PARAMETER SkipUpstreams

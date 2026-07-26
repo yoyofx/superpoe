@@ -58,16 +58,32 @@ def main() -> None:
     if mismatches:
         raise SystemExit(f"PoB bundle hash mismatch ({len(mismatches)}): {mismatches[:10]}")
 
+    bundle_source_count, bundle_source_hash = source_tree_hash(BUNDLE_ROOT)
+    expected_source_hash = lock["pob"]["sourceTreeHash"]
+    if bundle_source_hash != expected_source_hash:
+        raise SystemExit(
+            "Committed PoB bundle does not match the pinned source tree: "
+            f"expected {expected_source_hash}, got {bundle_source_hash}"
+        )
+    expected_source_count = manifest.get("pob", {}).get("sourceFileCount")
+    if expected_source_count != bundle_source_count:
+        raise SystemExit(
+            f"Committed PoB source file count mismatch: expected {expected_source_count}, "
+            f"got {bundle_source_count}"
+        )
+
     if SOURCE_ROOT.exists():
         count, actual_hash = source_tree_hash(SOURCE_ROOT)
-        expected_hash = lock["pob"]["sourceTreeHash"]
-        if actual_hash != expected_hash:
+        if actual_hash != expected_source_hash:
             raise SystemExit(
-                f"PoB source snapshot mismatch: expected {expected_hash}, got {actual_hash}"
+                f"PoB source snapshot mismatch: expected {expected_source_hash}, got {actual_hash}"
             )
         print(f"PoB source: {count} files, commit {expected_commit}, hash {actual_hash}")
 
-    print(f"PoB bundle: {manifest['fileCount']} files, all hashes valid")
+    print(
+        f"PoB bundle: {manifest['fileCount']} files, {bundle_source_count} pinned source files, "
+        "all hashes valid"
+    )
 
 
 if __name__ == "__main__":

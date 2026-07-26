@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -56,7 +56,9 @@ if (process.platform === 'win32') {
   cpSync(path.join(checkout, 'src', 'lua51.dll'), path.join(output, 'lua51.dll'))
 } else if (process.platform === 'darwin') {
   run('make', ['-j2'], { cwd: checkout })
-  cpSync(path.join(checkout, 'src', 'luajit'), path.join(output, 'luajit'), { mode: 0o755 })
+  const executable = path.join(output, 'luajit')
+  cpSync(path.join(checkout, 'src', 'luajit'), executable)
+  chmodSync(executable, 0o755)
 } else {
   throw new Error(`Unsupported platform for SuperPoE LuaJIT: ${process.platform}`)
 }

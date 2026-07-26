@@ -107,14 +107,17 @@ jobs:
         include:
           - os: windows-latest
             label: win-x64
+            expected_arch: x64
             electron_args: --win --x64
             artifact_name: superpoe2-release-win-x64
-          - os: macos-13
+          - os: macos-15-intel
             label: macOS Intel
+            expected_arch: x64
             electron_args: --mac --x64
             artifact_name: superpoe2-release-macos-x64
-          - os: macos-14
+          - os: macos-15
             label: macOS Apple Silicon
+            expected_arch: arm64
             electron_args: --mac --arm64
             artifact_name: superpoe2-release-macos-arm64
 
@@ -132,6 +135,21 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Verify runner architecture
+        shell: bash
+        run: |
+          actual="$(node -p 'process.arch')"
+          expected="${{ matrix.expected_arch }}"
+          echo "Runner architecture: ${actual}; expected: ${expected}"
+          test "${actual}" = "${expected}"
+
+      - name: Restore pinned LuaJIT build
+        id: cache-luajit
+        uses: actions/cache@v4
+        with:
+          path: native/bin
+          key: luajit-${{ runner.os }}-${{ matrix.expected_arch }}-${{ hashFiles('pob-runtime.lock.json', 'scripts/build_luajit_sidecar.mjs') }}
 
       - name: Apply release version from GitHub Release
         shell: bash
@@ -174,6 +192,7 @@ jobs:
         run: npm run verify:lua
 
       - name: Build pinned LuaJIT sidecar
+        if: steps.cache-luajit.outputs.cache-hit != 'true'
         run: npm run native:lua
 
       - name: Test LuaJIT sidecar against PoB fixture
