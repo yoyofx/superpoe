@@ -9,6 +9,7 @@ import {
   type EquipmentAffixSummary,
 } from '@/engine/equipmentAffixes'
 import { parseEquipmentXml } from '@/engine/equipment'
+import { aggregateEquipmentSemantics, type EquipmentSemanticView } from '@/engine/equipmentSemantics'
 import { deriveItemDisplayRequirements, deriveItemDisplayStats, deriveWeaponComparisonStats } from '@/engine/itemDisplayStats'
 import { loadItemBaseData, resolveItemBaseData, type ItemBaseData } from '@/engine/itemBaseData'
 import { loadItemIconIndex, resolveItemIcon, resolveItemIconName, type ItemIconIndex } from '@/engine/itemIcons'
@@ -22,6 +23,8 @@ import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { useTreeStore } from '@/store/treeStore'
 import type { EquipmentItem, EquipmentSet, EquipmentSlot } from '@/types/equipment'
+import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
+import { inspectEquipment } from '@/engine/pobLuaClient'
 import {
   fitPaperDoll,
   getActivePaperDollSlots,
@@ -118,7 +121,7 @@ const AFFIX_CATEGORY_ORDER: EquipmentAffixCategory[] = [
 const AFFIX_GROUP_ORDER: EquipmentAffixGroup[] = ['attack', 'defence', 'attributes', 'important', 'other']
 
 const AFFIX_GROUP_LABELS: Record<EquipmentAffixGroup, { en: string; zh: string }> = {
-  attack: { en: 'Attack', zh: '攻击' },
+  attack: { en: 'Offence', zh: '进攻' },
   defence: { en: 'Defence', zh: '防御' },
   attributes: { en: 'Attributes', zh: '属性' },
   important: { en: 'Important', zh: '重要' },
@@ -192,9 +195,12 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
   weaponSet,
   affixesByGroup,
   affixCount,
+  semanticView,
+  semanticsLoading,
   collapsedCategories,
   expandedAffixes,
   onSelectSet,
+  onSelectSemanticView,
   onToggleCategory,
   onToggleAffix,
   onSelectSource,
@@ -204,9 +210,12 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
   weaponSet: 1 | 2
   affixesByGroup: Map<EquipmentAffixGroup, EquipmentAffixSummary[]>
   affixCount: number
+  semanticView: EquipmentSemanticView | 'all'
+  semanticsLoading: boolean
   collapsedCategories: Set<EquipmentAffixGroup>
   expandedAffixes: Set<string>
   onSelectSet: (setId: string) => void
+  onSelectSemanticView: (view: EquipmentSemanticView | 'all') => void
   onToggleCategory: (group: EquipmentAffixGroup) => void
   onToggleAffix: (key: string) => void
   onSelectSource: (itemId: string) => void
@@ -218,6 +227,21 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
       <div className="equipment-affix-heading">
         <span>{lang === 'zh-rCN' ? '已装备词缀' : 'Equipped modifiers'}</span>
         <strong>{lang === 'zh-rCN' ? `武器组 ${weaponSet === 1 ? 'I' : 'II'}` : `Weapon set ${weaponSet === 1 ? 'I' : 'II'}`}</strong>
+      </div>
+      <div className="equipment-semantic-tabs" role="tablist" aria-label={lang === 'zh-rCN' ? '装备词缀视图' : 'Equipment modifier view'}>
+        {(['offence', 'defence', 'all'] as const).map((view) => {
+          const label = view === 'offence'
+            ? (lang === 'zh-rCN' ? '进攻' : 'Offence')
+            : view === 'defence' ? (lang === 'zh-rCN' ? '防御' : 'Defence') : (lang === 'zh-rCN' ? '全部' : 'All')
+          return <button
+            key={view}
+            type="button"
+            role="tab"
+            aria-selected={semanticView === view}
+            className={semanticView === view ? 'active' : ''}
+            onClick={() => onSelectSemanticView(view)}
+          >{label}</button>
+        })}
       </div>
       <label className="equipment-loadout-select">
         <span>{lang === 'zh-rCN' ? '装备方案' : 'Loadout'}</span>
@@ -254,7 +278,9 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
             />)}
           </section>
         })}
-        {!affixCount && <div className="equipment-affix-empty">{lang === 'zh-rCN' ? '当前装备没有可汇总的词缀' : 'No equipped modifiers to summarize'}</div>}
+        {!affixCount && <div className="equipment-affix-empty">{semanticsLoading && semanticView !== 'all'
+          ? (lang === 'zh-rCN' ? '装备数据分析中' : 'Analysing equipment')
+          : (lang === 'zh-rCN' ? '当前装备没有可汇总的词缀' : 'No equipped modifiers to summarize')}</div>}
       </div>
     </aside>
   )
@@ -559,6 +585,9 @@ export function EquipmentPanel() {
   const [paperDollBackgroundAvailable, setPaperDollBackgroundAvailable] = useState(true)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<EquipmentAffixGroup>>(new Set())
   const [expandedAffixes, setExpandedAffixes] = useState<Set<string>>(new Set())
+  const [semanticView, setSemanticView] = useState<EquipmentSemanticView | 'all'>('offence')
+  const [semanticsById, setSemanticsById] = useState<Record<string, EquipmentItemSemantics>>({})
+  const [semanticsLoading, setSemanticsLoading] = useState(false)
   const { hostRef, size: paperDollSize } = usePaperDollSize()
 
   useEffect(() => {
@@ -594,10 +623,14 @@ export function EquipmentPanel() {
     }
     return result
   }, [deferredAffixInput])
-  const affixSummaries = useMemo(
+  const allAffixSummaries = useMemo(
     () => aggregateEquipmentAffixes(affixSlots, deferredAffixInput.itemsById),
     [affixSlots, deferredAffixInput.itemsById],
   )
+  const affixSummaries = useMemo(() => semanticView === 'all'
+    ? allAffixSummaries
+    : aggregateEquipmentSemantics(affixSlots, deferredAffixInput.itemsById, semanticsById, semanticView),
+  [affixSlots, deferredAffixInput.itemsById, allAffixSummaries, semanticView, semanticsById])
   const affixesByGroup = useMemo(() => {
     const groups = new Map<EquipmentAffixGroup, EquipmentAffixSummary[]>()
     const ordered = [...affixSummaries].sort((left, right) => (
@@ -614,6 +647,29 @@ export function EquipmentPanel() {
   const firstItem = equipped.map((slot) => equipment?.itemsById[slot.itemId]).find(Boolean)
   const selected = (selectedId && equipment?.itemsById[selectedId]) || firstItem
   const selectedSlotName = selected ? activeSet?.slots.find((slot) => slot.itemId === selected.id)?.name : undefined
+
+  useEffect(() => {
+    let cancelled = false
+    const items = Object.values(equipment?.itemsById || {}).filter((item) => item.raw)
+    if (!items.length) {
+      setSemanticsById({})
+      setSemanticsLoading(false)
+      return () => { cancelled = true }
+    }
+    setSemanticsById({})
+    setSemanticsLoading(true)
+    void inspectEquipment(items.map(({ id, raw }) => ({ id, raw })))
+      .then((result) => {
+        if (!cancelled) setSemanticsById(result.items)
+      })
+      .catch(() => {
+        if (!cancelled) setSemanticsById({})
+      })
+      .finally(() => {
+        if (!cancelled) setSemanticsLoading(false)
+      })
+    return () => { cancelled = true }
+  }, [equipment])
 
   useEffect(() => {
     if (activeSet) setWeaponSet(activeSet.useSecondWeaponSet ? 2 : 1)
@@ -687,9 +743,12 @@ export function EquipmentPanel() {
         weaponSet={deferredAffixInput.weaponSet}
         affixesByGroup={affixesByGroup}
         affixCount={affixSummaries.length}
+        semanticView={semanticView}
+        semanticsLoading={semanticsLoading}
         collapsedCategories={collapsedCategories}
         expandedAffixes={expandedAffixes}
         onSelectSet={handleSelectSet}
+        onSelectSemanticView={setSemanticView}
         onToggleCategory={handleToggleCategory}
         onToggleAffix={handleToggleAffix}
         onSelectSource={setSelectedId}

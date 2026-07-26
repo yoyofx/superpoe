@@ -6,6 +6,7 @@ import { LuaFactory } from 'wasmoon'
 import { decodeBuildCode } from '@/engine/buildCode'
 import {
   calculateWithLuaEngine,
+  inspectEquipmentWithLuaEngine,
   installBuildHelpers,
   installHostCompatibility,
   type PobLuaManifest,
@@ -50,6 +51,40 @@ afterAll(() => {
 })
 
 describe('PoB Lua front-end runtime', () => {
+  it('parses equipment semantics and distinguishes local modifiers', () => {
+    const ring = [
+      'Rarity: RARE',
+      'Test Circle',
+      'Ruby Ring',
+      'Implicits: 0',
+      '+30 to maximum Life',
+      '+20% to Fire Resistance',
+    ].join('\n')
+    const weapon = [
+      'Rarity: RARE',
+      'Test Cry',
+      'Sinister Quarterstaff',
+      'Implicits: 0',
+      '25% increased Attack Speed',
+      '+3 to Level of all Attack Skills',
+    ].join('\n')
+
+    const result = inspectEquipmentWithLuaEngine(lua, [ring, weapon])
+
+    expect(result.errors).toEqual({})
+    expect(result.results).toHaveLength(2)
+    const ringMods = result.results[0]?.lines.flatMap((line) => line.modifiers) || []
+    expect(ringMods).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Life', type: 'BASE', value: 30, scope: 'global' }),
+      expect.objectContaining({ name: 'FireResist', type: 'BASE', value: 20, scope: 'global' }),
+    ]))
+    const weaponMods = result.results[1]?.lines.flatMap((line) => line.modifiers) || []
+    expect(weaponMods).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'Speed', type: 'INC', value: 25, scope: 'local' }),
+      expect.objectContaining({ type: 'BASE', value: 3, scope: 'global' }),
+    ]))
+  }, 30000)
+
   it('calculates the Stormweaver import-code fixture', () => {
     const code = readFileSync(fixturePath, 'utf8').trim()
     const decoded = decodeBuildCode(code)

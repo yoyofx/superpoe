@@ -18,6 +18,7 @@ import { SkillsPanel } from '@/components/SkillsPanel'
 import { GlobalSettingsDialog } from '@/components/GlobalSettingsDialog'
 import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/appSettings'
 import { UpdateDialog } from '@/components/UpdateDialog'
+import { initPobLuaWorker } from '@/engine/pobLuaClient'
 
 export default function App() {
   const { t, lang } = useTranslation()
@@ -70,6 +71,9 @@ export default function App() {
   useEffect(() => {
     loadTreeData()
     loadSavedBuilds()
+    void initPobLuaWorker().catch(() => {
+      // Calculation surfaces report runtime errors when the user needs them.
+    })
   }, [loadTreeData, loadSavedBuilds])
 
   useEffect(() => {

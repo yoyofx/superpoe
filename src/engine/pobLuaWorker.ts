@@ -1,17 +1,23 @@
 import type { CalcApiResponse } from '@/types/calc'
 import {
   calculateWithLuaEngine,
+  inspectEquipmentWithLuaEngine,
   installBuildHelpers,
   installHostCompatibility,
   type PobLuaManifest,
 } from '@/engine/pobLuaRuntime'
+import type {
+  EquipmentInspectionItem,
+  EquipmentInspectionResult,
+  EquipmentItemSemantics,
+} from '@/types/equipmentSemantics'
 import { LuaFactory } from 'wasmoon'
 import wasmUrl from 'wasmoon/dist/glue.wasm?url'
 
 interface WorkerRequest {
   id: number
-  type: 'init' | 'calculate'
-  payload?: { code?: string; xml?: string }
+  type: 'init' | 'calculate' | 'inspectEquipment'
+  payload?: { code?: string; xml?: string } | { items?: EquipmentInspectionItem[] }
 }
 
 interface WorkerResponse {
@@ -28,6 +34,10 @@ let luaFactory: LuaFactory | null = null
 let luaWasm: Awaited<ReturnType<LuaFactory['getLuaModule']>> | null = null
 let lua: Awaited<ReturnType<LuaFactory['createEngine']>> | null = null
 let mountedFiles = false
+let initDurationMs = 0
+let operationQueue = Promise.resolve()
+const equipmentCache = new Map<string, EquipmentItemSemantics>()
+const EQUIPMENT_ANALYSIS_SCHEMA_VERSION = '1'
 const MOUNT_FETCH_CONCURRENCY = 24
 
 function assetUrl(path: string): string {
@@ -64,6 +74,7 @@ async function loadManifest(): Promise<PobLuaManifest> {
 async function init(): Promise<void> {
   if (!initPromise) {
     initPromise = (async () => {
+      const startedAt = performance.now()
       const loadedManifest = await loadManifest()
       const required = new Set(['HeadlessWrapper.lua', 'Launch.lua'])
       for (const file of required) {
@@ -79,6 +90,7 @@ async function init(): Promise<void> {
       installHostCompatibility(lua)
       lua.doFileSync('/HeadlessWrapper.lua')
       installBuildHelpers(lua)
+      initDurationMs = performance.now() - startedAt
     })()
   }
   return initPromise
@@ -110,9 +122,58 @@ async function calculate(payload: { code?: string; xml?: string } | undefined): 
   return calculateWithLuaEngine(lua, payload.xml)
 }
 
+async function equipmentCacheKey(raw: string): Promise<string> {
+  const version = manifest?.version || 'unknown'
+  const bytes = new TextEncoder().encode(`${EQUIPMENT_ANALYSIS_SCHEMA_VERSION}\0${version}\0${raw}`)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('')
+}
+
+async function inspectEquipment(payload: { items?: EquipmentInspectionItem[] } | undefined): Promise<EquipmentInspectionResult> {
+  await init()
+  if (!lua) throw new Error('Lua VM was not initialized')
+
+  const items = payload?.items || []
+  const output: EquipmentInspectionResult = {
+    items: {},
+    errors: {},
+    performance: { initMs: initDurationMs, parseMs: 0, cacheHits: 0, cacheMisses: 0 },
+  }
+  const missing: Array<{ item: EquipmentInspectionItem; key: string }> = []
+
+  for (const item of items) {
+    const key = await equipmentCacheKey(item.raw)
+    const cached = equipmentCache.get(key)
+    if (cached) {
+      output.items[item.id] = cached
+      output.performance.cacheHits += 1
+    } else {
+      missing.push({ item, key })
+      output.performance.cacheMisses += 1
+    }
+  }
+
+  if (missing.length) {
+    const startedAt = performance.now()
+    const inspected = inspectEquipmentWithLuaEngine(lua, missing.map(({ item }) => item.raw))
+    output.performance.parseMs = performance.now() - startedAt
+    missing.forEach(({ item, key }, index) => {
+      const semantics = inspected.results[index]
+      if (semantics) {
+        equipmentCache.set(key, semantics)
+        output.items[item.id] = semantics
+      } else {
+        output.errors[item.id] = inspected.errors[index] || 'PoB did not return equipment semantics'
+      }
+    })
+  }
+
+  return output
+}
+
 self.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const request = event.data
-  void (async () => {
+  operationQueue = operationQueue.then(async () => {
     try {
       if (request.type === 'init') {
         await init()
@@ -120,7 +181,12 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         return
       }
       if (request.type === 'calculate') {
-        const result = await calculate(request.payload)
+        const result = await calculate(request.payload as { code?: string; xml?: string } | undefined)
+        respond({ id: request.id, success: true, data: result })
+        return
+      }
+      if (request.type === 'inspectEquipment') {
+        const result = await inspectEquipment(request.payload as { items?: EquipmentInspectionItem[] } | undefined)
         respond({ id: request.id, success: true, data: result })
         return
       }
@@ -132,5 +198,5 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         error: err instanceof Error ? err.message : String(err),
       })
     }
-  })()
+  })
 }

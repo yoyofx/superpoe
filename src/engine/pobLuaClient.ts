@@ -1,8 +1,9 @@
 import type { CalcApiResponse } from '@/types/calc'
+import type { EquipmentInspectionItem, EquipmentInspectionResult } from '@/types/equipmentSemantics'
 
 interface WorkerRequest {
   id: number
-  type: 'init' | 'calculate'
+  type: 'init' | 'calculate' | 'inspectEquipment'
   payload?: unknown
 }
 
@@ -21,6 +22,7 @@ export interface CalculateBuildInput {
 const BACKEND_FALLBACK = import.meta.env.VITE_CALC_BACKEND_FALLBACK === 'true'
 
 let worker: Worker | null = null
+let workerInitPromise: Promise<void> | null = null
 let nextId = 1
 const pending = new Map<number, {
   resolve: (value: unknown) => void
@@ -44,6 +46,7 @@ function getWorker(): Worker {
     pending.clear()
     worker?.terminate()
     worker = null
+    workerInitPromise = null
   }
   return worker
 }
@@ -58,7 +61,23 @@ function callWorker<T>(type: WorkerRequest['type'], payload?: unknown): Promise<
 }
 
 export async function initPobLuaWorker(): Promise<void> {
-  await callWorker<void>('init')
+  if (!workerInitPromise) {
+    workerInitPromise = callWorker<void>('init').catch((error) => {
+      workerInitPromise = null
+      throw error
+    })
+  }
+  await workerInitPromise
+}
+
+export async function inspectEquipment(items: EquipmentInspectionItem[]): Promise<EquipmentInspectionResult> {
+  await initPobLuaWorker()
+  const result = await callWorker<EquipmentInspectionResult>('inspectEquipment', { items })
+  if (import.meta.env.DEV) {
+    const { initMs, parseMs, cacheHits, cacheMisses } = result.performance
+    console.debug(`[PoB Lua] equipment init=${initMs.toFixed(1)}ms parse=${parseMs.toFixed(1)}ms hits=${cacheHits} misses=${cacheMisses}`)
+  }
+  return result
 }
 
 async function calculateViaBackend(input: CalculateBuildInput): Promise<CalcApiResponse> {

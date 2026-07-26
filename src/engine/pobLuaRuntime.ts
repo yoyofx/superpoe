@@ -1,4 +1,5 @@
 import type { CalcApiResponse } from '@/types/calc'
+import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
 import type { LuaFactory } from 'wasmoon'
 
 type LuaEngine = Awaited<ReturnType<LuaFactory['createEngine']>>
@@ -335,6 +336,200 @@ end
 
 return { success = true, data = data }
 `
+
+export const EQUIPMENT_INSPECTION_SCRIPT = `
+local results = {}
+local errors = {}
+
+local function scalarValue(value)
+  local valueType = type(value)
+  if valueType == "number" or valueType == "string" or valueType == "boolean" then
+    return value
+  end
+  return nil
+end
+
+local function decodeFlags(value, source)
+  local decoded = {}
+  if type(value) ~= "number" then return decoded end
+  for name, flag in pairs(source or {}) do
+    if type(flag) == "number" and flag ~= 0 and not name:match("Mask$") and AND64(value, flag) == flag then
+      table.insert(decoded, name)
+    end
+  end
+  table.sort(decoded)
+  return decoded
+end
+
+local function serializeTags(mod)
+  local tags = {}
+  for _, tag in ipairs(mod) do
+    if type(tag) == "table" then
+      local serialized = {}
+      for key, value in pairs(tag) do
+        if type(key) == "string" then
+          local scalar = scalarValue(value)
+          if scalar ~= nil then serialized[key] = scalar end
+        end
+      end
+      table.insert(tags, serialized)
+    end
+  end
+  return tags
+end
+
+local function signature(mod)
+  local value = scalarValue(mod.value)
+  return table.concat({
+    tostring(mod.name or ""),
+    tostring(mod.type or ""),
+    tostring(value),
+    tostring(mod.flags or 0),
+    tostring(mod.keywordFlags or 0),
+  }, "|")
+end
+
+local function serializeMod(mod, line, group, scope)
+  return {
+    name = tostring(mod.name or "Unknown"),
+    type = tostring(mod.type or "Unknown"),
+    value = scalarValue(mod.value),
+    flags = decodeFlags(mod.flags or 0, ModFlag),
+    keywordFlags = decodeFlags(mod.keywordFlags or 0, KeywordFlag),
+    tags = serializeTags(mod),
+    scope = scope,
+    line = line,
+    group = group,
+  }
+end
+
+local function inspectItem(raw)
+  local item = new("Item", raw)
+  if not item or not item.base then
+    error("PoB could not resolve the item base")
+  end
+
+  local globalCounts = {}
+  local globalList = item.modList or (item.slotModList and item.slotModList[1]) or {}
+  for _, mod in ipairs(globalList) do
+    if mod.source == item.modSource then
+      local key = signature(mod)
+      globalCounts[key] = (globalCounts[key] or 0) + 1
+    end
+  end
+
+  local lines = {}
+  local groups = {
+    { name = "enchant", values = item.enchantModLines },
+    { name = "rune", values = item.runeModLines },
+    { name = "implicit", values = item.implicitModLines },
+    { name = "explicit", values = item.explicitModLines },
+  }
+  for _, group in ipairs(groups) do
+    for _, modLine in ipairs(group.values or {}) do
+      local entry = {
+        text = tostring(modLine.line or modLine.extra or ""),
+        group = group.name,
+        parsed = not modLine.extra and modLine.modList ~= nil,
+        modifiers = {},
+      }
+      for _, mod in ipairs(modLine.modList or {}) do
+        local key = signature(mod)
+        local isGlobal = (globalCounts[key] or 0) > 0
+        if isGlobal then globalCounts[key] = globalCounts[key] - 1 end
+        table.insert(entry.modifiers, serializeMod(mod, entry.text, group.name, isGlobal and "global" or "local"))
+      end
+      table.insert(lines, entry)
+    end
+  end
+
+  return {
+    baseType = item.baseName,
+    itemType = item.type,
+    lines = lines,
+  }
+end
+
+for index = 1, (__pobEquipmentItemCount or 0) do
+  local raw = _G["__pobEquipmentRaw" .. index]
+  local ok, value = pcall(inspectItem, raw)
+  if ok then
+    results[index] = value
+  else
+    errors[index] = tostring(value)
+  end
+end
+
+return { results = results, errors = errors }
+`
+
+interface DetachedEquipmentInspection {
+  results?: unknown[]
+  errors?: Record<string, string>
+}
+
+function asDetachedArray(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : []
+}
+
+function normalizeEquipmentSemantics(value: unknown): EquipmentItemSemantics | undefined {
+  if (!value || typeof value !== 'object') return undefined
+  const record = value as Record<string, unknown>
+  const lines = asDetachedArray(record.lines).flatMap((rawLine) => {
+    if (!rawLine || typeof rawLine !== 'object') return []
+    const line = rawLine as Record<string, unknown>
+    const group = String(line.group || 'explicit') as EquipmentItemSemantics['lines'][number]['group']
+    const text = String(line.text || '')
+    const modifiers = asDetachedArray(line.modifiers).flatMap((rawModifier) => {
+      if (!rawModifier || typeof rawModifier !== 'object') return []
+      const modifier = rawModifier as Record<string, unknown>
+      return [{
+        name: String(modifier.name || 'Unknown'),
+        type: String(modifier.type || 'Unknown'),
+        value: typeof modifier.value === 'number' || typeof modifier.value === 'string' || typeof modifier.value === 'boolean'
+          ? modifier.value
+          : null,
+        flags: asDetachedArray(modifier.flags).map(String),
+        keywordFlags: asDetachedArray(modifier.keywordFlags).map(String),
+        tags: asDetachedArray(modifier.tags).filter((tag): tag is Record<string, string | number | boolean> => Boolean(tag && typeof tag === 'object')),
+        scope: modifier.scope === 'global' ? 'global' as const : 'local' as const,
+        line: String(modifier.line || text),
+        group,
+      }]
+    })
+    return [{ text, group, parsed: line.parsed === true, modifiers }]
+  })
+  return {
+    baseType: typeof record.baseType === 'string' ? record.baseType : undefined,
+    itemType: typeof record.itemType === 'string' ? record.itemType : undefined,
+    lines,
+  }
+}
+
+export function inspectEquipmentWithLuaEngine(engine: LuaEngine, rawItems: string[]): {
+  results: Array<EquipmentItemSemantics | undefined>
+  errors: Record<number, string>
+} {
+  if (!rawItems.length) return { results: [], errors: {} }
+  try {
+    engine.global.set('__pobEquipmentItemCount', rawItems.length)
+    rawItems.forEach((raw, index) => engine.global.set(`__pobEquipmentRaw${index + 1}`, raw))
+    const detached = detachLuaValue(engine.doStringSync(EQUIPMENT_INSPECTION_SCRIPT)) as DetachedEquipmentInspection
+    const results = Array.isArray(detached.results)
+      ? detached.results.map(normalizeEquipmentSemantics)
+      : []
+    const errors: Record<number, string> = {}
+    for (const [key, value] of Object.entries(detached.errors || {})) errors[Number(key) - 1] = value
+    return { results, errors }
+  } finally {
+    try {
+      engine.global.set('__pobEquipmentItemCount', undefined)
+      rawItems.forEach((_raw, index) => engine.global.set(`__pobEquipmentRaw${index + 1}`, undefined))
+    } catch {
+      // The next inspection overwrites all input globals if cleanup fails.
+    }
+  }
+}
 
 export function calculateWithLuaEngine(engine: LuaEngine, xml: string): CalcApiResponse {
   if (!xml) return { success: false, error: 'Missing build XML for front-end calculation' }
