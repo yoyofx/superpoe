@@ -77,6 +77,7 @@ export class PobLuaService {
       if (!existsSync(resourcePath)) throw new Error(`Missing native PoB ${label}: ${resourcePath}`)
     }
 
+    const startedAt = Date.now()
     return new Promise<PobLuaStatus>((resolve, reject) => {
       const child = spawn(resources.executable, [resources.runner, resources.bundle], {
         cwd: resources.bundle,
@@ -107,6 +108,7 @@ export class PobLuaService {
         this.lines?.removeListener('line', onStartupLine)
         this.lines?.on('line', (responseLine) => this.handleLine(responseLine))
         this.status = { available: true, backend: 'luajit', runtime: message.runtime }
+        console.info(`[PoB LuaJIT] Ready in ${Date.now() - startedAt}ms (${message.runtime || 'LuaJIT'})`)
         resolve(this.status)
       }
 

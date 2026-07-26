@@ -94,16 +94,11 @@ def copy_bundle(source: Path, runtime: Path, out: Path) -> dict:
         rel = src.relative_to(source).as_posix()
         dst = out / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
-        if rel in BROWSER_SOURCE_PATCHES or not dst.exists() or sha256(src) != sha256(dst):
+        if not dst.exists() or sha256(src) != sha256(dst):
             try:
                 shutil.copy2(src, dst)
             except OSError as error:
                 raise SystemExit(f"Failed to copy Lua source {rel}: {error}") from error
-            for old, new in BROWSER_SOURCE_PATCHES.get(rel, []):
-                text = dst.read_text(encoding="utf-8")
-                if old not in text:
-                    raise SystemExit(f"Browser compatibility patch no longer matches: {rel}")
-                dst.write_text(text.replace(old, new, 1), encoding="utf-8", newline="\n")
         entries.append({
             "path": rel,
             "hash": sha256(dst),

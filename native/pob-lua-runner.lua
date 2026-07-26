@@ -1,4 +1,6 @@
+local debugLogging = os.getenv("SUPERPOE_LUA_DEBUG") == "1"
 print = function(...)
+	if not debugLogging then return end
 	local values = {}
 	for index = 1, select("#", ...) do
 		values[index] = tostring(select(index, ...))
@@ -28,6 +30,26 @@ package.path = table.concat({
 }, ";")
 
 if jit and jit.off then jit.off() end
+
+-- SimpleGraphic embeds this module in the original PoB2 desktop runtime.
+-- Calculations only require the string-compatible surface used by Common.lua.
+local utf8lib = {
+	len = function(value) return #value end,
+	sub = string.sub,
+	gsub = string.gsub,
+	find = string.find,
+	match = string.match,
+	reverse = string.reverse,
+	next = function(value, index, offset)
+		index = index or 0
+		offset = offset or 1
+		local nextIndex = index + offset
+		if nextIndex < 1 or nextIndex > #value + 1 then return nil end
+		return nextIndex
+	end,
+}
+package.loaded["lua-utf8"] = utf8lib
+_G.utf8 = utf8lib
 
 local json = require("dkjson")
 

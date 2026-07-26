@@ -33,6 +33,10 @@ __pycache__/
 # External tool downloads
 scripts/texconv.zip
 
+# Locally/CI-built native runtime. Packages include it through extraResources.
+native/bin/*
+!native/bin/.gitkeep
+
 # Runtime sprite assets generated/copied by the resource pipeline.
 # These are committed so a fresh checkout can render the passive tree without
 # requiring local game sources or a pipeline run first.

@@ -13,7 +13,7 @@
     "Classes/TradeHelpers.lua"
   ],
   "fileCount": 1070,
-  "totalBytes": 39299585,
+  "totalBytes": 39299525,
   "files": [
     {
       "path": "base64.lua",
@@ -377,8 +377,8 @@
     },
     {
       "path": "Classes/TradeHelpers.lua",
-      "hash": "3c95dd5056f7e7c252e85ac8c477e55def2291d3d03a9235c2c1b7abe2977eab",
-      "size": 20611
+      "hash": "0f3b40ba30dc8b4df7b7626894e5512bdad96e55ae1dd312b887537d0bd4dd29",
+      "size": 20551
     },
     {
       "path": "Classes/TradeQuery.lua",

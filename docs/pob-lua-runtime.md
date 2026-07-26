@@ -43,6 +43,11 @@ lock.
 
 ## Failure Behavior
 
+The committed PoB bundle remains byte-for-byte upstream source. The Wasmoon
+worker applies its `TradeHelpers.lua` Lua 5.4 compatibility replacements only
+to the in-memory source immediately before mounting it; the native sidecar
+never sees those replacements.
+
 The desktop app prefers LuaJIT for full build calculations. If the native
 binary is absent, cannot initialize, crashes, or fails IPC, the renderer falls
 back to the existing persistent Wasmoon worker. Equipment modifier inspection

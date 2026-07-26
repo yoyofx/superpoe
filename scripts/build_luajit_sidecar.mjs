@@ -23,15 +23,35 @@ if (process.platform === 'win32') {
     process.env['ProgramFiles(x86)'] || 'C:\\Program Files (x86)',
     'Microsoft Visual Studio', 'Installer', 'vswhere.exe',
   )
-  if (!existsSync(vswhere)) throw new Error('Visual Studio Build Tools with C++ are required')
-  const installation = execFileSync(vswhere, [
-    '-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
-    '-property', 'installationPath',
-  ], { encoding: 'utf8' }).trim()
-  if (!installation) throw new Error('Visual Studio C++ build tools were not found')
-  const devCmd = path.join(installation, 'Common7', 'Tools', 'VsDevCmd.bat')
-  const buildCommand = `call "${devCmd}" -arch=x64 -host_arch=x64 && call msvcbuild.bat`
-  run('cmd.exe', ['/d', '/s', '/c', buildCommand], { cwd: path.join(checkout, 'src') })
+  const installation = existsSync(vswhere)
+    ? execFileSync(vswhere, [
+      '-latest', '-products', '*', '-requires', 'Microsoft.VisualStudio.Component.VC.Tools.x86.x64',
+      '-property', 'installationPath',
+    ], { encoding: 'utf8' }).trim()
+    : ''
+  if (installation) {
+    const devCmd = path.join(installation, 'Common7', 'Tools', 'VsDevCmd.bat')
+    const buildCommand = `call "${devCmd}" -arch=x64 -host_arch=x64 && call msvcbuild.bat`
+    run('cmd.exe', ['/d', '/s', '/c', buildCommand], { cwd: path.join(checkout, 'src') })
+  } else {
+    const toolRoot = process.env.W64DEVKIT_ROOT
+    const make = toolRoot && path.join(toolRoot, 'bin', 'mingw32-make.exe')
+    if (!make || !existsSync(make)) {
+      throw new Error('Visual Studio C++ Build Tools or W64DEVKIT_ROOT is required')
+    }
+    const env = {
+      ...process.env,
+      PATH: `${path.join(toolRoot, 'bin')};${process.env.SystemRoot || 'C:\\Windows'}\\System32`,
+      OS: '',
+      MSYSTEM: 'MINGW64',
+    }
+    run(make, [
+      '-j2',
+      'HOST_SYS=Windows',
+      'HOST_MSYS=mingw',
+      'TARGET_SYS=Windows',
+    ], { cwd: checkout, env })
+  }
   cpSync(path.join(checkout, 'src', 'luajit.exe'), path.join(output, 'luajit.exe'))
   cpSync(path.join(checkout, 'src', 'lua51.dll'), path.join(output, 'lua51.dll'))
 } else if (process.platform === 'darwin') {

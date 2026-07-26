@@ -21,18 +21,14 @@ for _, statDescEntry in ipairs(statDescData) do
 			-- match # to # as one block since the trade site uses the midpoint. these don't seem to
 			-- ever have plus or minus signs, and can't be negative as even flat damage turns into
 			-- flat damage against you instead of being negative
-			:gsub("{.-} to {.-}", function()
-				return string.format("(%s to %s)", numberPattern, numberPattern)
-			end)
+			:gsub("{.-} to {.-}", string.format("(%s to %s)", numberPattern, numberPattern))
 
 			-- match number variables like {}, {0}, {0:-d}, {0:+d}, or {:d}
 			:gsub("{.-}",
 				-- and add optional plus and number signs. this is not necessarily correct as some
 				-- stats do require the plus sign to parse, but this simplifies handling reflected
 				-- mods
-				function()
-					return "%%%+%?(%%%-%?" .. numberPattern .. ")"
-				end)
+				"%%%+%?(%%%-%?" .. numberPattern .. ")")
 	end
 end
 

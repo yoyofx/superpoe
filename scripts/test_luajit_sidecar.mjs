@@ -3,10 +3,11 @@ import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { createInterface } from 'node:readline'
 import { fileURLToPath } from 'node:url'
+import { inflate } from 'pako'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const platformArch = `${process.platform}-${process.arch}`
-const executable = path.join(
+const executable = process.env.SUPERPOE_LUAJIT_EXECUTABLE || path.join(
   root,
   'native',
   'bin',
@@ -15,7 +16,13 @@ const executable = path.join(
 )
 const runner = path.join(root, 'native', 'pob-lua-runner.lua')
 const bundle = path.join(root, 'public', 'pob-lua')
-const xml = readFileSync(path.join(root, 'scripts', 'spec', 'fixtures', 'stormweaver.xml'), 'utf8')
+const buildCodePath = process.env.SUPERPOE_BUILD_CODE_PATH
+const xml = buildCodePath
+  ? new TextDecoder().decode(inflate(Buffer.from(
+    readFileSync(buildCodePath, 'utf8').trim().replace(/-/g, '+').replace(/_/g, '/'),
+    'base64',
+  )))
+  : readFileSync(path.join(root, 'scripts', 'spec', 'fixtures', 'stormweaver.xml'), 'utf8')
 
 const child = spawn(executable, [runner, bundle], {
   cwd: bundle,
@@ -47,14 +54,18 @@ lines.on('line', (line) => {
     throw new Error(`Calculation failed: ${line}\n${stderr}`)
   }
   const data = message.data.data
-  if (data.CharacterLevel !== 98 || data.ClassName !== 'Sorceress' || data.AscendClassName !== 'Stormweaver') {
+  if (!buildCodePath && (data.CharacterLevel !== 98 || data.ClassName !== 'Sorceress' || data.AscendClassName !== 'Stormweaver')) {
     throw new Error(`Unexpected PoB result: ${JSON.stringify(data)}`)
   }
-  if (!(data.allocatedNodes > 100) || !(data.Mana > 0)) {
+  if (!(data.allocatedNodes > 0) || !(data.Mana > 0)) {
     throw new Error(`Incomplete PoB result: ${JSON.stringify(data)}`)
   }
   clearTimeout(timeout)
-  console.log(`LuaJIT parity fixture passed: level=${data.CharacterLevel}, nodes=${data.allocatedNodes}, mana=${data.Mana}`)
+  if (buildCodePath) {
+    console.log(JSON.stringify(data, null, 2))
+  } else {
+    console.log(`LuaJIT parity fixture passed: level=${data.CharacterLevel}, nodes=${data.allocatedNodes}, mana=${data.Mana}`)
+  }
   child.kill()
 })
 

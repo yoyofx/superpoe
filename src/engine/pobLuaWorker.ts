@@ -40,6 +40,27 @@ const equipmentCache = new Map<string, EquipmentItemSemantics>()
 const EQUIPMENT_ANALYSIS_SCHEMA_VERSION = '4'
 const MOUNT_FETCH_CONCURRENCY = 24
 
+const TRADE_HELPERS_PATCHES: Array<[string, string]> = [
+  [
+    ':gsub("{.-} to {.-}", string.format("(%s to %s)", numberPattern, numberPattern))',
+    ':gsub("{.-} to {.-}", function()\n\t\t\t\treturn string.format("(%s to %s)", numberPattern, numberPattern)\n\t\t\tend)',
+  ],
+  [
+    '"%%%+%?(%%%-%?" .. numberPattern .. ")")',
+    'function()\n\t\t\t\t\treturn "%%%+%?(%%%-%?" .. numberPattern .. ")"\n\t\t\t\tend)',
+  ],
+]
+
+function applyBrowserCompatibility(path: string, source: string): string {
+  if (path !== 'Classes/TradeHelpers.lua') return source
+  let patched = source
+  for (const [original, replacement] of TRADE_HELPERS_PATCHES) {
+    if (!patched.includes(original)) throw new Error(`Browser compatibility patch no longer matches: ${path}`)
+    patched = patched.replace(original, replacement)
+  }
+  return patched
+}
+
 function assetUrl(path: string): string {
   if (self.location.protocol === 'file:') {
     return new URL(`../pob-lua/${path}`, self.location.href).href
@@ -103,7 +124,7 @@ async function mountBundleFiles(loadedManifest: PobLuaManifest): Promise<void> {
     const batch = luaEntries.slice(start, start + MOUNT_FETCH_CONCURRENCY)
     const files = await Promise.all(batch.map(async (entry) => ({
       path: entry.path,
-      text: await fetchText(entry.path),
+      text: applyBrowserCompatibility(entry.path, await fetchText(entry.path)),
     })))
     for (const file of files) {
       luaFactory.mountFileSync(luaWasm, `/${file.path}`, file.text)
