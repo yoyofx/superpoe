@@ -228,6 +228,8 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 
 目标：把“市场上能买到什么”与“换上后提升多少”连接起来，给出可解释的升级建议。
 
+装备事实、物品面板、完整构筑收益和 Agent 输出的统一口径见 [`equipment-analysis-agent-spec.md`](./equipment-analysis-agent-spec.md)。
+
 - 从当前装备槽位、角色等级、属性需求和预算生成候选查询。
 - 将候选物品临时代入 `BuildDocument`，通过同一 PoB worker 重新计算，不修改用户当前构筑。
 - 分别计算主技能 DPS、Full DPS、生命、能量护盾、护甲、闪避、抗性、资源和属性需求变化。
