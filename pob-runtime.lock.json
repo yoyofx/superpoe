@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "pob": {
+    "repository": "https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2.git",
+    "commit": "99bc6e107fd36ae541b349fc36a44281cb371313",
+    "version": "0.23.0",
+    "sourceTreeHash": "4ea0780988efc5ce4e327ba742d727b6694f500db505b5d24b950ca67ad6b2d2"
+  },
+  "luajit": {
+    "repository": "https://github.com/LuaJIT/LuaJIT.git",
+    "commit": "a471ab78c7b670b4f92dae111fc3c96fb824c768"
+  },
+  "protocolVersion": 1
+}

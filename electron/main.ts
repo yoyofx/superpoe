@@ -5,6 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseWeGameShareCode, requestPoe2dbBuild } from './poe2dbClient.js'
 import { setupAutoUpdater } from './updater.js'
 import type { UpdateChannel } from './updater.js'
+import { PobLuaService } from './pobLuaService.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
@@ -156,6 +157,7 @@ function createWindow(): BrowserWindow {
 
 let updateChannel: UpdateChannel = 'release'
 let updateCheckIntervalMinutes = 60
+const pobLuaService = new PobLuaService()
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
@@ -167,6 +169,16 @@ app.whenReady().then(() => {
   ipcMain.handle('pob2:import-wegame', async (_event, url: unknown) => {
     const shareCode = parseWeGameShareCode(url)
     return requestPoe2dbBuild(shareCode)
+  })
+
+  ipcMain.handle('pob2:lua-init', () => pobLuaService.initialize())
+  ipcMain.handle('pob2:lua-calculate', (_event, value: unknown) => {
+    if (!value || typeof value !== 'object' || typeof (value as { xml?: unknown }).xml !== 'string') {
+      throw new Error('Invalid PoB Lua calculation payload')
+    }
+    const xml = (value as { xml: string }).xml
+    if (!xml || xml.length > 10_000_000) throw new Error('Invalid PoB build XML')
+    return pobLuaService.calculate({ xml })
   })
 
   ipcMain.handle('pob2:save-game-build', async (_event, value: unknown) => {
@@ -199,6 +211,9 @@ app.whenReady().then(() => {
     () => updateCheckIntervalMinutes,
   )
 
+  // Warm the native engine without delaying the first window. Missing native
+  // resources are expected in browser-only development and use Wasmoon.
+  void pobLuaService.initialize()
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
@@ -208,3 +223,5 @@ app.whenReady().then(() => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
+
+app.on('before-quit', () => pobLuaService.dispose())

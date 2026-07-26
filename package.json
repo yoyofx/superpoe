@@ -29,6 +29,9 @@
     "pipeline:dds": "python scripts/dds_to_webp.py",
     "pipeline:check": "python scripts/check_pipeline_deps.py",
     "pipeline:lua": "python scripts/build_pob_lua_bundle.py",
+    "verify:lua": "python scripts/verify_pob_runtime.py",
+    "native:lua": "node scripts/build_luajit_sidecar.mjs",
+    "test:native:lua": "node scripts/test_luajit_sidecar.mjs",
     "pipeline:translations": "python scripts/sync_poecharm_translations.py",
     "pipeline:items": "python scripts/sync_poe2db_item_icons.py",
     "pipeline:skills": "python scripts/sync_poe2db_item_icons.py --skills-only",
@@ -54,6 +57,18 @@
       {
         "from": "build/icon.png",
         "to": "icon.png"
+      },
+      {
+        "from": "public/pob-lua",
+        "to": "pob-lua"
+      },
+      {
+        "from": "native/pob-lua-runner.lua",
+        "to": "pob-lua-sidecar/pob-lua-runner.lua"
+      },
+      {
+        "from": "native/bin",
+        "to": "pob-lua-runtime"
       }
     ],
     "win": {

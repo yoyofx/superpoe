@@ -23,6 +23,8 @@ const BACKEND_FALLBACK = import.meta.env.VITE_CALC_BACKEND_FALLBACK === 'true'
 
 let worker: Worker | null = null
 let workerInitPromise: Promise<void> | null = null
+let engineInitPromise: Promise<'luajit' | 'wasmoon'> | null = null
+let nativeBackendFailed = false
 let nextId = 1
 const pending = new Map<number, {
   resolve: (value: unknown) => void
@@ -70,6 +72,23 @@ export async function initPobLuaWorker(): Promise<void> {
   await workerInitPromise
 }
 
+export async function initPobLuaEngine(): Promise<'luajit' | 'wasmoon'> {
+  if (!engineInitPromise) {
+    engineInitPromise = (async () => {
+      if (!nativeBackendFailed && window.pob2Desktop?.initPobLua) {
+        const status = await window.pob2Desktop.initPobLua()
+        if (status.available && status.backend === 'luajit') return 'luajit'
+      }
+      await initPobLuaWorker()
+      return 'wasmoon'
+    })().catch((error) => {
+      engineInitPromise = null
+      throw error
+    })
+  }
+  return engineInitPromise
+}
+
 export async function inspectEquipment(items: EquipmentInspectionItem[]): Promise<EquipmentInspectionResult> {
   await initPobLuaWorker()
   const result = await callWorker<EquipmentInspectionResult>('inspectEquipment', { items })
@@ -93,6 +112,18 @@ async function calculateViaBackend(input: CalculateBuildInput): Promise<CalcApiR
 
 export async function calculateBuild(input: CalculateBuildInput): Promise<CalcApiResponse> {
   try {
+    if (window.pob2Desktop?.calculatePobLua) {
+      const backend = await initPobLuaEngine()
+      if (backend === 'luajit') {
+        try {
+          return await window.pob2Desktop.calculatePobLua({ xml: input.xml })
+        } catch (error) {
+          nativeBackendFailed = true
+          engineInitPromise = null
+          console.warn('[PoB Lua] Native backend failed; switching to Wasmoon.', error)
+        }
+      }
+    }
     await initPobLuaWorker()
     return await callWorker<CalcApiResponse>('calculate', input)
   } catch (err) {

@@ -1,12 +1,19 @@
 {
   "version": "0_5",
+  "pob": {
+    "repository": "https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2.git",
+    "commit": "99bc6e107fd36ae541b349fc36a44281cb371313",
+    "version": "0.23.0",
+    "sourceTreeHash": "4ea0780988efc5ce4e327ba742d727b6694f500db505b5d24b950ca67ad6b2d2",
+    "sourceFileCount": 1057
+  },
   "source": "upstreams/PathOfBuilding-PoE2/src",
   "runtime": "upstreams/PathOfBuilding-PoE2/runtime/lua",
   "browserPatches": [
     "Classes/TradeHelpers.lua"
   ],
-  "fileCount": 1069,
-  "totalBytes": 39299533,
+  "fileCount": 1070,
+  "totalBytes": 39299585,
   "files": [
     {
       "path": "base64.lua",
@@ -5137,6 +5144,11 @@
       "path": "lua-profiler.lua",
       "hash": "3df3da68fe930b90e2bd5e96845ea74991802c3a6d7bed305b6372440b9c0ea9",
       "size": 11615
+    },
+    {
+      "path": "manifest.xml",
+      "hash": "6cd6f0a54ab288e3ccaaecb9d326b3befd0363877529b6378e9e4264244c2b53",
+      "size": 52
     },
     {
       "path": "Modules/Build.lua",

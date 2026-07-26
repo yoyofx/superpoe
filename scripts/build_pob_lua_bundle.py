@@ -8,6 +8,7 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
+LOCK_PATH = ROOT / "pob-runtime.lock.json"
 DEFAULT_SOURCE = ROOT / "upstreams" / "PathOfBuilding-PoE2" / "src"
 DEFAULT_RUNTIME = ROOT / "upstreams" / "PathOfBuilding-PoE2" / "runtime" / "lua"
 DEFAULT_OUT = ROOT / "public" / "pob-lua"
@@ -77,7 +78,18 @@ def copy_bundle(source: Path, runtime: Path, out: Path) -> dict:
         raise SystemExit(f"Missing source directory: {source}")
     out.mkdir(parents=True, exist_ok=True)
 
-    entries = []
+    lock = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
+    runtime_manifest = out / "manifest.xml"
+    runtime_manifest.write_text(
+        f'<PoBVersion><Version number="{lock["pob"]["version"]}"/></PoBVersion>\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    entries = [{
+        "path": "manifest.xml",
+        "hash": sha256(runtime_manifest),
+        "size": runtime_manifest.stat().st_size,
+    }]
     for src in iter_lua_files(source):
         rel = src.relative_to(source).as_posix()
         dst = out / rel
@@ -112,8 +124,25 @@ def copy_bundle(source: Path, runtime: Path, out: Path) -> dict:
             "size": dst.stat().st_size,
         })
 
+    from verify_pob_runtime import source_tree_hash
+
+    source_count, actual_source_hash = source_tree_hash(source)
+    expected_source_hash = lock["pob"]["sourceTreeHash"]
+    if actual_source_hash != expected_source_hash:
+        raise SystemExit(
+            "PoB source does not match the pinned commit: "
+            f"expected {expected_source_hash}, got {actual_source_hash}"
+        )
+
     manifest = {
         "version": "0_5",
+        "pob": {
+            "repository": lock["pob"]["repository"],
+            "commit": lock["pob"]["commit"],
+            "version": lock["pob"]["version"],
+            "sourceTreeHash": actual_source_hash,
+            "sourceFileCount": source_count,
+        },
         "source": "upstreams/PathOfBuilding-PoE2/src",
         "runtime": "upstreams/PathOfBuilding-PoE2/runtime/lua",
         "browserPatches": sorted(BROWSER_SOURCE_PATCHES),

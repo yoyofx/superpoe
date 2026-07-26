@@ -30,6 +30,13 @@ declare global {
       importWeGame(url: string): Promise<{ code: string; sourceUrl: string }>
       saveGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
       installGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: false; filePath: string }>
+      initPobLua(): Promise<{
+        available: boolean
+        backend: 'luajit' | 'wasmoon'
+        runtime?: string
+        error?: string
+      }>
+      calculatePobLua(payload: { xml: string }): Promise<import('@/types/calc').CalcApiResponse>
     }
     pob2Updater?: {
       check(channel?: 'release' | 'dev'): Promise<UpdateCheckResult>

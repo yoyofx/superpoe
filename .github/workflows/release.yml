@@ -109,10 +109,14 @@ jobs:
             label: win-x64
             electron_args: --win --x64
             artifact_name: superpoe2-release-win-x64
-          - os: macos-latest
-            label: macOS
-            electron_args: --mac
-            artifact_name: superpoe2-release-macos
+          - os: macos-13
+            label: macOS Intel
+            electron_args: --mac --x64
+            artifact_name: superpoe2-release-macos-x64
+          - os: macos-14
+            label: macOS Apple Silicon
+            electron_args: --mac --arm64
+            artifact_name: superpoe2-release-macos-arm64
 
     steps:
       - name: Checkout
@@ -165,6 +169,15 @@ jobs:
 
       - name: Run non-long unit tests
         run: npm run test:ci
+
+      - name: Verify pinned PoB runtime
+        run: npm run verify:lua
+
+      - name: Build pinned LuaJIT sidecar
+        run: npm run native:lua
+
+      - name: Test LuaJIT sidecar against PoB fixture
+        run: npm run test:native:lua
 
       - name: Build Electron package
         env:
@@ -264,7 +277,7 @@ jobs:
 
             **Platforms**
             - Windows x64 installer (NSIS)
-            - macOS (DMG / ZIP)
+            - macOS Intel and Apple Silicon (separate DMG / ZIP packages)
 
             **Notes**
             - Builds are **not code-signed**. On Windows SmartScreen / Defender may warn; on macOS use right-click → Open for first launch.

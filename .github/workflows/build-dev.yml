@@ -58,10 +58,14 @@ jobs:
             label: win-x64
             electron_args: --win --x64
             artifact_name: superpoe2-dev-win-x64
-          - os: macos-latest
-            label: macOS
-            electron_args: --mac
-            artifact_name: superpoe2-dev-macos
+          - os: macos-13
+            label: macOS Intel
+            electron_args: --mac --x64
+            artifact_name: superpoe2-dev-macos-x64
+          - os: macos-14
+            label: macOS Apple Silicon
+            electron_args: --mac --arm64
+            artifact_name: superpoe2-dev-macos-arm64
 
     steps:
       - name: Checkout
@@ -112,6 +116,15 @@ jobs:
 
       - name: Run non-long unit tests
         run: npm run test:ci
+
+      - name: Verify pinned PoB runtime
+        run: npm run verify:lua
+
+      - name: Build pinned LuaJIT sidecar
+        run: npm run native:lua
+
+      - name: Test LuaJIT sidecar against PoB fixture
+        run: npm run test:native:lua
 
       - name: Build Electron package
         env:
