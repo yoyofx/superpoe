@@ -1,4 +1,4 @@
-import type { CalcApiResponse } from '@/types/calc'
+import type { CalcApiResponse, SkillCalculationSelection } from '@/types/calc'
 import type { EquipmentInspectionItem, EquipmentInspectionResult } from '@/types/equipmentSemantics'
 
 interface WorkerRequest {
@@ -14,7 +14,7 @@ interface WorkerResponse {
   error?: string
 }
 
-export interface CalculateBuildInput {
+export interface CalculateBuildInput extends SkillCalculationSelection {
   code: string
   xml: string
 }
@@ -116,7 +116,7 @@ export async function calculateBuild(input: CalculateBuildInput): Promise<CalcAp
       const backend = await initPobLuaEngine()
       if (backend === 'luajit') {
         try {
-          return await window.pob2Desktop.calculatePobLua({ xml: input.xml })
+          return await window.pob2Desktop.calculatePobLua(input)
         } catch (error) {
           nativeBackendFailed = true
           engineInitPromise = null

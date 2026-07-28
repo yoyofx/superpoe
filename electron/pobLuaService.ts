@@ -38,7 +38,7 @@ export class PobLuaService {
   private status: PobLuaStatus = { available: false, backend: 'wasmoon' }
   private nextId = 1
   private pending = new Map<number, PendingRequest>()
-  private cachedXml: string | null = null
+  private cachedInput: string | null = null
   private cachedResult: unknown = null
 
   private resourcePaths(): { executable: string; runner: string; bundle: string } {
@@ -152,17 +152,26 @@ export class PobLuaService {
     this.lines = null
     if (this.child && !this.child.killed) this.child.kill()
     this.child = null
-    this.cachedXml = null
+    this.cachedInput = null
     this.cachedResult = null
   }
 
-  async calculate(input: { xml: string }): Promise<unknown> {
+  async calculate(input: {
+    xml: string
+    skillGroupId?: string
+    calcMode?: 'UNBUFFED' | 'BUFFED' | 'COMBAT' | 'EFFECTIVE'
+    activeSkillIndex?: number
+    statSetIndex?: number
+    configOverrides?: Record<string, boolean | number | string>
+    includeConfig?: boolean
+  }): Promise<unknown> {
     const status = await this.initialize()
     if (!status.available || !this.child) throw new Error(status.error || 'LuaJIT sidecar is unavailable')
-    if (input.xml === this.cachedXml) return this.cachedResult
+    const cacheKey = JSON.stringify(input)
+    if (cacheKey === this.cachedInput) return this.cachedResult
 
     const result = await this.request('calculate', input)
-    this.cachedXml = input.xml
+    this.cachedInput = cacheKey
     this.cachedResult = result
     return result
   }

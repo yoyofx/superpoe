@@ -24,6 +24,7 @@ export interface BuildSkillGroup {
 
 export interface BuildSkills {
   activeSkillSetId: string
+  activeGroupId: string
   groups: BuildSkillGroup[]
 }
 
@@ -33,8 +34,9 @@ export function parseSkillsXml(xml: string): BuildSkills {
     attributeNamePrefix: '',
     parseAttributeValue: false,
   })
-  const skills = parser.parse(xml)?.PathOfBuilding2?.Skills
-  if (!skills) return { activeSkillSetId: '', groups: [] }
+  const build = parser.parse(xml)?.PathOfBuilding2
+  const skills = build?.Skills
+  if (!skills) return { activeSkillSetId: '', activeGroupId: '', groups: [] }
   const sets = asArray<Record<string, unknown>>(skills.SkillSet as Record<string, unknown> | Record<string, unknown>[] | undefined)
   const activeId = String(skills.activeSkillSet ?? sets[0]?.id ?? '')
   const activeSet = sets.find((set) => String(set.id ?? '') === activeId) || sets[0]
@@ -52,5 +54,6 @@ export function parseSkillsXml(xml: string): BuildSkills {
       enabled: String(gem.enabled ?? 'true') === 'true',
     })),
   })).filter((group) => group.gems.length > 0)
-  return { activeSkillSetId: activeId, groups }
+  const activeGroupId = String(build?.Build?.mainSocketGroup ?? groups[0]?.id ?? '')
+  return { activeSkillSetId: activeId, activeGroupId, groups }
 }

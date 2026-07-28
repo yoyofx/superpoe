@@ -1,6 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
-  Calculator,
   CircleHelp,
   Download,
   ArrowLeft,
@@ -10,6 +9,7 @@ import {
   Save,
   Search,
   Settings,
+  SlidersHorizontal,
   Sparkles,
   Swords,
   Undo2,
@@ -34,7 +34,7 @@ import {
   useTreeStore,
 } from '@/store/treeStore'
 
-export type WorkspaceView = 'passive' | 'equipment' | 'skills' | 'calculation'
+export type WorkspaceView = 'passive' | 'equipment' | 'skills' | 'configuration'
 type ToolbarMenu = 'export' | null
 
 interface ToolbarProps {
@@ -54,10 +54,10 @@ const VIEW_ICONS = {
   equipment: Swords,
   passive: Workflow,
   skills: Sparkles,
-  calculation: Calculator,
+  configuration: SlidersHorizontal,
 }
 
-const VIEW_ORDER: WorkspaceView[] = ['equipment', 'passive', 'skills', 'calculation']
+const VIEW_ORDER: WorkspaceView[] = ['equipment', 'skills', 'passive', 'configuration']
 
 export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onImport, onSave, onSettings }: ToolbarProps) {
   const { t, lang } = useTranslation()
@@ -68,7 +68,6 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
   const searchQuery = useTreeStore((state) => state.searchQuery)
   const searchMatchCount = useTreeStore((state) => state.searchMatchCount)
   const allocatedNodes = useTreeStore((state) => state.allocatedNodes)
-  const calcLoading = useTreeStore((state) => state.calcLoading)
   const treeEditMode = useTreeStore((state) => state.treeEditMode)
   const weaponSetMode = useTreeStore((state) => state.weaponSetMode)
   const undoStack = useTreeStore((state) => state.undoStack)
@@ -84,7 +83,6 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
   const setWeaponSetMode = useTreeStore((state) => state.setWeaponSetMode)
   const setSearchQuery = useTreeStore((state) => state.setSearchQuery)
   const performSearch = useTreeStore((state) => state.performSearch)
-  const runCalculation = useTreeStore((state) => state.runCalculation)
   const undo = useTreeStore((state) => state.undo)
   const redo = useTreeStore((state) => state.redo)
 
@@ -122,8 +120,8 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
     return String(getBuildCharacterLevel(importedBuildCode) || '--')
   }, [importedBuildCode])
   const viewLabels = useMemo(() => lang === 'zh-rCN'
-    ? { passive: '天赋', equipment: '装备', skills: '技能', calculation: '计算' }
-    : { passive: 'Passive', equipment: 'Equipment', skills: 'Skills', calculation: 'Calculate' }, [lang])
+    ? { passive: '天赋', equipment: '装备', skills: '技能', configuration: '配置' }
+    : { passive: 'Passive', equipment: 'Equipment', skills: 'Skills', configuration: 'Configuration' }, [lang])
   const saveLabels = lang === 'zh-rCN'
     ? { saved: '已保存', dirty: '有未保存修改', saving: '正在保存', error: '保存失败' }
     : { saved: 'Saved', dirty: 'Unsaved changes', saving: 'Saving', error: 'Save failed' }
@@ -155,11 +153,6 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
 
   const toggleMenu = (menu: Exclude<ToolbarMenu, null>) => {
     setActiveMenu((current) => current === menu ? null : menu)
-  }
-
-  const openCalculate = () => {
-    onViewChange('calculation')
-    void runCalculation()
   }
 
   return (
@@ -265,8 +258,6 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
               <button onClick={() => setZoom(Math.min(MAX_ZOOM, zoom * 1.3))} title={t('toolbar.zoomIn')} aria-label={t('toolbar.zoomIn')}><ZoomIn /></button>
             </div>
           </>}
-
-          {activeView === 'calculation' && <button className="primary-command" onClick={openCalculate} disabled={!allocatedNodes.size || calcLoading}><Calculator />{calcLoading ? t('stats.calculating') : t('toolbar.calc')}</button>}
 
           <span className="toolbar-spacer" />
           <button className="icon-command compact" title={lang === 'zh-rCN' ? '帮助' : 'Help'} aria-label={lang === 'zh-rCN' ? '帮助' : 'Help'}><CircleHelp /></button>

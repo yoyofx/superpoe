@@ -1,4 +1,4 @@
-import type { CalcApiResponse } from '@/types/calc'
+import type { CalcApiResponse, SkillCalculationSelection } from '@/types/calc'
 import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
 import type { LuaFactory } from 'wasmoon'
 
@@ -248,8 +248,19 @@ export function detachLuaValue(value: unknown): unknown {
 
   if (Array.isArray(value)) return value.map((nested) => detachLuaValue(nested))
 
+  const entries = Object.entries(value)
+  const numericEntries = entries
+    .map(([key, nested]) => ({ key: Number(key), nested }))
+    .filter(({ key }) => Number.isInteger(key) && key >= 1)
+  if (numericEntries.length === entries.length
+    && numericEntries.every(({ key }) => key <= entries.length)) {
+    return numericEntries
+      .sort((a, b) => a.key - b.key)
+      .map(({ nested }) => detachLuaValue(nested))
+  }
+
   const obj: Record<string, unknown> = {}
-  for (const [key, nested] of Object.entries(value)) {
+  for (const [key, nested] of entries) {
     obj[key] = detachLuaValue(nested)
   }
   return obj
@@ -286,11 +297,42 @@ local calcOk, calcErr = pcall(function()
   if not calcsTab then
     error("calcs tab not available")
   end
-  if not calcsTab.mainEnv or not calcsTab.mainOutput then
-    if GlobalCache and GlobalCache.cachedData then
-      wipeGlobalCache()
+  if __pobConfigOverridesJson and __pobConfigOverridesJson ~= "" and build.configTab then
+    local overrides = require("dkjson").decode(__pobConfigOverridesJson)
+    local configSet = build.configTab.configSets[build.configTab.activeConfigSetId]
+    for key, value in pairs(overrides or {}) do configSet.input[key] = value end
+    build.configTab:BuildModList()
+  end
+  local validModes = { UNBUFFED = true, BUFFED = true, COMBAT = true, EFFECTIVE = true }
+  if validModes[__pobCalcMode] then
+    calcsTab.input.misc_buffMode = __pobCalcMode
+  elseif not validModes[calcsTab.input.misc_buffMode] then
+    calcsTab.input.misc_buffMode = "EFFECTIVE"
+  end
+  calcsTab.input.skill_number = tonumber(__pobSkillGroupId) or build.mainSocketGroup or 1
+
+  local socketGroup = build.skillsTab and build.skillsTab.socketGroupList[calcsTab.input.skill_number]
+  if socketGroup then
+    local activeSkills = socketGroup.displaySkillListCalcs or socketGroup.displaySkillList
+    local activeSkillIndex = tonumber(__pobActiveSkillIndex) or socketGroup.mainActiveSkillCalcs or 1
+    if activeSkills and activeSkills[activeSkillIndex] then
+      socketGroup.mainActiveSkillCalcs = activeSkillIndex
+      local activeEffect = activeSkills[activeSkillIndex].activeEffect
+      local statSetIndex = tonumber(__pobStatSetIndex)
+      if statSetIndex and activeEffect and activeEffect.grantedEffect and activeEffect.grantedEffect.statSets[statSetIndex] then
+        local source = activeEffect.srcInstance
+        source.statSetCalcs = source.statSetCalcs or {}
+        source.statSetCalcs[activeEffect.grantedEffect.id] = statSetIndex
+      end
     end
-    calcsTab:BuildOutput()
+  end
+  if GlobalCache and GlobalCache.cachedData then wipeGlobalCache() end
+  calcsTab.mainEnv = nil
+  calcsTab.mainOutput = nil
+  build.buildFlag = true
+  calcsTab:BuildOutput()
+  if __pobSkillGroupId or __pobCalcMode or __pobActiveSkillIndex or __pobStatSetIndex then
+    return calcsTab.calcsEnv
   end
   return calcsTab.mainEnv
 end)
@@ -344,6 +386,7 @@ local data = {
   TotalDPS = safeNum(output.TotalDPS),
   FullDPS = safeNum(output.FullDPS),
   FullDotDPS = safeNum(output.FullDotDPS),
+  GemLevel = safeNum(output.GemLevel),
   AverageHit = safeNum(output.AverageHit),
   Speed = safeNum(output.Speed),
   HitSpeed = safeNum(output.HitSpeed),
@@ -369,6 +412,78 @@ local data = {
   end)() or 0,
 }
 
+local mainSkill = env.player and env.player.mainSkill
+if output.GemLevel ~= nil then
+  data.SkillLevel = safeNum(output.GemLevel)
+elseif output.TotalDPS ~= nil and mainSkill and mainSkill.activeEffect then
+  data.SkillLevel = safeNum((mainSkill.activeEffect.srcInstance and mainSkill.activeEffect.srcInstance.level) or mainSkill.activeEffect.level)
+end
+
+local function scalar(value)
+  local valueType = type(value)
+  if valueType == "string" or valueType == "number" or valueType == "boolean" then return value end
+  return nil
+end
+
+local function readConfigSnapshot()
+  local configTab = build and build.configTab
+  if not configTab then return nil end
+  local configSet = configTab.configSets[configTab.activeConfigSetId]
+  if not configSet then return nil end
+  local snapshot = {
+    activeConfigSetId = configTab.activeConfigSetId,
+    activeConfigSetTitle = configSet.title or "Default",
+    sections = {},
+    options = {},
+  }
+  local section = "General"
+  local seenSections = {}
+  for _, varData in ipairs(LoadModule("Modules/ConfigOptions")) do
+    if varData.section then
+      section = StripEscapes(varData.section)
+      if not seenSections[section] then
+        seenSections[section] = true
+        table.insert(snapshot.sections, section)
+      end
+    elseif varData.var and varData.type then
+      local control = configTab.varControls[varData.var]
+      local visible = true
+      if control then
+        local shownOk, shown = pcall(function() return control:GetProperty("shown") end)
+        visible = shownOk and not not shown
+      end
+      local current = scalar(configSet.input[varData.var])
+      local defaultValue = scalar(configTab:GetDefaultState(varData.var, type(current)))
+      local option = {
+        key = varData.var,
+        section = section,
+        type = varData.type,
+        label = StripEscapes(varData.label or varData.var),
+        visible = visible,
+        valid = visible or current == nil or current == defaultValue,
+        value = current,
+        defaultValue = defaultValue,
+        placeholder = scalar(configSet.placeholder[varData.var]),
+      }
+      if type(varData.tooltip) == "string" then option.tooltip = StripEscapes(varData.tooltip) end
+      if type(varData.list) == "table" then
+        option.choices = {}
+        for _, choice in ipairs(varData.list) do
+          local value = scalar(type(choice) == "table" and choice.val or choice)
+          if value ~= nil then
+            table.insert(option.choices, {
+              value = value,
+              label = StripEscapes(type(choice) == "table" and choice.label or tostring(choice)),
+            })
+          end
+        end
+      end
+      table.insert(snapshot.options, option)
+    end
+  end
+  return snapshot
+end
+
 if output.SkillDPS and #output.SkillDPS > 0 then
   data.SkillDPS = {}
   for _, skill in ipairs(output.SkillDPS) do
@@ -381,6 +496,127 @@ if output.SkillDPS and #output.SkillDPS > 0 then
     })
   end
 end
+
+if mainSkill and mainSkill.activeEffect then
+  local calcsTab = build.calcsTab
+  local socketGroup = build.skillsTab and build.skillsTab.socketGroupList[calcsTab.input.skill_number]
+  local displaySkills = socketGroup and (socketGroup.displaySkillListCalcs or socketGroup.displaySkillList) or {}
+  local activeSkillIndex = socketGroup and (socketGroup.mainActiveSkillCalcs or 1) or 1
+  local activeEffect = mainSkill.activeEffect
+  local statSetIndex = activeEffect.statSetCalcs and activeEffect.statSetCalcs.index or 1
+  local details = {
+    mode = calcsTab.input.misc_buffMode,
+    activeSkillIndex = activeSkillIndex,
+    activeSkills = {},
+    statSetIndex = statSetIndex,
+    statSets = {},
+    damageSource = "skill",
+    damageTypes = {},
+    dpsFormula = {},
+    modifiers = {},
+    effects = { aurasAndBuffs = {}, combatBuffs = {}, cursesAndDebuffs = {} },
+    averageHit = safeNum(output.AverageHit),
+    speed = safeNum(output.Speed),
+    totalDps = safeNum(output.TotalDPS),
+  }
+  for index, skill in ipairs(displaySkills) do
+    table.insert(details.activeSkills, { index = index, label = calcsTab.calcs.getActiveSkillDisplayName(skill) })
+  end
+  for index, statSet in ipairs(activeEffect.grantedEffect.statSets or {}) do
+    table.insert(details.statSets, { index = index, label = statSet.label })
+  end
+
+  local flags = activeEffect.statSetCalcs and activeEffect.statSetCalcs.skillFlags or {}
+  local sourceOutput = output
+  local sourceBreakdown = env.player.breakdown or {}
+  local cfg = mainSkill.skillCfg
+  if flags.weapon1Attack and output.MainHand then
+    details.damageSource = "mainHand"
+    sourceOutput = output.MainHand
+    sourceBreakdown = sourceBreakdown.MainHand or sourceBreakdown
+    cfg = mainSkill.weapon1Cfg
+  elseif flags.weapon2Attack and output.OffHand then
+    details.damageSource = "offHand"
+    sourceOutput = output.OffHand
+    sourceBreakdown = sourceBreakdown.OffHand or sourceBreakdown
+    cfg = mainSkill.weapon2Cfg
+  end
+  details.averageHit = safeNum(sourceOutput.AverageHit or output.AverageHit)
+
+  local modList = mainSkill.skillModList
+  local function copyLines(lines)
+    local result = {}
+    for _, line in ipairs(lines or {}) do
+      if type(line) == "string" then table.insert(result, (StripEscapes(line))) end
+    end
+    return result
+  end
+  local function splitList(value)
+    local result = {}
+    for entry in tostring(value or ""):gmatch("[^,]+") do
+      entry = entry:match("^%s*(.-)%s*$")
+      if entry ~= "" then table.insert(result, (StripEscapes(entry))) end
+    end
+    return result
+  end
+  local function addModifiers(bucket, damageType, modType, names)
+    for _, entry in ipairs(modList:Tabulate(modType, cfg, unpack(names))) do
+      table.insert(details.modifiers, {
+        bucket = bucket,
+        damageType = damageType,
+        stat = entry.mod.name,
+        value = safeNum(entry.value) or 0,
+        source = StripEscapes(entry.mod.source or "Unknown"),
+      })
+    end
+  end
+  details.dpsFormula = copyLines(env.player.breakdown and env.player.breakdown.TotalDPS)
+  details.effects.aurasAndBuffs = splitList(output.BuffList)
+  details.effects.combatBuffs = splitList(output.CombatList)
+  details.effects.cursesAndDebuffs = splitList(output.CurseList)
+  local damageNames = {
+    physical = { "PhysicalDamage" },
+    lightning = { "LightningDamage", "ElementalDamage" },
+    cold = { "ColdDamage", "ElementalDamage" },
+    fire = { "FireDamage", "ElementalDamage" },
+    chaos = { "ChaosDamage" },
+  }
+  local allMore = modList:More(cfg, "Damage")
+  table.insert(details.damageTypes, {
+    type = "all",
+    increased = safeNum(modList:Sum("INC", cfg, "Damage")) or 0,
+    more = safeNum((allMore - 1) * 100) or 0,
+    hitMin = safeNum(sourceOutput.TotalMin),
+    hitMax = safeNum(sourceOutput.TotalMax),
+    averageHit = safeNum(sourceOutput.AverageHit or output.AverageHit),
+  })
+  addModifiers("increased", "all", "INC", { "Damage" })
+  addModifiers("more", "all", "MORE", { "Damage" })
+  for _, damageType in ipairs({ "physical", "lightning", "cold", "fire", "chaos" }) do
+    local title = damageType:sub(1, 1):upper() .. damageType:sub(2)
+    local names = damageNames[damageType]
+    local more = modList:More(cfg, unpack(names))
+    table.insert(details.damageTypes, {
+      type = damageType,
+      addedMin = safeNum(modList:Sum("BASE", cfg, title .. "Min")),
+      addedMax = safeNum(modList:Sum("BASE", cfg, title .. "Max")),
+      increased = safeNum(modList:Sum("INC", cfg, unpack(names))) or 0,
+      more = safeNum((more - 1) * 100) or 0,
+      hitMin = safeNum(sourceOutput[title .. "Min"]),
+      hitMax = safeNum(sourceOutput[title .. "Max"]),
+      effectiveMultiplier = safeNum(sourceOutput[title .. "EffMult"]),
+      breakdown = copyLines(sourceBreakdown[title]),
+      effectiveBreakdown = copyLines(sourceBreakdown[title .. "EffMult"]),
+    })
+    addModifiers("addedMin", damageType, "BASE", { title .. "Min" })
+    addModifiers("addedMax", damageType, "BASE", { title .. "Max" })
+    addModifiers("increased", damageType, "INC", names)
+    addModifiers("more", damageType, "MORE", names)
+  end
+  data.SkillDetails = details
+end
+
+if __pobIncludeConfig then data.CalculationConfig = readConfigSnapshot() end
 
 return { success = true, data = data }
 `
@@ -686,10 +922,16 @@ export function inspectEquipmentWithLuaEngine(engine: LuaEngine, rawItems: strin
   }
 }
 
-export function calculateWithLuaEngine(engine: LuaEngine, xml: string): CalcApiResponse {
+export function calculateWithLuaEngine(engine: LuaEngine, xml: string, selection: SkillCalculationSelection = {}): CalcApiResponse {
   if (!xml) return { success: false, error: 'Missing build XML for front-end calculation' }
   try {
     engine.global.set('__pobBuildXml', xml)
+    engine.global.set('__pobCalcMode', selection.calcMode)
+    engine.global.set('__pobSkillGroupId', selection.skillGroupId)
+    engine.global.set('__pobActiveSkillIndex', selection.activeSkillIndex)
+    engine.global.set('__pobStatSetIndex', selection.statSetIndex)
+    engine.global.set('__pobConfigOverridesJson', JSON.stringify(selection.configOverrides || {}))
+    engine.global.set('__pobIncludeConfig', selection.includeConfig || false)
     return detachLuaValue(engine.doStringSync(CALCULATION_SCRIPT)) as CalcApiResponse
   } catch (err) {
     return {
@@ -699,6 +941,12 @@ export function calculateWithLuaEngine(engine: LuaEngine, xml: string): CalcApiR
   } finally {
     try {
       engine.global.set('__pobBuildXml', undefined)
+      engine.global.set('__pobCalcMode', undefined)
+      engine.global.set('__pobSkillGroupId', undefined)
+      engine.global.set('__pobActiveSkillIndex', undefined)
+      engine.global.set('__pobStatSetIndex', undefined)
+      engine.global.set('__pobConfigOverridesJson', undefined)
+      engine.global.set('__pobIncludeConfig', undefined)
     } catch {
       // Ignore cleanup errors; the next calculation will overwrite the value.
     }

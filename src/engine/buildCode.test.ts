@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { deflate } from 'pako'
-import { decodeBuildCode, encodeBuildCode, getBuildCharacterLevel, setBuildEquipmentSelection } from '@/engine/buildCode'
+import { decodeBuildCode, encodeBuildCode, getBuildActiveWeaponSet, getBuildCharacterLevel, setBuildEquipmentSelection, setBuildMainSocketGroup } from '@/engine/buildCode'
 
 function encodeXml(xml: string): string {
   return Buffer.from(deflate(new TextEncoder().encode(xml))).toString('base64url')
@@ -112,6 +112,29 @@ describe('front-end build code encode/decode', () => {
     expect(selected).toContain('<ItemSet id="1" useSecondWeaponSet="false">')
     expect(selected).toContain('<ItemSet id="2" title="Swap" useSecondWeaponSet="true">')
     expect(selected).toContain('<Item id="1">Rarity: NORMAL\nTest Item</Item>')
+  })
+
+  it('reads the active weapon set from the selected item set', () => {
+    const xml = `<PathOfBuilding2><Items activeItemSet="2" useSecondWeaponSet="false">
+      <ItemSet id="1" useSecondWeaponSet="false"/>
+      <ItemSet id="2" useSecondWeaponSet="true"/>
+    </Items></PathOfBuilding2>`
+
+    expect(getBuildActiveWeaponSet(encodeXml(xml))).toBe(2)
+    expect(getBuildActiveWeaponSet('invalid')).toBe(1)
+  })
+
+  it('falls back to the weapon set selected on Items', () => {
+    const xml = '<PathOfBuilding2><Items useSecondWeaponSet="true"/></PathOfBuilding2>'
+
+    expect(getBuildActiveWeaponSet(encodeXml(xml))).toBe(2)
+  })
+
+  it('selects the main socket group used for calculation', () => {
+    const xml = '<PathOfBuilding2><Build level="90" mainSocketGroup="1"/></PathOfBuilding2>'
+
+    expect(setBuildMainSocketGroup(xml, '4')).toContain('<Build level="90" mainSocketGroup="4"/>')
+    expect(setBuildMainSocketGroup(xml, 'invalid')).toBe(xml)
   })
 
   it('encodes the selected item set and weapon set into the build code', () => {

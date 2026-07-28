@@ -36,7 +36,7 @@ declare global {
         runtime?: string
         error?: string
       }>
-      calculatePobLua(payload: { xml: string }): Promise<import('@/types/calc').CalcApiResponse>
+      calculatePobLua(payload: import('@/types/calc').SkillCalculationSelection & { xml: string }): Promise<import('@/types/calc').CalcApiResponse>
     }
     pob2Updater?: {
       check(channel?: 'release' | 'dev'): Promise<UpdateCheckResult>

@@ -176,9 +176,19 @@ app.whenReady().then(() => {
     if (!value || typeof value !== 'object' || typeof (value as { xml?: unknown }).xml !== 'string') {
       throw new Error('Invalid PoB Lua calculation payload')
     }
-    const xml = (value as { xml: string }).xml
+    const payload = value as {
+      xml: string
+      skillGroupId?: string
+      calcMode?: 'UNBUFFED' | 'BUFFED' | 'COMBAT' | 'EFFECTIVE'
+      activeSkillIndex?: number
+      statSetIndex?: number
+    }
+    const xml = payload.xml
     if (!xml || xml.length > 10_000_000) throw new Error('Invalid PoB build XML')
-    return pobLuaService.calculate({ xml })
+    if (payload.calcMode && !['UNBUFFED', 'BUFFED', 'COMBAT', 'EFFECTIVE'].includes(payload.calcMode)) {
+      throw new Error('Invalid PoB calculation mode')
+    }
+    return pobLuaService.calculate(payload)
   })
 
   ipcMain.handle('pob2:save-game-build', async (_event, value: unknown) => {

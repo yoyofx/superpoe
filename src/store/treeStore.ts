@@ -8,7 +8,7 @@ import { create } from 'zustand'
 
 import type { BuildRealm, TreeData, SavedBuild } from '@/types/tree'
 import { LANGUAGE_OPTIONS, getLocalizedSearchText, loadTranslations, type Language } from '@/i18n/translationLoader'
-import { decodeBuildCode, encodeBuildCode, getBuildCharacterLevel, getEncodeClassPayload } from '@/engine/buildCode'
+import { decodeBuildCode, encodeBuildCode, getBuildActiveWeaponSet, getBuildCharacterLevel, getEncodeClassPayload } from '@/engine/buildCode'
 import { calculateBuild } from '@/engine/pobLuaClient'
 import { clearPersistedImportedBuild, getInitialImportedBuildCode } from '@/engine/buildPersistence'
 import { DEFAULT_BUILD_REALM, inferBuildRealm } from '@/engine/buildRealm'
@@ -34,7 +34,14 @@ import {
 
 
 
-import type { CalcResult, CalcApiResponse } from '@/types/calc'
+import type {
+  CalcResult,
+  CalcApiResponse,
+  CalculationConfigSnapshot,
+  CalculationConfigValue,
+  LocalCalculationProfile,
+  SkillCalculationMode,
+} from '@/types/calc'
 
 export const MIN_ZOOM = 0.01
 export const DEFAULT_ZOOM = 0.2
@@ -355,6 +362,7 @@ interface TreeStore {
   allocatedNodes: Set<string>
   treeEditMode: boolean
   weaponSetMode: 0 | 1 | 2
+  activeWeaponSet: 1 | 2
   nodeWeaponSets: Record<string, 1 | 2>
   nodeAttributeSelections: NodeAttributeSelections
   masterySelections: Record<string, string>
@@ -466,6 +474,10 @@ interface TreeStore {
 
 
   calcError: string | null
+
+  calculationProfiles: LocalCalculationProfile[]
+  activeCalculationProfileId: string
+  calculationConfig: CalculationConfigSnapshot | null
 
 
 
@@ -633,6 +645,7 @@ interface TreeStore {
   cycleAttributeNode: (id: string) => void
   setTreeEditMode: (enabled: boolean) => void
   setWeaponSetMode: (mode: 0 | 1 | 2) => void
+  setActiveWeaponSet: (weaponSet: 1 | 2) => void
   selectMastery: (nodeId: string, effectId: string) => void
   cancelMastery: () => void
   addSpec: (title: string) => void
@@ -725,7 +738,15 @@ interface TreeStore {
 
 
 
-  runCalculation: (selection?: { itemSetId?: string; weaponSet?: 1 | 2 }) => Promise<void>
+  runCalculation: (selection?: {
+    itemSetId?: string
+    weaponSet?: 1 | 2
+    skillGroupId?: string
+    calcMode?: SkillCalculationMode
+    activeSkillIndex?: number
+    statSetIndex?: number
+    includeConfig?: boolean
+  }) => Promise<void>
 
 
 
@@ -742,6 +763,12 @@ interface TreeStore {
 
 
   clearCalcResult: () => void
+  setActiveCalculationProfile: (id: string) => void
+  addCalculationProfile: (copyCurrent?: boolean) => void
+  renameCalculationProfile: (id: string, name: string) => void
+  deleteCalculationProfile: (id: string) => void
+  setCalculationConfigValue: (key: string, value?: CalculationConfigValue) => void
+  resetCalculationConfig: () => void
 
 
 
@@ -772,6 +799,23 @@ interface TreeStore {
 
 
 
+
+let calculationRequestId = 0
+
+const DEFAULT_CALCULATION_PROFILE: LocalCalculationProfile = { id: 'default', name: 'Default', values: {} }
+
+function normalizeCalculationProfiles(
+  profiles: LocalCalculationProfile[] | undefined,
+  activeId?: string,
+): { profiles: LocalCalculationProfile[]; activeId: string } {
+  const normalized = Array.isArray(profiles) && profiles.length
+    ? profiles.map((profile) => ({ ...profile, values: { ...(profile.values || {}) } }))
+    : [{ ...DEFAULT_CALCULATION_PROFILE, values: {} }]
+  return {
+    profiles: normalized,
+    activeId: normalized.some((profile) => profile.id === activeId) ? activeId! : normalized[0].id,
+  }
+}
 
 export const useTreeStore = create<TreeStore>((set, get) => ({
 
@@ -913,6 +957,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
   allocatedNodes: new Set(),
   treeEditMode: false,
   weaponSetMode: 0 as 0 | 1 | 2,
+  activeWeaponSet: 1 as 1 | 2,
   nodeWeaponSets: {} as Record<string, 1 | 2>,
   nodeAttributeSelections: {} as NodeAttributeSelections,
   masterySelections: {} as Record<string, string>,
@@ -983,6 +1028,10 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
   calcError: null,
+
+  calculationProfiles: [{ ...DEFAULT_CALCULATION_PROFILE, values: {} }],
+  activeCalculationProfileId: 'default',
+  calculationConfig: null,
 
   // ---- Saved Builds (Phase 16.7) ----
   buildRealm: DEFAULT_BUILD_REALM,
@@ -1732,6 +1781,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       availableNodes: rebuilt.availableNodes,
       treeEditMode: false,
       weaponSetMode: 0,
+      activeWeaponSet: getBuildActiveWeaponSet(options.importedBuildCode),
       nodeWeaponSets: rebuilt.nodeWeaponSets,
       nodeAttributeSelections: nextAttributeSelections,
       masterySelections: {},
@@ -1752,6 +1802,9 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       calcResult: null,
       calcLoading: false,
       calcError: null,
+      calculationProfiles: [{ ...DEFAULT_CALCULATION_PROFILE, values: {} }],
+      activeCalculationProfileId: 'default',
+      calculationConfig: null,
     })
   },
 
@@ -1763,6 +1816,10 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       nodeWeaponSets: {},
       nodeAttributeSelections: {},
       importedBuildCode: null,
+      activeWeaponSet: 1,
+      calculationProfiles: [{ ...DEFAULT_CALCULATION_PROFILE, values: {} }],
+      activeCalculationProfileId: 'default',
+      calculationConfig: null,
       undoStack: [],
       redoStack: [],
     })
@@ -1814,6 +1871,12 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   setWeaponSetMode: (mode) => {
     set({ weaponSetMode: mode })
+  },
+
+  setActiveWeaponSet: (activeWeaponSet) => {
+    if (get().activeWeaponSet === activeWeaponSet) return
+    calculationRequestId += 1
+    set({ activeWeaponSet, calcResult: null, calcError: null, calcLoading: false })
   },
 
   setTreeEditMode: (enabled) => {
@@ -2073,6 +2136,9 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       selectedAscendancyId,
       treeData,
       calcLoading,
+      activeWeaponSet,
+      calculationProfiles,
+      activeCalculationProfileId,
     } = get()
 
 
@@ -2097,6 +2163,9 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
+    const requestId = ++calculationRequestId
+    const calculationWeaponSet = selection?.weaponSet ?? activeWeaponSet
+    const calculationProfile = calculationProfiles.find((profile) => profile.id === activeCalculationProfileId)
     set({ calcLoading: true, calcError: null, calcResult: null })
 
 
@@ -2129,7 +2198,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
         baseCode: get().importedBuildCode || undefined,
         treeVersion,
         activeItemSetId: selection?.itemSetId,
-        useSecondWeaponSet: selection?.weaponSet == null ? undefined : selection.weaponSet === 2,
+        useSecondWeaponSet: calculationWeaponSet === 2,
+        mainSocketGroup: selection?.skillGroupId,
         ...classPayload,
       })
 
@@ -2173,7 +2243,16 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      const calcData: CalcApiResponse = await calculateBuild({ code, xml: encodeData.xml })
+      const calcData: CalcApiResponse = await calculateBuild({
+        code,
+        xml: encodeData.xml,
+        skillGroupId: selection?.skillGroupId,
+        calcMode: selection?.calcMode,
+        activeSkillIndex: selection?.activeSkillIndex,
+        statSetIndex: selection?.statSetIndex,
+        configOverrides: calculationProfile?.values || {},
+        includeConfig: selection?.includeConfig,
+      })
 
       if (!calcData.success || calcData.error) {
         throw new Error(calcData.error || 'Calculate failed')
@@ -2217,7 +2296,12 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      set({ calcResult: calcData.data, calcLoading: false })
+      if (requestId !== calculationRequestId || get().activeWeaponSet !== calculationWeaponSet) return
+      set({
+        calcResult: calcData.data,
+        calculationConfig: calcData.data.CalculationConfig || get().calculationConfig,
+        calcLoading: false,
+      })
 
 
 
@@ -2241,6 +2325,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
+      if (requestId !== calculationRequestId || get().activeWeaponSet !== calculationWeaponSet) return
       set({ calcError: msg, calcLoading: false })
 
 
@@ -2275,6 +2360,62 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   clearCalcResult: () => set({ calcResult: null, calcError: null }),
 
+  setActiveCalculationProfile: (activeCalculationProfileId) => {
+    if (!get().calculationProfiles.some((profile) => profile.id === activeCalculationProfileId)) return
+    set({ activeCalculationProfileId, calcResult: null, calcError: null })
+  },
+
+  addCalculationProfile: (copyCurrent = false) => {
+    const { calculationProfiles, activeCalculationProfileId } = get()
+    const current = calculationProfiles.find((profile) => profile.id === activeCalculationProfileId)
+    const id = globalThis.crypto?.randomUUID?.() || `config-${Date.now().toString(36)}`
+    const profile: LocalCalculationProfile = {
+      id,
+      name: get().language === 'zh-rCN'
+        ? `配置 ${calculationProfiles.length + 1}`
+        : `Config ${calculationProfiles.length + 1}`,
+      values: copyCurrent ? { ...current?.values } : {},
+    }
+    set({ calculationProfiles: [...calculationProfiles, profile], activeCalculationProfileId: id, calcResult: null })
+  },
+
+  renameCalculationProfile: (id, name) => set((state) => ({
+    calculationProfiles: state.calculationProfiles.map((profile) => profile.id === id
+      ? { ...profile, name: name.trim() || profile.name }
+      : profile),
+  })),
+
+  deleteCalculationProfile: (id) => {
+    const { calculationProfiles, activeCalculationProfileId } = get()
+    if (calculationProfiles.length <= 1) return
+    const next = calculationProfiles.filter((profile) => profile.id !== id)
+    set({
+      calculationProfiles: next,
+      activeCalculationProfileId: activeCalculationProfileId === id ? next[0].id : activeCalculationProfileId,
+      calcResult: null,
+    })
+  },
+
+  setCalculationConfigValue: (key, value) => set((state) => ({
+    calculationProfiles: state.calculationProfiles.map((profile) => {
+      if (profile.id !== state.activeCalculationProfileId) return profile
+      const values = { ...profile.values }
+      if (value === undefined) delete values[key]
+      else values[key] = value
+      return { ...profile, values }
+    }),
+    calcResult: null,
+    calcError: null,
+  })),
+
+  resetCalculationConfig: () => set((state) => ({
+    calculationProfiles: state.calculationProfiles.map((profile) => profile.id === state.activeCalculationProfileId
+      ? { ...profile, values: {} }
+      : profile),
+    calcResult: null,
+    calcError: null,
+  })),
+
   // ---- Saved Builds (Phase 16.7) ----
   loadSavedBuilds: () => {
     try {
@@ -2282,11 +2423,16 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       if (raw) {
         const builds = JSON.parse(raw) as SavedBuild[]
         if (Array.isArray(builds)) {
-          const normalized = builds.map((build) => ({
-            ...build,
-            realm: inferBuildRealm(build),
-            characterLevel: build.characterLevel || getBuildCharacterLevel(build.importedBuildCode) || 1,
-          }))
+          const normalized = builds.map((build) => {
+            const config = normalizeCalculationProfiles(build.calculationProfiles, build.activeCalculationProfileId)
+            return {
+              ...build,
+              realm: inferBuildRealm(build),
+              characterLevel: build.characterLevel || getBuildCharacterLevel(build.importedBuildCode) || 1,
+              calculationProfiles: config.profiles,
+              activeCalculationProfileId: config.activeId,
+            }
+          })
           set({ savedBuilds: normalized })
           localStorage.setItem('pob2-saved-builds', JSON.stringify(normalized))
         }
@@ -2298,10 +2444,11 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   saveBuild: (name, id, source, sourceUrl) => {
     const { allocatedNodes, treeVersion, selectedClassId, selectedAscendancyId,
-            weaponSetMode, nodeWeaponSets, nodeAttributeSelections, masterySelections, savedBuilds, treeData, importedBuildCode, buildRealm } = get()
+            weaponSetMode, activeWeaponSet, nodeWeaponSets, nodeAttributeSelections, masterySelections, savedBuilds, treeData, importedBuildCode, buildRealm,
+            calculationProfiles, activeCalculationProfileId } = get()
     const now = new Date().toISOString()
     const existing = id ? savedBuilds.find((item) => item.id === id) : undefined
-    const buildId = existing?.id || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2))
+    const buildId = existing?.id || (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2))
     const build: SavedBuild = {
       id: buildId,
       name,
@@ -2316,10 +2463,13 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       sourceUrl: sourceUrl || null,
       realm: buildRealm,
       weaponSetMode,
+      activeWeaponSet,
       nodeWeaponSets: { ...nodeWeaponSets },
       nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
       masterySelections: { ...masterySelections },
       allocatedNodes: [...allocatedNodes],
+      calculationProfiles: calculationProfiles.map((profile) => ({ ...profile, values: { ...profile.values } })),
+      activeCalculationProfileId,
     }
     const updated = existing
       ? savedBuilds.map((item) => item.id === buildId ? build : item)
@@ -2364,6 +2514,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       rebuilt.allocatedNodes,
       build.nodeAttributeSelections || {},
     )
+    const config = normalizeCalculationProfiles(build.calculationProfiles, build.activeCalculationProfileId)
     set({
       allocatedNodes: rebuilt.allocatedNodes,
       availableNodes: rebuilt.availableNodes,
@@ -2372,6 +2523,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       buildRealm: inferBuildRealm(build),
       importedBuildCode: build.importedBuildCode || null,
       weaponSetMode: build.weaponSetMode,
+      activeWeaponSet: build.activeWeaponSet || getBuildActiveWeaponSet(build.importedBuildCode),
       nodeWeaponSets: rebuilt.nodeWeaponSets,
       nodeAttributeSelections,
       masterySelections: { ...build.masterySelections },
@@ -2379,6 +2531,9 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       redoStack: [],
       calcResult: null,
       calcError: null,
+      calculationProfiles: config.profiles,
+      activeCalculationProfileId: config.activeId,
+      calculationConfig: null,
     })
   },
 
@@ -2390,7 +2545,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   exportBuildJSON: () => {
     const { allocatedNodes, treeVersion, selectedClassId, selectedAscendancyId,
-            weaponSetMode, nodeWeaponSets, nodeAttributeSelections, masterySelections, treeData, importedBuildCode, buildRealm } = get()
+            weaponSetMode, activeWeaponSet, nodeWeaponSets, nodeAttributeSelections, masterySelections, treeData, importedBuildCode, buildRealm,
+            calculationProfiles, activeCalculationProfileId } = get()
     return JSON.stringify({
       name: 'PoB2 Build',
       exportedAt: new Date().toISOString(),
@@ -2400,9 +2556,12 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       realm: buildRealm,
       importedBuildCode,
       weaponSetMode,
+      activeWeaponSet,
       nodeWeaponSets,
       nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
       masterySelections,
+      calculationProfiles,
+      activeCalculationProfileId,
       allocatedNodes: [...allocatedNodes],
     }, null, 2)
   },
@@ -2460,6 +2619,10 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       rebuilt.allocatedNodes,
       (build.nodeAttributeSelections as NodeAttributeSelections) || {},
     )
+    const config = normalizeCalculationProfiles(
+      Array.isArray(build.calculationProfiles) ? build.calculationProfiles as LocalCalculationProfile[] : undefined,
+      typeof build.activeCalculationProfileId === 'string' ? build.activeCalculationProfileId : undefined,
+    )
     set({
       allocatedNodes: rebuilt.allocatedNodes,
       availableNodes: rebuilt.availableNodes,
@@ -2469,6 +2632,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       importedBuildCode,
       treeEditMode: false,
       weaponSetMode: (build.weaponSetMode as 0 | 1 | 2) || 0,
+      activeWeaponSet: build.activeWeaponSet === 2 ? 2 : build.activeWeaponSet === 1 ? 1 : getBuildActiveWeaponSet(importedBuildCode),
       nodeWeaponSets: rebuilt.nodeWeaponSets,
       nodeAttributeSelections,
       masterySelections: (build.masterySelections as Record<string, string>) || {},
@@ -2488,6 +2652,9 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       calcResult: null,
       calcLoading: false,
       calcError: null,
+      calculationProfiles: config.profiles,
+      activeCalculationProfileId: config.activeId,
+      calculationConfig: null,
     })
   },
 

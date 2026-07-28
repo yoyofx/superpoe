@@ -1,4 +1,4 @@
-import type { CalcApiResponse } from '@/types/calc'
+import type { CalcApiResponse, SkillCalculationSelection } from '@/types/calc'
 import {
   calculateWithLuaEngine,
   inspectEquipmentWithLuaEngine,
@@ -17,7 +17,7 @@ import wasmUrl from 'wasmoon/dist/glue.wasm?url'
 interface WorkerRequest {
   id: number
   type: 'init' | 'calculate' | 'inspectEquipment'
-  payload?: { code?: string; xml?: string } | { items?: EquipmentInspectionItem[] }
+  payload?: ({ code?: string; xml?: string } & SkillCalculationSelection) | { items?: EquipmentInspectionItem[] }
 }
 
 interface WorkerResponse {
@@ -52,11 +52,20 @@ const TRADE_HELPERS_PATCHES: Array<[string, string]> = [
 ]
 
 function applyBrowserCompatibility(path: string, source: string): string {
-  if (path !== 'Classes/TradeHelpers.lua') return source
   let patched = source
-  for (const [original, replacement] of TRADE_HELPERS_PATCHES) {
-    if (!patched.includes(original)) throw new Error(`Browser compatibility patch no longer matches: ${path}`)
-    patched = patched.replace(original, replacement)
+  if (path === 'Classes/TradeHelpers.lua') {
+    for (const [original, replacement] of TRADE_HELPERS_PATCHES) {
+      if (!patched.includes(original)) throw new Error(`Browser compatibility patch no longer matches: ${path}`)
+      patched = patched.replace(original, replacement)
+    }
+  }
+  if (path === 'Modules/CalcOffence.lua') {
+    for (const expression of ['entry.distance', 'entry.capped', 'entry.excess']) {
+      const original = `string.len(${expression})`
+      const replacement = `string.len(tostring(${expression}))`
+      if (!patched.includes(original)) throw new Error(`Browser compatibility patch no longer matches: ${path}`)
+      patched = patched.split(original).join(replacement)
+    }
   }
   return patched
 }
@@ -136,11 +145,11 @@ async function mountBundleFiles(loadedManifest: PobLuaManifest): Promise<void> {
   mountedFiles = true
 }
 
-async function calculate(payload: { code?: string; xml?: string } | undefined): Promise<CalcApiResponse> {
+async function calculate(payload: ({ code?: string; xml?: string } & SkillCalculationSelection) | undefined): Promise<CalcApiResponse> {
   if (!payload?.xml) return { success: false, error: 'Missing build XML for front-end calculation' }
   await init()
   if (!lua) return { success: false, error: 'Lua VM was not initialized' }
-  return calculateWithLuaEngine(lua, payload.xml)
+  return calculateWithLuaEngine(lua, payload.xml, payload)
 }
 
 async function equipmentCacheKey(raw: string): Promise<string> {
@@ -202,7 +211,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         return
       }
       if (request.type === 'calculate') {
-        const result = await calculate(request.payload as { code?: string; xml?: string } | undefined)
+        const result = await calculate(request.payload as ({ code?: string; xml?: string } & SkillCalculationSelection) | undefined)
         respond({ id: request.id, success: true, data: result })
         return
       }

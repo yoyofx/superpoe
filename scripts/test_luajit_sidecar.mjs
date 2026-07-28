@@ -46,7 +46,7 @@ lines.on('line', (line) => {
       throw new Error(`Invalid ready message: ${line}`)
     }
     ready = true
-    child.stdin.write(`${JSON.stringify({ id: 1, type: 'calculate', payload: { xml } })}\n`)
+    child.stdin.write(`${JSON.stringify({ id: 1, type: 'calculate', payload: { xml, includeConfig: true } })}\n`)
     return
   }
 
@@ -62,6 +62,9 @@ lines.on('line', (line) => {
   }
   if (!Number.isFinite(data.DeflectChance) || !Number.isFinite(data.DeflectEffect)) {
     throw new Error(`Missing deflection result: ${JSON.stringify(data)}`)
+  }
+  if (!Array.isArray(data.CalculationConfig?.options) || data.CalculationConfig.options.length < 500) {
+    throw new Error(`Missing PoB configuration metadata: ${JSON.stringify(data.CalculationConfig)}`)
   }
   clearTimeout(timeout)
   if (buildCodePath) {

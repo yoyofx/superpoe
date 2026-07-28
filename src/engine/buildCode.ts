@@ -1,4 +1,5 @@
 import { deflate, inflate } from 'pako'
+import { XMLParser } from 'fast-xml-parser'
 import type { AscendancyClass, TreeData } from '@/types/tree'
 import type { NodeAttributeSelections } from '@/engine/attributeNodes'
 import type { NodeWeaponSets } from '@/engine/passiveAllocation'
@@ -34,6 +35,7 @@ export interface EncodeBuildCodeInput extends Partial<EncodeClassPayload> {
   nodeJewels?: NodeJewels
   activeItemSetId?: string
   useSecondWeaponSet?: boolean
+  mainSocketGroup?: string
 }
 
 export interface EncodeBuildCodeResult {
@@ -248,6 +250,25 @@ function replaceTreeXml(baseXml: string, treeXml: string): string {
   return baseXml.replace(/<\/PathOfBuilding2>\s*$/i, `${treeXml}\n</PathOfBuilding2>`)
 }
 
+export function getBuildActiveWeaponSet(code?: string | null): 1 | 2 {
+  if (!code) return 1
+  try {
+    const items = new XMLParser({
+      ignoreAttributes: false,
+      attributeNamePrefix: '',
+      parseAttributeValue: false,
+    }).parse(decodeCodeToXml(code))?.PathOfBuilding2?.Items as Record<string, unknown> | undefined
+    if (!items) return 1
+    const itemSets = Array.isArray(items.ItemSet) ? items.ItemSet : items.ItemSet ? [items.ItemSet] : []
+    const activeId = String(items.activeItemSet ?? (itemSets[0] as Record<string, unknown> | undefined)?.id ?? '')
+    const activeSet = itemSets.find((entry) => String((entry as Record<string, unknown>).id ?? '') === activeId) as Record<string, unknown> | undefined
+    const useSecond = activeSet?.useSecondWeaponSet ?? items.useSecondWeaponSet
+    return String(useSecond) === 'true' ? 2 : 1
+  } catch {
+    return 1
+  }
+}
+
 function upsertTagAttribute(tag: string, name: string, value: string): string {
   const escapedValue = xmlAttr(value)
   const attribute = new RegExp(`(\\s${name}\\s*=\\s*)(["'])(.*?)\\2`, 'i')
@@ -259,25 +280,34 @@ function upsertTagAttribute(tag: string, name: string, value: string): string {
 
 export function setBuildEquipmentSelection(
   xml: string,
-  itemSetId: string,
+  itemSetId: string | undefined,
   useSecondWeaponSet: boolean,
 ): string {
-  if (!itemSetId) return xml
+  const itemsTag = xml.match(/<Items\b[^>]*>/i)?.[0]
+  const selectedItemSetId = itemSetId
+    || itemsTag?.match(/\bactiveItemSet\s*=\s*(["'])(.*?)\1/i)?.[2]
+    || xml.match(/<ItemSet\b[^>]*\bid\s*=\s*(["'])(.*?)\1/i)?.[2]
+  if (!selectedItemSetId) return xml
 
   let matchedItemSet = false
   const selectedWeaponSet = String(useSecondWeaponSet)
   const withItemSet = xml.replace(/<ItemSet\b[^>]*>/gi, (tag) => {
     const id = tag.match(/\bid\s*=\s*(["'])(.*?)\1/i)?.[2]
-    if (id !== itemSetId) return tag
+    if (id !== selectedItemSetId) return tag
     matchedItemSet = true
     return upsertTagAttribute(tag, 'useSecondWeaponSet', selectedWeaponSet)
   })
   if (!matchedItemSet) return xml
 
   return withItemSet.replace(/<Items\b[^>]*>/i, (tag) => {
-    const active = upsertTagAttribute(tag, 'activeItemSet', itemSetId)
+    const active = upsertTagAttribute(tag, 'activeItemSet', selectedItemSetId)
     return upsertTagAttribute(active, 'useSecondWeaponSet', selectedWeaponSet)
   })
+}
+
+export function setBuildMainSocketGroup(xml: string, mainSocketGroup: string): string {
+  if (!/^\d+$/.test(mainSocketGroup) || Number(mainSocketGroup) < 1) return xml
+  return xml.replace(/<Build\b[^>]*>/i, (tag) => upsertTagAttribute(tag, 'mainSocketGroup', mainSocketGroup))
 }
 
 export function getEncodeClassPayload(
@@ -335,9 +365,10 @@ export function encodeBuildCode(input: EncodeBuildCodeInput): EncodeBuildCodeRes
       treeXml,
       '</PathOfBuilding2>',
     ].join('\n')
-  const xml = input.activeItemSetId && input.useSecondWeaponSet != null
-    ? setBuildEquipmentSelection(buildXml, input.activeItemSetId, input.useSecondWeaponSet)
-    : buildXml
+  let xml = input.useSecondWeaponSet == null
+    ? buildXml
+    : setBuildEquipmentSelection(buildXml, input.activeItemSetId, input.useSecondWeaponSet)
+  if (input.mainSocketGroup) xml = setBuildMainSocketGroup(xml, input.mainSocketGroup)
 
   return {
     code: encodeXmlToCode(xml),

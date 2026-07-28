@@ -5,7 +5,6 @@ import { TreePixiCanvas } from '@/components/TreePixiCanvas'
 import { Toolbar } from '@/components/Toolbar'
 import type { WorkspaceView } from '@/components/Toolbar'
 import { NodeTooltip } from '@/components/NodeTooltip'
-import { StatTable } from '@/components/StatTable'
 import { useTranslation } from '@/i18n/useTranslation'
 import { EquipmentPanel } from '@/components/EquipmentPanel'
 import { writePersistedImportedBuild } from '@/engine/buildPersistence'
@@ -15,6 +14,7 @@ import { UnifiedImportDialog, type ImportConfirmation } from '@/components/Unifi
 import { importPobBuildCode } from '@/engine/importPobBuildCode'
 import type { SavedBuild } from '@/types/tree'
 import { SkillsPanel } from '@/components/SkillsPanel'
+import { ConfigurationPanel } from '@/components/ConfigurationPanel'
 import { GlobalSettingsDialog } from '@/components/GlobalSettingsDialog'
 import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/appSettings'
 import { UpdateDialog } from '@/components/UpdateDialog'
@@ -57,6 +57,8 @@ export default function App() {
   const importBuildJSON = useTreeStore((s) => s.importBuildJSON)
   const buildRealm = useTreeStore((s) => s.buildRealm)
   const setBuildRealm = useTreeStore((s) => s.setBuildRealm)
+  const calculationProfiles = useTreeStore((s) => s.calculationProfiles)
+  const activeCalculationProfileId = useTreeStore((s) => s.activeCalculationProfileId)
 
   const buildSignature = useMemo(() => JSON.stringify({
     nodes: [...allocatedNodes].sort(),
@@ -66,7 +68,9 @@ export default function App() {
     selectedClassId,
     selectedAscendancyId,
     buildRealm,
-  }), [allocatedNodes, nodeWeaponSets, nodeAttributeSelections, treeVersion, selectedClassId, selectedAscendancyId, buildRealm])
+    calculationProfiles,
+    activeCalculationProfileId,
+  }), [allocatedNodes, nodeWeaponSets, nodeAttributeSelections, treeVersion, selectedClassId, selectedAscendancyId, buildRealm, calculationProfiles, activeCalculationProfileId])
 
   useEffect(() => {
     loadTreeData()
@@ -147,6 +151,8 @@ export default function App() {
       selectedClassId: state.selectedClassId,
       selectedAscendancyId: state.selectedAscendancyId,
       buildRealm: state.buildRealm,
+      calculationProfiles: state.calculationProfiles,
+      activeCalculationProfileId: state.activeCalculationProfileId,
     })
     setSaveStatus('saved')
   }, [])
@@ -256,7 +262,7 @@ export default function App() {
         )}
         {activeView === 'equipment' && <EquipmentPanel />}
         {activeView === 'skills' && <SkillsPanel />}
-        {activeView === 'calculation' && <StatTable page />}
+        {activeView === 'configuration' && <ConfigurationPanel />}
       </main>
       </>}
       <NewBuildDialog open={newBuildOpen} defaultRealm={appSettings.defaultRealm} onClose={() => setNewBuildOpen(false)} onCreate={(input) => void handleCreateBuild(input)} />

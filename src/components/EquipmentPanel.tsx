@@ -1,6 +1,6 @@
 import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronRight, PackageOpen, Upload } from 'lucide-react'
+import { ChevronDown, ChevronRight, PackageOpen, PanelRightOpen, Upload, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import { decodeCodeToXml } from '@/engine/buildCode'
 import {
@@ -546,7 +546,7 @@ function SocketedRunes({
   )
 }
 
-function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketedItems }: { item: EquipmentItem; base?: ItemBaseData; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[] }) {
+function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketedItems, onClose }: { item: EquipmentItem; base?: ItemBaseData; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; onClose: () => void }) {
   const { t, lang } = useTranslation()
   useTreeStore((state) => state.translationRevision)
   const translateItemText = (value: string) => translateGameText(value.replace(/\{[^}]+\}/g, ''), lang)
@@ -570,12 +570,19 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
   const propertyType = itemClassLabel(item, base, lang)
 
   return (
-    <aside className="equipment-inspector">
+    <aside className="equipment-inspector equipment-inspector-floating">
       <header className={`inspector-title item-header-${rarityKey} ${runicHeader ? 'runic-item-header' : ''} ${rarityClass}`}>
         <div className="item-header-copy">
           <h2>{translateItemName(item.name, item.rarity, lang)}</h2>
           {item.name !== item.baseType && <p>{translateItemText(item.baseType)}</p>}
         </div>
+        <button
+          type="button"
+          className="equipment-inspector-close"
+          onClick={onClose}
+          title={lang === 'zh-rCN' ? '关闭装备详情' : 'Close item details'}
+          aria-label={lang === 'zh-rCN' ? '关闭装备详情' : 'Close item details'}
+        ><X /></button>
       </header>
 
       <div className="inspector-scroll">
@@ -716,13 +723,14 @@ export function EquipmentPanel() {
   const calcLoading = useTreeStore((state) => state.calcLoading)
   const calcError = useTreeStore((state) => state.calcError)
   const runCalculation = useTreeStore((state) => state.runCalculation)
+  const weaponSet = useTreeStore((state) => state.activeWeaponSet)
+  const setWeaponSet = useTreeStore((state) => state.setActiveWeaponSet)
   const [itemIconIndex, setItemIconIndex] = useState<ItemIconIndex | null>(null)
   const [runeDetails, setRuneDetails] = useState<RuneDetailIndex | null>(null)
   const [itemBases, setItemBases] = useState<Record<string, ItemBaseData>>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
-  const [weaponSet, setWeaponSet] = useState<1 | 2>(1)
-  const [weaponSetSyncedFor, setWeaponSetSyncedFor] = useState<string | null>(null)
+  const [inspectorOpen, setInspectorOpen] = useState(true)
   const [paperDollBackgroundAvailable, setPaperDollBackgroundAvailable] = useState(true)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<EquipmentAffixGroup>>(new Set())
   const [expandedAffixes, setExpandedAffixes] = useState<Set<string>>(new Set())
@@ -740,6 +748,15 @@ export function EquipmentPanel() {
     return () => { mounted = false }
   }, [])
 
+  useEffect(() => {
+    if (!inspectorOpen) return
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setInspectorOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [inspectorOpen])
+
   const equipment = useMemo(() => {
     if (!importedBuildCode) return null
     try { return parseEquipmentXml(decodeCodeToXml(importedBuildCode)) } catch { return null }
@@ -747,27 +764,18 @@ export function EquipmentPanel() {
   const activeSetId = selectedSetId || equipment?.activeItemSetId
   const activeSet = equipment?.itemSets.find((set) => set.id === activeSetId) || equipment?.itemSets[0]
 
-  useEffect(() => {
-    if (!activeSet) {
-      setWeaponSetSyncedFor(null)
-      return
-    }
-    setWeaponSet(activeSet.useSecondWeaponSet ? 2 : 1)
-    setWeaponSetSyncedFor(activeSet.id)
-  }, [activeSet?.id, activeSet?.useSecondWeaponSet])
-
   const calculateCharacter = useCallback(() => runCalculation({
     itemSetId: activeSet?.id,
     weaponSet,
   }), [activeSet?.id, weaponSet, runCalculation])
 
   useEffect(() => {
-    if (semanticView !== 'character' || !importedBuildCode || !activeSet || weaponSetSyncedFor !== activeSet.id || calcLoading) return
+    if (semanticView !== 'character' || !importedBuildCode || !activeSet || calcLoading) return
     const selection = `${importedBuildCode}:${activeSet.id}:${weaponSet}`
     if (lastCalculationSelection.current === selection) return
     lastCalculationSelection.current = selection
     void calculateCharacter()
-  }, [semanticView, importedBuildCode, activeSet?.id, weaponSet, weaponSetSyncedFor, calcLoading, calculateCharacter])
+  }, [semanticView, importedBuildCode, activeSet?.id, weaponSet, calcLoading, calculateCharacter])
 
   const activeSlotNames = new Set(getActivePaperDollSlots(weaponSet).map((slot) => slot.slotName))
   const equipped = activeSet?.slots.filter((slot) => activeSlotNames.has(slot.name) && slot.itemId) || []
@@ -844,6 +852,10 @@ export function EquipmentPanel() {
     setSelectedSetId(setId)
     setSelectedId(null)
   }, [])
+  const handleSelectItem = useCallback((itemId: string) => {
+    setSelectedId(itemId)
+    setInspectorOpen(true)
+  }, [])
   const handleToggleCategory = useCallback((group: EquipmentAffixGroup) => {
     setCollapsedCategories((current) => {
       const next = new Set(current)
@@ -896,7 +908,7 @@ export function EquipmentPanel() {
   }
 
   return (
-    <section className="equipment-workspace">
+    <section className={`equipment-workspace${inspectorOpen ? ' inspector-open' : ''}`}>
       <EquipmentAffixSidebar
         activeSet={activeSet}
         itemSets={equipment.itemSets}
@@ -914,12 +926,24 @@ export function EquipmentPanel() {
         onSelectSemanticView={setSemanticView}
         onToggleCategory={handleToggleCategory}
         onToggleAffix={handleToggleAffix}
-        onSelectSource={setSelectedId}
+        onSelectSource={handleSelectItem}
         onCalculate={() => { void calculateCharacter() }}
       />
 
       <div className="paper-doll-stage">
-        <header className="paper-doll-heading"><span>{t('equipment.title')}</span><small>{lang === 'zh-rCN' ? '选择装备查看完整属性' : 'Select an item to inspect its properties'}</small></header>
+        <header className="paper-doll-heading">
+          <span>{t('equipment.title')}</span>
+          <div className="paper-doll-heading-actions">
+            <small>{lang === 'zh-rCN' ? '选择装备查看完整属性' : 'Select an item to inspect its properties'}</small>
+            {!inspectorOpen && selected && <button
+              type="button"
+              className="equipment-inspector-toggle"
+              onClick={() => setInspectorOpen(true)}
+              title={lang === 'zh-rCN' ? '打开装备详情' : 'Open item details'}
+              aria-label={lang === 'zh-rCN' ? '打开装备详情' : 'Open item details'}
+            ><PanelRightOpen /></button>}
+          </div>
+        </header>
         <div ref={hostRef} className="paper-doll-frame-host">
           <div
             className={`paper-doll-frame ${paperDollBackgroundAvailable ? '' : 'background-missing'}`}
@@ -963,18 +987,24 @@ export function EquipmentPanel() {
                 activeWeaponSet={weaponSet}
                 onSelect={() => {
                   if (slot.weaponSet) setWeaponSet(slot.weaponSet)
-                  if (item) setSelectedId(item.id)
+                  if (item) handleSelectItem(item.id)
                 }}
-                onSelectSocketedItem={(socketedItem) => setSelectedId(socketedItem.id)}
+                onSelectSocketedItem={(socketedItem) => handleSelectItem(socketedItem.id)}
               />
             })}
           </div>
         </div>
       </div>
 
-      {selected
-        ? <ItemDetail item={selected} base={resolveItemBaseData(selected.baseType, itemBases)} itemIconIndex={itemIconIndex} runeDetails={runeDetails} slotName={selectedSlotName} socketedItems={selectedSlotName ? socketedItemsForSlot(selectedSlotName) : []} />
-        : <aside className="equipment-inspector empty-inspector"><ChevronRight /><span>{lang === 'zh-rCN' ? '选择一件装备' : 'Select an item'}</span></aside>}
+      {inspectorOpen && selected && <ItemDetail
+        item={selected}
+        base={resolveItemBaseData(selected.baseType, itemBases)}
+        itemIconIndex={itemIconIndex}
+        runeDetails={runeDetails}
+        slotName={selectedSlotName}
+        socketedItems={selectedSlotName ? socketedItemsForSlot(selectedSlotName) : []}
+        onClose={() => setInspectorOpen(false)}
+      />}
     </section>
   )
 }

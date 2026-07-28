@@ -46,6 +46,7 @@ describe('tree store build import isolation', () => {
       availableNodes: new Set(),
       treeEditMode: true,
       weaponSetMode: 2,
+      activeWeaponSet: 2,
       nodeWeaponSets: { 'old-node': 2 },
       nodeAttributeSelections: {},
       masterySelections: { 'old-node': 'old-effect' },
@@ -58,6 +59,8 @@ describe('tree store build import isolation', () => {
       calcResult: { Str: 999 } as unknown as CalcResult,
       calcLoading: false,
       calcError: 'old error',
+      calculationProfiles: [{ id: 'boss', name: 'Boss', values: { conditionRage: 44 } }],
+      activeCalculationProfileId: 'boss',
     })
   })
 
@@ -76,6 +79,7 @@ describe('tree store build import isolation', () => {
     expect(state.importedBuildCode).toBe('new-code')
     expect(state.treeEditMode).toBe(false)
     expect(state.weaponSetMode).toBe(0)
+    expect(state.activeWeaponSet).toBe(1)
     expect(state.masterySelections).toEqual({})
     expect(state.pendingMasteryNode).toBeNull()
     expect(state.hoveredNodeId).toBeNull()
@@ -83,6 +87,8 @@ describe('tree store build import isolation', () => {
     expect(state.searchQuery).toBe('')
     expect(state.calcResult).toBeNull()
     expect(state.calcError).toBeNull()
+    expect(state.calculationProfiles).toEqual([{ id: 'default', name: 'Default', values: {} }])
+    expect(state.activeCalculationProfileId).toBe('default')
   })
 
   it('rejects an import with no resolvable class instead of using the current class', async () => {
