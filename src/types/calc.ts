@@ -77,6 +77,25 @@ export interface SkillCalculationSelection {
   includeConfig?: boolean
 }
 
+export interface SkillDpsRankEntry {
+  groupId: string
+  dps: number
+  valid: boolean
+  error?: string
+}
+
+export interface SkillDpsRankResponse {
+  success: boolean
+  data?: SkillDpsRankEntry[]
+  error?: string
+}
+
+export interface RankSkillsInput {
+  xml: string
+  groupIds: string[]
+  configOverrides?: CalculationConfigValues
+}
+
 export type CalculationConfigValue = boolean | number | string
 export type CalculationConfigValues = Record<string, CalculationConfigValue>
 
@@ -139,6 +158,33 @@ export interface SkillModifierContribution {
   source: string
 }
 
+export type SkillDamageSourceType = SkillDamageBreakdown['type'] | 'elemental'
+
+export interface SkillGainContribution {
+  fromType: SkillDamageSourceType
+  toType: SkillDamageBreakdown['type'] | 'random'
+  stat: string
+  value: number
+  source: string
+}
+
+export interface SkillWeaponDamageContribution {
+  hand: 'mainHand' | 'offHand'
+  damageType: Exclude<SkillDamageBreakdown['type'], 'all'>
+  min: number
+  max: number
+  source: string
+}
+
+export interface SkillBaseDamageContribution {
+  damageType: Exclude<SkillDamageBreakdown['type'], 'all'>
+  min: number
+  max: number
+  source: string
+  skillLevel?: number
+  baseMultiplier: number
+}
+
 export interface SkillEffectSummary {
   aurasAndBuffs: string[]
   combatBuffs: string[]
@@ -151,13 +197,22 @@ export interface SkillCalculationDetails {
   activeSkills: SkillCalculationOption[]
   statSetIndex: number
   statSets: SkillCalculationOption[]
+  skillType: 'attack' | 'spell' | 'other'
   damageSource: 'skill' | 'mainHand' | 'offHand'
   damageTypes: SkillDamageBreakdown[]
   averageHit?: number
   speed?: number
   totalDps?: number
+  critChance?: number
+  critMultiplier?: number
+  critChanceBreakdown?: string[]
+  critMultiplierBreakdown?: string[]
   dpsFormula?: string[]
+  averageHitBreakdown?: string[]
   modifiers?: SkillModifierContribution[]
+  skillDamage?: SkillBaseDamageContribution[]
+  weaponDamage?: SkillWeaponDamageContribution[]
+  gains?: SkillGainContribution[]
   effects?: SkillEffectSummary
 }
 

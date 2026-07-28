@@ -9,6 +9,7 @@ import {
   inspectEquipmentWithLuaEngine,
   installBuildHelpers,
   installHostCompatibility,
+  rankSkillsWithLuaEngine,
   type PobLuaManifest,
 } from '@/engine/pobLuaRuntime'
 
@@ -200,5 +201,18 @@ describe('PoB Lua front-end runtime', () => {
     expect(result.data?.ColdResistTotal).toBeDefined()
     expect(result.data?.LightningResistTotal).toBeDefined()
     expect(result.data?.ChaosResistTotal).toBeDefined()
+    expect(['attack', 'spell', 'other']).toContain(result.data?.SkillDetails?.skillType)
+    if (result.data?.SkillDetails?.skillType === 'spell') {
+      expect(result.data.SkillDetails.skillDamage?.length).toBeGreaterThan(0)
+      expect(result.data.SkillDetails.weaponDamage).toEqual([])
+    } else if (result.data?.SkillDetails?.skillType === 'attack') {
+      expect(result.data.SkillDetails.skillDamage).toEqual([])
+    }
+
+    const ranking = rankSkillsWithLuaEngine(lua, decoded.xml, ['1'])
+    expect(ranking.success, ranking.error).toBe(true)
+    expect(ranking.data).toHaveLength(1)
+    expect(ranking.data?.map((entry) => entry.groupId)).toEqual(['1'])
+    expect(ranking.data?.every((entry) => Number.isFinite(entry.dps))).toBe(true)
   }, 30000)
 })

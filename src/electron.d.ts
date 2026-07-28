@@ -37,6 +37,7 @@ declare global {
         error?: string
       }>
       calculatePobLua(payload: import('@/types/calc').SkillCalculationSelection & { xml: string }): Promise<import('@/types/calc').CalcApiResponse>
+      rankPobLuaSkills(payload: import('@/types/calc').RankSkillsInput): Promise<import('@/types/calc').SkillDpsRankResponse>
     }
     pob2Updater?: {
       check(channel?: 'release' | 'dev'): Promise<UpdateCheckResult>

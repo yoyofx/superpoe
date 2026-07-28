@@ -510,14 +510,20 @@ if mainSkill and mainSkill.activeEffect then
     activeSkills = {},
     statSetIndex = statSetIndex,
     statSets = {},
+    skillType = "other",
     damageSource = "skill",
     damageTypes = {},
     dpsFormula = {},
     modifiers = {},
+    skillDamage = {},
+    weaponDamage = {},
+    gains = {},
     effects = { aurasAndBuffs = {}, combatBuffs = {}, cursesAndDebuffs = {} },
     averageHit = safeNum(output.AverageHit),
     speed = safeNum(output.Speed),
     totalDps = safeNum(output.TotalDPS),
+    critChance = safeNum(output.CritChance),
+    critMultiplier = safeNum(output.CritMultiplier),
   }
   for index, skill in ipairs(displaySkills) do
     table.insert(details.activeSkills, { index = index, label = calcsTab.calcs.getActiveSkillDisplayName(skill) })
@@ -526,22 +532,74 @@ if mainSkill and mainSkill.activeEffect then
     table.insert(details.statSets, { index = index, label = statSet.label })
   end
 
-  local flags = activeEffect.statSetCalcs and activeEffect.statSetCalcs.skillFlags or {}
+  local flags = activeEffect.statSetCalcs and activeEffect.statSetCalcs.skillFlags
+    or activeEffect.statSet and activeEffect.statSet.skillFlags or {}
+  local skillTypes = mainSkill.skillTypes or activeEffect.grantedEffect and activeEffect.grantedEffect.skillTypes or {}
+  local isAttack = flags.attack or SkillType and skillTypes[SkillType.Attack]
+  local isSpell = flags.spell or SkillType and skillTypes[SkillType.Spell]
+  details.skillType = isAttack and "attack" or isSpell and "spell" or "other"
   local sourceOutput = output
   local sourceBreakdown = env.player.breakdown or {}
   local cfg = mainSkill.skillCfg
+  local weaponData
+  local weaponItem
+  local weaponHand
+  local actor = mainSkill.actor or env.player
   if flags.weapon1Attack and output.MainHand then
     details.damageSource = "mainHand"
     sourceOutput = output.MainHand
     sourceBreakdown = sourceBreakdown.MainHand or sourceBreakdown
     cfg = mainSkill.weapon1Cfg
+    weaponData = actor and actor.weaponData1
+    weaponItem = actor and actor.itemList and actor.itemList["Weapon 1"]
+    weaponHand = "mainHand"
   elseif flags.weapon2Attack and output.OffHand then
     details.damageSource = "offHand"
     sourceOutput = output.OffHand
     sourceBreakdown = sourceBreakdown.OffHand or sourceBreakdown
     cfg = mainSkill.weapon2Cfg
+    weaponData = actor and actor.weaponData2
+    weaponItem = actor and actor.itemList and actor.itemList["Weapon 2"]
+    weaponHand = "offHand"
   end
   details.averageHit = safeNum(sourceOutput.AverageHit or output.AverageHit)
+
+  if details.skillType == "spell" then
+    local skillData = mainSkill.skillData or {}
+    local grantedEffectLevel = activeEffect.grantedEffectLevel or {}
+    local baseMultiplier = safeNum(grantedEffectLevel.baseMultiplier or skillData.baseMultiplier) or 1
+    local skillName = activeEffect.grantedEffect and activeEffect.grantedEffect.name or activeEffect.name or "Skill"
+    for _, damageType in ipairs({ "Physical", "Lightning", "Cold", "Fire", "Chaos" }) do
+      local min = safeNum(skillData[damageType .. "Min"]) or 0
+      local max = safeNum(skillData[damageType .. "Max"]) or 0
+      if min ~= 0 or max ~= 0 then
+        table.insert(details.skillDamage, {
+          damageType = damageType:lower(),
+          min = min,
+          max = max,
+          source = StripEscapes(skillName),
+          skillLevel = data.SkillLevel,
+          baseMultiplier = baseMultiplier,
+        })
+      end
+    end
+  end
+
+  if weaponData and weaponItem and weaponHand then
+    for _, damageType in ipairs({ "Physical", "Lightning", "Cold", "Fire", "Chaos" }) do
+      local min = safeNum(weaponData[damageType .. "Min"]) or 0
+      local max = safeNum(weaponData[damageType .. "Max"]) or 0
+      if min ~= 0 or max ~= 0 then
+        table.insert(details.weaponDamage, {
+          hand = weaponHand,
+          damageType = damageType:lower(),
+          min = min,
+          max = max,
+          source = StripEscapes(weaponItem.modSource or weaponHand),
+        })
+      end
+    end
+  end
 
   local modList = mainSkill.skillModList
   local function copyLines(lines)
@@ -559,6 +617,10 @@ if mainSkill and mainSkill.activeEffect then
     end
     return result
   end
+  details.critChance = safeNum(sourceOutput.CritChance or output.CritChance)
+  details.critMultiplier = safeNum(sourceOutput.CritMultiplier or output.CritMultiplier)
+  details.critChanceBreakdown = copyLines(sourceBreakdown.CritChance)
+  details.critMultiplierBreakdown = copyLines(sourceBreakdown.CritMultiplier)
   local function addModifiers(bucket, damageType, modType, names)
     for _, entry in ipairs(modList:Tabulate(modType, cfg, unpack(names))) do
       table.insert(details.modifiers, {
@@ -570,6 +632,18 @@ if mainSkill and mainSkill.activeEffect then
       })
     end
   end
+  local function addGainModifiers(fromType, toType, stat)
+    for _, entry in ipairs(modList:Tabulate("BASE", cfg, stat)) do
+      table.insert(details.gains, {
+        fromType = fromType,
+        toType = toType,
+        stat = entry.mod.name,
+        value = safeNum(entry.value) or 0,
+        source = StripEscapes(entry.mod.source or "Unknown"),
+      })
+    end
+  end
+  details.averageHitBreakdown = copyLines(sourceBreakdown.AverageHit)
   details.dpsFormula = copyLines(env.player.breakdown and env.player.breakdown.TotalDPS)
   details.effects.aurasAndBuffs = splitList(output.BuffList)
   details.effects.combatBuffs = splitList(output.CombatList)
@@ -592,6 +666,16 @@ if mainSkill and mainSkill.activeEffect then
   })
   addModifiers("increased", "all", "INC", { "Damage" })
   addModifiers("more", "all", "MORE", { "Damage" })
+  for _, toType in ipairs({ "physical", "lightning", "cold", "fire", "chaos" }) do
+    local toTitle = toType:sub(1, 1):upper() .. toType:sub(2)
+    addGainModifiers("all", toType, "DamageGainAs" .. toTitle)
+    addGainModifiers("elemental", toType, "ElementalDamageGainAs" .. toTitle)
+    for _, fromType in ipairs({ "physical", "lightning", "cold", "fire", "chaos" }) do
+      local fromTitle = fromType:sub(1, 1):upper() .. fromType:sub(2)
+      addGainModifiers(fromType, toType, fromTitle .. "DamageGainAs" .. toTitle)
+    end
+  end
+  addGainModifiers("all", "random", "DamageGainAsRandom")
   for _, damageType in ipairs({ "physical", "lightning", "cold", "fire", "chaos" }) do
     local title = damageType:sub(1, 1):upper() .. damageType:sub(2)
     local names = damageNames[damageType]
@@ -619,6 +703,70 @@ end
 if __pobIncludeConfig then data.CalculationConfig = readConfigSnapshot() end
 
 return { success = true, data = data }
+`
+
+export const SKILL_RANKING_SCRIPT = `
+local xmlText = __pobBuildXml
+if not xmlText or xmlText == "" then
+  return { success = false, error = "Empty XML input" }
+end
+
+xmlText = xmlText:gsub(
+  "(Fire|Cold|Lightning|Chaos) Resistance is ([%+%-]?[%d%.]+)%%",
+  "%2%% to %1 Resistance"
+)
+
+local loadOk, loadErr = pcall(loadBuildFromXML, xmlText, "browser-skill-ranking")
+if not loadOk then
+  return { success = false, error = "loadBuildFromXML failed: " .. tostring(loadErr) }
+end
+
+build = (launch and launch.main and launch.main.modes and launch.main.modes["BUILD"]) or build
+if not build or not build.calcsTab then
+  return { success = false, error = "Build calculation object not available after load" }
+end
+
+if __pobConfigOverridesJson and __pobConfigOverridesJson ~= "" and build.configTab then
+  local overrides = require("dkjson").decode(__pobConfigOverridesJson)
+  local configSet = build.configTab.configSets[build.configTab.activeConfigSetId]
+  for key, value in pairs(overrides or {}) do configSet.input[key] = value end
+  build.configTab:BuildModList()
+end
+
+local groupIds = require("dkjson").decode(__pobSkillGroupIdsJson or "[]") or {}
+local calcsTab = build.calcsTab
+calcsTab.input.misc_buffMode = "EFFECTIVE"
+local entries = {}
+
+for _, groupId in ipairs(groupIds) do
+  local calculated, result = pcall(function()
+    calcsTab.input.skill_number = tonumber(groupId)
+    if GlobalCache and GlobalCache.cachedData then wipeGlobalCache() end
+    calcsTab.mainEnv = nil
+    calcsTab.mainOutput = nil
+    build.buildFlag = true
+    calcsTab:BuildOutput()
+    local env = calcsTab.calcsEnv
+    local output = env and env.player and env.player.output
+    local dps = output and output.TotalDPS
+    if type(dps) ~= "number" or dps ~= dps or dps == math.huge or dps == -math.huge then
+      return nil
+    end
+    return dps
+  end)
+  if calculated and result ~= nil then
+    table.insert(entries, { groupId = tostring(groupId), dps = result, valid = true })
+  else
+    table.insert(entries, {
+      groupId = tostring(groupId),
+      dps = 0,
+      valid = false,
+      error = calculated and "No effective DPS output" or tostring(result),
+    })
+  end
+end
+
+return { success = true, data = entries }
 `
 
 export const EQUIPMENT_INSPECTION_SCRIPT = `
@@ -949,6 +1097,31 @@ export function calculateWithLuaEngine(engine: LuaEngine, xml: string, selection
       engine.global.set('__pobIncludeConfig', undefined)
     } catch {
       // Ignore cleanup errors; the next calculation will overwrite the value.
+    }
+  }
+}
+
+export function rankSkillsWithLuaEngine(
+  engine: LuaEngine,
+  xml: string,
+  groupIds: string[],
+  configOverrides: SkillCalculationSelection['configOverrides'] = {},
+): import('@/types/calc').SkillDpsRankResponse {
+  if (!xml) return { success: false, error: 'Missing build XML for skill ranking' }
+  try {
+    engine.global.set('__pobBuildXml', xml)
+    engine.global.set('__pobSkillGroupIdsJson', JSON.stringify(groupIds))
+    engine.global.set('__pobConfigOverridesJson', JSON.stringify(configOverrides))
+    return detachLuaValue(engine.doStringSync(SKILL_RANKING_SCRIPT)) as import('@/types/calc').SkillDpsRankResponse
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
+  } finally {
+    try {
+      engine.global.set('__pobBuildXml', undefined)
+      engine.global.set('__pobSkillGroupIdsJson', undefined)
+      engine.global.set('__pobConfigOverridesJson', undefined)
+    } catch {
+      // The next operation overwrites all ranking inputs.
     }
   }
 }

@@ -190,6 +190,22 @@ app.whenReady().then(() => {
     }
     return pobLuaService.calculate(payload)
   })
+  ipcMain.handle('pob2:lua-rank-skills', (_event, value: unknown) => {
+    if (!value || typeof value !== 'object') throw new Error('Invalid PoB Lua skill ranking payload')
+    const payload = value as { xml?: unknown; groupIds?: unknown; configOverrides?: unknown }
+    if (typeof payload.xml !== 'string' || !payload.xml || payload.xml.length > 10_000_000) {
+      throw new Error('Invalid PoB build XML')
+    }
+    if (!Array.isArray(payload.groupIds) || payload.groupIds.length > 100
+      || payload.groupIds.some((id) => typeof id !== 'string' || !/^\d+$/.test(id))) {
+      throw new Error('Invalid skill group IDs')
+    }
+    return pobLuaService.rankSkills(payload as {
+      xml: string
+      groupIds: string[]
+      configOverrides?: Record<string, boolean | number | string>
+    })
+  })
 
   ipcMain.handle('pob2:save-game-build', async (_event, value: unknown) => {
     const payload = validateGameBuildPayload(value)

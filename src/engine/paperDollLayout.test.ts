@@ -3,9 +3,12 @@ import {
   fitPaperDoll,
   getActivePaperDollSlots,
   getPaperDollSlotsForWeaponSet,
+  PAPER_DOLL_DISPLAY_HEIGHT,
   PAPER_DOLL_HEIGHT,
   PAPER_DOLL_SLOTS,
   PAPER_DOLL_WEAPON_SET_CONTROLS,
+  PAPER_DOLL_VIEW_BOTTOM,
+  PAPER_DOLL_VIEW_TOP,
   PAPER_DOLL_WIDTH,
 } from '@/engine/paperDollLayout'
 
@@ -13,19 +16,28 @@ describe('paper doll layout', () => {
   it('keeps the native artboard ratio when width or height constrains it', () => {
     for (const [width, height] of [[900, 900], [600, 400], [400, 900]]) {
       const fitted = fitPaperDoll(width, height)
-      expect(fitted.width / fitted.height).toBeCloseTo(PAPER_DOLL_WIDTH / PAPER_DOLL_HEIGHT, 8)
-      expect(fitted.width).toBeLessThanOrEqual(Math.min(width, 820))
+      expect(fitted.width / fitted.height).toBeCloseTo(PAPER_DOLL_WIDTH / PAPER_DOLL_DISPLAY_HEIGHT, 8)
+      expect(fitted.width).toBeLessThanOrEqual(Math.min(width, PAPER_DOLL_WIDTH))
       expect(fitted.height).toBeLessThanOrEqual(height)
     }
+  })
+
+  it('scales with the window until reaching the native asset size', () => {
+    const medium = fitPaperDoll(1200, 1200)
+    const large = fitPaperDoll(2000, 2000)
+
+    expect(medium.width).toBe(1200)
+    expect(large.width).toBe(PAPER_DOLL_WIDTH)
+    expect(large.height).toBe(PAPER_DOLL_DISPLAY_HEIGHT)
   })
 
   it('defines unique slots entirely inside the source image', () => {
     expect(new Set(PAPER_DOLL_SLOTS.map((slot) => slot.slotName)).size).toBe(PAPER_DOLL_SLOTS.length)
     for (const slot of PAPER_DOLL_SLOTS) {
       expect(slot.rect.x).toBeGreaterThanOrEqual(0)
-      expect(slot.rect.y).toBeGreaterThanOrEqual(0)
+      expect(slot.rect.y).toBeGreaterThanOrEqual(PAPER_DOLL_VIEW_TOP)
       expect(slot.rect.x + slot.rect.width).toBeLessThanOrEqual(PAPER_DOLL_WIDTH)
-      expect(slot.rect.y + slot.rect.height).toBeLessThanOrEqual(PAPER_DOLL_HEIGHT)
+      expect(slot.rect.y + slot.rect.height).toBeLessThanOrEqual(PAPER_DOLL_HEIGHT - PAPER_DOLL_VIEW_BOTTOM)
     }
   })
 
@@ -60,7 +72,8 @@ describe('paper doll layout', () => {
     ])
     for (const control of PAPER_DOLL_WEAPON_SET_CONTROLS) {
       expect(control.rect.x + control.rect.width).toBeLessThanOrEqual(PAPER_DOLL_WIDTH)
-      expect(control.rect.y + control.rect.height).toBeLessThanOrEqual(PAPER_DOLL_HEIGHT)
+      expect(control.rect.y).toBeGreaterThanOrEqual(PAPER_DOLL_VIEW_TOP)
+      expect(control.rect.y + control.rect.height).toBeLessThanOrEqual(PAPER_DOLL_HEIGHT - PAPER_DOLL_VIEW_BOTTOM)
     }
   })
 

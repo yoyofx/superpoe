@@ -17,7 +17,11 @@ const executable = process.env.SUPERPOE_LUAJIT_EXECUTABLE || path.join(
 const runner = path.join(root, 'native', 'pob-lua-runner.lua')
 const bundle = path.join(root, 'public', 'pob-lua')
 const buildCodePath = process.env.SUPERPOE_BUILD_CODE_PATH
-const xml = buildCodePath
+const buildXmlPath = process.env.SUPERPOE_BUILD_XML_PATH
+const skillGroupId = process.env.SUPERPOE_SKILL_GROUP_ID
+const xml = buildXmlPath
+  ? readFileSync(buildXmlPath, 'utf8')
+  : buildCodePath
   ? new TextDecoder().decode(inflate(Buffer.from(
     readFileSync(buildCodePath, 'utf8').trim().replace(/-/g, '+').replace(/_/g, '/'),
     'base64',
@@ -39,6 +43,7 @@ const timeout = setTimeout(() => {
 }, 60_000)
 
 let ready = false
+let calculationData
 lines.on('line', (line) => {
   const message = JSON.parse(line)
   if (!ready) {
@@ -46,13 +51,35 @@ lines.on('line', (line) => {
       throw new Error(`Invalid ready message: ${line}`)
     }
     ready = true
-    child.stdin.write(`${JSON.stringify({ id: 1, type: 'calculate', payload: { xml, includeConfig: true } })}\n`)
+    child.stdin.write(`${JSON.stringify({
+      id: 1,
+      type: 'calculate',
+      payload: { xml, includeConfig: true, ...(skillGroupId ? { skillGroupId } : {}) },
+    })}\n`)
     return
   }
 
-  if (message.id !== 1 || !message.success || !message.data?.success) {
+  if (!message.success || !message.data?.success) {
     throw new Error(`Calculation failed: ${line}\n${stderr}`)
   }
+  if (message.id === 2) {
+    const ranked = message.data.data
+    const skillCount = (xml.match(/<Skill(?:\s|>)/g) || []).length
+    if (!Array.isArray(ranked) || ranked.length !== skillCount
+      || ranked.some((entry, index) => entry.groupId !== String(index + 1) || !Number.isFinite(entry.dps))) {
+      throw new Error(`Unexpected skill ranking result: ${JSON.stringify(ranked)}`)
+    }
+    clearTimeout(timeout)
+    if (buildCodePath || buildXmlPath) {
+      console.log(JSON.stringify(calculationData, null, 2))
+    } else {
+      const validCount = ranked.filter((entry) => entry.valid).length
+      console.log(`LuaJIT parity fixture passed: level=${calculationData.CharacterLevel}, nodes=${calculationData.allocatedNodes}, mana=${calculationData.Mana}, deflect=${calculationData.DeflectChance}%/${calculationData.DeflectEffect}%, skill=${calculationData.SkillDetails.skillType}, baseRows=${calculationData.SkillDetails.skillDamage.length}, ranked=${validCount}/${ranked.length}`)
+    }
+    child.kill()
+    return
+  }
+  if (message.id !== 1) throw new Error(`Unexpected sidecar response: ${line}`)
   const data = message.data.data
   if (!buildCodePath && (data.CharacterLevel !== 98 || data.ClassName !== 'Sorceress' || data.AscendClassName !== 'Stormweaver')) {
     throw new Error(`Unexpected PoB result: ${JSON.stringify(data)}`)
@@ -66,13 +93,21 @@ lines.on('line', (line) => {
   if (!Array.isArray(data.CalculationConfig?.options) || data.CalculationConfig.options.length < 500) {
     throw new Error(`Missing PoB configuration metadata: ${JSON.stringify(data.CalculationConfig)}`)
   }
-  clearTimeout(timeout)
-  if (buildCodePath) {
-    console.log(JSON.stringify(data, null, 2))
-  } else {
-    console.log(`LuaJIT parity fixture passed: level=${data.CharacterLevel}, nodes=${data.allocatedNodes}, mana=${data.Mana}, deflect=${data.DeflectChance}%/${data.DeflectEffect}%`)
+  const skillDetails = data.SkillDetails
+  if (!skillDetails || !['attack', 'spell', 'other'].includes(skillDetails.skillType)) {
+    throw new Error(`Missing calculated skill type: ${JSON.stringify(skillDetails)}`)
   }
-  child.kill()
+  if (!Array.isArray(skillDetails.skillDamage)
+    || skillDetails.skillDamage.some((entry) => !Number.isFinite(entry.min)
+      || !Number.isFinite(entry.max) || !Number.isFinite(entry.baseMultiplier))) {
+    throw new Error(`Invalid spell base damage: ${JSON.stringify(skillDetails.skillDamage)}`)
+  }
+  if (skillDetails.skillType === 'attack' && skillDetails.skillDamage?.length) {
+    throw new Error(`Attack skill incorrectly exported spell base damage: ${JSON.stringify(skillDetails.skillDamage)}`)
+  }
+  calculationData = data
+  const groupIds = Array.from({ length: (xml.match(/<Skill(?:\s|>)/g) || []).length }, (_, index) => String(index + 1))
+  child.stdin.write(`${JSON.stringify({ id: 2, type: 'rankSkills', payload: { xml, groupIds } })}\n`)
 })
 
 child.once('error', (error) => {

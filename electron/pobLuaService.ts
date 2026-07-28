@@ -176,6 +176,16 @@ export class PobLuaService {
     return result
   }
 
+  async rankSkills(input: {
+    xml: string
+    groupIds: string[]
+    configOverrides?: Record<string, boolean | number | string>
+  }): Promise<unknown> {
+    const status = await this.initialize()
+    if (!status.available || !this.child) throw new Error(status.error || 'LuaJIT sidecar is unavailable')
+    return this.request('rankSkills', input)
+  }
+
   private request(type: string, payload: unknown): Promise<unknown> {
     if (!this.child) return Promise.reject(new Error('LuaJIT sidecar is not running'))
     const id = this.nextId++

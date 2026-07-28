@@ -1,6 +1,8 @@
 export const PAPER_DOLL_WIDTH = 1548
 export const PAPER_DOLL_HEIGHT = 1200
-export const PAPER_DOLL_MAX_WIDTH = 820
+export const PAPER_DOLL_VIEW_TOP = 32
+export const PAPER_DOLL_VIEW_BOTTOM = 64
+export const PAPER_DOLL_DISPLAY_HEIGHT = PAPER_DOLL_HEIGHT - PAPER_DOLL_VIEW_TOP - PAPER_DOLL_VIEW_BOTTOM
 
 export interface PaperDollRect {
   x: number
@@ -69,15 +71,15 @@ export interface PaperDollSize {
   scale: number
 }
 
-export function fitPaperDoll(width: number, height: number, maxWidth = PAPER_DOLL_MAX_WIDTH): PaperDollSize {
+export function fitPaperDoll(width: number, height: number): PaperDollSize {
   const scale = Math.max(0, Math.min(
     width / PAPER_DOLL_WIDTH,
-    height / PAPER_DOLL_HEIGHT,
-    maxWidth / PAPER_DOLL_WIDTH,
+    height / PAPER_DOLL_DISPLAY_HEIGHT,
+    1,
   ))
   return {
     width: PAPER_DOLL_WIDTH * scale,
-    height: PAPER_DOLL_HEIGHT * scale,
+    height: PAPER_DOLL_DISPLAY_HEIGHT * scale,
     scale,
   }
 }
@@ -89,8 +91,8 @@ export function getActivePaperDollSlots(weaponSet: 1 | 2): readonly PaperDollSlo
 export function paperDollRectStyle(rect: PaperDollRect): Record<'left' | 'top' | 'width' | 'height', string> {
   return {
     left: `${rect.x / PAPER_DOLL_WIDTH * 100}%`,
-    top: `${rect.y / PAPER_DOLL_HEIGHT * 100}%`,
+    top: `${(rect.y - PAPER_DOLL_VIEW_TOP) / PAPER_DOLL_DISPLAY_HEIGHT * 100}%`,
     width: `${rect.width / PAPER_DOLL_WIDTH * 100}%`,
-    height: `${rect.height / PAPER_DOLL_HEIGHT * 100}%`,
+    height: `${rect.height / PAPER_DOLL_DISPLAY_HEIGHT * 100}%`,
   }
 }

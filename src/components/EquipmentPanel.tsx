@@ -30,9 +30,11 @@ import {
   fitPaperDoll,
   getActivePaperDollSlots,
   getPaperDollSlotsForWeaponSet,
+  PAPER_DOLL_DISPLAY_HEIGHT,
   PAPER_DOLL_HEIGHT,
   PAPER_DOLL_WEAPON_SET_CONTROLS,
   PAPER_DOLL_WIDTH,
+  PAPER_DOLL_VIEW_TOP,
   paperDollRectStyle,
   type PaperDollSize,
   type PaperDollSlotLayout,
@@ -894,6 +896,8 @@ export function EquipmentPanel() {
     height: `${paperDollSize.height}px`,
     '--paper-socket-size': `${Math.max(16, 72 * paperDollSize.scale)}px`,
     '--paper-socket-gap': `${Math.max(2, 10 * paperDollSize.scale)}px`,
+    '--paper-doll-background-top': `${-PAPER_DOLL_VIEW_TOP / PAPER_DOLL_DISPLAY_HEIGHT * 100}%`,
+    '--paper-doll-background-height': `${PAPER_DOLL_HEIGHT / PAPER_DOLL_DISPLAY_HEIGHT * 100}%`,
   } as CSSProperties
 
   if (!equipment || !activeSet) {
@@ -950,6 +954,7 @@ export function EquipmentPanel() {
             style={paperDollStyle}
             data-source-width={PAPER_DOLL_WIDTH}
             data-source-height={PAPER_DOLL_HEIGHT}
+            data-display-height={PAPER_DOLL_DISPLAY_HEIGHT}
           >
             {paperDollBackgroundAvailable && <img
               className="paper-doll-background"

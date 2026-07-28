@@ -1,9 +1,9 @@
-import type { CalcApiResponse, SkillCalculationSelection } from '@/types/calc'
+import type { CalcApiResponse, RankSkillsInput, SkillCalculationSelection, SkillDpsRankResponse } from '@/types/calc'
 import type { EquipmentInspectionItem, EquipmentInspectionResult } from '@/types/equipmentSemantics'
 
 interface WorkerRequest {
   id: number
-  type: 'init' | 'calculate' | 'inspectEquipment'
+  type: 'init' | 'calculate' | 'inspectEquipment' | 'rankSkills'
   payload?: unknown
 }
 
@@ -133,5 +133,26 @@ export async function calculateBuild(input: CalculateBuildInput): Promise<CalcAp
       success: false,
       error: `Front-end PoB Lua engine is not ready: ${message}`,
     }
+  }
+}
+
+export async function rankSkillsByEffectiveDps(input: RankSkillsInput): Promise<SkillDpsRankResponse> {
+  try {
+    if (window.pob2Desktop?.rankPobLuaSkills) {
+      const backend = await initPobLuaEngine()
+      if (backend === 'luajit') {
+        try {
+          return await window.pob2Desktop.rankPobLuaSkills(input)
+        } catch (error) {
+          nativeBackendFailed = true
+          engineInitPromise = null
+          console.warn('[PoB Lua] Native skill ranking failed; switching to Wasmoon.', error)
+        }
+      }
+    }
+    await initPobLuaWorker()
+    return await callWorker<SkillDpsRankResponse>('rankSkills', input)
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
   }
 }

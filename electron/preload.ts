@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('pob2Desktop', {
   installGameBuild: (payload: { content: string; fileName: string }) => ipcRenderer.invoke('pob2:install-game-build', payload),
   initPobLua: () => ipcRenderer.invoke('pob2:lua-init'),
   calculatePobLua: (payload: import('../src/types/calc.js').SkillCalculationSelection & { xml: string }) => ipcRenderer.invoke('pob2:lua-calculate', payload),
+  rankPobLuaSkills: (payload: import('../src/types/calc.js').RankSkillsInput) => ipcRenderer.invoke('pob2:lua-rank-skills', payload),
 })
 
 contextBridge.exposeInMainWorld('pob2Updater', {

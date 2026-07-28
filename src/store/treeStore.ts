@@ -9,7 +9,7 @@ import { create } from 'zustand'
 import type { BuildRealm, TreeData, SavedBuild } from '@/types/tree'
 import { LANGUAGE_OPTIONS, getLocalizedSearchText, loadTranslations, type Language } from '@/i18n/translationLoader'
 import { decodeBuildCode, encodeBuildCode, getBuildActiveWeaponSet, getBuildCharacterLevel, getEncodeClassPayload } from '@/engine/buildCode'
-import { calculateBuild } from '@/engine/pobLuaClient'
+import { calculateBuild, rankSkillsByEffectiveDps } from '@/engine/pobLuaClient'
 import { clearPersistedImportedBuild, getInitialImportedBuildCode } from '@/engine/buildPersistence'
 import { DEFAULT_BUILD_REALM, inferBuildRealm } from '@/engine/buildRealm'
 import { getRenderTreePoint, getSelectedAscendancyProjection } from '@/engine/treeRenderShared'
@@ -41,6 +41,7 @@ import type {
   CalculationConfigValue,
   LocalCalculationProfile,
   SkillCalculationMode,
+  SkillDpsRankEntry,
 } from '@/types/calc'
 
 export const MIN_ZOOM = 0.01
@@ -747,6 +748,8 @@ interface TreeStore {
     statSetIndex?: number
     includeConfig?: boolean
   }) => Promise<void>
+
+  rankSkillsByDps: (groupIds: string[], weaponSet?: 1 | 2) => Promise<SkillDpsRankEntry[]>
 
 
 
@@ -2363,6 +2366,46 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
   setActiveCalculationProfile: (activeCalculationProfileId) => {
     if (!get().calculationProfiles.some((profile) => profile.id === activeCalculationProfileId)) return
     set({ activeCalculationProfileId, calcResult: null, calcError: null })
+  },
+
+  rankSkillsByDps: async (groupIds, requestedWeaponSet) => {
+    const {
+      allocatedNodes,
+      nodeWeaponSets,
+      nodeAttributeSelections,
+      treeVersion,
+      selectedClassId,
+      selectedAscendancyId,
+      treeData,
+      activeWeaponSet,
+      calculationProfiles,
+      activeCalculationProfileId,
+      importedBuildCode,
+    } = get()
+    if (!groupIds.length) return []
+    if (allocatedNodes.size === 0) throw new Error('No allocated passive tree is available for calculation')
+
+    const calculationWeaponSet = requestedWeaponSet ?? activeWeaponSet
+    const calculationProfile = calculationProfiles.find((profile) => profile.id === activeCalculationProfileId)
+    const classPayload = getEncodeClassPayload(treeData || undefined, selectedClassId, selectedAscendancyId)
+    const encodeData = encodeBuildCode({
+      nodes: [...allocatedNodes],
+      nodeWeaponSets,
+      nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
+      baseCode: importedBuildCode || undefined,
+      treeVersion,
+      useSecondWeaponSet: calculationWeaponSet === 2,
+      ...classPayload,
+    })
+    const ranked = await rankSkillsByEffectiveDps({
+      xml: encodeData.xml,
+      groupIds,
+      configOverrides: calculationProfile?.values || {},
+    })
+    if (!ranked.success || ranked.error || !ranked.data) {
+      throw new Error(ranked.error || 'Skill DPS ranking returned no data')
+    }
+    return ranked.data
   },
 
   addCalculationProfile: (copyCurrent = false) => {

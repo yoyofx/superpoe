@@ -4,6 +4,7 @@ import {
   inspectEquipmentWithLuaEngine,
   installBuildHelpers,
   installHostCompatibility,
+  rankSkillsWithLuaEngine,
   type PobLuaManifest,
 } from '@/engine/pobLuaRuntime'
 import type {
@@ -16,7 +17,7 @@ import wasmUrl from 'wasmoon/dist/glue.wasm?url'
 
 interface WorkerRequest {
   id: number
-  type: 'init' | 'calculate' | 'inspectEquipment'
+  type: 'init' | 'calculate' | 'inspectEquipment' | 'rankSkills'
   payload?: ({ code?: string; xml?: string } & SkillCalculationSelection) | { items?: EquipmentInspectionItem[] }
 }
 
@@ -217,6 +218,12 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       }
       if (request.type === 'inspectEquipment') {
         const result = await inspectEquipment(request.payload as { items?: EquipmentInspectionItem[] } | undefined)
+        respond({ id: request.id, success: true, data: result })
+        return
+      }
+      if (request.type === 'rankSkills') {
+        const payload = request.payload as { xml?: string; groupIds?: string[]; configOverrides?: SkillCalculationSelection['configOverrides'] } | undefined
+        const result = rankSkillsWithLuaEngine(lua!, payload?.xml || '', payload?.groupIds || [], payload?.configOverrides)
         respond({ id: request.id, success: true, data: result })
         return
       }
