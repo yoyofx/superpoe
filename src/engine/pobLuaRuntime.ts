@@ -318,11 +318,20 @@ local calcOk, calcErr = pcall(function()
     if activeSkills and activeSkills[activeSkillIndex] then
       socketGroup.mainActiveSkillCalcs = activeSkillIndex
       local activeEffect = activeSkills[activeSkillIndex].activeEffect
+      local source = activeEffect and activeEffect.srcInstance
       local statSetIndex = tonumber(__pobStatSetIndex)
       if statSetIndex and activeEffect and activeEffect.grantedEffect and activeEffect.grantedEffect.statSets[statSetIndex] then
-        local source = activeEffect.srcInstance
         source.statSetCalcs = source.statSetCalcs or {}
         source.statSetCalcs[activeEffect.grantedEffect.id] = statSetIndex
+      end
+      local minionSkillIndex = tonumber(__pobMinionSkillIndex)
+      if source and minionSkillIndex then source.skillMinionSkillCalcs = minionSkillIndex end
+      local minionStatSetIndex = tonumber(__pobMinionStatSetIndex)
+      if source and minionStatSetIndex and activeEffect.grantedEffect then
+        source.skillMinionSkillStatSetIndexLookupCalcs = source.skillMinionSkillStatSetIndexLookupCalcs or {}
+        local lookup = source.skillMinionSkillStatSetIndexLookupCalcs
+        lookup[activeEffect.grantedEffect.id] = lookup[activeEffect.grantedEffect.id] or {}
+        lookup[activeEffect.grantedEffect.id][minionSkillIndex or source.skillMinionSkillCalcs or 1] = minionStatSetIndex
       end
     end
   end
@@ -331,7 +340,8 @@ local calcOk, calcErr = pcall(function()
   calcsTab.mainOutput = nil
   build.buildFlag = true
   calcsTab:BuildOutput()
-  if __pobSkillGroupId or __pobCalcMode or __pobActiveSkillIndex or __pobStatSetIndex then
+  if __pobSkillGroupId or __pobCalcMode or __pobActiveSkillIndex or __pobStatSetIndex
+    or __pobActor or __pobMinionSkillIndex or __pobMinionStatSetIndex then
     return calcsTab.calcsEnv
   end
   return calcsTab.mainEnv
@@ -497,15 +507,37 @@ if output.SkillDPS and #output.SkillDPS > 0 then
   end
 end
 
-if mainSkill and mainSkill.activeEffect then
+local playerMainSkill = mainSkill
+if playerMainSkill and playerMainSkill.activeEffect then
   local calcsTab = build.calcsTab
   local socketGroup = build.skillsTab and build.skillsTab.socketGroupList[calcsTab.input.skill_number]
   local displaySkills = socketGroup and (socketGroup.displaySkillListCalcs or socketGroup.displaySkillList) or {}
   local activeSkillIndex = socketGroup and (socketGroup.mainActiveSkillCalcs or 1) or 1
+  local playerActiveEffect = playerMainSkill.activeEffect
+  local statSetIndex = playerActiveEffect.statSetCalcs and playerActiveEffect.statSetCalcs.index or 1
+  local function hasDamage(actorOutput)
+    return actorOutput and ((safeNum(actorOutput.TotalDPS) or 0) ~= 0
+      or (safeNum(actorOutput.AverageHit) or 0) ~= 0
+      or (safeNum(actorOutput.TotalDot) or 0) ~= 0)
+  end
+  local minionActor = env.minion and env.minion.mainSkill and env.minion or nil
+  local playerHasDamage = hasDamage(env.player.output)
+  local minionHasDamage = minionActor and hasDamage(minionActor.output) or false
+  local requestedActor = __pobActor or "auto"
+  local detailActor = requestedActor == "minion" and minionActor or env.player
+  if requestedActor == "auto" and minionActor then
+    detailActor = minionActor
+  end
+  local mainSkill = detailActor.mainSkill
   local activeEffect = mainSkill.activeEffect
-  local statSetIndex = activeEffect.statSetCalcs and activeEffect.statSetCalcs.index or 1
+  local actorOutput = detailActor.output or {}
   local details = {
     mode = calcsTab.input.misc_buffMode,
+    actor = detailActor == minionActor and "minion" or "player",
+    hasMinion = minionActor ~= nil,
+    playerHasDamage = playerHasDamage,
+    minionHasDamage = minionHasDamage,
+    minionName = minionActor and StripEscapes(minionActor.minionData and minionActor.minionData.name or "Minion") or nil,
     activeSkillIndex = activeSkillIndex,
     activeSkills = {},
     statSetIndex = statSetIndex,
@@ -519,17 +551,32 @@ if mainSkill and mainSkill.activeEffect then
     weaponDamage = {},
     gains = {},
     effects = { aurasAndBuffs = {}, combatBuffs = {}, cursesAndDebuffs = {} },
-    averageHit = safeNum(output.AverageHit),
-    speed = safeNum(output.Speed),
-    totalDps = safeNum(output.TotalDPS),
-    critChance = safeNum(output.CritChance),
-    critMultiplier = safeNum(output.CritMultiplier),
+    averageHit = safeNum(actorOutput.AverageHit),
+    speed = safeNum(actorOutput.Speed),
+    totalDps = safeNum(actorOutput.TotalDPS),
+    critChance = safeNum(actorOutput.CritChance),
+    critMultiplier = safeNum(actorOutput.CritMultiplier),
   }
   for index, skill in ipairs(displaySkills) do
     table.insert(details.activeSkills, { index = index, label = calcsTab.calcs.getActiveSkillDisplayName(skill) })
   end
-  for index, statSet in ipairs(activeEffect.grantedEffect.statSets or {}) do
+  for index, statSet in ipairs(playerActiveEffect.grantedEffect.statSets or {}) do
     table.insert(details.statSets, { index = index, label = statSet.label })
+  end
+
+  if minionActor then
+    details.minionSkills = {}
+    details.minionStatSets = {}
+    local source = playerActiveEffect.srcInstance
+    details.minionSkillIndex = source.skillMinionSkillCalcs or 1
+    for index, skill in ipairs(minionActor.activeSkillList or {}) do
+      table.insert(details.minionSkills, { index = index, label = StripEscapes(skill.activeEffect.grantedEffect.name) })
+    end
+    local minionEffect = minionActor.mainSkill.activeEffect
+    details.minionStatSetIndex = minionEffect.statSetCalcs and minionEffect.statSetCalcs.index or 1
+    for index, statSet in ipairs(minionEffect.grantedEffect.statSets or {}) do
+      table.insert(details.minionStatSets, { index = index, label = statSet.label })
+    end
   end
 
   local flags = activeEffect.statSetCalcs and activeEffect.statSetCalcs.skillFlags
@@ -538,31 +585,31 @@ if mainSkill and mainSkill.activeEffect then
   local isAttack = flags.attack or SkillType and skillTypes[SkillType.Attack]
   local isSpell = flags.spell or SkillType and skillTypes[SkillType.Spell]
   details.skillType = isAttack and "attack" or isSpell and "spell" or "other"
-  local sourceOutput = output
-  local sourceBreakdown = env.player.breakdown or {}
+  local sourceOutput = actorOutput
+  local sourceBreakdown = detailActor.breakdown or {}
   local cfg = mainSkill.skillCfg
   local weaponData
   local weaponItem
   local weaponHand
-  local actor = mainSkill.actor or env.player
-  if flags.weapon1Attack and output.MainHand then
+  local actor = mainSkill.actor or detailActor
+  if flags.weapon1Attack and actorOutput.MainHand then
     details.damageSource = "mainHand"
-    sourceOutput = output.MainHand
+    sourceOutput = actorOutput.MainHand
     sourceBreakdown = sourceBreakdown.MainHand or sourceBreakdown
     cfg = mainSkill.weapon1Cfg
     weaponData = actor and actor.weaponData1
     weaponItem = actor and actor.itemList and actor.itemList["Weapon 1"]
     weaponHand = "mainHand"
-  elseif flags.weapon2Attack and output.OffHand then
+  elseif flags.weapon2Attack and actorOutput.OffHand then
     details.damageSource = "offHand"
-    sourceOutput = output.OffHand
+    sourceOutput = actorOutput.OffHand
     sourceBreakdown = sourceBreakdown.OffHand or sourceBreakdown
     cfg = mainSkill.weapon2Cfg
     weaponData = actor and actor.weaponData2
     weaponItem = actor and actor.itemList and actor.itemList["Weapon 2"]
     weaponHand = "offHand"
   end
-  details.averageHit = safeNum(sourceOutput.AverageHit or output.AverageHit)
+  details.averageHit = safeNum(sourceOutput.AverageHit or actorOutput.AverageHit)
 
   if details.skillType == "spell" then
     local skillData = mainSkill.skillData or {}
@@ -578,14 +625,14 @@ if mainSkill and mainSkill.activeEffect then
           min = min,
           max = max,
           source = StripEscapes(skillName),
-          skillLevel = data.SkillLevel,
+          skillLevel = details.actor == "minion" and safeNum(activeEffect.level) or data.SkillLevel,
           baseMultiplier = baseMultiplier,
         })
       end
     end
   end
 
-  if weaponData and weaponItem and weaponHand then
+  if weaponData and weaponHand then
     for _, damageType in ipairs({ "Physical", "Lightning", "Cold", "Fire", "Chaos" }) do
       local min = safeNum(weaponData[damageType .. "Min"]) or 0
       local max = safeNum(weaponData[damageType .. "Max"]) or 0
@@ -595,7 +642,7 @@ if mainSkill and mainSkill.activeEffect then
           damageType = damageType:lower(),
           min = min,
           max = max,
-          source = StripEscapes(weaponItem.modSource or weaponHand),
+          source = StripEscapes(weaponItem and weaponItem.modSource or details.minionName or weaponHand),
         })
       end
     end
@@ -617,8 +664,8 @@ if mainSkill and mainSkill.activeEffect then
     end
     return result
   end
-  details.critChance = safeNum(sourceOutput.CritChance or output.CritChance)
-  details.critMultiplier = safeNum(sourceOutput.CritMultiplier or output.CritMultiplier)
+  details.critChance = safeNum(sourceOutput.CritChance or actorOutput.CritChance)
+  details.critMultiplier = safeNum(sourceOutput.CritMultiplier or actorOutput.CritMultiplier)
   details.critChanceBreakdown = copyLines(sourceBreakdown.CritChance)
   details.critMultiplierBreakdown = copyLines(sourceBreakdown.CritMultiplier)
   local function addModifiers(bucket, damageType, modType, names)
@@ -644,10 +691,10 @@ if mainSkill and mainSkill.activeEffect then
     end
   end
   details.averageHitBreakdown = copyLines(sourceBreakdown.AverageHit)
-  details.dpsFormula = copyLines(env.player.breakdown and env.player.breakdown.TotalDPS)
-  details.effects.aurasAndBuffs = splitList(output.BuffList)
-  details.effects.combatBuffs = splitList(output.CombatList)
-  details.effects.cursesAndDebuffs = splitList(output.CurseList)
+  details.dpsFormula = copyLines(detailActor.breakdown and detailActor.breakdown.TotalDPS)
+  details.effects.aurasAndBuffs = splitList(actorOutput.BuffList)
+  details.effects.combatBuffs = splitList(actorOutput.CombatList)
+  details.effects.cursesAndDebuffs = splitList(actorOutput.CurseList)
   local damageNames = {
     physical = { "PhysicalDamage" },
     lightning = { "LightningDamage", "ElementalDamage" },
@@ -662,7 +709,7 @@ if mainSkill and mainSkill.activeEffect then
     more = safeNum((allMore - 1) * 100) or 0,
     hitMin = safeNum(sourceOutput.TotalMin),
     hitMax = safeNum(sourceOutput.TotalMax),
-    averageHit = safeNum(sourceOutput.AverageHit or output.AverageHit),
+    averageHit = safeNum(sourceOutput.AverageHit or actorOutput.AverageHit),
   })
   addModifiers("increased", "all", "INC", { "Damage" })
   addModifiers("more", "all", "MORE", { "Damage" })
@@ -987,6 +1034,7 @@ for index = 1, (__pobEquipmentItemCount or 0) do
   if ok then
     results[index] = value
   else
+    results[index] = false
     errors[index] = tostring(value)
   end
 end
@@ -1078,6 +1126,9 @@ export function calculateWithLuaEngine(engine: LuaEngine, xml: string, selection
     engine.global.set('__pobSkillGroupId', selection.skillGroupId)
     engine.global.set('__pobActiveSkillIndex', selection.activeSkillIndex)
     engine.global.set('__pobStatSetIndex', selection.statSetIndex)
+    engine.global.set('__pobActor', selection.actor)
+    engine.global.set('__pobMinionSkillIndex', selection.minionSkillIndex)
+    engine.global.set('__pobMinionStatSetIndex', selection.minionStatSetIndex)
     engine.global.set('__pobConfigOverridesJson', JSON.stringify(selection.configOverrides || {}))
     engine.global.set('__pobIncludeConfig', selection.includeConfig || false)
     return detachLuaValue(engine.doStringSync(CALCULATION_SCRIPT)) as CalcApiResponse
@@ -1093,6 +1144,9 @@ export function calculateWithLuaEngine(engine: LuaEngine, xml: string, selection
       engine.global.set('__pobSkillGroupId', undefined)
       engine.global.set('__pobActiveSkillIndex', undefined)
       engine.global.set('__pobStatSetIndex', undefined)
+      engine.global.set('__pobActor', undefined)
+      engine.global.set('__pobMinionSkillIndex', undefined)
+      engine.global.set('__pobMinionStatSetIndex', undefined)
       engine.global.set('__pobConfigOverridesJson', undefined)
       engine.global.set('__pobIncludeConfig', undefined)
     } catch {

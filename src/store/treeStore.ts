@@ -746,6 +746,9 @@ interface TreeStore {
     calcMode?: SkillCalculationMode
     activeSkillIndex?: number
     statSetIndex?: number
+    actor?: 'auto' | 'player' | 'minion'
+    minionSkillIndex?: number
+    minionStatSetIndex?: number
     includeConfig?: boolean
   }) => Promise<void>
 
@@ -2253,6 +2256,9 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
         calcMode: selection?.calcMode,
         activeSkillIndex: selection?.activeSkillIndex,
         statSetIndex: selection?.statSetIndex,
+        actor: selection?.actor,
+        minionSkillIndex: selection?.minionSkillIndex,
+        minionStatSetIndex: selection?.minionStatSetIndex,
         configOverrides: calculationProfile?.values || {},
         includeConfig: selection?.includeConfig,
       })

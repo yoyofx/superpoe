@@ -182,11 +182,17 @@ app.whenReady().then(() => {
       calcMode?: 'UNBUFFED' | 'BUFFED' | 'COMBAT' | 'EFFECTIVE'
       activeSkillIndex?: number
       statSetIndex?: number
+      actor?: 'auto' | 'player' | 'minion'
+      minionSkillIndex?: number
+      minionStatSetIndex?: number
     }
     const xml = payload.xml
     if (!xml || xml.length > 10_000_000) throw new Error('Invalid PoB build XML')
     if (payload.calcMode && !['UNBUFFED', 'BUFFED', 'COMBAT', 'EFFECTIVE'].includes(payload.calcMode)) {
       throw new Error('Invalid PoB calculation mode')
+    }
+    if (payload.actor && !['auto', 'player', 'minion'].includes(payload.actor)) {
+      throw new Error('Invalid PoB calculation actor')
     }
     return pobLuaService.calculate(payload)
   })

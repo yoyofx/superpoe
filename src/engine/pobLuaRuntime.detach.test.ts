@@ -18,4 +18,22 @@ describe('detachLuaValue', () => {
       mode: 'UNBUFFED',
     })
   })
+
+  it('preserves item indexes when a batched equipment inspection fails in the middle', () => {
+    expect(detachLuaValue({
+      results: {
+        1: { baseType: 'Gold Ring' },
+        2: false,
+        3: { baseType: 'Bladed Quarterstaff' },
+      },
+      errors: { 2: 'PoB could not resolve the item base' },
+    })).toEqual({
+      results: [
+        { baseType: 'Gold Ring' },
+        false,
+        { baseType: 'Bladed Quarterstaff' },
+      ],
+      errors: { 2: 'PoB could not resolve the item base' },
+    })
+  })
 })

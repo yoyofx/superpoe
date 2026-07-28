@@ -214,5 +214,32 @@ describe('PoB Lua front-end runtime', () => {
     expect(ranking.data).toHaveLength(1)
     expect(ranking.data?.map((entry) => entry.groupId)).toEqual(['1'])
     expect(ranking.data?.every((entry) => Number.isFinite(entry.dps))).toBe(true)
+
+    const minionXml = decoded.xml.replace(
+      /<Skill mainActiveSkillCalcs="1"[\s\S]*?<\/Skill>/,
+      '<Skill mainActiveSkillCalcs="1" includeInFullDPS="nil" enabled="true" mainActiveSkill="1">\n'
+        + '<Gem level="20" skillId="SummonSkeletalSnipersPlayer" enabled="true" enableGlobal2="false" enableGlobal1="true" '
+        + 'gemId="Metadata/Items/Gems/SkillGemSkeletalSniper" nameSpec="Skeletal Sniper" variantId="SkeletalSniper" quality="0" count="1"/>\n'
+        + '</Skill>',
+    )
+    const minionResult = calculateWithLuaEngine(lua, minionXml, { skillGroupId: '1', actor: 'auto' })
+    expect(minionResult.success, minionResult.error).toBe(true)
+    expect(minionResult.data?.SkillDetails).toEqual(expect.objectContaining({
+      actor: 'minion',
+      hasMinion: true,
+      playerHasDamage: false,
+      minionHasDamage: true,
+      minionName: 'Skeletal Sniper',
+    }))
+    expect(minionResult.data?.SkillDetails?.minionSkills?.length).toBeGreaterThan(1)
+    expect(minionResult.data?.SkillDetails?.totalDps).toBeGreaterThan(0)
+
+    const alternateMinionSkill = calculateWithLuaEngine(lua, minionXml, {
+      skillGroupId: '1',
+      actor: 'minion',
+      minionSkillIndex: 2,
+    })
+    expect(alternateMinionSkill.success, alternateMinionSkill.error).toBe(true)
+    expect(alternateMinionSkill.data?.SkillDetails?.minionSkillIndex).toBe(2)
   }, 30000)
 })

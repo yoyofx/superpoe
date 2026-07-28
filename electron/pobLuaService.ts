@@ -162,6 +162,9 @@ export class PobLuaService {
     calcMode?: 'UNBUFFED' | 'BUFFED' | 'COMBAT' | 'EFFECTIVE'
     activeSkillIndex?: number
     statSetIndex?: number
+    actor?: 'auto' | 'player' | 'minion'
+    minionSkillIndex?: number
+    minionStatSetIndex?: number
     configOverrides?: Record<string, boolean | number | string>
     includeConfig?: boolean
   }): Promise<unknown> {

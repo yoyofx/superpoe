@@ -73,9 +73,15 @@ export interface SkillCalculationSelection {
   calcMode?: SkillCalculationMode
   activeSkillIndex?: number
   statSetIndex?: number
+  actor?: SkillCalculationActorSelection
+  minionSkillIndex?: number
+  minionStatSetIndex?: number
   configOverrides?: CalculationConfigValues
   includeConfig?: boolean
 }
+
+export type SkillCalculationActor = 'player' | 'minion'
+export type SkillCalculationActorSelection = 'auto' | SkillCalculationActor
 
 export interface SkillDpsRankEntry {
   groupId: string
@@ -193,10 +199,19 @@ export interface SkillEffectSummary {
 
 export interface SkillCalculationDetails {
   mode: SkillCalculationMode
+  actor: SkillCalculationActor
+  hasMinion: boolean
+  playerHasDamage: boolean
+  minionHasDamage: boolean
+  minionName?: string
   activeSkillIndex: number
   activeSkills: SkillCalculationOption[]
   statSetIndex: number
   statSets: SkillCalculationOption[]
+  minionSkillIndex?: number
+  minionSkills?: SkillCalculationOption[]
+  minionStatSetIndex?: number
+  minionStatSets?: SkillCalculationOption[]
   skillType: 'attack' | 'spell' | 'other'
   damageSource: 'skill' | 'mainHand' | 'offHand'
   damageTypes: SkillDamageBreakdown[]

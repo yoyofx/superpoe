@@ -27,6 +27,15 @@ const xml = buildXmlPath
     'base64',
   )))
   : readFileSync(path.join(root, 'scripts', 'spec', 'fixtures', 'stormweaver.xml'), 'utf8')
+const minionXml = !buildCodePath && !buildXmlPath
+  ? xml.replace(
+    /<Skill mainActiveSkillCalcs="1"[\s\S]*?<\/Skill>/,
+    '<Skill mainActiveSkillCalcs="1" includeInFullDPS="nil" enabled="true" mainActiveSkill="1">\n'
+      + '<Gem level="20" skillId="SummonSkeletalSnipersPlayer" enabled="true" enableGlobal2="false" enableGlobal1="true" '
+      + 'gemId="Metadata/Items/Gems/SkillGemSkeletalSniper" nameSpec="Skeletal Sniper" variantId="SkeletalSniper" quality="0" count="1"/>\n'
+      + '</Skill>',
+  )
+  : null
 
 const child = spawn(executable, [runner, bundle], {
   cwd: bundle,
@@ -44,6 +53,7 @@ const timeout = setTimeout(() => {
 
 let ready = false
 let calculationData
+let validRankedSkillCount = 0
 lines.on('line', (line) => {
   const message = JSON.parse(line)
   if (!ready) {
@@ -69,13 +79,40 @@ lines.on('line', (line) => {
       || ranked.some((entry, index) => entry.groupId !== String(index + 1) || !Number.isFinite(entry.dps))) {
       throw new Error(`Unexpected skill ranking result: ${JSON.stringify(ranked)}`)
     }
+    validRankedSkillCount = ranked.filter((entry) => entry.valid).length
+    if (minionXml) {
+      child.stdin.write(`${JSON.stringify({ id: 3, type: 'calculate', payload: { xml: minionXml, skillGroupId: '1', actor: 'auto' } })}\n`)
+      return
+    }
     clearTimeout(timeout)
     if (buildCodePath || buildXmlPath) {
       console.log(JSON.stringify(calculationData, null, 2))
-    } else {
-      const validCount = ranked.filter((entry) => entry.valid).length
-      console.log(`LuaJIT parity fixture passed: level=${calculationData.CharacterLevel}, nodes=${calculationData.allocatedNodes}, mana=${calculationData.Mana}, deflect=${calculationData.DeflectChance}%/${calculationData.DeflectEffect}%, skill=${calculationData.SkillDetails.skillType}, baseRows=${calculationData.SkillDetails.skillDamage.length}, ranked=${validCount}/${ranked.length}`)
     }
+    child.kill()
+    return
+  }
+  if (message.id === 3) {
+    const minionDetails = message.data.data?.SkillDetails
+    if (!minionDetails?.hasMinion || minionDetails.actor !== 'minion'
+      || !Array.isArray(minionDetails.minionSkills) || minionDetails.minionSkills.length < 2
+      || !Number.isFinite(minionDetails.totalDps) || minionDetails.totalDps <= 0) {
+      throw new Error(`Unexpected automatic minion calculation: ${JSON.stringify(minionDetails)}`)
+    }
+    clearTimeout(timeout)
+    const skillCount = (xml.match(/<Skill(?:\s|>)/g) || []).length
+    child.stdin.write(`${JSON.stringify({ id: 4, type: 'calculate', payload: { xml: minionXml, skillGroupId: '1', actor: 'minion', minionSkillIndex: 2 } })}\n`)
+    calculationData.minionSummary = { details: minionDetails, skillCount }
+    return
+  }
+  if (message.id === 4) {
+    const alternateDetails = message.data.data?.SkillDetails
+    if (alternateDetails?.actor !== 'minion' || alternateDetails.minionSkillIndex !== 2
+      || alternateDetails.minionSkills?.[1]?.label === alternateDetails.minionSkills?.[0]?.label) {
+      throw new Error(`Unexpected alternate minion skill calculation: ${JSON.stringify(alternateDetails)}`)
+    }
+    clearTimeout(timeout)
+    const { details, skillCount } = calculationData.minionSummary
+    console.log(`LuaJIT parity fixture passed: level=${calculationData.CharacterLevel}, nodes=${calculationData.allocatedNodes}, mana=${calculationData.Mana}, deflect=${calculationData.DeflectChance}%/${calculationData.DeflectEffect}%, minion=${details.minionName}, minionSkills=${details.minionSkills.length}, selectedMinionSkill=${alternateDetails.minionSkillIndex}, minionDps=${alternateDetails.totalDps}, ranked=${validRankedSkillCount}/${skillCount}`)
     child.kill()
     return
   }

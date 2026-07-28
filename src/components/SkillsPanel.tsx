@@ -115,11 +115,15 @@ function SkillCalculationPanel({
   groupName,
   activeSkillIndex,
   statSetIndex,
+  minionSkillIndex,
+  minionStatSetIndex,
   calcMode,
   language,
   catalog,
   onActiveSkillChange,
   onStatSetChange,
+  onMinionSkillChange,
+  onMinionStatSetChange,
   onCalcModeChange,
 }: {
   details?: SkillCalculationDetails
@@ -129,11 +133,15 @@ function SkillCalculationPanel({
   groupName: string
   activeSkillIndex?: number
   statSetIndex?: number
+  minionSkillIndex?: number
+  minionStatSetIndex?: number
   calcMode: SkillCalculationMode
   language: Language
   catalog: SkillCatalog | null
   onActiveSkillChange: (value: number) => void
   onStatSetChange: (value: number) => void
+  onMinionSkillChange: (value: number) => void
+  onMinionStatSetChange: (value: number) => void
   onCalcModeChange: (value: SkillCalculationMode) => void
 }) {
   const activeSkills = Array.isArray(details?.activeSkills) ? details.activeSkills : []
@@ -146,6 +154,11 @@ function SkillCalculationPanel({
   const compositionTotal = composition.reduce((total, entry) => total + entry.average, 0)
   const selectedActiveSkill = activeSkillIndex ?? details?.activeSkillIndex ?? 1
   const selectedStatSet = statSetIndex ?? details?.statSetIndex ?? 1
+  const selectedActor = details?.actor ?? 'player'
+  const selectedMinionSkill = minionSkillIndex ?? details?.minionSkillIndex ?? 1
+  const selectedMinionStatSet = minionStatSetIndex ?? details?.minionStatSetIndex ?? 1
+  const minionSkills = details?.minionSkills || []
+  const minionStatSets = details?.minionStatSets || []
   const localizeSkillOption = (value: string) => {
     const entry = resolveSkillCatalogName(value, catalog)
     return entry ? getLocalizedSkillName({ name: entry.name }, entry, language) : translateCalculationText(value, language)
@@ -163,6 +176,17 @@ function SkillCalculationPanel({
         disabled={!statSets.length || loading}
         onChange={(event) => onStatSetChange(Number(event.target.value))}
       >{(statSets.length ? statSets : [{ index: 1, label: '-' }]).map((option) => <option key={option.index} value={option.index}>{translateCalculationText(option.label, language)}</option>)}</select></label>
+      {details?.hasMinion && <label><span>{zh ? '数据对象' : 'Data Actor'}</span><strong>{details.minionName || (zh ? '召唤物' : 'Minion')}</strong></label>}
+      {details?.hasMinion && selectedActor === 'minion' && <label><span>{zh ? '召唤物技能' : 'Minion Skill'}</span><select
+        value={selectedMinionSkill}
+        disabled={minionSkills.length < 2 || loading}
+        onChange={(event) => onMinionSkillChange(Number(event.target.value))}
+      >{minionSkills.map((option) => <option key={option.index} value={option.index}>{localizeSkillOption(option.label)}</option>)}</select></label>}
+      {details?.hasMinion && selectedActor === 'minion' && minionStatSets.length > 1 && <label><span>{zh ? '召唤物技能形态' : 'Minion Stat Set'}</span><select
+        value={selectedMinionStatSet}
+        disabled={loading}
+        onChange={(event) => onMinionStatSetChange(Number(event.target.value))}
+      >{minionStatSets.map((option) => <option key={option.index} value={option.index}>{translateCalculationText(option.label, language)}</option>)}</select></label>}
       <label><span>{zh ? '计算模式' : 'Calculation Mode'}</span><select
         value={calcMode}
         disabled={loading}
@@ -170,7 +194,7 @@ function SkillCalculationPanel({
       >{CALCULATION_MODES.map((option) => <option key={option.value} value={option.value}>{zh ? option.zh : option.en}</option>)}</select></label>
     </div>
     <div className="skill-hit-heading">
-      <span>{zh ? '技能击中伤害' : 'Skill Hit Damage'}</span>
+      <span>{selectedActor === 'minion' ? (zh ? '召唤物击中伤害' : 'Minion Hit Damage') : (zh ? '技能击中伤害' : 'Skill Hit Damage')}</span>
       <strong>{loading ? '...' : `${formatCalculationValue(details?.totalDps ?? result?.TotalDPS, 1)} DPS`}</strong>
     </div>
     {!!composition.length && <div className="skill-damage-composition">
@@ -515,6 +539,8 @@ export function SkillsPanel() {
     groupId: string
     activeSkillIndex?: number
     statSetIndex?: number
+    minionSkillIndex?: number
+    minionStatSetIndex?: number
   }>({ groupId: '' })
   const [catalog, setCatalog] = useState<SkillCatalog | null>(null)
   const [tooltip, setTooltip] = useState<GemTooltipTarget | null>(null)
@@ -609,8 +635,14 @@ export function SkillsPanel() {
   const statSetIndex = selected && skillCalculationSelection.groupId === selected.id
     ? skillCalculationSelection.statSetIndex
     : undefined
+  const minionSkillIndex = selected && skillCalculationSelection.groupId === selected.id
+    ? skillCalculationSelection.minionSkillIndex
+    : undefined
+  const minionStatSetIndex = selected && skillCalculationSelection.groupId === selected.id
+    ? skillCalculationSelection.minionStatSetIndex
+    : undefined
   const calculationKey = selected
-    ? `${importedBuildCode}:${weaponSet}:${selected.id}:${calcMode}:${activeSkillIndex || ''}:${statSetIndex || ''}`
+    ? `${importedBuildCode}:${weaponSet}:${selected.id}:${calcMode}:${activeSkillIndex || ''}:${statSetIndex || ''}:${minionSkillIndex || ''}:${minionStatSetIndex || ''}`
     : ''
   const lastCalculationKey = useRef('')
 
@@ -623,8 +655,10 @@ export function SkillsPanel() {
       calcMode,
       activeSkillIndex,
       statSetIndex,
+      minionSkillIndex,
+      minionStatSetIndex,
     })
-  }, [selected?.id, importedBuildCode, weaponSet, calcMode, activeSkillIndex, statSetIndex, calcLoading, calculationKey, runCalculation])
+  }, [selected?.id, importedBuildCode, weaponSet, calcMode, activeSkillIndex, statSetIndex, minionSkillIndex, minionStatSetIndex, calcLoading, calculationKey, runCalculation])
 
   const selectedCalculation = !calcLoading && lastCalculationKey.current === calculationKey ? calcResult : null
   const calculationDetails = selectedCalculation?.SkillDetails
@@ -802,6 +836,8 @@ export function SkillsPanel() {
             groupName={mainName}
             activeSkillIndex={activeSkillIndex}
             statSetIndex={statSetIndex}
+            minionSkillIndex={minionSkillIndex}
+            minionStatSetIndex={minionStatSetIndex}
             calcMode={calcMode}
             language={lang}
             catalog={catalog}
@@ -813,6 +849,18 @@ export function SkillsPanel() {
               groupId: selected.id,
               activeSkillIndex: activeSkillIndex ?? calculationDetails?.activeSkillIndex,
               statSetIndex: value,
+            })}
+            onMinionSkillChange={(value) => setSkillCalculationSelection({
+              ...skillCalculationSelection,
+              groupId: selected.id,
+              minionSkillIndex: value,
+              minionStatSetIndex: undefined,
+            })}
+            onMinionStatSetChange={(value) => setSkillCalculationSelection({
+              ...skillCalculationSelection,
+              groupId: selected.id,
+              minionSkillIndex: minionSkillIndex ?? calculationDetails?.minionSkillIndex,
+              minionStatSetIndex: value,
             })}
             onCalcModeChange={setCalcMode}
           />
