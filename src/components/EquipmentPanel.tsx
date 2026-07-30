@@ -1,6 +1,6 @@
 import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronDown, ChevronRight, PackageOpen, PanelRightOpen, Upload, X } from 'lucide-react'
+import { Bookmark, Check, ChevronDown, ChevronRight, Clipboard, PackageOpen, PackagePlus, PanelRightOpen, Upload, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import { decodeCodeToXml } from '@/engine/buildCode'
 import {
@@ -26,6 +26,7 @@ import type { EquipmentItem, EquipmentSet, EquipmentSlot } from '@/types/equipme
 import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
 import type { CalcResult } from '@/types/calc'
 import { inspectEquipment } from '@/engine/pobLuaClient'
+import { equipmentItemToLibrarySnapshot } from '@/engine/equipmentLibrary'
 import {
   fitPaperDoll,
   getActivePaperDollSlots,
@@ -548,8 +549,10 @@ function SocketedRunes({
   )
 }
 
-function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketedItems, onClose }: { item: EquipmentItem; base?: ItemBaseData; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; onClose: () => void }) {
+function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketedItems, onSave, onClose }: { item: EquipmentItem; base?: ItemBaseData; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; onSave: () => Promise<void>; onClose: () => void }) {
   const { t, lang } = useTranslation()
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
+  const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   useTreeStore((state) => state.translationRevision)
   const translateItemText = (value: string) => translateGameText(value.replace(/\{[^}]+\}/g, ''), lang)
   const rarityClass = RARITY_CLASS[item.rarity] || RARITY_CLASS.NORMAL
@@ -570,6 +573,16 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
     ['int', '智慧', 'Int'],
   ] as const).filter(([field]) => requirements[field])
   const propertyType = itemClassLabel(item, base, lang)
+  const handleCopyToPob = useCallback(async () => {
+    try {
+      await navigator.clipboard.writeText(item.raw)
+      setCopyState('copied')
+      window.setTimeout(() => setCopyState('idle'), 2000)
+    } catch {
+      setCopyState('error')
+      window.setTimeout(() => setCopyState('idle'), 3000)
+    }
+  }, [item.raw])
 
   return (
     <aside className="equipment-inspector equipment-inspector-floating">
@@ -578,13 +591,38 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
           <h2>{translateItemName(item.name, item.rarity, lang)}</h2>
           {item.name !== item.baseType && <p>{translateItemText(item.baseType)}</p>}
         </div>
-        <button
-          type="button"
-          className="equipment-inspector-close"
-          onClick={onClose}
-          title={lang === 'zh-rCN' ? '关闭装备详情' : 'Close item details'}
-          aria-label={lang === 'zh-rCN' ? '关闭装备详情' : 'Close item details'}
-        ><X /></button>
+        <div className="equipment-inspector-actions">
+          <button
+            type="button"
+            className="equipment-copy-pob"
+            disabled={saveState === 'saving'}
+            onClick={() => {
+              setSaveState('saving')
+              void onSave().then(() => setSaveState('saved')).catch(() => setSaveState('error'))
+            }}
+            title={lang === 'zh-rCN' ? '收藏到装备仓库' : 'Save to equipment library'}
+          >
+            {saveState === 'saved' ? <Check /> : <Bookmark />}
+            <span>{lang === 'zh-rCN' ? (saveState === 'saved' ? '已收藏' : saveState === 'error' ? '收藏失败' : '收藏') : (saveState === 'saved' ? 'Saved' : saveState === 'error' ? 'Save failed' : 'Save')}</span>
+          </button>
+          <button
+            type="button"
+            className={`equipment-copy-pob${copyState === 'error' ? ' copy-error' : ''}`}
+            onClick={() => void handleCopyToPob()}
+            title={t(copyState === 'error' ? 'equipment.copyPobFailed' : 'equipment.copyPob')}
+            aria-live="polite"
+          >
+            {copyState === 'copied' ? <Check /> : <Clipboard />}
+            <span>{t(copyState === 'copied' ? 'equipment.copiedPob' : copyState === 'error' ? 'equipment.copyPobFailed' : 'equipment.copyPob')}</span>
+          </button>
+          <button
+            type="button"
+            className="equipment-inspector-close"
+            onClick={onClose}
+            title={t('equipment.closeDetails')}
+            aria-label={t('equipment.closeDetails')}
+          ><X /></button>
+        </div>
       </header>
 
       <div className="inspector-scroll">
@@ -718,7 +756,7 @@ function usePaperDollSize() {
   return { hostRef, size }
 }
 
-export function EquipmentPanel() {
+export function EquipmentPanel({ buildId }: { buildId?: string | null }) {
   const { t, lang } = useTranslation()
   const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
   const calcResult = useTreeStore((state) => state.calcResult)
@@ -732,13 +770,14 @@ export function EquipmentPanel() {
   const [itemBases, setItemBases] = useState<Record<string, ItemBaseData>>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
-  const [inspectorOpen, setInspectorOpen] = useState(true)
+  const [inspectorOpen, setInspectorOpen] = useState(false)
   const [paperDollBackgroundAvailable, setPaperDollBackgroundAvailable] = useState(true)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<EquipmentAffixGroup>>(new Set())
   const [expandedAffixes, setExpandedAffixes] = useState<Set<string>>(new Set())
   const [semanticView, setSemanticView] = useState<EquipmentSidebarView>('character')
   const [semanticsById, setSemanticsById] = useState<Record<string, EquipmentItemSemantics>>({})
   const [semanticsLoading, setSemanticsLoading] = useState(false)
+  const [setSaveState, setSetSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   const { hostRef, size: paperDollSize } = usePaperDollSize()
   const lastCalculationSelection = useRef<string | null>(null)
 
@@ -821,6 +860,33 @@ export function EquipmentPanel() {
   const firstItem = equipped.map((slot) => equipment?.itemsById[slot.itemId]).find(Boolean)
   const selected = (selectedId && equipment?.itemsById[selectedId]) || firstItem
   const selectedSlotName = selected ? activeSet?.slots.find((slot) => slot.itemId === selected.id)?.name : undefined
+  const libraryBuildId = buildId || 'unsaved-build'
+
+  const saveItem = useCallback(async (item: EquipmentItem, sourceKind: 'equipment-favorite' | 'pob-import', slotName?: string) => {
+    if (!window.pob2Market || !activeSet) throw new Error('Equipment library is unavailable')
+    const iconUrl = resolveItemIcon(item, itemIconIndex)
+    await window.pob2Market.saveEquipmentItem({
+      item: equipmentItemToLibrarySnapshot(item, iconUrl),
+      source: sourceKind === 'equipment-favorite'
+        ? { kind: 'equipment-favorite', buildId: libraryBuildId, equipmentSetId: activeSet.id, itemId: item.id, slotName }
+        : { kind: 'pob-import', buildId: libraryBuildId, pobItemId: item.id },
+    })
+  }, [activeSet, itemIconIndex, libraryBuildId])
+
+  const saveActiveSet = useCallback(async () => {
+    if (!activeSet || !equipment) return
+    setSetSaveState('saving')
+    try {
+      const items = activeSet.slots.flatMap((slot) => {
+        const item = equipment.itemsById[slot.itemId]
+        return item ? [{ item, slotName: slot.name }] : []
+      })
+      await Promise.all(items.map(({ item, slotName }) => saveItem(item, 'pob-import', slotName)))
+      setSetSaveState('saved')
+    } catch {
+      setSetSaveState('error')
+    }
+  }, [activeSet, equipment, saveItem])
 
   useEffect(() => {
     let cancelled = false
@@ -939,6 +1005,14 @@ export function EquipmentPanel() {
           <span>{t('equipment.title')}</span>
           <div className="paper-doll-heading-actions">
             <small>{lang === 'zh-rCN' ? '选择装备查看完整属性' : 'Select an item to inspect its properties'}</small>
+            <button
+              type="button"
+              className="equipment-inspector-toggle"
+              disabled={!window.pob2Market || setSaveState === 'saving'}
+              onClick={() => void saveActiveSet()}
+              title={lang === 'zh-rCN' ? '将当前 PoB 装备组保存到仓库' : 'Save current PoB equipment set to library'}
+              aria-label={lang === 'zh-rCN' ? '将当前 PoB 装备组保存到仓库' : 'Save current PoB equipment set to library'}
+            >{setSaveState === 'saved' ? <Check /> : <PackagePlus />}</button>
             {!inspectorOpen && selected && <button
               type="button"
               className="equipment-inspector-toggle"
@@ -1008,6 +1082,7 @@ export function EquipmentPanel() {
         runeDetails={runeDetails}
         slotName={selectedSlotName}
         socketedItems={selectedSlotName ? socketedItemsForSlot(selectedSlotName) : []}
+        onSave={() => saveItem(selected, 'equipment-favorite', selectedSlotName)}
         onClose={() => setInspectorOpen(false)}
       />}
     </section>

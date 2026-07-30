@@ -1,0 +1,166 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { ArrowLeft, ArrowRight, ExternalLink, Globe2, Home, Library, LoaderCircle, LogIn, RefreshCw, Square, Store } from 'lucide-react'
+import type { BuildRealm } from '@/types/tree'
+import type { MarketBounds, MarketNavigationCommand, MarketViewState } from '@/types/market'
+import { useTranslation } from '@/i18n/useTranslation'
+import { EquipmentLibraryPanel } from '@/components/market/EquipmentLibraryPanel'
+
+interface MarketPanelProps {
+  realm: BuildRealm
+  suspended?: boolean
+}
+
+const EMPTY_STATE: MarketViewState = {
+  realm: 'global',
+  url: '',
+  title: '',
+  loading: false,
+  canGoBack: false,
+  canGoForward: false,
+  sessionStatus: 'unknown',
+}
+
+function getBounds(element: HTMLElement): MarketBounds | null {
+  const rect = element.getBoundingClientRect()
+  if (rect.width < 1 || rect.height < 1) return null
+  return {
+    x: Math.round(rect.left),
+    y: Math.round(rect.top),
+    width: Math.round(rect.width),
+    height: Math.round(rect.height),
+  }
+}
+
+function displayOrigin(url: string, fallback: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return fallback
+  }
+}
+
+export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
+  const { lang } = useTranslation()
+  const zh = lang === 'zh-rCN'
+  const hostRef = useRef<HTMLDivElement>(null)
+  const activatedRef = useRef(false)
+  const [state, setState] = useState<MarketViewState>({ ...EMPTY_STATE, realm })
+  const [bridgeError, setBridgeError] = useState<string | null>(null)
+  const [libraryMode, setLibraryMode] = useState<'closed' | 'sidebar' | 'full'>('sidebar')
+  const libraryOpen = libraryMode !== 'closed'
+  const viewSuspended = suspended || libraryMode === 'full'
+  const bridge = window.pob2Market
+  const realmLabel = realm === 'cn' ? (zh ? '腾讯服' : 'Tencent CN') : (zh ? '国际服' : 'Global')
+  const officialHost = realm === 'cn' ? 'poe.game.qq.com' : 'www.pathofexile.com'
+
+  const applyBounds = useCallback(async (activate: boolean) => {
+    if (!bridge || viewSuspended || !hostRef.current) return
+    const bounds = getBounds(hostRef.current)
+    if (!bounds) return
+    try {
+      if (activate || !activatedRef.current) {
+        setState(await bridge.activate(bounds))
+        activatedRef.current = true
+      } else {
+        await bridge.setBounds(bounds)
+      }
+      setBridgeError(null)
+    } catch (error: unknown) {
+      setBridgeError(error instanceof Error ? error.message : String(error))
+    }
+  }, [bridge, viewSuspended])
+
+  useEffect(() => {
+    if (!bridge) return
+    const unsubscribe = bridge.onStateChanged((nextState) => setState(nextState))
+    return unsubscribe
+  }, [bridge])
+
+  useEffect(() => {
+    if (!bridge) return
+    let active = true
+    const sync = async () => {
+      try {
+        await window.pob2Desktop?.setAppContext({ defaultRealm: realm })
+        if (active && !viewSuspended) await applyBounds(true)
+      } catch (error: unknown) {
+        if (active) setBridgeError(error instanceof Error ? error.message : String(error))
+      }
+    }
+    if (viewSuspended) {
+      activatedRef.current = false
+      void bridge.deactivate()
+    } else {
+      void sync()
+    }
+    return () => { active = false }
+  }, [applyBounds, bridge, realm, viewSuspended])
+
+  useEffect(() => {
+    if (!bridge || viewSuspended || !hostRef.current) return
+    const observer = new ResizeObserver(() => void applyBounds(false))
+    observer.observe(hostRef.current)
+    const update = () => void applyBounds(false)
+    window.addEventListener('resize', update)
+    return () => {
+      observer.disconnect()
+      window.removeEventListener('resize', update)
+    }
+  }, [applyBounds, bridge, viewSuspended])
+
+  useEffect(() => () => {
+    activatedRef.current = false
+    void bridge?.deactivate()
+  }, [bridge])
+
+  const navigate = useCallback((command: MarketNavigationCommand) => {
+    void bridge?.navigate(command).catch((error: unknown) => {
+      setBridgeError(error instanceof Error ? error.message : String(error))
+    })
+  }, [bridge])
+
+  const statusLabel = useMemo(() => {
+    if (state.sessionStatus === 'valid') return zh ? '已登录' : 'Signed in'
+    if (state.sessionStatus === 'anonymous') return zh ? '未登录' : 'Signed out'
+    return zh ? '检查登录状态' : 'Checking session'
+  }, [state.sessionStatus, zh])
+
+  return <section className="market-workspace">
+    <header className="market-toolbar">
+      <div className="market-navigation">
+        <button className="icon-command compact" disabled={!bridge || !state.canGoBack} onClick={() => navigate('back')} title={zh ? '后退' : 'Back'} aria-label={zh ? '后退' : 'Back'}><ArrowLeft /></button>
+        <button className="icon-command compact" disabled={!bridge || !state.canGoForward} onClick={() => navigate('forward')} title={zh ? '前进' : 'Forward'} aria-label={zh ? '前进' : 'Forward'}><ArrowRight /></button>
+        <button className="icon-command compact" disabled={!bridge} onClick={() => navigate(state.loading ? 'stop' : 'reload')} title={state.loading ? (zh ? '停止加载' : 'Stop') : (zh ? '刷新' : 'Reload')} aria-label={state.loading ? (zh ? '停止加载' : 'Stop') : (zh ? '刷新' : 'Reload')}>{state.loading ? <Square /> : <RefreshCw />}</button>
+        <button className="icon-command compact" disabled={!bridge} onClick={() => navigate('home')} title={zh ? '集市首页' : 'Market home'} aria-label={zh ? '集市首页' : 'Market home'}><Home /></button>
+      </div>
+
+      <div className="market-location" title={state.title || state.url || officialHost}>
+        {state.loading ? <LoaderCircle className="market-loading-icon" /> : <Globe2 />}
+        <span>{displayOrigin(state.url, officialHost)}</span>
+        {state.title && <small>{state.title}</small>}
+      </div>
+
+      <span className={`market-realm ${realm}`}>{realmLabel}</span>
+      <span className={`market-session ${state.sessionStatus}`}><i />{statusLabel}</span>
+      {state.sessionStatus !== 'valid' && <button className="secondary-command market-login" disabled={!bridge} onClick={() => void bridge?.login()}><LogIn />{zh ? '登录' : 'Sign in'}</button>}
+      <button className={`icon-command compact${libraryOpen ? ' active' : ''}`} disabled={!bridge} onClick={() => setLibraryMode((mode) => mode === 'closed' ? 'sidebar' : 'closed')} title={zh ? '装备仓库' : 'Equipment library'} aria-label={zh ? '装备仓库' : 'Equipment library'} aria-pressed={libraryOpen}><Library /></button>
+      <button className="icon-command compact" disabled={!bridge || !state.url} onClick={() => void bridge?.openExternal()} title={zh ? '在系统浏览器打开' : 'Open in browser'} aria-label={zh ? '在系统浏览器打开' : 'Open in browser'}><ExternalLink /></button>
+    </header>
+
+    <div className={`market-content${libraryMode === 'sidebar' ? ' library-open' : libraryMode === 'full' ? ' library-full' : ''}`}>
+    <div className="market-browser-host" ref={hostRef}>
+      {!bridge && <div className="market-browser-fallback">
+        <Store />
+        <h2>{zh ? '集市浏览器仅在桌面版可用' : 'The market browser is available in the desktop app'}</h2>
+        <p>{zh ? 'Electron 桌面版会在这里加载当前服务器的官方交易网站。' : 'The Electron desktop app loads the official trade site here.'}</p>
+      </div>}
+      {(bridgeError || state.error) && <div className="market-browser-error" role="alert">
+        <strong>{zh ? '官方集市加载失败' : 'Official market failed to load'}</strong>
+        <span>{bridgeError || state.error}</span>
+        <button className="secondary-command" onClick={() => navigate('reload')}><RefreshCw />{zh ? '重试' : 'Retry'}</button>
+      </div>}
+    </div>
+    {libraryOpen && <EquipmentLibraryPanel realm={realm} zh={zh} expanded={libraryMode === 'full'} onToggleExpanded={() => setLibraryMode((mode) => mode === 'full' ? 'sidebar' : 'full')} onClose={() => setLibraryMode('closed')} />}
+    </div>
+  </section>
+}

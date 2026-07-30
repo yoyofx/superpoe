@@ -1,11 +1,18 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { randomUUID } from 'node:crypto'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { parseWeGameShareCode, requestPoe2dbBuild } from './poe2dbClient.js'
 import { setupAutoUpdater } from './updater.js'
 import type { UpdateChannel } from './updater.js'
 import { PobLuaService } from './pobLuaService.js'
+import { MarketViewManager, type MarketNavigationCommand, type MarketRealm } from './marketView.js'
+import { TradeCredentialStore } from './tradeCredentialStore.js'
+import { EquipmentLibraryRepository, equipmentSourceKey, pobSourceKey } from './equipmentLibraryRepository.js'
+import { normalizeMarketListing } from './marketListing.js'
+import type { EquipmentLibraryFilter, EquipmentLibraryItemInput, EquipmentLibraryMetadataPatch, MarketDomListingRef } from '../src/types/market.js'
+import { OfficialTradeProvider, TradeReferenceDataCache } from './tradeService.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
@@ -56,7 +63,9 @@ function writeGameBuildFile(filePath: string, content: string): void {
 }
 
 const appDataPath = app.getPath('appData')
-const userDataPath = path.join(appDataPath, productName)
+const userDataPath = rendererUrl && process.env.SUPERPOE_USER_DATA
+  ? path.resolve(process.env.SUPERPOE_USER_DATA)
+  : path.join(appDataPath, productName)
 app.setPath('userData', userDataPath)
 app.setName(productName)
 
@@ -120,6 +129,79 @@ function registerAppProtocol(): void {
   })
 }
 
+let mainWindow: BrowserWindow | null = null
+let marketViewManager: MarketViewManager | null = null
+let tradeProvider: OfficialTradeProvider | null = null
+let defaultRealm: MarketRealm = 'global'
+const tradeCredentialStore = new TradeCredentialStore(path.join(userDataPath, 'trade', 'credentials.v1.json'))
+const equipmentLibrary = new EquipmentLibraryRepository(path.join(userDataPath, 'library', 'equipment-library.v1.json'))
+const favoriteOperations = new Map<string, Promise<void>>()
+
+function notifyLibraryChanged(): void {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('market:library-changed')
+}
+
+function validateShortString(value: unknown, name: string, max = 256): string {
+  if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(`Invalid ${name}`)
+  return value.trim()
+}
+
+function validateListingRef(value: unknown, senderRealm: MarketRealm): MarketDomListingRef {
+  if (!value || typeof value !== 'object') throw new Error('Invalid market listing reference')
+  const input = value as Partial<MarketDomListingRef>
+  if (input.realm !== senderRealm) throw new Error('Market realm mismatch')
+  const listingId = validateShortString(input.listingId, 'listing ID', 128)
+  if (!/^[A-Za-z0-9_-]+$/.test(listingId)) throw new Error('Invalid listing ID')
+  const queryId = input.queryId == null ? undefined : validateShortString(input.queryId, 'query ID', 128)
+  if (queryId && !/^[A-Za-z0-9_-]+$/.test(queryId)) throw new Error('Invalid query ID')
+  const sourceUrl = validateShortString(input.sourceUrl, 'market source URL', 2_048)
+  const url = new URL(sourceUrl)
+  const allowedHost = senderRealm === 'cn'
+    ? url.hostname === 'poe.game.qq.com'
+    : url.hostname === 'www.pathofexile.com' || url.hostname === 'pathofexile.com'
+  if (url.protocol !== 'https:' || !allowedHost || !url.pathname.startsWith('/trade2')) {
+    throw new Error('Invalid market source URL')
+  }
+  return { realm: senderRealm, listingId, queryId, sourceUrl: url.toString() }
+}
+
+function requireMarketSender(event: IpcMainEvent): MarketRealm {
+  const realm = marketViewManager?.getRealmForSender(event.sender)
+  if (!realm) throw new Error('Unauthorized market enhancement request')
+  return realm
+}
+
+function requireMainWindowSender(event: IpcMainInvokeEvent): BrowserWindow {
+  if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) {
+    throw new Error('Unauthorized market request')
+  }
+  return mainWindow
+}
+
+function validateMarketBounds(event: IpcMainInvokeEvent, value: unknown): Rectangle {
+  const window = requireMainWindowSender(event)
+  if (!value || typeof value !== 'object') throw new Error('Invalid market bounds')
+  const input = value as Partial<Rectangle>
+  const values = [input.x, input.y, input.width, input.height]
+  if (values.some((entry) => typeof entry !== 'number' || !Number.isFinite(entry))) {
+    throw new Error('Invalid market bounds')
+  }
+  const zoom = event.sender.getZoomFactor()
+  const bounds = {
+    x: Math.round(input.x! * zoom),
+    y: Math.round(input.y! * zoom),
+    width: Math.round(input.width! * zoom),
+    height: Math.round(input.height! * zoom),
+  }
+  const contentBounds = window.getContentBounds()
+  if (bounds.x < 0 || bounds.y < 0 || bounds.width < 1 || bounds.height < 1
+    || bounds.x + bounds.width > contentBounds.width + 2
+    || bounds.y + bounds.height > contentBounds.height + 2) {
+    throw new Error('Market bounds are outside the application window')
+  }
+  return bounds
+}
+
 function createWindow(): BrowserWindow {
   const iconPath = rendererUrl
     ? path.join(app.getAppPath(), 'build', 'icon.png')
@@ -152,6 +234,19 @@ function createWindow(): BrowserWindow {
     // Packaged: custom scheme so root-absolute asset URLs work.
     void window.loadURL('app://localhost/index.html')
   }
+  mainWindow = window
+  marketViewManager?.dispose()
+  marketViewManager = new MarketViewManager(window, (state) => {
+    if (!window.isDestroyed()) window.webContents.send('market:state-changed', state)
+  }, tradeCredentialStore)
+  tradeProvider = new OfficialTradeProvider(marketViewManager, new TradeReferenceDataCache(path.join(userDataPath, 'trade', 'reference')))
+  marketViewManager.setRealm(defaultRealm)
+  window.on('closed', () => {
+    marketViewManager?.dispose()
+    marketViewManager = null
+    tradeProvider = null
+    if (mainWindow === window) mainWindow = null
+  })
   return window
 }
 
@@ -169,6 +264,216 @@ app.whenReady().then(() => {
   ipcMain.handle('pob2:import-wegame', async (_event, url: unknown) => {
     const shareCode = parseWeGameShareCode(url)
     return requestPoe2dbBuild(shareCode)
+  })
+  ipcMain.handle('pob2:set-ui-scale', (event, value: unknown) => {
+    if (typeof value !== 'number' || !Number.isFinite(value) || value < 0.8 || value > 1.5) {
+      throw new Error('Invalid UI scale factor')
+    }
+    event.sender.setZoomFactor(value)
+    return event.sender.getZoomFactor()
+  })
+  ipcMain.handle('pob2:set-app-context', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object') throw new Error('Invalid application context')
+    const realm = (value as { defaultRealm?: unknown }).defaultRealm
+    if (realm !== 'cn' && realm !== 'global') throw new Error('Invalid default realm')
+    defaultRealm = realm
+    marketViewManager?.setRealm(realm)
+  })
+  ipcMain.handle('market:activate', (event, value: unknown) => {
+    const bounds = validateMarketBounds(event, value)
+    if (!marketViewManager) throw new Error('Market browser is unavailable')
+    marketViewManager.activate(bounds)
+    return marketViewManager.getState()
+  })
+  ipcMain.handle('market:deactivate', (event) => {
+    requireMainWindowSender(event)
+    marketViewManager?.deactivate()
+  })
+  ipcMain.handle('market:set-bounds', (event, value: unknown) => {
+    const bounds = validateMarketBounds(event, value)
+    marketViewManager?.setBounds(bounds)
+  })
+  ipcMain.handle('market:navigate', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!['back', 'forward', 'reload', 'stop', 'home'].includes(String(value))) {
+      throw new Error('Invalid market navigation command')
+    }
+    marketViewManager?.navigate(value as MarketNavigationCommand)
+  })
+  ipcMain.handle('market:login', (event) => {
+    requireMainWindowSender(event)
+    marketViewManager?.login()
+  })
+  ipcMain.handle('market:open-external', (event) => {
+    requireMainWindowSender(event)
+    marketViewManager?.openCurrentExternal()
+  })
+  ipcMain.handle('market:get-state', (event) => {
+    requireMainWindowSender(event)
+    if (!marketViewManager) throw new Error('Market browser is unavailable')
+    return marketViewManager.getState()
+  })
+
+  ipcMain.on('market-enhancement:status-request', (event, value: unknown) => {
+    try {
+      const realm = requireMarketSender(event)
+      const listingIds = value && typeof value === 'object' && Array.isArray((value as { listingIds?: unknown }).listingIds)
+        ? (value as { listingIds: unknown[] }).listingIds
+          .filter((id): id is string => typeof id === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(id))
+          .slice(0, 250)
+        : []
+      event.sender.send('market-enhancement:status-result', { states: equipmentLibrary.marketStates(realm, listingIds) })
+    } catch {
+      // Ignore messages from stale or untrusted web contents.
+    }
+  })
+
+  ipcMain.on('market-enhancement:favorite-toggle', (event, value: unknown) => {
+    let listingId = ''
+    try {
+      const realm = requireMarketSender(event)
+      const input = value && typeof value === 'object' ? value as { requestId?: unknown; ref?: unknown } : {}
+      if (input.ref && typeof input.ref === 'object') {
+        const candidateId = (input.ref as { listingId?: unknown }).listingId
+        if (typeof candidateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(candidateId)) listingId = candidateId
+      }
+      const requestId = validateShortString(input.requestId, 'favorite request ID', 128)
+      const ref = validateListingRef(input.ref, realm)
+      listingId = ref.listingId
+      const operationKey = `${realm}:${ref.listingId}`
+      const previous = favoriteOperations.get(operationKey) || Promise.resolve()
+      const operation = previous.catch(() => {}).then(async () => {
+        const active = equipmentLibrary.marketStates(realm, [ref.listingId])[0]?.active === true
+        if (active) {
+          equipmentLibrary.removeSource(`market:${realm}:${ref.listingId}`)
+          notifyLibraryChanged()
+          if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:favorite-result', { requestId, listingId: ref.listingId, active: false })
+          return
+        }
+        if (!marketViewManager) throw new Error('Market browser is unavailable')
+        const payload = await marketViewManager.fetchListing(ref)
+        const normalized = normalizeMarketListing(payload, ref)
+        equipmentLibrary.upsert(normalized.item, normalized.source)
+        notifyLibraryChanged()
+        if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:favorite-result', { requestId, listingId: ref.listingId, active: true })
+      }).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:favorite-result', { requestId, listingId: ref.listingId, active: false, error: message.slice(0, 300) })
+      }).finally(() => {
+        if (favoriteOperations.get(operationKey) === operation) favoriteOperations.delete(operationKey)
+      })
+      favoriteOperations.set(operationKey, operation)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!event.sender.isDestroyed() && listingId) {
+        event.sender.send('market-enhancement:favorite-result', { listingId, active: false, error: message.slice(0, 300) })
+      }
+    }
+  })
+
+  ipcMain.handle('market:list-library', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    const input = value && typeof value === 'object' ? value as Partial<EquipmentLibraryFilter> : {}
+    const filter: EquipmentLibraryFilter = {}
+    if (input.realm === 'cn' || input.realm === 'global') filter.realm = input.realm
+    if (typeof input.query === 'string') filter.query = input.query.slice(0, 200)
+    if (typeof input.includeArchived === 'boolean') filter.includeArchived = input.includeArchived
+    if (['all', 'market-favorite', 'pob-import', 'equipment-favorite', 'price-check', 'manual'].includes(String(input.sourceKind))) {
+      filter.sourceKind = input.sourceKind
+    }
+    return equipmentLibrary.list(filter)
+  })
+  ipcMain.handle('market:update-library', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object') throw new Error('Invalid equipment library metadata')
+    const input = value as Partial<EquipmentLibraryMetadataPatch>
+    const patch: EquipmentLibraryMetadataPatch = { id: validateShortString(input.id, 'library entry ID', 128) }
+    if ('folder' in input) patch.folder = typeof input.folder === 'string' ? input.folder.slice(0, 120) : ''
+    if ('note' in input) patch.note = typeof input.note === 'string' ? input.note.slice(0, 4_000) : ''
+    if ('tags' in input) patch.tags = Array.isArray(input.tags)
+      ? input.tags.filter((tag): tag is string => typeof tag === 'string').slice(0, 32).map((tag) => tag.slice(0, 64))
+      : []
+    if (typeof input.archived === 'boolean') patch.archived = input.archived
+    const entry = equipmentLibrary.updateMetadata(patch)
+    notifyLibraryChanged()
+    return entry
+  })
+  ipcMain.handle('market:delete-library', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    const deleted = equipmentLibrary.delete(validateShortString(value, 'library entry ID', 128))
+    if (deleted) notifyLibraryChanged()
+    return deleted
+  })
+  ipcMain.handle('market:remove-library-source', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    const result = equipmentLibrary.removeSource(validateShortString(value, 'library source key', 512))
+    if (result.entry || result.removedEntryId) notifyLibraryChanged()
+    return result
+  })
+  ipcMain.handle('market:open-library-source', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object') throw new Error('Invalid library source request')
+    const input = value as { entryId?: unknown; sourceKey?: unknown }
+    const entry = equipmentLibrary.get(validateShortString(input.entryId, 'library entry ID', 128))
+    const sourceKey = validateShortString(input.sourceKey, 'library source key', 512)
+    const source = entry?.sources.find((candidate) => candidate.sourceKey === sourceKey)
+    if (!source) throw new Error('Equipment library source not found')
+    if (source.kind === 'market-favorite') {
+      if (!marketViewManager) throw new Error('Market browser is unavailable')
+      marketViewManager.openSource(source.realm, source.sourceUrl)
+      return { kind: source.kind }
+    }
+    return { kind: source.kind }
+  })
+  ipcMain.handle('market:save-equipment-item', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object' || JSON.stringify(value).length > 500_000) {
+      throw new Error('Invalid equipment library item')
+    }
+    const input = value as EquipmentLibraryItemInput
+    const now = new Date().toISOString()
+    let source
+    if (input.source?.kind === 'equipment-favorite') {
+      const buildId = validateShortString(input.source.buildId, 'build ID', 128)
+      const equipmentSetId = validateShortString(input.source.equipmentSetId, 'equipment set ID', 128)
+      const itemId = validateShortString(input.source.itemId, 'item ID', 128)
+      source = { ...input.source, buildId, equipmentSetId, itemId, sourceKey: equipmentSourceKey(buildId, equipmentSetId, itemId), capturedAt: now, updatedAt: now }
+    } else if (input.source?.kind === 'pob-import') {
+      const buildId = validateShortString(input.source.buildId, 'build ID', 128)
+      const pobItemId = validateShortString(input.source.pobItemId, 'PoB item ID', 128)
+      source = { ...input.source, buildId, pobItemId, sourceKey: pobSourceKey(buildId, pobItemId), capturedAt: now, updatedAt: now }
+    } else if (input.source?.kind === 'manual') {
+      source = { kind: 'manual' as const, sourceKey: `manual:${randomUUID()}`, capturedAt: now, updatedAt: now }
+    } else {
+      throw new Error('Invalid equipment library source')
+    }
+    const entry = equipmentLibrary.upsert(input.item, source)
+    notifyLibraryChanged()
+    return entry
+  })
+  ipcMain.handle('market:search-library', async (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object') throw new Error('Invalid equipment library search request')
+    const input = value as { entryId?: unknown; realm?: unknown; leagueId?: unknown }
+    const realm = input.realm
+    if (realm !== 'cn' && realm !== 'global') throw new Error('Invalid market realm')
+    const entry = equipmentLibrary.get(validateShortString(input.entryId, 'library entry ID', 128))
+    if (!entry) throw new Error('Equipment library entry not found')
+    const leagueId = validateShortString(input.leagueId, 'trade league', 128)
+    if (!tradeProvider || !marketViewManager) throw new Error('Trade provider is unavailable')
+    const result = await tradeProvider.search(realm, leagueId, entry.item)
+    equipmentLibrary.updateItem(entry.id, result.resolvedItem)
+    notifyLibraryChanged()
+    marketViewManager.openSource(realm, result.url)
+    const { resolvedItem: _resolvedItem, ...response } = result
+    return response
+  })
+  ipcMain.handle('market:list-leagues', async (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (value !== 'cn' && value !== 'global') throw new Error('Invalid market realm')
+    if (!tradeProvider) throw new Error('Trade provider is unavailable')
+    return tradeProvider.leagues(value)
   })
 
   ipcMain.handle('pob2:lua-init', () => pobLuaService.initialize())
@@ -212,7 +517,6 @@ app.whenReady().then(() => {
       configOverrides?: Record<string, boolean | number | string>
     })
   })
-
   ipcMain.handle('pob2:save-game-build', async (_event, value: unknown) => {
     const payload = validateGameBuildPayload(value)
     const result = await dialog.showSaveDialog({
@@ -256,4 +560,7 @@ app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
 
-app.on('before-quit', () => pobLuaService.dispose())
+app.on('before-quit', () => {
+  marketViewManager?.dispose()
+  pobLuaService.dispose()
+})

@@ -77,6 +77,50 @@ local function scalar(value)
 	return nil
 end
 
+local function describeSupportGems(payload)
+	local runtimeData = (build and build.data) or data
+	if not runtimeData or not runtimeData.skills or not runtimeData.describeStats then
+		return { success = false, error = "PoB skill data is unavailable" }
+	end
+	local entries = {}
+	for _, requestGem in ipairs(payload and payload.gems or {}) do
+		local skillId = type(requestGem.skillId) == "string" and requestGem.skillId or ""
+		local grantedEffect = runtimeData.skills[skillId]
+		local lines = {}
+		local seen = {}
+		if grantedEffect and grantedEffect.support then
+			local level = math.max(1, math.floor(tonumber(requestGem.level) or 1))
+			local quality = math.max(0, math.floor(tonumber(requestGem.quality) or 0))
+			local instance = { level = level, quality = quality, actorLevel = level }
+			local levelStats = grantedEffect.levels[level] or grantedEffect.levels[1] or {}
+			if levelStats.manaMultiplier and levelStats.reservationMultiplier
+				and levelStats.manaMultiplier == levelStats.reservationMultiplier then
+				table.insert(lines, string.format("Cost & Reservation Multiplier: %d%%", levelStats.manaMultiplier + 100))
+			elseif levelStats.reservationMultiplier then
+				table.insert(lines, string.format("Reservation Multiplier: %d%%", levelStats.reservationMultiplier + 100))
+			elseif levelStats.manaMultiplier then
+				table.insert(lines, string.format("Cost Multiplier: %d%%", levelStats.manaMultiplier + 100))
+			end
+			if levelStats.spiritReservationFlat then
+				table.insert(lines, string.format("Additional Reservation: %d Spirit", levelStats.spiritReservationFlat))
+			end
+			for _, statSet in ipairs(grantedEffect.statSets or {}) do
+				local stats = calcLib.buildSkillInstanceStats(instance, grantedEffect, statSet, false)
+				local descriptions = runtimeData.describeStats(stats, statSet.statDescriptionScope)
+				for _, description in ipairs(descriptions) do
+					local line = StripEscapes(description):gsub("^%s+", ""):gsub("%s+$", "")
+					if line ~= "" and not seen[line] then
+						seen[line] = true
+						table.insert(lines, line)
+					end
+				end
+			end
+		end
+		table.insert(entries, { skillId = skillId, lines = lines })
+	end
+	return { success = true, data = entries }
+end
+
 local function readConfigSnapshot(build)
 	local configTab = build and build.configTab
 	if not configTab then return nil end
@@ -322,6 +366,81 @@ local function calculate(payload)
 			end
 		end
 
+		local grantedEffect = activeEffect.grantedEffect
+		local currentReferenceLevel = details.actor == "minion"
+			and safeNum(activeEffect.level)
+			or safeNum(data.SkillLevel)
+		currentReferenceLevel = math.max(1, math.floor(currentReferenceLevel or 1))
+		details.levelReferenceCurrent = currentReferenceLevel
+		details.levelReferences = {}
+		local lastReferenceLevel = math.max(40, currentReferenceLevel)
+		for level = math.min(currentReferenceLevel, 40), lastReferenceLevel do
+			local levelStats = grantedEffect and grantedEffect.levels and grantedEffect.levels[level]
+			if levelStats then
+				local reference = {
+					level = level,
+					requiredLevel = safeNum(levelStats.levelRequirement),
+					costs = {},
+					spiritReservation = safeNum(levelStats.spiritReservationFlat),
+					cooldown = safeNum(levelStats.cooldown),
+					storedUses = safeNum(levelStats.storedUses),
+					critChance = safeNum(levelStats.critChance),
+					attackSpeedMultiplier = safeNum(levelStats.attackSpeedMultiplier),
+					attackTime = safeNum(levelStats.attackTime),
+					baseMultiplier = safeNum(levelStats.baseMultiplier),
+					statSets = {},
+				}
+				local costNames = {}
+				for resource in pairs(levelStats.cost or {}) do table.insert(costNames, resource) end
+				table.sort(costNames)
+				for _, resource in ipairs(costNames) do
+					table.insert(reference.costs, { resource = resource, value = safeNum(levelStats.cost[resource]) })
+				end
+				local instance = { level = level, quality = 0, actorLevel = levelStats.levelRequirement or level }
+				for index, statSet in ipairs(grantedEffect.statSets or {}) do
+					local statSetLevel = statSet.levels[level] or statSet.levels[1] or {}
+					local statReference = {
+						index = index,
+						label = StripEscapes(statSet.label or grantedEffect.name or ""),
+						critChance = safeNum(statSetLevel.critChance),
+						baseMultiplier = safeNum(statSetLevel.baseMultiplier),
+						damageRanges = {},
+						lines = {},
+					}
+					local stats = calcLib.buildSkillInstanceStats(instance, grantedEffect, statSet, false)
+					for _, damageType in ipairs({ "physical", "lightning", "cold", "fire", "chaos" }) do
+						local minimum = 0
+						local maximum = 0
+						local found = false
+						for statName, statValue in pairs(stats) do
+							if type(statName) == "string"
+								and statName:find("minimum", 1, true)
+								and statName:find(damageType, 1, true)
+								and statName:find("damage", 1, true) then
+								local maximumName = statName:gsub("minimum", "maximum", 1)
+								local minimumValue = safeNum(statValue)
+								local maximumValue = safeNum(stats[maximumName])
+								if minimumValue and maximumValue then
+									minimum = minimum + minimumValue
+									maximum = maximum + maximumValue
+									found = true
+								end
+							end
+						end
+						if found then
+							table.insert(statReference.damageRanges, { type = damageType, min = minimum, max = maximum })
+						end
+					end
+					for _, description in ipairs(build.data.describeStats(stats, statSet.statDescriptionScope)) do
+						local line = StripEscapes(description):gsub("^%s+", ""):gsub("%s+$", "")
+						if line ~= "" then table.insert(statReference.lines, line) end
+					end
+					table.insert(reference.statSets, statReference)
+				end
+				table.insert(details.levelReferences, reference)
+			end
+		end
+
 		local flags = activeEffect.statSetCalcs and activeEffect.statSetCalcs.skillFlags
 			or activeEffect.statSet and activeEffect.statSet.skillFlags or {}
 		local skillTypes = mainSkill.skillTypes or activeEffect.grantedEffect and activeEffect.grantedEffect.skillTypes or {}
@@ -561,6 +680,7 @@ for line in io.lines() do
 		local handled, result = pcall(function()
 			if request.type == "calculate" then return calculate(request.payload) end
 			if request.type == "rankSkills" then return rankSkills(request.payload) end
+			if request.type == "describeSupportGems" then return describeSupportGems(request.payload) end
 			error("Unknown request type: " .. tostring(request.type))
 		end)
 		if handled then

@@ -173,15 +173,15 @@ export function ConfigurationPanel() {
     return <section className="configuration-empty">
       <SlidersHorizontal />
       <h2>{zh ? '没有可配置的构筑' : 'No build to configure'}</h2>
-      <p>{zh ? '导入完整构筑后即可管理全局计算条件。' : 'Import a complete build to manage calculation conditions.'}</p>
+      <p>{zh ? '导入完整构筑后即可管理技能伤害计算条件。' : 'Import a complete build to manage skill damage conditions.'}</p>
     </section>
   }
 
   return <section className="configuration-workspace">
     <header className="configuration-header">
       <div>
-        <span>{zh ? '全局计算条件' : 'Global calculation conditions'}</span>
-        <h1>{zh ? '配置' : 'Configuration'}</h1>
+        <span>{zh ? '技能伤害计算条件' : 'Skill damage calculation conditions'}</span>
+        <h1>{zh ? '伤害配置' : 'Damage configuration'}</h1>
       </div>
       <div className="configuration-runtime-state">
         {loading && <><LoaderCircle className="spinning" />{zh ? '正在重新计算' : 'Recalculating'}</>}

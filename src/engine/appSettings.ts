@@ -2,11 +2,17 @@ import type { BuildRealm } from '@/types/tree'
 
 export type UpdateChannel = 'release' | 'dev'
 
+export const MIN_UI_SCALE_PERCENT = 80
+export const MAX_UI_SCALE_PERCENT = 150
+export const DEFAULT_UI_SCALE_PERCENT = 100
+export const UI_SCALE_STEP_PERCENT = 5
+
 const APP_SETTINGS_STORAGE_KEY = 'superpoe-global-settings'
 
 export interface AppSettings {
   defaultRealm: BuildRealm
   confirmUnsavedExit: boolean
+  uiScalePercent: number
   updateChannel: UpdateChannel
   /** Update check interval in minutes */
   updateCheckIntervalMinutes: number
@@ -17,6 +23,7 @@ export interface AppSettings {
 const DEFAULT_APP_SETTINGS: AppSettings = {
   defaultRealm: 'global',
   confirmUnsavedExit: true,
+  uiScalePercent: DEFAULT_UI_SCALE_PERCENT,
   updateChannel: 'release',
   updateCheckIntervalMinutes: 60,
   proxyDomains: [],
@@ -27,6 +34,12 @@ interface SettingsStorage {
   setItem: (key: string, value: string) => void
 }
 
+export function normalizeUiScalePercent(value: unknown): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_UI_SCALE_PERCENT
+  const stepped = Math.round(value / UI_SCALE_STEP_PERCENT) * UI_SCALE_STEP_PERCENT
+  return Math.min(MAX_UI_SCALE_PERCENT, Math.max(MIN_UI_SCALE_PERCENT, stepped))
+}
+
 export function loadAppSettings(storage: SettingsStorage | undefined = typeof localStorage === 'undefined' ? undefined : localStorage): AppSettings {
   if (!storage) return DEFAULT_APP_SETTINGS
   try {
@@ -34,6 +47,7 @@ export function loadAppSettings(storage: SettingsStorage | undefined = typeof lo
     return {
       defaultRealm: parsed.defaultRealm === 'cn' ? 'cn' : 'global',
       confirmUnsavedExit: parsed.confirmUnsavedExit !== false,
+      uiScalePercent: normalizeUiScalePercent(parsed.uiScalePercent),
       updateChannel: parsed.updateChannel === 'dev' ? 'dev' : 'release',
       updateCheckIntervalMinutes: typeof parsed.updateCheckIntervalMinutes === 'number' && parsed.updateCheckIntervalMinutes >= 10 ? parsed.updateCheckIntervalMinutes : 60,
       proxyDomains: Array.isArray(parsed.proxyDomains)

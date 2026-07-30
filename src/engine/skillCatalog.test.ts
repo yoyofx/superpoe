@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   getLocalizedSkillDescription,
   getLocalizedSkillName,
+  getLocalizedSupportEffectLines,
   resolveSkillCatalogEntry,
   resolveSkillCatalogName,
   normalizeSkillCatalog,
@@ -46,6 +47,19 @@ describe('canonical skill catalog', () => {
   it('contains upstream descriptions without inventing missing text', () => {
     expect(resolveSkillCatalogName('Spear Throw', catalog)?.description).toContain('Hurl your Spear')
     expect(resolveSkillCatalogName('Feeding Frenzy II', catalog)?.description).toBeFalsy()
+  })
+
+  it('contains precomputed support-gem effect lines', () => {
+    expect(catalog.schemaVersion).toBeGreaterThanOrEqual(2)
+    expect(catalog.entries.SupportConsideredCastingPlayer.effectLines).toEqual([
+      'Cost Multiplier: 115%',
+      'Supported Spell Skills have 15% less Cast Speed',
+      'Supported Spells deal 35% more Damage',
+    ])
+    expect(catalog.entries.SupportHandOfChayulaPlayer.effectLinesByQuality?.['1'])
+      .toContain('101% increased duration of socketed Curses')
+    expect(getLocalizedSupportEffectLines(catalog.entries.SupportConsideredCastingPlayer, 0, 'zh-rCN')[0])
+      .toBe('消耗倍率 115%')
   })
 
   it('contains localized descriptions for item-granted skills', () => {

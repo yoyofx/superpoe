@@ -4,6 +4,7 @@ import { FallbackImage } from '@/components/FallbackImage'
 import {
   getLocalizedSkillDescription,
   getLocalizedSkillName,
+  getLocalizedSupportEffectLines,
   type SkillCatalogEntry,
 } from '@/engine/skillCatalog'
 import type { BuildGem } from '@/engine/skills'
@@ -62,6 +63,11 @@ function buildDisplayLines(
   const max = detail?.naturalMaxLevel != null && gem.level >= detail.naturalMaxLevel ? labels.max : ''
   lines.push({ kind: 'line', text: `${labels.level}: ${gem.level}${max}`, tone: 'info' })
   if (gem.quality > 0) lines.push({ kind: 'line', text: `${labels.quality}: +${gem.quality}%`, tone: 'magic' })
+  const effects = getLocalizedSupportEffectLines(detail, gem.quality, language)
+  if (effects.length > 0) {
+    lines.push({ kind: 'separator' })
+    for (const effect of effects) lines.push({ kind: 'line', text: effect, center: true, tone: 'magic' })
+  }
   const description = getLocalizedSkillDescription(detail, language)
   if (description) {
     lines.push({ kind: 'separator' })

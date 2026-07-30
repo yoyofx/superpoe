@@ -32,6 +32,7 @@ if (dryRun) {
   planned('Canonical skill catalog', ['scripts/build_skill_catalog.py'])
   planned('Rune and socket details', ['scripts/build_rune_details.py'])
   planned('PoB Lua bundle', ['scripts/build_pob_lua_bundle.py'])
+  console.log('[PLAN] Support gem effects: node scripts/build_support_effects.mjs')
   planned('Resource validation and manifest', ['scripts/build_resource_manifest.py', version])
   process.exit(0)
 }
@@ -48,6 +49,7 @@ run('Item and skill images', 'python', ['scripts/sync_poe2db_item_icons.py'])
 run('Canonical skill catalog', 'python', ['scripts/build_skill_catalog.py'])
 run('Rune and socket details', 'python', ['scripts/build_rune_details.py'])
 run('PoB Lua bundle', 'python', ['scripts/build_pob_lua_bundle.py'])
+run('Support gem effects', 'node', ['scripts/build_support_effects.mjs'])
 run('Resource validation and manifest', 'python', ['scripts/build_resource_manifest.py', version])
 
 console.log(`\nSuperPoE2 resources are complete for ${version}.`)

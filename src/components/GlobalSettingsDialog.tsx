@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
-import { Globe2, Info, Languages, Plus, RefreshCw, ShieldAlert, Trash2, X } from 'lucide-react'
+import { Globe2, Info, Languages, MonitorCog, Plus, RefreshCw, ShieldAlert, Trash2, X } from 'lucide-react'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
-import type { AppSettings, UpdateChannel } from '@/engine/appSettings'
+import { MAX_UI_SCALE_PERCENT, MIN_UI_SCALE_PERCENT, UI_SCALE_STEP_PERCENT, type AppSettings, type UpdateChannel } from '@/engine/appSettings'
 import { LANGUAGE_OPTIONS, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { triggerManualUpdateCheck } from '@/components/UpdateDialog'
@@ -47,6 +47,24 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose }: Glob
               <select value={lang} onChange={(event) => setLanguage(event.target.value as Language)}>
                 {LANGUAGE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
+            </label>
+          </section>
+
+          <section className="settings-section">
+            <header><MonitorCog /><h3>{zh ? '界面显示' : 'Display'}</h3></header>
+            <label className="settings-row settings-scale-row">
+              <span>{zh ? '界面缩放' : 'Interface scale'}</span>
+              <div className="settings-scale-control">
+                <input
+                  type="range"
+                  min={MIN_UI_SCALE_PERCENT}
+                  max={MAX_UI_SCALE_PERCENT}
+                  step={UI_SCALE_STEP_PERCENT}
+                  value={settings.uiScalePercent}
+                  onChange={(event) => onChange({ ...settings, uiScalePercent: Number(event.target.value) })}
+                />
+                <output>{settings.uiScalePercent}%</output>
+              </div>
             </label>
           </section>
 

@@ -9,8 +9,8 @@ import {
   Save,
   Search,
   Settings,
-  SlidersHorizontal,
   Sparkles,
+  Store,
   Swords,
   Undo2,
   Upload,
@@ -34,7 +34,7 @@ import {
   useTreeStore,
 } from '@/store/treeStore'
 
-export type WorkspaceView = 'passive' | 'equipment' | 'skills' | 'configuration'
+export type WorkspaceView = 'passive' | 'equipment' | 'skills' | 'market'
 type ToolbarMenu = 'export' | null
 
 interface ToolbarProps {
@@ -54,10 +54,10 @@ const VIEW_ICONS = {
   equipment: Swords,
   passive: Workflow,
   skills: Sparkles,
-  configuration: SlidersHorizontal,
+  market: Store,
 }
 
-const VIEW_ORDER: WorkspaceView[] = ['equipment', 'skills', 'passive', 'configuration']
+const VIEW_ORDER: WorkspaceView[] = ['equipment', 'skills', 'passive', 'market']
 
 export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onImport, onSave, onSettings }: ToolbarProps) {
   const { t, lang } = useTranslation()
@@ -87,6 +87,10 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
   const redo = useTreeStore((state) => state.redo)
 
   const [activeMenu, setActiveMenu] = useState<ToolbarMenu>(null)
+
+  useEffect(() => {
+    if (activeView === 'market') setActiveMenu(null)
+  }, [activeView])
   const [assetIndex, setAssetIndex] = useState<SpriteIndex>({})
 
   useEffect(() => {
@@ -120,8 +124,8 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
     return String(getBuildCharacterLevel(importedBuildCode) || '--')
   }, [importedBuildCode])
   const viewLabels = useMemo(() => lang === 'zh-rCN'
-    ? { passive: '天赋', equipment: '装备', skills: '技能', configuration: '配置' }
-    : { passive: 'Passive', equipment: 'Equipment', skills: 'Skills', configuration: 'Configuration' }, [lang])
+    ? { passive: '天赋', equipment: '装备', skills: '技能', market: '集市' }
+    : { passive: 'Passive', equipment: 'Equipment', skills: 'Skills', market: 'Market' }, [lang])
   const saveLabels = lang === 'zh-rCN'
     ? { saved: '已保存', dirty: '有未保存修改', saving: '正在保存', error: '保存失败' }
     : { saved: 'Saved', dirty: 'Unsaved changes', saving: 'Saving', error: 'Save failed' }
@@ -205,6 +209,7 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
         </div>
 
         <div className="command-actions">
+          {activeView !== 'market' && <>
           <span className="version-indicator" title={lang === 'zh-rCN' ? '构筑版本已确定' : 'Build version is fixed'} aria-label={`${t('toolbar.version')} ${treeVersion.replace('_', '.')}`}>
             <LockKeyhole />
             <span>{treeVersion.replace('_', '.')}</span>
@@ -212,6 +217,7 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
           <button className="icon-command" onClick={onImport} title={t('toolbar.importTitle')} aria-label={t('toolbar.importTitle')}><Upload /></button>
           <button className="icon-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')} aria-label={t('toolbar.exportTitle')}><Download /></button>
           <button className="primary-command" onClick={onSave}><Save />{lang === 'zh-rCN' ? '保存' : 'Save'}</button>
+          </>}
           <button className="icon-command" onClick={onSettings} title={lang === 'zh-rCN' ? '全局设置' : 'Global settings'} aria-label={lang === 'zh-rCN' ? '全局设置' : 'Global settings'}><Settings /></button>
           <button className="icon-command" title={lang === 'zh-rCN' ? '更多操作' : 'More'} aria-label={lang === 'zh-rCN' ? '更多操作' : 'More'}><MoreVertical /></button>
         </div>

@@ -10,5 +10,6 @@
     "skipLibCheck": true,
     "types": ["node", "electron"]
   },
-  "include": ["electron/*.ts"]
+  "include": ["electron/**/*.ts", "src/types/market.ts"],
+  "exclude": ["**/*.test.ts"]
 }

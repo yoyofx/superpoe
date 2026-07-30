@@ -197,6 +197,38 @@ export interface SkillEffectSummary {
   cursesAndDebuffs: string[]
 }
 
+export interface SkillLevelResourceValue {
+  resource: string
+  value: number
+}
+
+export interface SkillLevelStatSet {
+  index: number
+  label: string
+  critChance?: number
+  baseMultiplier?: number
+  damageRanges: Array<{
+    type: 'physical' | 'lightning' | 'cold' | 'fire' | 'chaos'
+    min: number
+    max: number
+  }>
+  lines: string[]
+}
+
+export interface SkillLevelReference {
+  level: number
+  requiredLevel?: number
+  costs: SkillLevelResourceValue[]
+  spiritReservation?: number
+  cooldown?: number
+  storedUses?: number
+  critChance?: number
+  attackSpeedMultiplier?: number
+  attackTime?: number
+  baseMultiplier?: number
+  statSets: SkillLevelStatSet[]
+}
+
 export interface SkillCalculationDetails {
   mode: SkillCalculationMode
   actor: SkillCalculationActor
@@ -229,6 +261,8 @@ export interface SkillCalculationDetails {
   weaponDamage?: SkillWeaponDamageContribution[]
   gains?: SkillGainContribution[]
   effects?: SkillEffectSummary
+  levelReferenceCurrent?: number
+  levelReferences?: SkillLevelReference[]
 }
 
 /** Calculation response shape shared by the front-end worker and legacy backend. */

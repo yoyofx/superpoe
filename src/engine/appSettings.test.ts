@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { loadAppSettings, saveAppSettings } from '@/engine/appSettings'
+import { loadAppSettings, normalizeUiScalePercent, saveAppSettings } from '@/engine/appSettings'
 
 function createStorage(initial?: string) {
   const values = new Map<string, string>()
@@ -12,14 +12,21 @@ function createStorage(initial?: string) {
 
 describe('global app settings', () => {
   it('loads defaults for empty or invalid storage', () => {
-    expect(loadAppSettings(createStorage())).toEqual({ defaultRealm: 'global', confirmUnsavedExit: true, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [] })
-    expect(loadAppSettings(createStorage('{invalid'))).toEqual({ defaultRealm: 'global', confirmUnsavedExit: true, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [] })
+    expect(loadAppSettings(createStorage())).toEqual({ defaultRealm: 'global', confirmUnsavedExit: true, uiScalePercent: 100, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [] })
+    expect(loadAppSettings(createStorage('{invalid'))).toEqual({ defaultRealm: 'global', confirmUnsavedExit: true, uiScalePercent: 100, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [] })
   })
 
   it('persists supported settings', () => {
     const storage = createStorage()
-    saveAppSettings({ defaultRealm: 'cn', confirmUnsavedExit: false, updateChannel: 'dev', updateCheckIntervalMinutes: 30, proxyDomains: ['https://proxy.example'] }, storage)
-    expect(loadAppSettings(storage)).toEqual({ defaultRealm: 'cn', confirmUnsavedExit: false, updateChannel: 'dev', updateCheckIntervalMinutes: 30, proxyDomains: ['https://proxy.example'] })
+    saveAppSettings({ defaultRealm: 'cn', confirmUnsavedExit: false, uiScalePercent: 125, updateChannel: 'dev', updateCheckIntervalMinutes: 30, proxyDomains: ['https://proxy.example'] }, storage)
+    expect(loadAppSettings(storage)).toEqual({ defaultRealm: 'cn', confirmUnsavedExit: false, uiScalePercent: 125, updateChannel: 'dev', updateCheckIntervalMinutes: 30, proxyDomains: ['https://proxy.example'] })
+  })
+
+  it('normalizes UI scale to supported five-percent steps', () => {
+    expect(normalizeUiScalePercent(70)).toBe(80)
+    expect(normalizeUiScalePercent(123)).toBe(125)
+    expect(normalizeUiScalePercent(200)).toBe(150)
+    expect(normalizeUiScalePercent('125')).toBe(100)
   })
 
   it('clamps invalid updateCheckIntervalMinutes to default', () => {
@@ -33,7 +40,7 @@ describe('global app settings', () => {
   })
 
   it('does not fail when persistent storage is unavailable', () => {
-    expect(() => saveAppSettings({ defaultRealm: 'global', confirmUnsavedExit: true, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [] }, {
+    expect(() => saveAppSettings({ defaultRealm: 'global', confirmUnsavedExit: true, uiScalePercent: 100, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [] }, {
       getItem: () => null,
       setItem: () => { throw new Error('storage unavailable') },
     })).not.toThrow()

@@ -13,18 +13,19 @@ import { NewBuildDialog, type NewBuildInput } from '@/components/NewBuildDialog'
 import { UnifiedImportDialog, type ImportConfirmation } from '@/components/UnifiedImportDialog'
 import { importPobBuildCode } from '@/engine/importPobBuildCode'
 import type { SavedBuild } from '@/types/tree'
-import { SkillsPanel } from '@/components/SkillsPanel'
-import { ConfigurationPanel } from '@/components/ConfigurationPanel'
+import { SkillsWorkspace } from '@/components/SkillsWorkspace'
 import { GlobalSettingsDialog } from '@/components/GlobalSettingsDialog'
 import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/appSettings'
 import { UpdateDialog } from '@/components/UpdateDialog'
 import { initPobLuaEngine } from '@/engine/pobLuaClient'
+import { MarketPanel } from '@/components/market/MarketPanel'
+import { MarketShell } from '@/components/market/MarketShell'
 
 export default function App() {
   const { t, lang } = useTranslation()
   const hashLoadedRef = useRef(false)
   const cleanSignatureRef = useRef('')
-  const [screen, setScreen] = useState<'center' | 'editor'>('center')
+  const [screen, setScreen] = useState<'center' | 'editor' | 'market'>('center')
   const [activeView, setActiveView] = useState<WorkspaceView>('equipment')
   const [buildName, setBuildName] = useState(lang === 'zh-rCN' ? '未命名构筑' : 'Untitled build')
   const [activeBuildId, setActiveBuildId] = useState<string | null>(null)
@@ -79,6 +80,22 @@ export default function App() {
       // Calculation surfaces report runtime errors when the user needs them.
     })
   }, [loadTreeData, loadSavedBuilds])
+
+  useEffect(() => {
+    const factor = appSettings.uiScalePercent / 100
+    if (window.pob2Desktop?.setUiScale) {
+      document.documentElement.style.removeProperty('zoom')
+      void window.pob2Desktop.setUiScale(factor).catch(() => {
+        document.documentElement.style.setProperty('zoom', String(factor))
+      })
+      return
+    }
+    document.documentElement.style.setProperty('zoom', String(factor))
+  }, [appSettings.uiScalePercent])
+
+  useEffect(() => {
+    void window.pob2Desktop?.setAppContext({ defaultRealm: appSettings.defaultRealm })
+  }, [appSettings.defaultRealm])
 
   useEffect(() => {
     const openEquipment = () => setActiveView('equipment')
@@ -249,9 +266,15 @@ export default function App() {
 
   if (!treeData) return null
 
+  const marketSuspended = settingsOpen || importOpen || newBuildOpen || leaveConfirmOpen
+
   return (
     <div className="superpoe-app">
-      {screen === 'center' ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onSettings={() => setSettingsOpen(true)} /> : <>
+      {screen === 'center'
+        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onMarket={() => setScreen('market')} onSettings={() => setSettingsOpen(true)} />
+        : screen === 'market'
+          ? <MarketShell realm={appSettings.defaultRealm} suspended={marketSuspended} onBack={() => setScreen('center')} onSettings={() => setSettingsOpen(true)} />
+          : <>
       <Toolbar activeView={activeView} onViewChange={setActiveView} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} onSettings={() => setSettingsOpen(true)} />
       <main className="workspace-view">
         {activeView === 'passive' && (
@@ -260,9 +283,9 @@ export default function App() {
             <NodeTooltip />
           </section>
         )}
-        {activeView === 'equipment' && <EquipmentPanel />}
-        {activeView === 'skills' && <SkillsPanel />}
-        {activeView === 'configuration' && <ConfigurationPanel />}
+        {activeView === 'equipment' && <EquipmentPanel buildId={activeBuildId} />}
+        {activeView === 'skills' && <SkillsWorkspace />}
+        {activeView === 'market' && <MarketPanel realm={appSettings.defaultRealm} suspended={marketSuspended} />}
       </main>
       </>}
       <NewBuildDialog open={newBuildOpen} defaultRealm={appSettings.defaultRealm} onClose={() => setNewBuildOpen(false)} onCreate={(input) => void handleCreateBuild(input)} />

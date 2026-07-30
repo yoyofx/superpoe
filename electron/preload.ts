@@ -4,9 +4,39 @@ contextBridge.exposeInMainWorld('pob2Desktop', {
   importWeGame: (url: string) => ipcRenderer.invoke('pob2:import-wegame', url),
   saveGameBuild: (payload: { content: string; fileName: string }) => ipcRenderer.invoke('pob2:save-game-build', payload),
   installGameBuild: (payload: { content: string; fileName: string }) => ipcRenderer.invoke('pob2:install-game-build', payload),
+  setUiScale: (factor: number) => ipcRenderer.invoke('pob2:set-ui-scale', factor),
+  setAppContext: (context: { defaultRealm: 'cn' | 'global' }) => ipcRenderer.invoke('pob2:set-app-context', context),
   initPobLua: () => ipcRenderer.invoke('pob2:lua-init'),
   calculatePobLua: (payload: import('../src/types/calc.js').SkillCalculationSelection & { xml: string }) => ipcRenderer.invoke('pob2:lua-calculate', payload),
   rankPobLuaSkills: (payload: import('../src/types/calc.js').RankSkillsInput) => ipcRenderer.invoke('pob2:lua-rank-skills', payload),
+})
+
+contextBridge.exposeInMainWorld('pob2Market', {
+  activate: (bounds: import('../src/types/market.js').MarketBounds) => ipcRenderer.invoke('market:activate', bounds),
+  deactivate: () => ipcRenderer.invoke('market:deactivate'),
+  setBounds: (bounds: import('../src/types/market.js').MarketBounds) => ipcRenderer.invoke('market:set-bounds', bounds),
+  navigate: (command: import('../src/types/market.js').MarketNavigationCommand) => ipcRenderer.invoke('market:navigate', command),
+  login: () => ipcRenderer.invoke('market:login'),
+  openExternal: () => ipcRenderer.invoke('market:open-external'),
+  getState: () => ipcRenderer.invoke('market:get-state') as Promise<import('../src/types/market.js').MarketViewState>,
+  listLibrary: (filter: import('../src/types/market.js').EquipmentLibraryFilter) => ipcRenderer.invoke('market:list-library', filter) as Promise<import('../src/types/market.js').EquipmentLibraryEntry[]>,
+  updateLibrary: (patch: import('../src/types/market.js').EquipmentLibraryMetadataPatch) => ipcRenderer.invoke('market:update-library', patch) as Promise<import('../src/types/market.js').EquipmentLibraryEntry>,
+  deleteLibrary: (id: string) => ipcRenderer.invoke('market:delete-library', id) as Promise<boolean>,
+  removeLibrarySource: (sourceKey: string) => ipcRenderer.invoke('market:remove-library-source', sourceKey),
+  openLibrarySource: (entryId: string, sourceKey: string) => ipcRenderer.invoke('market:open-library-source', { entryId, sourceKey }) as Promise<{ kind: import('../src/types/market.js').EquipmentLibrarySourceKind }>,
+  saveEquipmentItem: (input: import('../src/types/market.js').EquipmentLibraryItemInput) => ipcRenderer.invoke('market:save-equipment-item', input) as Promise<import('../src/types/market.js').EquipmentLibraryEntry>,
+  searchLibrary: (input: import('../src/types/market.js').TradeSearchRequest) => ipcRenderer.invoke('market:search-library', input) as Promise<import('../src/types/market.js').TradeSearchResult>,
+  listLeagues: (realm: import('../src/types/market.js').MarketRealm) => ipcRenderer.invoke('market:list-leagues', realm) as Promise<import('../src/types/market.js').TradeLeague[]>,
+  onStateChanged: (callback: (state: import('../src/types/market.js').MarketViewState) => void) => {
+    const handler = (_event: unknown, state: import('../src/types/market.js').MarketViewState) => callback(state)
+    ipcRenderer.on('market:state-changed', handler)
+    return () => { ipcRenderer.removeListener('market:state-changed', handler) }
+  },
+  onLibraryChanged: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('market:library-changed', handler)
+    return () => { ipcRenderer.removeListener('market:library-changed', handler) }
+  },
 })
 
 contextBridge.exposeInMainWorld('pob2Updater', {

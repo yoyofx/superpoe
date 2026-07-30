@@ -114,7 +114,9 @@ describe('equipment XML parser', () => {
     const languages: Language[] = ['en', 'zh-rCN', 'zh-rTW', 'ko-KR']
     const requiredKeys = [
       'toolbar.equipment', 'equipment.title', 'equipment.importHint',
-      'equipment.itemLevel', 'equipment.slot.weapon1', 'equipment.slot.flask2',
+      'equipment.itemLevel', 'equipment.copyPob', 'equipment.copiedPob',
+      'equipment.copyPobFailed', 'equipment.closeDetails',
+      'equipment.slot.weapon1', 'equipment.slot.flask2',
     ]
     for (const language of languages) {
       const translations = getTranslations(language)

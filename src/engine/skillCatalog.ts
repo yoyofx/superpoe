@@ -30,6 +30,8 @@ export interface SkillCatalogEntry {
   tier?: number | null
   naturalMaxLevel?: number | null
   requirements?: { str: number; dex: number; int: number }
+  effectLines?: string[]
+  effectLinesByQuality?: Record<string, string[]>
 }
 
 export interface SkillCatalog {
@@ -116,6 +118,32 @@ export function getLocalizedSkillDescription(
   if (language === 'en') return entry.description
   return entry.localizedDescriptions?.[language]
     || translateGameText(entry.description, language)
+}
+
+export function getSupportEffectLines(
+  entry: SkillCatalogEntry | undefined,
+  quality: number,
+): string[] {
+  return entry?.effectLinesByQuality?.[String(quality)] || entry?.effectLines || []
+}
+
+export function getLocalizedSupportEffectLines(
+  entry: SkillCatalogEntry | undefined,
+  quality: number,
+  language: Language,
+): string[] {
+  return getSupportEffectLines(entry, quality).map((line) => {
+    const translated = translateGameText(line, language)
+    if (translated !== line || language === 'en') return translated
+    const multiplier = line.match(/^(Cost & Reservation|Cost|Reservation) Multiplier: (\d+)%$/)
+    if (multiplier && language === 'zh-rCN') {
+      const labels = { 'Cost & Reservation': '消耗及保留倍率', Cost: '消耗倍率', Reservation: '保留倍率' }
+      return `${labels[multiplier[1] as keyof typeof labels]} ${multiplier[2]}%`
+    }
+    const reservation = line.match(/^Additional Reservation: (\d+) Spirit$/)
+    if (reservation && language === 'zh-rCN') return `额外保留 ${reservation[1]} 精魂`
+    return translated
+  })
 }
 
 export function getLocalizedSkillTags(

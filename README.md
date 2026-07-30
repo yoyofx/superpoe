@@ -250,7 +250,7 @@ npm run pipeline:items
 
 该命令会以 `upstreams/PathOfBuilding-PoE2/src/Data/Bases/`、`Data/Uniques/`、`Data/ModRunes.lua` 和 `Data/Gems.lua` 校验资源覆盖，并解析 PoE2DB 的 `Skill_Gems`、`Support_Gems` 列表。只需刷新主动技能和辅助宝石时运行 `npm run pipeline:skills`。`pipeline:rune-details` 同时从 `Data/Skills/` 写入装备授予技能的原版描述，供装备孔位 tooltip 使用。仅诊断物品分类页时可传 `-- --skip-pob-bases --skip-pob-uniques --skip-pob-runes --skip-pob-skills`，但该模式不保证覆盖完整。
 
-`npm run pipeline:skill-catalog` 会把 PoB `Data/Gems.lua`、`Data/Skills/*.lua` 与本地图片索引合并为 `public/data/skill-catalog.json`。前端技能面板、辅助宝石和装备授予技能都以该 catalog 为统一读取入口；当前用户可见技能均有本地图片，无法从可信上游取得的描述保持为空，不人工编造。
+`npm run pipeline:skill-catalog` 会把 PoB `Data/Gems.lua`、`Data/Skills/*.lua` 与本地图片索引合并为 `public/data/skill-catalog.json`。它还会通过 PoB2 原生词条描述器，静态导出辅助宝石的基础数值，以及品质 0-30 中发生变化的词条。前端技能面板、辅助宝石和装备授予技能都以该 catalog 为统一读取入口，显示辅助宝石时不再调用 Lua；当前用户可见技能均有本地图片，无法从可信上游取得的描述保持为空，不人工编造。
 
 装备授予技能的英文名称和描述以 PoB 技能 ID 为主键，`pipeline:skills` 会从 PoE2DB 的 `cn/tw/kr` 页面同步对应的简中、繁中和韩文名称与描述。生成数据写入 `skill-icons.json`、`skill-catalog.json` 和 `rune-details.json`，装备孔位 tooltip 优先显示当前语言的结构化描述；缺失时依次回退 PoeCharm2 通用翻译和 PoB 英文原文。首次同步会联网请求，后续运行复用 `.cache/poe2db/skill-localizations/`。
 

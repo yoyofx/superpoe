@@ -579,6 +579,81 @@ if playerMainSkill and playerMainSkill.activeEffect then
     end
   end
 
+  local grantedEffect = activeEffect.grantedEffect
+  local currentReferenceLevel = details.actor == "minion"
+    and safeNum(activeEffect.level)
+    or safeNum(data.SkillLevel)
+  currentReferenceLevel = math.max(1, math.floor(currentReferenceLevel or 1))
+  details.levelReferenceCurrent = currentReferenceLevel
+  details.levelReferences = {}
+  local lastReferenceLevel = math.max(40, currentReferenceLevel)
+  for level = math.min(currentReferenceLevel, 40), lastReferenceLevel do
+    local levelStats = grantedEffect and grantedEffect.levels and grantedEffect.levels[level]
+    if levelStats then
+      local reference = {
+        level = level,
+        requiredLevel = safeNum(levelStats.levelRequirement),
+        costs = {},
+        spiritReservation = safeNum(levelStats.spiritReservationFlat),
+        cooldown = safeNum(levelStats.cooldown),
+        storedUses = safeNum(levelStats.storedUses),
+        critChance = safeNum(levelStats.critChance),
+        attackSpeedMultiplier = safeNum(levelStats.attackSpeedMultiplier),
+        attackTime = safeNum(levelStats.attackTime),
+        baseMultiplier = safeNum(levelStats.baseMultiplier),
+        statSets = {},
+      }
+      local costNames = {}
+      for resource in pairs(levelStats.cost or {}) do table.insert(costNames, resource) end
+      table.sort(costNames)
+      for _, resource in ipairs(costNames) do
+        table.insert(reference.costs, { resource = resource, value = safeNum(levelStats.cost[resource]) })
+      end
+      local instance = { level = level, quality = 0, actorLevel = levelStats.levelRequirement or level }
+      for index, statSet in ipairs(grantedEffect.statSets or {}) do
+        local statSetLevel = statSet.levels[level] or statSet.levels[1] or {}
+        local statReference = {
+          index = index,
+          label = StripEscapes(statSet.label or grantedEffect.name or ""),
+          critChance = safeNum(statSetLevel.critChance),
+          baseMultiplier = safeNum(statSetLevel.baseMultiplier),
+          damageRanges = {},
+          lines = {},
+        }
+        local stats = calcLib.buildSkillInstanceStats(instance, grantedEffect, statSet, false)
+        for _, damageType in ipairs({ "physical", "lightning", "cold", "fire", "chaos" }) do
+          local minimum = 0
+          local maximum = 0
+          local found = false
+          for statName, statValue in pairs(stats) do
+            if type(statName) == "string"
+              and statName:find("minimum", 1, true)
+              and statName:find(damageType, 1, true)
+              and statName:find("damage", 1, true) then
+              local maximumName = statName:gsub("minimum", "maximum", 1)
+              local minimumValue = safeNum(statValue)
+              local maximumValue = safeNum(stats[maximumName])
+              if minimumValue and maximumValue then
+                minimum = minimum + minimumValue
+                maximum = maximum + maximumValue
+                found = true
+              end
+            end
+          end
+          if found then
+            table.insert(statReference.damageRanges, { type = damageType, min = minimum, max = maximum })
+          end
+        end
+        for _, description in ipairs(build.data.describeStats(stats, statSet.statDescriptionScope)) do
+          local line = StripEscapes(description):gsub("^%s+", ""):gsub("%s+$", "")
+          if line ~= "" then table.insert(statReference.lines, line) end
+        end
+        table.insert(reference.statSets, statReference)
+      end
+      table.insert(details.levelReferences, reference)
+    end
+  end
+
   local flags = activeEffect.statSetCalcs and activeEffect.statSetCalcs.skillFlags
     or activeEffect.statSet and activeEffect.statSet.skillFlags or {}
   local skillTypes = mainSkill.skillTypes or activeEffect.grantedEffect and activeEffect.grantedEffect.skillTypes or {}

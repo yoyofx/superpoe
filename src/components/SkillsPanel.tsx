@@ -15,6 +15,7 @@ import { getImportedCalculationMode } from '@/engine/calculationConfig'
 import {
   getLocalizedSkillDescription,
   getLocalizedSkillName,
+  getLocalizedSupportEffectLines,
   getLocalizedSkillTags,
   loadSkillCatalog,
   resolveSkillCatalogEntry,
@@ -26,7 +27,7 @@ import { translateCalculationStat, translateCalculationTerm, translateCalculatio
 import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { useTreeStore } from '@/store/treeStore'
-import type { CalcResult, SkillCalculationDetails, SkillCalculationMode } from '@/types/calc'
+import type { CalcResult, SkillCalculationDetails, SkillCalculationMode, SkillLevelReference } from '@/types/calc'
 
 const SKILL_PANEL_WIDTH = 1540
 const SKILL_PANEL_HEIGHT = 1200
@@ -56,11 +57,152 @@ const DAMAGE_TYPE_LABELS = {
 } as const
 
 type SpecificDamageType = Exclude<keyof typeof DAMAGE_TYPE_LABELS, 'all'>
-type DamageBucket = 'added' | 'increased' | 'gain' | 'more'
+type DamageBucket = 'added' | 'increased' | 'gain' | 'more' | 'levels'
 
 function formatCalculationValue(value: number | undefined, decimals = 0): string {
   if (!Number.isFinite(value)) return '-'
   return new Intl.NumberFormat('en-US', { maximumFractionDigits: decimals }).format(value as number)
+}
+
+function SkillLevelReferencePanel({
+  details,
+  loading,
+  language,
+  statSetIndex,
+}: {
+  details?: SkillCalculationDetails
+  loading: boolean
+  language: Language
+  statSetIndex: number
+}) {
+  const zh = language === 'zh-rCN'
+  const levels = details?.levelReferences || []
+  const currentLevel = details?.levelReferenceCurrent
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
+
+  const formatCosts = (entry: SkillLevelReference) => {
+    const costs = entry.costs.map(({ resource, value }) => `${formatCalculationValue(value, 2)} ${translateCalculationTerm(resource, language)}`)
+    if (Number.isFinite(entry.spiritReservation)) {
+      costs.push(`${formatCalculationValue(entry.spiritReservation)} ${zh ? '精魂保留' : 'Spirit reserved'}`)
+    }
+    return costs.join(' / ') || '-'
+  }
+
+  if (loading) return <p className="skill-detail-loading">{zh ? '正在读取等级数据...' : 'Loading level data...'}</p>
+  if (!levels.length) return <p className="skill-detail-empty">{zh ? '所选技能没有可用的逐级数据。' : 'No per-level data is available for the selected skill.'}</p>
+
+  const damageTypes = (Object.keys(DAMAGE_TYPE_LABELS) as Array<keyof typeof DAMAGE_TYPE_LABELS>)
+    .filter((type): type is SpecificDamageType => type !== 'all')
+    .filter((type) => levels.some((entry) => entry.statSets.find((set) => set.index === statSetIndex)?.damageRanges?.some((range) => range.type === type)))
+  const damageColors: Record<SpecificDamageType, string> = {
+    physical: '#a8a49a',
+    lightning: '#7779d5',
+    cold: '#5d9cba',
+    fire: '#b65f48',
+    chaos: '#8f5ca4',
+  }
+  const resourceColors = ['#d3b96e', '#78a78d', '#b783aa', '#a97958']
+  const resourceNames = Array.from(new Set(levels.flatMap((entry) => entry.costs.map((cost) => cost.resource))))
+  const hasBaseMultiplier = levels.some((entry) => Number.isFinite(entry.statSets.find((set) => set.index === statSetIndex)?.baseMultiplier ?? entry.baseMultiplier))
+  const series = damageTypes.length
+    ? damageTypes.map((type) => ({
+      key: type,
+      label: zh ? DAMAGE_TYPE_LABELS[type].zh : DAMAGE_TYPE_LABELS[type].en,
+      color: damageColors[type],
+      values: levels.map((entry) => {
+        const range = entry.statSets.find((set) => set.index === statSetIndex)?.damageRanges?.find((item) => item.type === type)
+        return range ? (range.min + range.max) / 2 : undefined
+      }),
+    }))
+    : hasBaseMultiplier
+      ? [{
+        key: 'baseMultiplier',
+        label: zh ? '基础伤害倍率' : 'Base Damage Multiplier',
+        color: '#d3b96e',
+        values: levels.map((entry) => {
+          const statSet = entry.statSets.find((set) => set.index === statSetIndex)
+          const value = statSet?.baseMultiplier ?? entry.baseMultiplier
+          return Number.isFinite(value) ? (value as number) * 100 : undefined
+        }),
+      }]
+      : resourceNames.map((resource, index) => ({
+        key: resource,
+        label: translateCalculationTerm(resource, language),
+        color: resourceColors[index % resourceColors.length],
+        values: levels.map((entry) => entry.costs.find((cost) => cost.resource === resource)?.value),
+      }))
+  const chartSeries = series.filter((entry) => entry.values.some(Number.isFinite))
+  const maxValue = Math.max(1, ...chartSeries.flatMap((entry) => entry.values.filter((value): value is number => Number.isFinite(value))))
+  const width = 520
+  const height = 190
+  const plot = { left: 44, right: 12, top: 16, bottom: 28 }
+  const plotWidth = width - plot.left - plot.right
+  const plotHeight = height - plot.top - plot.bottom
+  const xAt = (index: number) => plot.left + (levels.length > 1 ? index / (levels.length - 1) * plotWidth : plotWidth / 2)
+  const yAt = (value: number) => plot.top + plotHeight - value / maxValue * plotHeight
+  const currentIndex = Math.max(0, levels.findIndex((entry) => entry.level === currentLevel))
+  const activeIndex = hoveredIndex ?? currentIndex
+  const activeEntry = levels[activeIndex]
+  const activeSet = activeEntry.statSets.find((set) => set.index === statSetIndex) || activeEntry.statSets[0]
+  const axisValue = (value: number) => value >= 1000 ? `${formatCalculationValue(value / 1000, 1)}k` : formatCalculationValue(value, 1)
+  const tooltipShift = activeIndex === 0 ? '0' : activeIndex === levels.length - 1 ? '-100%' : '-50%'
+  const handleChartMouseMove = (event: MouseEvent<SVGSVGElement>) => {
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const chartX = (event.clientX - bounds.left) / bounds.width * width
+    const ratio = Math.max(0, Math.min(1, (chartX - plot.left) / plotWidth))
+    setHoveredIndex(Math.round(ratio * Math.max(0, levels.length - 1)))
+  }
+
+  return <section className="skill-level-reference">
+    <header>
+      <div>
+        <span>{zh ? '技能等级成长' : 'Skill Level Scaling'}</span>
+        <strong>{zh ? '当前' : 'Current'} Lv. {currentLevel}</strong>
+      </div>
+      <p>{zh ? '沿横轴移动鼠标查看各等级完整数值。零品质基础值，不包含装备、天赋与辅助宝石。' : 'Move across the x-axis to inspect each level. 0% quality base values, excluding gear, passives, and supports.'}</p>
+    </header>
+    {!!chartSeries.length && <div className="skill-level-chart" onMouseLeave={() => setHoveredIndex(null)}>
+      <div className="skill-level-chart-legend">{chartSeries.map((entry) => <span key={entry.key}><i style={{ background: entry.color }} />{entry.label}</span>)}</div>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={zh ? '技能等级成长曲线' : 'Skill level scaling chart'} onMouseMove={handleChartMouseMove}>
+        {[0, .5, 1].map((ratio) => {
+          const y = plot.top + plotHeight * (1 - ratio)
+          return <g key={ratio}><line className="grid" x1={plot.left} x2={width - plot.right} y1={y} y2={y} /><text className="axis-y" x={plot.left - 6} y={y + 3}>{axisValue(maxValue * ratio)}</text></g>
+        })}
+        <line className="current-guide" x1={xAt(currentIndex)} x2={xAt(currentIndex)} y1={plot.top} y2={plot.top + plotHeight} />
+        {hoveredIndex != null && <line className="hover-guide" x1={xAt(hoveredIndex)} x2={xAt(hoveredIndex)} y1={plot.top} y2={plot.top + plotHeight} />}
+        {chartSeries.map((entry) => {
+          const points = entry.values.flatMap((value, index) => Number.isFinite(value) ? [`${xAt(index)},${yAt(value as number)}`] : [])
+          return <g key={entry.key}>
+            <polyline points={points.join(' ')} fill="none" stroke={entry.color} />
+            {entry.values.map((value, index) => Number.isFinite(value) && <circle key={levels[index].level} cx={xAt(index)} cy={yAt(value as number)} r={levels[index].level === currentLevel ? 4 : 2.4} fill={entry.color}>
+              <title>{`Lv. ${levels[index].level}: ${formatCalculationValue(value as number, 1)}`}</title>
+            </circle>)}
+          </g>
+        })}
+        {levels.map((entry, index) => {
+          const show = index === 0 || index === levels.length - 1 || entry.level === currentLevel || entry.level % 5 === 0
+          return show && <text key={entry.level} className={entry.level === currentLevel ? 'axis-x current' : 'axis-x'} x={xAt(index)} y={height - 8}>Lv.{entry.level}</text>
+        })}
+        {levels.map((entry, index) => {
+          const left = index === 0 ? plot.left : (xAt(index - 1) + xAt(index)) / 2
+          const right = index === levels.length - 1 ? width - plot.right : (xAt(index) + xAt(index + 1)) / 2
+          return <rect key={`hit-${entry.level}`} className="level-hit-area" x={left} y={plot.top} width={Math.max(1, right - left)} height={plotHeight + plot.bottom} />
+        })}
+      </svg>
+      {hoveredIndex != null && <div className="skill-level-tooltip" style={{ left: `${xAt(activeIndex) / width * 100}%`, transform: `translateX(${tooltipShift})` }}>
+        <header><strong>Lv. {activeEntry.level}</strong>{activeEntry.level === currentLevel && <span>{zh ? '当前等级' : 'Current'}</span>}<small>{zh ? '需求' : 'Required'} {formatCalculationValue(activeEntry.requiredLevel)}</small></header>
+        <dl>
+          <div><dt>{zh ? '资源消耗' : 'Resource Cost'}</dt><dd>{formatCosts(activeEntry)}</dd></div>
+          {activeSet?.damageRanges?.map((range) => <div key={range.type}><dt>{zh ? DAMAGE_TYPE_LABELS[range.type].zh : DAMAGE_TYPE_LABELS[range.type].en}</dt><dd>{formatCalculationValue(range.min)}–{formatCalculationValue(range.max)}</dd></div>)}
+          {activeEntry.cooldown != null && <div><dt>{zh ? '冷却时间' : 'Cooldown'}</dt><dd>{formatCalculationValue(activeEntry.cooldown, 2)}s</dd></div>}
+          {(activeSet?.critChance ?? activeEntry.critChance) != null && <div><dt>{zh ? '基础暴击率' : 'Base Crit'}</dt><dd>{formatCalculationValue(activeSet?.critChance ?? activeEntry.critChance, 2)}%</dd></div>}
+          {(activeSet?.baseMultiplier ?? activeEntry.baseMultiplier) != null && <div><dt>{zh ? '基础伤害倍率' : 'Base Damage'}</dt><dd>{formatCalculationValue((activeSet?.baseMultiplier ?? activeEntry.baseMultiplier)! * 100)}%</dd></div>}
+        </dl>
+        {!!activeSet?.lines.length && <ul>{activeSet.lines.map((line, index) => <li key={`${line}-${index}`}>{translateCalculationText(line, language)}</li>)}</ul>}
+      </div>}
+    </div>}
+    {!chartSeries.length && <p className="skill-detail-empty">{zh ? '该技能没有可绘制的逐级数值。' : 'This skill has no plottable per-level values.'}</p>}
+  </section>
 }
 
 function SkillCriticalMetric({
@@ -235,11 +377,13 @@ function SkillDamageCalculationDetails({
   loading,
   language,
   catalog,
+  statSetIndex,
 }: {
   details?: SkillCalculationDetails
   loading: boolean
   language: Language
   catalog: SkillCatalog | null
+  statSetIndex: number
 }) {
   const zh = language === 'zh-rCN'
   const availableTypes = (details?.damageTypes || []).filter((entry) => entry.type !== 'all'
@@ -297,6 +441,7 @@ function SkillDamageCalculationDetails({
     { key: 'increased', label: zh ? '提高' : 'Increased' },
     { key: 'gain', label: zh ? '额外获得' : 'Gain' },
     { key: 'more', label: zh ? '总增' : 'More' },
+    { key: 'levels', label: zh ? '等级成长' : 'Level Scaling' },
   ]
   const sourceRows: Array<{ key: string; value: string; source: string; scope: string; stat: string; kind?: 'skillDamage' }> = []
   if (selectedBucket === 'added') {
@@ -350,7 +495,7 @@ function SkillDamageCalculationDetails({
       scope: `${typeLabel(entry.fromType)} → ${typeLabel(entry.toType)}`,
       stat: entry.stat,
     })
-  } else {
+  } else if (selectedBucket === 'increased' || selectedBucket === 'more') {
     const rows = new Map<string, { value: number; source: string; stat: string; types: Set<string> }>()
     for (const entry of details?.modifiers || []) {
       if (entry.bucket !== selectedBucket) continue
@@ -397,7 +542,7 @@ function SkillDamageCalculationDetails({
     </section>
 
     <section className="skill-detail-block">
-      <h3>{zh ? '伤害来源' : 'Damage Sources'} <small>{sourceRows.length}</small></h3>
+      <h3>{zh ? '伤害来源' : 'Damage Sources'} {selectedBucket !== 'levels' && <small>{sourceRows.length}</small>}</h3>
       <div className="skill-bucket-switch" role="tablist" aria-label={zh ? '伤害乘区' : 'Damage buckets'}>{bucketOptions.map((bucket) => <button
         key={bucket.key}
         type="button"
@@ -409,8 +554,14 @@ function SkillDamageCalculationDetails({
         ? (zh ? '基础伤害' : 'base damage')
         : bucket.key === 'increased' ? (zh ? '同乘区相加' : 'additive')
           : bucket.key === 'gain' ? (zh ? '额外获得' : 'as extra')
-            : (zh ? '独立相乘' : 'multiplicative')}</small></button>)}</div>
-      {sourceRows.length ? <div className="skill-source-list">{sourceRows.map((row) => <div key={row.key}>
+            : bucket.key === 'more' ? (zh ? '独立相乘' : 'multiplicative')
+              : (zh ? '当前至 40 级' : 'current to 40')}</small></button>)}</div>
+      {selectedBucket === 'levels' ? <SkillLevelReferencePanel
+        details={details}
+        loading={loading}
+        language={language}
+        statSetIndex={statSetIndex}
+      /> : sourceRows.length ? <div className="skill-source-list">{sourceRows.map((row) => <div key={row.key}>
         <strong>{row.value}</strong>
         <span>{row.kind === 'skillDamage'
           ? `${zh ? '技能伤害' : 'Skill Damage'} · ${localizeEffect(row.source)}`
@@ -870,6 +1021,9 @@ export function SkillsPanel() {
             loading={calcLoading}
             language={lang}
             catalog={catalog}
+            statSetIndex={calculationDetails?.actor === 'minion'
+              ? (minionStatSetIndex ?? calculationDetails?.minionStatSetIndex ?? 1)
+              : (statSetIndex ?? calculationDetails?.statSetIndex ?? 1)}
           />
         </>}
         {inspectorPage === 'overview' && <>
@@ -893,6 +1047,7 @@ export function SkillsPanel() {
             const detail = resolveSkillCatalogEntry(gem, catalog)
             const name = getLocalizedSkillName(gem, detail, lang)
             const supportDescription = getLocalizedSkillDescription(detail, lang)
+            const effectLines = getLocalizedSupportEffectLines(detail, gem.quality, lang)
             return <div
               className="skill-support-row"
               key={`${gem.gemId}-${index}`}
@@ -900,7 +1055,13 @@ export function SkillsPanel() {
               onMouseLeave={() => setTooltip(null)}
             >
               <FallbackImage src={detail?.icon || undefined} alt="" fallback={<span>{name.slice(0, 1)}</span>} />
-              <div><strong>{name}</strong>{supportDescription && <p>{supportDescription}</p>}</div>
+              <div>
+                <strong>{name}</strong>
+                {supportDescription && <p>{supportDescription}</p>}
+                {effectLines.length > 0 && <ul className="skill-support-effects">
+                  {effectLines.map((line) => <li key={line}>{line}</li>)}
+                </ul>}
+              </div>
               <small>Lv. {gem.level}</small>
             </div>
           })}</div>

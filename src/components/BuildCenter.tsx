@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, ListFilter, MoreVertical, Plus, Search, Settings, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, ListFilter, MoreVertical, Plus, Search, Settings, Store, Trash2 } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
@@ -16,6 +16,7 @@ interface BuildCenterProps {
   onCreate: () => void
   onImport: () => void
   onOpen: (build: SavedBuild) => void
+  onMarket: () => void
   onSettings: () => void
 }
 
@@ -41,7 +42,7 @@ function formatUpdatedAt(value: string, lang: Language): string {
   }).format(date)
 }
 
-export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCenterProps) {
+export function BuildCenter({ onCreate, onImport, onOpen, onMarket, onSettings }: BuildCenterProps) {
   const { lang } = useTranslation()
   const treeData = useTreeStore((state) => state.treeData)
   const savedBuilds = useTreeStore((state) => state.savedBuilds)
@@ -158,6 +159,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
       <header className="center-app-bar">
         <div className="app-brand center-brand"><img className="app-brand-logo" src="/assets/ui/superpoe2-logo.png" alt="" /><span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span></div>
         <div className="center-actions">
+          <button className="icon-command" onClick={onMarket} title={zh ? '打开集市' : 'Open market'} aria-label={zh ? '打开集市' : 'Open market'}><Store /></button>
           <button className="icon-command" onClick={onSettings} title={zh ? '全局设置' : 'Global settings'} aria-label={zh ? '全局设置' : 'Global settings'}><Settings /></button>
           <button className="icon-command" title={zh ? '帮助' : 'Help'} aria-label={zh ? '帮助' : 'Help'}><CircleHelp /></button>
         </div>
@@ -172,7 +174,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onSettings }: BuildCen
           <section className="center-empty-state">
             <span className="empty-build-mark">S</span>
             <h2>{zh ? '还没有本地构筑' : 'No local builds yet'}</h2>
-            <div><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button></div>
+            <div><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button><button className="secondary-command" onClick={onMarket}><Store />{zh ? '打开集市' : 'Open market'}</button></div>
           </section>
         ) : <>
           <section className="recent-builds-section">
