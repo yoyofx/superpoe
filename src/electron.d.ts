@@ -50,6 +50,16 @@ declare global {
       openExternal(): Promise<void>
       getState(): Promise<import('@/types/market').MarketViewState>
       listLibrary(filter?: import('@/types/market').EquipmentLibraryFilter): Promise<import('@/types/market').EquipmentLibraryEntry[]>
+      getSidebar(): Promise<import('@/types/market').EquipmentLibrarySidebarSnapshot>
+      createFolder(input: import('@/types/market').EquipmentLibraryFolderInput): Promise<import('@/types/market').EquipmentLibraryFolder>
+      updateFolder(patch: import('@/types/market').EquipmentLibraryFolderPatch): Promise<import('@/types/market').EquipmentLibraryFolder>
+      deleteFolder(id: string): Promise<boolean>
+      selectFolder(scope: import('@/types/market').LibraryTreeScope, folderId?: string): Promise<import('@/types/market').EquipmentLibrarySidebarSnapshot>
+      saveSearch(input: import('@/types/market').SavedMarketSearchInput): Promise<import('@/types/market').SavedMarketSearch>
+      updateSearch(patch: import('@/types/market').SavedMarketSearchPatch): Promise<import('@/types/market').SavedMarketSearch>
+      deleteSearch(id: string): Promise<boolean>
+      openSearch(id: string): Promise<void>
+      visitHideout(entryId: string): Promise<import('@/types/market').MarketVisitHideoutResult>
       updateLibrary(patch: import('@/types/market').EquipmentLibraryMetadataPatch): Promise<import('@/types/market').EquipmentLibraryEntry>
       deleteLibrary(id: string): Promise<boolean>
       removeLibrarySource(sourceKey: string): Promise<{ removedEntryId?: string; entry?: import('@/types/market').EquipmentLibraryEntry }>
@@ -59,6 +69,7 @@ declare global {
       listLeagues(realm: import('@/types/market').MarketRealm): Promise<import('@/types/market').TradeLeague[]>
       onStateChanged(callback: (state: import('@/types/market').MarketViewState) => void): () => void
       onLibraryChanged(callback: () => void): () => void
+      onSidebarRequest(callback: (scope: import('@/types/market').LibraryTreeScope) => void): () => void
     }
     pob2Updater?: {
       check(channel?: 'release' | 'dev'): Promise<UpdateCheckResult>

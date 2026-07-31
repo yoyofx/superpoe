@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, ExternalLink, Globe2, Home, Library, LoaderCircle, LogIn, RefreshCw, Square, Store } from 'lucide-react'
+import { ArrowLeft, ArrowRight, ExternalLink, Globe2, Home, Library, LoaderCircle, LogIn, RefreshCw, Square, Star, Store } from 'lucide-react'
 import type { BuildRealm } from '@/types/tree'
-import type { MarketBounds, MarketNavigationCommand, MarketViewState } from '@/types/market'
+import type { LibraryTreeScope, MarketBounds, MarketNavigationCommand, MarketViewState } from '@/types/market'
 import { useTranslation } from '@/i18n/useTranslation'
 import { EquipmentLibraryPanel } from '@/components/market/EquipmentLibraryPanel'
 
@@ -46,9 +46,10 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
   const activatedRef = useRef(false)
   const [state, setState] = useState<MarketViewState>({ ...EMPTY_STATE, realm })
   const [bridgeError, setBridgeError] = useState<string | null>(null)
-  const [libraryMode, setLibraryMode] = useState<'closed' | 'sidebar' | 'full'>('sidebar')
-  const libraryOpen = libraryMode !== 'closed'
-  const viewSuspended = suspended || libraryMode === 'full'
+  const [libraryOpen, setLibraryOpen] = useState(true)
+  const [libraryExpanded, setLibraryExpanded] = useState(false)
+  const [libraryTab, setLibraryTab] = useState<LibraryTreeScope>('items')
+  const viewSuspended = suspended
   const bridge = window.pob2Market
   const realmLabel = realm === 'cn' ? (zh ? '腾讯服' : 'Tencent CN') : (zh ? '国际服' : 'Global')
   const officialHost = realm === 'cn' ? 'poe.game.qq.com' : 'www.pathofexile.com'
@@ -75,6 +76,11 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
     const unsubscribe = bridge.onStateChanged((nextState) => setState(nextState))
     return unsubscribe
   }, [bridge])
+
+  useEffect(() => bridge?.onSidebarRequest((scope) => {
+    setLibraryTab(scope)
+    setLibraryOpen(true)
+  }), [bridge])
 
   useEffect(() => {
     if (!bridge) return
@@ -143,11 +149,11 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
       <span className={`market-realm ${realm}`}>{realmLabel}</span>
       <span className={`market-session ${state.sessionStatus}`}><i />{statusLabel}</span>
       {state.sessionStatus !== 'valid' && <button className="secondary-command market-login" disabled={!bridge} onClick={() => void bridge?.login()}><LogIn />{zh ? '登录' : 'Sign in'}</button>}
-      <button className={`icon-command compact${libraryOpen ? ' active' : ''}`} disabled={!bridge} onClick={() => setLibraryMode((mode) => mode === 'closed' ? 'sidebar' : 'closed')} title={zh ? '装备仓库' : 'Equipment library'} aria-label={zh ? '装备仓库' : 'Equipment library'} aria-pressed={libraryOpen}><Library /></button>
+      <button className={`icon-command compact${libraryOpen ? ' active' : ''}`} disabled={!bridge} onClick={() => setLibraryOpen((open) => !open)} title={zh ? '收藏侧栏' : 'Favorites sidebar'} aria-label={zh ? '收藏侧栏' : 'Favorites sidebar'} aria-pressed={libraryOpen}><Library /></button>
       <button className="icon-command compact" disabled={!bridge || !state.url} onClick={() => void bridge?.openExternal()} title={zh ? '在系统浏览器打开' : 'Open in browser'} aria-label={zh ? '在系统浏览器打开' : 'Open in browser'}><ExternalLink /></button>
     </header>
 
-    <div className={`market-content${libraryMode === 'sidebar' ? ' library-open' : libraryMode === 'full' ? ' library-full' : ''}`}>
+    <div className={`market-content${libraryOpen ? ` library-open${libraryExpanded ? ' library-expanded' : ''}` : ' library-collapsed'}`}>
     <div className="market-browser-host" ref={hostRef}>
       {!bridge && <div className="market-browser-fallback">
         <Store />
@@ -160,7 +166,9 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
         <button className="secondary-command" onClick={() => navigate('reload')}><RefreshCw />{zh ? '重试' : 'Retry'}</button>
       </div>}
     </div>
-    {libraryOpen && <EquipmentLibraryPanel realm={realm} zh={zh} expanded={libraryMode === 'full'} onToggleExpanded={() => setLibraryMode((mode) => mode === 'full' ? 'sidebar' : 'full')} onClose={() => setLibraryMode('closed')} />}
+    {libraryOpen
+      ? <EquipmentLibraryPanel realm={realm} zh={zh} currentUrl={state.url} activeTab={libraryTab} expanded={libraryExpanded} onTabChange={setLibraryTab} onToggleExpanded={() => setLibraryExpanded((value) => !value)} onClose={() => setLibraryOpen(false)} />
+      : <button className="trade-helper-rail" onClick={() => setLibraryOpen(true)} title={zh ? '打开收藏侧栏' : 'Open favorites sidebar'} aria-label={zh ? '打开收藏侧栏' : 'Open favorites sidebar'}><Star /></button>}
     </div>
   </section>
 }

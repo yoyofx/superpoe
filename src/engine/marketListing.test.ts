@@ -50,4 +50,25 @@ describe('official market listing normalization', () => {
       status: 'ambiguous', candidateStatIds: ['explicit.stat_1', 'explicit.stat_2'],
     })
   })
+
+  it('normalizes Tencent object modifiers with localized descriptions, hashes and embedded tiers', () => {
+    const result = normalizeMarketListing({ result: [{ id: 'listing_1234', item: {
+      rarity: 'RARE', name: '巨龙 神袍', baseType: '懦夫护甲',
+      implicitMods: ['[Flask|药剂]的魔力回复提高 20%'],
+      explicitMods: [{
+        description: '+128 [Armour|护甲]', hash: 'stat.explicit.stat_809229260',
+        mods: [{ name: '电镀的', tier: 'P6', level: 33, magnitudes: [{ min: '108', max: '140' }] }],
+      }],
+      extended: { hashes: { explicit: [['explicit.stat_wrong', [0]]] } },
+    } }] }, {
+      realm: 'cn', listingId: 'listing_1234', queryId: 'query_5678',
+      sourceUrl: 'https://poe.game.qq.com/trade2/search/poe2/Standard/query_5678',
+    })
+
+    expect(result.item.modifiers.map((modifier) => modifier.original.displayText)).toEqual(['药剂的魔力回复提高 20%', '+128 护甲'])
+    expect(result.item.modifiers[1]).toMatchObject({
+      affixKind: 'prefix', tier: { name: '电镀的', rank: 6, level: 33 }, tierRanges: [{ min: 108, max: 140 }],
+      tradeResolutions: [{ queryStatId: 'explicit.stat_809229260', status: 'resolved' }],
+    })
+  })
 })

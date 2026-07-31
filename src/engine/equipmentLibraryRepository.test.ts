@@ -73,4 +73,78 @@ describe('EquipmentLibraryRepository', () => {
     expect(store.list()).toHaveLength(1)
     expect(store.list()[0].sources).toEqual([equipment])
   })
+
+  it('stores nested folders and promotes children when deleting their parent folder', () => {
+    const store = repository()
+    const parent = store.createFolder({ scope: 'items', name: 'Upgrades' })
+    const child = store.createFolder({ scope: 'items', name: 'Armour', parentId: parent.id })
+    store.selectFolder('items', child.id)
+    const entry = store.upsert(item(), marketSource(2))
+    expect(entry.folderId).toBe(child.id)
+
+    store.deleteFolder(parent.id)
+    expect(store.list()[0]).toMatchObject({ id: entry.id, folderId: child.id })
+    expect(store.sidebarSnapshot().folders).toEqual([expect.objectContaining({ id: child.id, parentId: undefined })])
+  })
+
+  it('moves direct contents to the parent when deleting a child folder', () => {
+    const store = repository()
+    const parent = store.createFolder({ scope: 'items', name: 'Upgrades' })
+    const child = store.createFolder({ scope: 'items', name: 'Armour', parentId: parent.id })
+    store.selectFolder('items', child.id)
+    const entry = store.upsert(item(), marketSource(2))
+    store.deleteFolder(child.id)
+    expect(store.list()[0]).toMatchObject({ id: entry.id, folderId: parent.id })
+    expect(store.sidebarSnapshot().selectedItemFolderId).toBe(parent.id)
+  })
+
+  it('moves folders and equipment between directory targets', () => {
+    const store = repository()
+    const source = store.createFolder({ scope: 'items', name: 'Source' })
+    const nested = store.createFolder({ scope: 'items', name: 'Nested', parentId: source.id })
+    const target = store.createFolder({ scope: 'items', name: 'Target' })
+    store.selectFolder('items', source.id)
+    const entry = store.upsert(item(), marketSource(2))
+
+    store.updateMetadata({ id: entry.id, folderId: target.id })
+    store.updateFolder({ id: nested.id, parentId: target.id })
+
+    expect(store.list()[0]).toMatchObject({ id: entry.id, folderId: target.id })
+    expect(store.sidebarSnapshot().folders).toContainEqual(expect.objectContaining({ id: nested.id, parentId: target.id }))
+    expect(() => store.updateFolder({ id: target.id, parentId: nested.id })).toThrow('A folder cannot be moved into itself')
+  })
+
+  it('persists drag ordering between sibling folders', () => {
+    const store = repository()
+    const first = store.createFolder({ scope: 'items', name: 'First' })
+    const second = store.createFolder({ scope: 'items', name: 'Second' })
+    const third = store.createFolder({ scope: 'items', name: 'Third' })
+
+    store.updateFolder({ id: third.id, parentId: null, beforeId: first.id })
+
+    expect(store.sidebarSnapshot().folders.map((folder) => [folder.name, folder.sortOrder])).toEqual([
+      ['Third', 0], ['First', 1], ['Second', 2],
+    ])
+  })
+
+  it('stores saved searches in the selected search folder', () => {
+    const store = repository()
+    const folder = store.createFolder({ scope: 'searches', name: 'Jewels' })
+    const search = store.saveSearch({
+      realm: 'cn', name: '暴击珠宝', note: '升级用',
+      url: 'https://poe.game.qq.com/trade2/search/poe2/Test/query-1',
+    })
+    expect(search.folderId).toBe(folder.id)
+    expect(store.sidebarSnapshot().searches).toEqual([search])
+    store.updateSearch({ id: search.id, note: '已复核' })
+    expect(store.getSearch(search.id)?.note).toBe('已复核')
+  })
+
+  it('removes the entry when its final source is removed even when it was filed in a folder', () => {
+    const store = repository()
+    store.createFolder({ scope: 'items', name: 'Current target' })
+    store.upsert(item(), marketSource(2))
+    store.removeSource(marketSourceKey('global', 'listing-1'))
+    expect(store.list()).toEqual([])
+  })
 })

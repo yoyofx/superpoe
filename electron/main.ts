@@ -11,7 +11,10 @@ import { MarketViewManager, type MarketNavigationCommand, type MarketRealm } fro
 import { TradeCredentialStore } from './tradeCredentialStore.js'
 import { EquipmentLibraryRepository, equipmentSourceKey, pobSourceKey } from './equipmentLibraryRepository.js'
 import { normalizeMarketListing } from './marketListing.js'
-import type { EquipmentLibraryFilter, EquipmentLibraryItemInput, EquipmentLibraryMetadataPatch, MarketDomListingRef } from '../src/types/market.js'
+import type {
+  EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
+  EquipmentLibraryMetadataPatch, LibraryTreeScope, MarketDomListingRef, SavedMarketSearchInput, SavedMarketSearchPatch,
+} from '../src/types/market.js'
 import { OfficialTradeProvider, TradeReferenceDataCache } from './tradeService.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
@@ -163,6 +166,16 @@ function validateListingRef(value: unknown, senderRealm: MarketRealm): MarketDom
     throw new Error('Invalid market source URL')
   }
   return { realm: senderRealm, listingId, queryId, sourceUrl: url.toString() }
+}
+
+function validateOfficialMarketUrl(value: unknown, realm: MarketRealm): string {
+  const sourceUrl = validateShortString(value, 'market URL', 2_048)
+  const url = new URL(sourceUrl)
+  const allowedHost = realm === 'cn'
+    ? url.hostname === 'poe.game.qq.com'
+    : url.hostname === 'www.pathofexile.com' || url.hostname === 'pathofexile.com'
+  if (url.protocol !== 'https:' || !allowedHost || !url.pathname.startsWith('/trade2')) throw new Error('Invalid market URL')
+  return url.toString()
 }
 
 function requireMarketSender(event: IpcMainEvent): MarketRealm {
@@ -356,6 +369,7 @@ app.whenReady().then(() => {
         const normalized = normalizeMarketListing(payload, ref)
         equipmentLibrary.upsert(normalized.item, normalized.source)
         notifyLibraryChanged()
+        if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('market:sidebar-request', 'items')
         if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:favorite-result', { requestId, listingId: ref.listingId, active: true })
       }).catch((error: unknown) => {
         const message = error instanceof Error ? error.message : String(error)
@@ -384,11 +398,106 @@ app.whenReady().then(() => {
     }
     return equipmentLibrary.list(filter)
   })
+  ipcMain.handle('market:get-sidebar', (event) => {
+    requireMainWindowSender(event)
+    return equipmentLibrary.sidebarSnapshot()
+  })
+  ipcMain.handle('market:create-folder', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object') throw new Error('Invalid folder request')
+    const input = value as Partial<EquipmentLibraryFolderInput>
+    if (input.scope !== 'items' && input.scope !== 'searches') throw new Error('Invalid folder scope')
+    const folder = equipmentLibrary.createFolder({
+      scope: input.scope,
+      name: validateShortString(input.name, 'folder name', 120),
+      ...(typeof input.parentId === 'string' ? { parentId: validateShortString(input.parentId, 'parent folder ID', 128) } : {}),
+    })
+    notifyLibraryChanged()
+    return folder
+  })
+  ipcMain.handle('market:update-folder', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object') throw new Error('Invalid folder update')
+    const input = value as Partial<EquipmentLibraryFolderPatch>
+    const patch: EquipmentLibraryFolderPatch = { id: validateShortString(input.id, 'folder ID', 128) }
+    if ('name' in input) patch.name = validateShortString(input.name, 'folder name', 120)
+    if ('parentId' in input) patch.parentId = input.parentId == null ? null : validateShortString(input.parentId, 'parent folder ID', 128)
+    if ('beforeId' in input) patch.beforeId = input.beforeId == null ? null : validateShortString(input.beforeId, 'sibling folder ID', 128)
+    if (typeof input.expanded === 'boolean') patch.expanded = input.expanded
+    const folder = equipmentLibrary.updateFolder(patch)
+    notifyLibraryChanged()
+    return folder
+  })
+  ipcMain.handle('market:delete-folder', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    const deleted = equipmentLibrary.deleteFolder(validateShortString(value, 'folder ID', 128))
+    if (deleted) notifyLibraryChanged()
+    return deleted
+  })
+  ipcMain.handle('market:select-folder', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object') throw new Error('Invalid folder selection')
+    const input = value as { scope?: unknown; folderId?: unknown }
+    if (input.scope !== 'items' && input.scope !== 'searches') throw new Error('Invalid folder scope')
+    const folderId = input.folderId == null ? undefined : validateShortString(input.folderId, 'folder ID', 128)
+    const snapshot = equipmentLibrary.selectFolder(input.scope as LibraryTreeScope, folderId)
+    notifyLibraryChanged()
+    return snapshot
+  })
+  ipcMain.handle('market:save-search', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object') throw new Error('Invalid saved search')
+    const input = value as Partial<SavedMarketSearchInput>
+    if (input.realm !== 'cn' && input.realm !== 'global') throw new Error('Invalid market realm')
+    const search = equipmentLibrary.saveSearch({
+      realm: input.realm,
+      name: validateShortString(input.name, 'search name', 160),
+      url: validateOfficialMarketUrl(input.url, input.realm),
+      ...(typeof input.note === 'string' && input.note.trim() ? { note: input.note.slice(0, 4_000) } : {}),
+      ...(typeof input.folderId === 'string' ? { folderId: validateShortString(input.folderId, 'folder ID', 128) } : {}),
+    })
+    notifyLibraryChanged()
+    return search
+  })
+  ipcMain.handle('market:update-search', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object') throw new Error('Invalid saved search update')
+    const input = value as Partial<SavedMarketSearchPatch>
+    const patch: SavedMarketSearchPatch = { id: validateShortString(input.id, 'saved search ID', 128) }
+    if ('name' in input) patch.name = validateShortString(input.name, 'search name', 160)
+    if ('note' in input) patch.note = typeof input.note === 'string' ? input.note.slice(0, 4_000) : ''
+    if ('folderId' in input) patch.folderId = input.folderId == null ? null : validateShortString(input.folderId, 'folder ID', 128)
+    const search = equipmentLibrary.updateSearch(patch)
+    notifyLibraryChanged()
+    return search
+  })
+  ipcMain.handle('market:delete-search', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    const deleted = equipmentLibrary.deleteSearch(validateShortString(value, 'saved search ID', 128))
+    if (deleted) notifyLibraryChanged()
+    return deleted
+  })
+  ipcMain.handle('market:open-search', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    const search = equipmentLibrary.getSearch(validateShortString(value, 'saved search ID', 128))
+    if (!search || !marketViewManager) throw new Error('Saved search not found')
+    marketViewManager.openSource(search.realm, search.url)
+  })
+  ipcMain.handle('market:visit-hideout', async (event, value: unknown) => {
+    requireMainWindowSender(event)
+    const entry = equipmentLibrary.get(validateShortString(value, 'library entry ID', 128))
+    const source = entry?.sources.find((candidate) => candidate.kind === 'market-favorite')
+    if (!source || !marketViewManager) throw new Error('Market listing source not found')
+    return marketViewManager.visitHideout({
+      realm: source.realm, listingId: source.listingId, queryId: source.queryId, sourceUrl: source.sourceUrl,
+    })
+  })
   ipcMain.handle('market:update-library', (event, value: unknown) => {
     requireMainWindowSender(event)
     if (!value || typeof value !== 'object') throw new Error('Invalid equipment library metadata')
     const input = value as Partial<EquipmentLibraryMetadataPatch>
     const patch: EquipmentLibraryMetadataPatch = { id: validateShortString(input.id, 'library entry ID', 128) }
+    if ('folderId' in input) patch.folderId = input.folderId == null ? null : validateShortString(input.folderId, 'folder ID', 128)
     if ('folder' in input) patch.folder = typeof input.folder === 'string' ? input.folder.slice(0, 120) : ''
     if ('note' in input) patch.note = typeof input.note === 'string' ? input.note.slice(0, 4_000) : ''
     if ('tags' in input) patch.tags = Array.isArray(input.tags)

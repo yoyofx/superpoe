@@ -20,6 +20,16 @@ contextBridge.exposeInMainWorld('pob2Market', {
   openExternal: () => ipcRenderer.invoke('market:open-external'),
   getState: () => ipcRenderer.invoke('market:get-state') as Promise<import('../src/types/market.js').MarketViewState>,
   listLibrary: (filter: import('../src/types/market.js').EquipmentLibraryFilter) => ipcRenderer.invoke('market:list-library', filter) as Promise<import('../src/types/market.js').EquipmentLibraryEntry[]>,
+  getSidebar: () => ipcRenderer.invoke('market:get-sidebar') as Promise<import('../src/types/market.js').EquipmentLibrarySidebarSnapshot>,
+  createFolder: (input: import('../src/types/market.js').EquipmentLibraryFolderInput) => ipcRenderer.invoke('market:create-folder', input) as Promise<import('../src/types/market.js').EquipmentLibraryFolder>,
+  updateFolder: (patch: import('../src/types/market.js').EquipmentLibraryFolderPatch) => ipcRenderer.invoke('market:update-folder', patch) as Promise<import('../src/types/market.js').EquipmentLibraryFolder>,
+  deleteFolder: (id: string) => ipcRenderer.invoke('market:delete-folder', id) as Promise<boolean>,
+  selectFolder: (scope: import('../src/types/market.js').LibraryTreeScope, folderId?: string) => ipcRenderer.invoke('market:select-folder', { scope, folderId }) as Promise<import('../src/types/market.js').EquipmentLibrarySidebarSnapshot>,
+  saveSearch: (input: import('../src/types/market.js').SavedMarketSearchInput) => ipcRenderer.invoke('market:save-search', input) as Promise<import('../src/types/market.js').SavedMarketSearch>,
+  updateSearch: (patch: import('../src/types/market.js').SavedMarketSearchPatch) => ipcRenderer.invoke('market:update-search', patch) as Promise<import('../src/types/market.js').SavedMarketSearch>,
+  deleteSearch: (id: string) => ipcRenderer.invoke('market:delete-search', id) as Promise<boolean>,
+  openSearch: (id: string) => ipcRenderer.invoke('market:open-search', id) as Promise<void>,
+  visitHideout: (entryId: string) => ipcRenderer.invoke('market:visit-hideout', entryId) as Promise<import('../src/types/market.js').MarketVisitHideoutResult>,
   updateLibrary: (patch: import('../src/types/market.js').EquipmentLibraryMetadataPatch) => ipcRenderer.invoke('market:update-library', patch) as Promise<import('../src/types/market.js').EquipmentLibraryEntry>,
   deleteLibrary: (id: string) => ipcRenderer.invoke('market:delete-library', id) as Promise<boolean>,
   removeLibrarySource: (sourceKey: string) => ipcRenderer.invoke('market:remove-library-source', sourceKey),
@@ -36,6 +46,11 @@ contextBridge.exposeInMainWorld('pob2Market', {
     const handler = () => callback()
     ipcRenderer.on('market:library-changed', handler)
     return () => { ipcRenderer.removeListener('market:library-changed', handler) }
+  },
+  onSidebarRequest: (callback: (scope: import('../src/types/market.js').LibraryTreeScope) => void) => {
+    const handler = (_event: unknown, scope: import('../src/types/market.js').LibraryTreeScope) => callback(scope)
+    ipcRenderer.on('market:sidebar-request', handler)
+    return () => { ipcRenderer.removeListener('market:sidebar-request', handler) }
   },
 })
 

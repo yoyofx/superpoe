@@ -135,6 +135,7 @@ export interface EquipmentLibraryEntry {
   fingerprint: string
   item: LibraryItemSnapshot
   sources: EquipmentLibrarySource[]
+  folderId?: string
   folder?: string
   tags: string[]
   note?: string
@@ -152,10 +153,71 @@ export interface EquipmentLibraryFilter {
 
 export interface EquipmentLibraryMetadataPatch {
   id: string
+  folderId?: string | null
   folder?: string
   tags?: string[]
   note?: string
   archived?: boolean
+}
+
+export type LibraryTreeScope = 'items' | 'searches'
+
+export interface EquipmentLibraryFolder {
+  id: string
+  scope: LibraryTreeScope
+  name: string
+  parentId?: string
+  sortOrder: number
+  expanded: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SavedMarketSearch {
+  id: string
+  realm: MarketRealm
+  name: string
+  note?: string
+  url: string
+  folderId?: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface EquipmentLibrarySidebarSnapshot {
+  folders: EquipmentLibraryFolder[]
+  searches: SavedMarketSearch[]
+  selectedItemFolderId?: string
+  selectedSearchFolderId?: string
+}
+
+export interface EquipmentLibraryFolderInput {
+  scope: LibraryTreeScope
+  name: string
+  parentId?: string
+}
+
+export interface EquipmentLibraryFolderPatch {
+  id: string
+  name?: string
+  parentId?: string | null
+  beforeId?: string | null
+  expanded?: boolean
+}
+
+export interface SavedMarketSearchInput {
+  realm: MarketRealm
+  name: string
+  note?: string
+  url: string
+  folderId?: string
+}
+
+export interface SavedMarketSearchPatch {
+  id: string
+  name?: string
+  note?: string
+  folderId?: string | null
 }
 
 export interface MarketDomListingRef {
@@ -164,6 +226,10 @@ export interface MarketDomListingRef {
   queryId?: string
   sourceUrl: string
 }
+
+export type MarketVisitHideoutResult =
+  | { ok: true }
+  | { ok: false; reason: 'game-offline' }
 
 export interface EquipmentLibraryItemInput {
   item: LibraryItemSnapshot

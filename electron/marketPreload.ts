@@ -80,6 +80,7 @@ function applyButtonState(button: HTMLButtonElement, state: FavoriteVisualState)
     : state === 'error'
       ? '收藏失败，点击重试'
       : '收藏到 SuperPoE2 装备仓库'
+  button.dataset.tooltip = button.title
   button.setAttribute('aria-label', button.title)
 }
 
@@ -155,28 +156,45 @@ function installStyle(): void {
   const style = document.createElement('style')
   style.id = 'superpoe-market-style'
   style.textContent = `
+    :root {
+      scrollbar-color: #62563f #111310 !important;
+      scrollbar-width: thin !important;
+    }
+    *::-webkit-scrollbar { width: 9px !important; height: 9px !important; }
+    *::-webkit-scrollbar-track { background: #111310 !important; }
+    *::-webkit-scrollbar-corner { background: #111310 !important; }
+    *::-webkit-scrollbar-thumb {
+      border: 2px solid #111310 !important;
+      border-radius: 2px !important;
+      background: #62563f !important;
+      background-clip: padding-box !important;
+    }
+    *::-webkit-scrollbar-thumb:hover { background-color: #8f7b58 !important; }
     .${BUTTON_CLASS} {
       box-sizing: border-box !important;
-      width: 30px !important;
-      height: 30px !important;
-      min-width: 30px !important;
+      width: 32px !important;
+      height: 32px !important;
+      min-width: 32px !important;
       margin: 4px 7px 4px 2px !important;
       padding: 0 !important;
-      border: 1px solid #81704b !important;
-      border-radius: 3px !important;
-      background: #171814 !important;
-      color: #a99a75 !important;
-      font: 20px/28px Arial, sans-serif !important;
+      border: 1px solid #666 !important;
+      border-radius: 4px !important;
+      background: linear-gradient(135deg, #222, #111) !important;
+      color: #888 !important;
+      font: 20px/30px Arial, sans-serif !important;
       text-align: center !important;
       cursor: pointer !important;
       vertical-align: top !important;
       position: relative !important;
       z-index: 20 !important;
+      transition: transform .2s ease, color .2s ease, border-color .2s ease, box-shadow .2s ease !important;
     }
-    .${BUTTON_CLASS}:hover { border-color: #c4aa67 !important; color: #dfc273 !important; background: #222017 !important; }
-    .${BUTTON_CLASS}[data-state="active"] { color: #edc75f !important; border-color: #c29b3e !important; background: #292315 !important; }
+    .${BUTTON_CLASS}:hover { border-color: #f0d0a0 !important; color: #d4b483 !important; transform: scale(1.1) rotate(15deg); box-shadow: 0 0 10px rgba(212,180,131,.4) !important; z-index: 2147483647 !important; }
+    .${BUTTON_CLASS}[data-state="active"] { color: #d4b483 !important; border-color: #d4b483 !important; background: linear-gradient(135deg, #332a1b, #1a1a1a) !important; text-shadow: 0 0 8px rgba(255,215,0,.6) !important; }
     .${BUTTON_CLASS}[data-state="pending"] { cursor: wait !important; color: #aaa !important; }
     .${BUTTON_CLASS}[data-state="error"] { color: #d88678 !important; border-color: #9b5047 !important; }
+    .${BUTTON_CLASS}::after { content: attr(data-tooltip); position: absolute; right: 0; bottom: 125%; width: max-content; max-width: 260px; padding: 7px 10px; border: 1px solid #a38d6d; border-left: 3px solid #d4b483; border-radius: 4px; background: #0f0f0f; color: #d4b483; font: 600 12px/1.35 Arial, sans-serif; white-space: normal; opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(8px); transition: opacity .18s ease, transform .18s ease; box-shadow: 0 5px 20px rgba(0,0,0,.8); }
+    .${BUTTON_CLASS}:hover::after { opacity: 1; visibility: visible; transform: translateY(0); }
   `
   document.head.appendChild(style)
 }

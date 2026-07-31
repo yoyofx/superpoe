@@ -1,8 +1,9 @@
 import { BrowserWindow, WebContentsView, shell, type Rectangle, type WebContents } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { MarketDomListingRef } from '../src/types/market.js'
+import type { MarketDomListingRef, MarketVisitHideoutResult } from '../src/types/market.js'
 import { TradeCredentialStore } from './tradeCredentialStore.js'
+import { isGameOfflineVisitError, OfficialTradeRequestError } from './officialTradeRequestError.js'
 
 export type MarketRealm = 'cn' | 'global'
 export type MarketNavigationCommand = 'back' | 'forward' | 'reload' | 'stop' | 'home'
@@ -179,6 +180,30 @@ export class MarketViewManager {
       `${origin}/api/trade2/fetch/${encodeURIComponent(ref.listingId)}${query}`,
       { credentials: 'include', headers: { Accept: 'application/json' } },
     )
+  }
+
+  async visitHideout(ref: MarketDomListingRef): Promise<MarketVisitHideoutResult> {
+    const payload = await this.fetchListing(ref)
+    const result = payload && typeof payload === 'object' && Array.isArray((payload as { result?: unknown }).result)
+      ? (payload as { result: unknown[] }).result[0]
+      : undefined
+    const listing = result && typeof result === 'object' && (result as { listing?: unknown }).listing
+    const token = listing && typeof listing === 'object' && typeof (listing as { hideout_token?: unknown }).hideout_token === 'string'
+      ? (listing as { hideout_token: string }).hideout_token
+      : undefined
+    if (!token) throw new Error('This listing does not provide a hideout token')
+    const origin = ref.realm === 'cn' ? 'https://poe.game.qq.com' : 'https://www.pathofexile.com'
+    try {
+      await this.requestJson(ref.realm, `${origin}/api/trade2/whisper`, {
+        method: 'POST', credentials: 'include',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+        body: JSON.stringify({ token }),
+      })
+      return { ok: true }
+    } catch (error) {
+      if (isGameOfflineVisitError(error)) return { ok: false, reason: 'game-offline' }
+      throw error
+    }
   }
 
   fetchStats(realm: MarketRealm): Promise<unknown> {
@@ -404,7 +429,7 @@ export class MarketViewManager {
     if (view.webContents.isDestroyed()) throw new Error('Market session is unavailable')
     await this.ensureSessionRestored(view.webContents, MARKET_PROFILES[realm])
     const response = await view.webContents.session.fetch(url, init)
-    if (!response.ok) throw new Error(`Official trade request failed (${response.status})`)
+    if (!response.ok) throw new OfficialTradeRequestError(response.status)
     const text = await response.text()
     if (text.length > 5_000_000) throw new Error('Official trade response is too large')
     return JSON.parse(text) as unknown

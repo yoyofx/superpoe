@@ -20,16 +20,18 @@ function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }
 
-function strings(value: unknown): string[] {
-  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : []
-}
-
 function cleanText(value: unknown): string {
   return typeof value === 'string' ? value.replace(/<<[^>]+>>/g, '').trim() : ''
 }
 
+function localizedText(value: unknown, realm: MarketDomListingRef['realm']): string {
+  return cleanText(value).replace(/\[([^|\]]+)\|([^\]]+)\]/g, (_match, global: string, cn: string) => realm === 'cn' ? cn : global)
+}
+
 function numberValue(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
+  return undefined
 }
 
 function sourceForGroup(group: string): LibraryModifierSource {
@@ -97,6 +99,46 @@ function tierRanges(mods: unknown, index: number): Array<{ min: number; max: num
   })
 }
 
+function modifierDetails(raw: unknown, realm: MarketDomListingRef['realm']): {
+  line: string
+  directStatId?: string
+  tier?: LibraryModifier['tier']
+  tierRanges: Array<{ min: number; max: number }>
+  affixKind?: LibraryModifier['affixKind']
+} | null {
+  if (typeof raw === 'string') return { line: localizedText(raw, realm), tierRanges: [] }
+  const value = record(raw)
+  const line = localizedText(value.description || value.text, realm)
+  if (!line) return null
+  const hash = cleanText(value.hash).replace(/^stat\.(?=(?:explicit|implicit|enchant|rune|fractured|crafted|desecrated)\.)/, '')
+  const nestedMods = Array.isArray(value.mods) ? value.mods : []
+  const firstMod = record(nestedMods[0])
+  const tierText = cleanText(firstMod.tier)
+  const name = localizedText(firstMod.name, realm)
+  const level = numberValue(firstMod.level)
+  const rankMatch = tierText.match(/(\d+)/)
+  const tier = tierText || name || level != null ? {
+    ...(name ? { name } : {}),
+    ...(rankMatch ? { rank: Number(rankMatch[1]) } : {}),
+    ...(level != null ? { level } : {}),
+  } : undefined
+  const ranges = nestedMods.flatMap((nested) => {
+    const magnitudes = Array.isArray(record(nested).magnitudes) ? record(nested).magnitudes as unknown[] : []
+    return magnitudes.flatMap((magnitude) => {
+      const min = numberValue(record(magnitude).min)
+      const max = numberValue(record(magnitude).max)
+      return min == null || max == null ? [] : [{ min, max }]
+    })
+  })
+  return {
+    line,
+    ...(hash ? { directStatId: hash } : {}),
+    ...(tier ? { tier } : {}),
+    tierRanges: ranges,
+    ...(tierText.startsWith('P') ? { affixKind: 'prefix' as const } : tierText.startsWith('S') ? { affixKind: 'suffix' as const } : {}),
+  }
+}
+
 function normalizeModifiers(item: Record<string, unknown>, realm: MarketDomListingRef['realm'], capturedAt: string): LibraryModifier[] {
   const extended = record(item.extended)
   const hashGroups = record(extended.hashes)
@@ -107,12 +149,13 @@ function normalizeModifiers(item: Record<string, unknown>, realm: MarketDomListi
   let displayOrder = 0
 
   for (const group of groupNames) {
-    const lines = strings(item[`${group}Mods`])
+    const rawModifiers = Array.isArray(item[`${group}Mods`]) ? item[`${group}Mods`] as unknown[] : []
     const hashes = hashesByIndex(hashGroups[group])
-    for (let index = 0; index < lines.length; index += 1) {
-      const line = lines[index].trim()
-      if (!line) continue
-      const statIds = [...new Set(hashes.get(index) || [])]
+    for (let index = 0; index < rawModifiers.length; index += 1) {
+      const details = modifierDetails(rawModifiers[index], realm)
+      if (!details?.line) continue
+      const line = details.line
+      const statIds = details.directStatId ? [details.directStatId] : [...new Set(hashes.get(index) || [])]
       const queryStatId = statIds.length === 1 ? statIds[0] : undefined
       const [baseStatId, optionId] = queryStatId?.split('|') || []
       const source = sourceForGroup(group)
@@ -123,6 +166,7 @@ function normalizeModifiers(item: Record<string, unknown>, realm: MarketDomListi
         displayOrder: displayOrder++,
         group: displayGroupFor(group),
         sourceTags: sourceTagsFor(group),
+        affixKind: details.affixKind,
         original: {
           locale: realm === 'cn' ? 'zh-CN' : 'en',
           lines: [line],
@@ -130,7 +174,7 @@ function normalizeModifiers(item: Record<string, unknown>, realm: MarketDomListi
         },
         valueMode,
         currentValues: values,
-        tierRanges: tierRanges(modGroups[group], index),
+        tierRanges: details.tierRanges.length ? details.tierRanges : tierRanges(modGroups[group], index),
         tradeResolutions: [{
           realm,
           queryStatId,
@@ -145,7 +189,7 @@ function normalizeModifiers(item: Record<string, unknown>, realm: MarketDomListi
           catalogPayloadHash: payloadHash,
           status: statIds.length === 1 ? 'resolved' : statIds.length > 1 ? 'ambiguous' : 'unresolved',
         }],
-        tier: tierData(modGroups[group], index),
+        tier: details.tier || tierData(modGroups[group], index),
       })
     }
   }
