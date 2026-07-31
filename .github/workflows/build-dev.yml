@@ -86,13 +86,6 @@ jobs:
           echo "Runner architecture: ${actual}; expected: ${expected}"
           test "${actual}" = "${expected}"
 
-      - name: Restore pinned LuaJIT build
-        id: cache-luajit
-        uses: actions/cache@v4
-        with:
-          path: native/bin
-          key: luajit-${{ runner.os }}-${{ matrix.expected_arch }}-${{ hashFiles('pob-runtime.lock.json', 'scripts/build_luajit_sidecar.mjs') }}
-
       - name: Apply rolling dev version
         shell: bash
         run: |
@@ -133,7 +126,7 @@ jobs:
       - name: Verify pinned PoB runtime
         run: npm run verify:lua
 
-      - name: Ensure pinned LuaJIT sidecar
+      - name: Verify prebuilt LuaJIT sidecar
         run: node scripts/ensure_luajit_sidecar.mjs
 
       - name: Test LuaJIT sidecar against PoB fixture
@@ -151,9 +144,6 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifact
-          if [[ "${{ runner.os }}" == "macOS" ]]; then
-            ditto -c -k --keepParent native/bin/darwin-arm64 artifact/pob-lua-runtime-darwin-arm64.zip
-          fi
           shopt -s nullglob
           for f in release/*.{exe,dmg,zip,AppImage,blockmap,yml,yaml}; do
             if [[ -f "$f" ]]; then

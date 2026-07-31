@@ -139,13 +139,6 @@ jobs:
           echo "Runner architecture: ${actual}; expected: ${expected}"
           test "${actual}" = "${expected}"
 
-      - name: Restore pinned LuaJIT build
-        id: cache-luajit
-        uses: actions/cache@v4
-        with:
-          path: native/bin
-          key: luajit-${{ runner.os }}-${{ matrix.expected_arch }}-${{ hashFiles('pob-runtime.lock.json', 'scripts/build_luajit_sidecar.mjs') }}
-
       - name: Apply release version from GitHub Release
         shell: bash
         run: |
@@ -186,7 +179,7 @@ jobs:
       - name: Verify pinned PoB runtime
         run: npm run verify:lua
 
-      - name: Ensure pinned LuaJIT sidecar
+      - name: Verify prebuilt LuaJIT sidecar
         run: node scripts/ensure_luajit_sidecar.mjs
 
       - name: Test LuaJIT sidecar against PoB fixture
