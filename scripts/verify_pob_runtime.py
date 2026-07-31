@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 import os
@@ -43,6 +44,13 @@ def file_hash(path: Path) -> str:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--verify-upstream",
+        action="store_true",
+        help="also require the local PoB checkout to match the pinned bundle source",
+    )
+    args = parser.parse_args()
     lock = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
     manifest_path = BUNDLE_ROOT / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
@@ -73,7 +81,9 @@ def main() -> None:
             f"got {bundle_source_count}"
         )
 
-    if SOURCE_ROOT.exists():
+    if args.verify_upstream:
+        if not SOURCE_ROOT.exists():
+            raise SystemExit(f"PoB source checkout is missing: {SOURCE_ROOT}")
         count, actual_hash = source_tree_hash(SOURCE_ROOT)
         if actual_hash != expected_source_hash:
             raise SystemExit(

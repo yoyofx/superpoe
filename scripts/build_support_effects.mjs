@@ -12,7 +12,7 @@ const bundledExecutable = path.join(
   root,
   'native',
   'bin',
-  `${process.platform}-${process.arch}`,
+  process.platform === 'darwin' ? 'darwin-arm64' : `${process.platform}-${process.arch}`,
   process.platform === 'win32' ? 'luajit.exe' : 'luajit',
 )
 const executable = process.env.SUPERPOE_LUAJIT_EXECUTABLE

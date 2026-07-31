@@ -23,6 +23,13 @@
         "path": "native/bin/win32-x64/lua51.dll",
         "size": 593581,
         "sha256": "5a30571b91fdc149ed7ec8e7d2d2f08648aa08f0eef923d7af7d8fcbcd1ad8c3"
+      },
+      {
+        "platform": "darwin",
+        "arch": "arm64",
+        "path": "native/bin/darwin-arm64/luajit",
+        "size": 626104,
+        "sha256": "c652ce3d533f2897e0cac1e3670d03fae5757ab067ba1e27d90c27c47439588f"
       }
     ]
   },

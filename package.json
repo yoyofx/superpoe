@@ -34,6 +34,7 @@
     "pipeline:check": "python scripts/check_pipeline_deps.py",
     "pipeline:lua": "python scripts/build_pob_lua_bundle.py",
     "verify:lua": "python scripts/verify_pob_runtime.py",
+    "verify:lua:upstream": "python scripts/verify_pob_runtime.py --verify-upstream",
     "native:lua": "node scripts/build_luajit_sidecar.mjs",
     "prepare:native:lua": "node scripts/ensure_luajit_sidecar.mjs && npm run test:native:lua",
     "test:native:lua": "node scripts/test_luajit_sidecar.mjs",
@@ -71,14 +72,16 @@
       {
         "from": "native/pob-lua-runner.lua",
         "to": "pob-lua-sidecar/pob-lua-runner.lua"
-      },
-      {
-        "from": "native/bin",
-        "to": "pob-lua-runtime"
       }
     ],
     "win": {
       "icon": "icon.ico",
+      "extraResources": [
+        {
+          "from": "native/bin/win32-x64",
+          "to": "pob-lua-runtime/win32-x64"
+        }
+      ],
       "target": [
         {
           "target": "nsis",
@@ -90,6 +93,12 @@
     },
     "mac": {
       "icon": "icon.png",
+      "extraResources": [
+        {
+          "from": "native/bin/darwin-arm64",
+          "to": "pob-lua-runtime/darwin-arm64"
+        }
+      ],
       "target": [
         {
           "target": "dmg",

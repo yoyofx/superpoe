@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url'
 import { inflate } from 'pako'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const platformArch = `${process.platform}-${process.arch}`
+const platformArch = process.platform === 'darwin' ? 'darwin-arm64' : `${process.platform}-${process.arch}`
 const executable = process.env.SUPERPOE_LUAJIT_EXECUTABLE || path.join(
   root,
   'native',

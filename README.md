@@ -48,7 +48,7 @@ electron-builder 默认把安装包写到仓库内 `release/`。可用 `package.
 
 SuperPoE2 是一个基于 React + PixiJS/WebGL 2D 的 PoE2 离线构筑规划工具。项目使用 Path of Building 2 的天赋树数据，生成 Web 端可直接使用的数据和贴图资源，并提供天赋盘渲染、缩放/平移、节点交互、构筑导入导出和计算入口。
 
-导入/导出 PoB2 build code 已在前端完成，不需要 Fastify 后端。计算正在迁移到前端 Web Worker + PoB Lua bundle：`public/pob-lua/` 是从 `upstreams/PathOfBuilding-PoE2/src` 生成的浏览器只读 Lua 文件包。当前 worker 使用 `wasmoon` Lua 5.4 WASM 加一层 LuaJIT/PoB 兼容补丁运行；这是因为当前 PoB2 上游 Lua 已使用 `goto`，不能直接跑在 PUC Lua 5.1 WASM 上。需要和旧 LuaJIT 后端对照调试时，可以显式设置 `VITE_CALC_BACKEND_FALLBACK=true`。如果后续要求计算结果和桌面 PoB 完全逐位一致，仍建议继续推进 LuaJIT WASM 或专门的 PoB Lua 预处理方案。
+导入/导出 PoB2 build code 已在前端完成，不需要 Fastify 后端。Electron 桌面端优先通过主进程启动仓库内预编译的原生 LuaJIT sidecar，并使用 JSON Lines 协议执行构筑计算和技能排名；Windows x64 与 macOS Apple Silicon runtime 均随应用打包。`public/pob-lua/` 是从 `upstreams/PathOfBuilding-PoE2/src` 生成并锁定的 Lua 文件包，同时供原生 sidecar 和浏览器兼容层使用。原生 runtime 缺失、启动失败或崩溃时，renderer 会回退到 Web Worker + wasmoon；装备语义检查目前仍使用 wasmoon。
 
 ## 数据来源
 

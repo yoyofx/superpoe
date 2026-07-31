@@ -27,17 +27,23 @@ and pin our reproducible LuaJIT build to the commit recorded in the lock file.
 
 ```text
 npm run pipeline:lua      regenerate the browser/native PoB bundle
-npm run verify:lua        verify the source snapshot and every bundle hash
+npm run verify:lua        verify the committed bundle and native runtime hashes
+npm run verify:lua:upstream also require the local PoB checkout to match the lock
 npm run native:lua        build LuaJIT for the current OS and architecture
 npm run test:native:lua   calculate the committed Stormweaver fixture
 npm run prepare:native:lua ensure a binary exists, then run the fixture
 ```
 
 `npm run dist:electron` runs `prepare:native:lua` first. A local package cannot
-be produced silently without a working sidecar. Native binaries under
-`native/bin/` are build artifacts and are not committed.
+be produced silently without a working sidecar. Verified Windows x64 and macOS
+Apple Silicon binaries under `native/bin/` are committed so normal packaging
+does not require a native compiler toolchain.
 
-### Local prerequisites
+### Rebuilding the prebuilt runtimes
+
+Normal development and packaging only require the committed runtime for the
+target platform. The following toolchains are required only when intentionally
+updating the pinned LuaJIT commit or rebuilding its checked-in binaries.
 
 Windows x64 uses one of these toolchains:
 
@@ -84,11 +90,10 @@ build two independent packages:
 Each job performs this release gate:
 
 1. Verify the actual runner architecture.
-2. Restore a LuaJIT cache keyed by OS, architecture, lock file, and build script.
-3. Verify the pinned PoB source and bundle hashes.
-4. Build LuaJIT on a cache miss.
-5. Run the native Stormweaver calculation fixture.
-6. Build and package Electron with the matching native resources.
+2. Verify the pinned PoB bundle and both checked-in runtime hashes.
+3. Verify the checked-in runtime for the current platform and architecture.
+4. Run the native Stormweaver calculation fixture.
+5. Build and package Electron with only the matching platform runtime.
 
 The fixture must initialize the JSON Lines protocol and calculate level,
 class, ascendancy, allocated nodes, and mana. A missing binary, wrong
@@ -102,14 +107,49 @@ resources/pob-lua-sidecar/pob-lua-runner.lua
 resources/pob-lua/
 ```
 
+Only the matching native directory is included in each package:
+
+| Client | Executable |
+| --- | --- |
+| Windows x64 | `resources/pob-lua-runtime/win32-x64/luajit.exe` with `lua51.dll` |
+| macOS Apple Silicon | `resources/pob-lua-runtime/darwin-arm64/luajit` |
+
+## Client Invocation Flow
+
+Windows and macOS use the same application protocol; only the executable path
+and native loader format differ.
+
+1. The renderer calls `calculateBuild` or `rankSkillsByEffectiveDps` in
+   `src/engine/pobLuaClient.ts`.
+2. Electron preload exposes `window.pob2Desktop` and forwards the request over
+   `pob2:lua-init`, `pob2:lua-calculate`, or `pob2:lua-rank-skills` IPC.
+3. The main process delegates the request to the singleton `PobLuaService`.
+4. `PobLuaService` resolves the platform-specific executable plus the shared
+   `pob-lua-runner.lua` and `pob-lua` bundle, then starts one persistent child
+   process.
+5. Windows starts `luajit.exe`; the adjacent `lua51.dll` supplies the runtime.
+   macOS starts the executable `darwin-arm64/luajit`, which links only the macOS
+   system library.
+6. The sidecar writes a JSON Lines `ready` message with protocol version `1`.
+   The main process then sends request IDs, operation names, and payloads over
+   stdin and receives structured responses over stdout.
+7. Results return through Electron IPC to the renderer. If initialization or a
+   request fails, full calculations and skill ranking fall back to the Wasmoon
+   worker for the remainder of that session.
+
+Development uses the same layout under the repository root (`native/bin/`,
+`native/pob-lua-runner.lua`, and `public/pob-lua/`). Packaged clients resolve
+the equivalent files relative to Electron's `process.resourcesPath`.
+
 To update PoB2, update the upstream snapshot and lock together, regenerate the
 bundle, review intended fixture changes, and commit them atomically. The bundle
 pipeline rejects a source snapshot whose normalized hash does not match the
 lock.
 
-To update LuaJIT, change only the locked commit first, build and run the native
-fixture on both CI jobs, and then review the produced package. Do not copy
-an untracked third-party binary into a release.
+To update LuaJIT, change only the locked commit first, build each runtime on its
+matching pinned CI platform, run the native fixture, and commit the binaries
+together with their size and SHA-256 entries in `pob-runtime.lock.json`. Do not
+copy an unverified third-party binary into a release.
 
 ## Failure Behavior
 
@@ -130,8 +170,10 @@ change so its larger serialization contract can be tested independently.
   Windows C++ workload or point `W64DEVKIT_ROOT` at a portable w64devkit root.
 - `LuaJIT protocol mismatch`: the runner and Electron service protocol versions
   differ; update them together with `pob-runtime.lock.json`.
-- `PoB source snapshot mismatch`: the files under `upstreams/` do not represent
-  the locked PoB commit. Do not regenerate the bundle until they match.
+- `PoB source snapshot mismatch` from `verify:lua:upstream`: the files under
+  `upstreams/` do not represent the locked PoB commit. Regular `verify:lua`
+  validates the committed bundle without requiring the local upstream checkout
+  to remain pinned.
 - Native startup failure in development: inspect the main-process line prefixed
   with `[PoB LuaJIT]`; the renderer will use Wasmoon for that session.
 - macOS execution denial: confirm the `luajit` file retained executable mode and

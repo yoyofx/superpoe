@@ -42,7 +42,7 @@ export class PobLuaService {
   private cachedResult: unknown = null
 
   private resourcePaths(): { executable: string; runner: string; bundle: string } {
-    const platformArch = `${process.platform}-${process.arch}`
+    const platformArch = process.platform === 'darwin' ? 'darwin-arm64' : `${process.platform}-${process.arch}`
     const executableName = process.platform === 'win32' ? 'luajit.exe' : 'luajit'
     if (app.isPackaged) {
       return {

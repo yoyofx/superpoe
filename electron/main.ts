@@ -91,6 +91,12 @@ function getRendererRoot(): string {
   return path.join(app.getAppPath(), 'dist')
 }
 
+function getAppIconPath(): string {
+  return rendererUrl
+    ? path.join(app.getAppPath(), 'build', 'icon.png')
+    : path.join(process.resourcesPath, 'icon.png')
+}
+
 /**
  * Map an app:// request to a path under dist/.
  * Supports both:
@@ -216,12 +222,9 @@ function validateMarketBounds(event: IpcMainInvokeEvent, value: unknown): Rectan
 }
 
 function createWindow(): BrowserWindow {
-  const iconPath = rendererUrl
-    ? path.join(app.getAppPath(), 'build', 'icon.png')
-    : path.join(process.resourcesPath, 'icon.png')
   const window = new BrowserWindow({
     title: productName,
-    icon: iconPath,
+    icon: getAppIconPath(),
     autoHideMenuBar: true,
     width: 1440,
     height: 960,
@@ -269,6 +272,11 @@ const pobLuaService = new PobLuaService()
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
+
+  const iconPath = getAppIconPath()
+  if (process.platform === 'darwin' && existsSync(iconPath)) {
+    app.dock?.setIcon(iconPath)
+  }
 
   if (!rendererUrl) {
     registerAppProtocol()
