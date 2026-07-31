@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { mkdtempSync, rmSync } from 'node:fs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { EquipmentLibraryRepository, equipmentSourceKey, fingerprintLibraryItem, marketSourceKey } from '../../electron/equipmentLibraryRepository'
@@ -131,13 +131,81 @@ describe('EquipmentLibraryRepository', () => {
     const store = repository()
     const folder = store.createFolder({ scope: 'searches', name: 'Jewels' })
     const search = store.saveSearch({
-      realm: 'cn', name: '暴击珠宝', note: '升级用',
-      url: 'https://poe.game.qq.com/trade2/search/poe2/Test/query-1',
+      realm: 'cn', leagueId: 'Test', searchCode: 'query-1', captureSource: 'code-only',
+      canonicalUrl: 'https://poe.game.qq.com/trade2/search/poe2/Test/query-1',
+      name: '暴击珠宝', note: '升级用',
     })
     expect(search.folderId).toBe(folder.id)
     expect(store.sidebarSnapshot().searches).toEqual([search])
     store.updateSearch({ id: search.id, note: '已复核' })
     expect(store.getSearch(search.id)?.note).toBe('已复核')
+  })
+
+  it('deduplicates official references and persists search ordering', () => {
+    const store = repository()
+    const first = store.saveSearch({
+      realm: 'global', leagueId: 'Rise of the Abyssal', searchCode: 'abc_123', captureSource: 'code-only',
+      canonicalUrl: 'https://www.pathofexile.com/trade2/search/poe2/Rise%20of%20the%20Abyssal/abc_123', name: 'First',
+    })
+    const duplicate = store.saveSearch({
+      realm: 'global', leagueId: 'Rise of the Abyssal', searchCode: 'abc_123', captureSource: 'code-only',
+      canonicalUrl: 'https://www.pathofexile.com/trade2/search/poe2/Rise%20of%20the%20Abyssal/abc_123', name: 'Duplicate',
+    })
+    const second = store.saveSearch({
+      realm: 'global', leagueId: 'Rise of the Abyssal', searchCode: 'def-456', captureSource: 'code-only',
+      canonicalUrl: 'https://www.pathofexile.com/trade2/search/poe2/Rise%20of%20the%20Abyssal/def-456', name: 'Second',
+    })
+
+    expect(duplicate.id).toBe(first.id)
+    expect(store.sidebarSnapshot().searches).toHaveLength(2)
+    store.updateSearch({ id: second.id, beforeId: first.id })
+    expect(store.sidebarSnapshot().searches.map((search) => [search.name, search.sortOrder])).toEqual([
+      ['Second', 0], ['First', 1],
+    ])
+  })
+
+  it('migrates legacy URL bookmarks without deleting invalid user records', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'superpoe-library-test-'))
+    temporaryDirectories.push(directory)
+    const filePath = path.join(directory, 'library.json')
+    writeFileSync(filePath, JSON.stringify({
+      schemaVersion: 1,
+      entries: [],
+      searches: [
+        { id: 'valid', realm: 'cn', name: 'Valid', url: 'https://poe.game.qq.com/trade2/search/poe2/Test/abc123', createdAt: '2026-01-01', updatedAt: '2026-01-01' },
+        { id: 'invalid', realm: 'cn', name: 'Homepage', url: 'https://poe.game.qq.com/trade2', createdAt: '2026-01-02', updatedAt: '2026-01-02' },
+      ],
+      updatedAt: '2026-01-02',
+    }))
+
+    const searches = new EquipmentLibraryRepository(filePath).sidebarSnapshot().searches
+    expect(searches).toEqual([
+      expect.objectContaining({ id: 'valid', leagueId: 'Test', searchCode: 'abc123', validity: 'valid', monitorStatus: 'saved' }),
+      expect.objectContaining({ id: 'invalid', leagueId: '', searchCode: '', validity: 'invalid', monitorStatus: 'saved' }),
+    ])
+  })
+
+  it('persists saved, armed, paused, and completed target states and rejects invalid targets', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'superpoe-library-state-test-'))
+    temporaryDirectories.push(directory)
+    const filePath = path.join(directory, 'library.json')
+    const repository = new EquipmentLibraryRepository(filePath)
+    const search = repository.saveSearch({
+      realm: 'global', leagueId: 'Test', searchCode: 'state-code', captureSource: 'code-only',
+      canonicalUrl: 'https://www.pathofexile.com/trade2/search/poe2/Test/state-code', name: 'State target',
+    })
+    expect(search.monitorStatus).toBe('saved')
+    expect(repository.updateSearch({ id: search.id, monitorStatus: 'armed' }).monitorStatus).toBe('armed')
+    expect(repository.updateSearch({ id: search.id, monitorStatus: 'paused' }).monitorStatus).toBe('paused')
+    expect(repository.updateSearch({ id: search.id, monitorStatus: 'completed' }).monitorStatus).toBe('completed')
+    expect(new EquipmentLibraryRepository(filePath).getSearch(search.id)?.monitorStatus).toBe('completed')
+
+    writeFileSync(filePath, JSON.stringify({
+      schemaVersion: 2, entries: [], folders: [], selectedFolders: {}, updatedAt: new Date().toISOString(),
+      searches: [{ id: 'invalid-target', realm: 'global', name: 'Invalid', canonicalUrl: 'https://www.pathofexile.com/trade2', createdAt: '2026-01-01', updatedAt: '2026-01-01' }],
+    }))
+    const invalidRepository = new EquipmentLibraryRepository(filePath)
+    expect(() => invalidRepository.updateSearch({ id: 'invalid-target', monitorStatus: 'armed' })).toThrow('Invalid searches cannot be monitored')
   })
 
   it('removes the entry when its final source is removed even when it was filed in a folder', () => {

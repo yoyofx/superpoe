@@ -15,12 +15,13 @@ import type {
   MarketFavoriteState,
   MarketRealm,
   SavedMarketSearch,
-  SavedMarketSearchInput,
+  SavedMarketSearchRecordInput,
   SavedMarketSearchPatch,
 } from '../src/types/market.js'
+import { createSearchQuerySnapshot, parseOfficialSearchUrl, withSearchSnapshot } from './marketSearch.js'
 
 interface EquipmentLibraryFile {
-  schemaVersion: 1
+  schemaVersion: 1 | 2
   entries: EquipmentLibraryEntry[]
   folders?: EquipmentLibraryFolder[]
   searches?: SavedMarketSearch[]
@@ -247,7 +248,7 @@ export class EquipmentLibraryRepository {
   sidebarSnapshot(): EquipmentLibrarySidebarSnapshot {
     return structuredClone({
       folders: [...this.folders].sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt)),
-      searches: this.searches,
+      searches: [...this.searches].sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt)),
       ...(this.selectedFolders.items ? { selectedItemFolderId: this.selectedFolders.items } : {}),
       ...(this.selectedFolders.searches ? { selectedSearchFolderId: this.selectedFolders.searches } : {}),
     })
@@ -312,6 +313,8 @@ export class EquipmentLibraryRepository {
     for (const search of this.searches) {
       if (search.folderId === id) search.folderId = folder.parentId
     }
+    this.normalizeSearchOrder(id)
+    this.normalizeSearchOrder(folder.parentId)
     if (this.selectedFolders[folder.scope] === id) {
       if (folder.parentId) this.selectedFolders[folder.scope] = folder.parentId
       else delete this.selectedFolders[folder.scope]
@@ -331,16 +334,51 @@ export class EquipmentLibraryRepository {
     return this.sidebarSnapshot()
   }
 
-  saveSearch(input: SavedMarketSearchInput): SavedMarketSearch {
-    if (this.searches.length >= MAX_SEARCHES) throw new Error('Saved search limit reached')
+  saveSearch(input: SavedMarketSearchRecordInput): SavedMarketSearch {
     const name = normalizeText(input.name, 160) || 'Saved search'
     const note = normalizeText(input.note, MAX_NOTE)
     if (input.folderId) this.requireFolder(input.folderId, 'searches')
+    const exact = this.searches.find((search) => search.realm === input.realm
+      && search.leagueId === input.leagueId && search.searchCode === input.searchCode)
+    if (exact) {
+      if (input.querySnapshot && exact.querySnapshot?.hash !== input.querySnapshot.hash) {
+        exact.captureSource = input.captureSource
+        exact.querySnapshot = structuredClone(input.querySnapshot)
+        exact.validity = 'valid'
+        exact.checkedAt = new Date().toISOString()
+        exact.updatedAt = exact.checkedAt
+        this.save()
+      }
+      return structuredClone(exact)
+    }
+    const sameQuery = input.querySnapshot && this.searches.find((search) => search.realm === input.realm
+      && search.leagueId === input.leagueId && search.querySnapshot?.hash === input.querySnapshot?.hash)
+    if (sameQuery) {
+      Object.assign(sameQuery, {
+        leagueId: input.leagueId,
+        searchCode: input.searchCode,
+        canonicalUrl: input.canonicalUrl,
+        captureSource: input.captureSource,
+        querySnapshot: structuredClone(input.querySnapshot),
+        validity: 'valid' as const,
+        checkedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      })
+      this.save()
+      return structuredClone(sameQuery)
+    }
+    if (this.searches.length >= MAX_SEARCHES) throw new Error('Saved search limit reached')
     const now = new Date().toISOString()
+    const folderId = input.folderId || this.selectedFolders.searches
     const search: SavedMarketSearch = {
-      id: randomUUID(), realm: input.realm, name, url: input.url,
+      id: randomUUID(), realm: input.realm, leagueId: input.leagueId, searchCode: input.searchCode,
+      canonicalUrl: input.canonicalUrl, captureSource: input.captureSource,
+      ...(input.querySnapshot ? { querySnapshot: structuredClone(input.querySnapshot) } : {}),
+      validity: 'valid', checkedAt: now, name,
       ...(note ? { note } : {}),
-      ...(input.folderId || this.selectedFolders.searches ? { folderId: input.folderId || this.selectedFolders.searches } : {}),
+      ...(folderId ? { folderId } : {}),
+      sortOrder: this.siblingSearches(folderId).length,
+      monitorStatus: 'saved', monitorPriority: 'normal', monitorStatusChangedAt: now,
       createdAt: now, updatedAt: now,
     }
     this.searches.push(search)
@@ -354,13 +392,50 @@ export class EquipmentLibraryRepository {
     if ('name' in patch) search.name = normalizeText(patch.name, 160) || search.name
     if ('note' in patch) search.note = normalizeText(patch.note, MAX_NOTE)
     if ('folderId' in patch) {
+      const previousFolderId = search.folderId
       if (patch.folderId == null) search.folderId = undefined
       else {
         this.requireFolder(patch.folderId, 'searches')
         search.folderId = patch.folderId
       }
+      if (previousFolderId !== search.folderId) {
+        this.placeSearch(search, patch.beforeId)
+        this.normalizeSearchOrder(previousFolderId)
+      } else if ('beforeId' in patch) this.placeSearch(search, patch.beforeId)
+    } else if ('beforeId' in patch) {
+      this.placeSearch(search, patch.beforeId)
     }
+    if (patch.monitorStatus && ['saved', 'armed', 'paused', 'completed'].includes(patch.monitorStatus)) {
+      if (patch.monitorStatus === 'armed' && (search.validity === 'invalid' || !search.leagueId || !search.searchCode)) {
+        throw new Error('Invalid searches cannot be monitored')
+      }
+      if (search.monitorStatus !== patch.monitorStatus) search.monitorStatusChangedAt = new Date().toISOString()
+      search.monitorStatus = patch.monitorStatus
+    }
+    if (patch.monitorPriority && ['high', 'normal', 'low'].includes(patch.monitorPriority)) search.monitorPriority = patch.monitorPriority
     search.updatedAt = new Date().toISOString()
+    this.save()
+    return structuredClone(search)
+  }
+
+  replaceSearchReference(id: string, input: SavedMarketSearchRecordInput): SavedMarketSearch {
+    const search = this.searches.find((candidate) => candidate.id === id)
+    if (!search) throw new Error('Saved search not found')
+    const duplicate = this.searches.find((candidate) => candidate.id !== id && candidate.realm === input.realm
+      && candidate.leagueId === input.leagueId && candidate.searchCode === input.searchCode)
+    if (duplicate) throw new Error('This search is already saved')
+    const now = new Date().toISOString()
+    Object.assign(search, {
+      realm: input.realm,
+      leagueId: input.leagueId,
+      searchCode: input.searchCode,
+      canonicalUrl: input.canonicalUrl,
+      captureSource: input.captureSource,
+      querySnapshot: input.querySnapshot ? structuredClone(input.querySnapshot) : undefined,
+      validity: 'valid' as const,
+      checkedAt: now,
+      updatedAt: now,
+    })
     this.save()
     return structuredClone(search)
   }
@@ -371,9 +446,12 @@ export class EquipmentLibraryRepository {
   }
 
   deleteSearch(id: string): boolean {
+    const search = this.searches.find((candidate) => candidate.id === id)
+    if (!search) return false
     const before = this.searches.length
     this.searches = this.searches.filter((candidate) => candidate.id !== id)
     if (before === this.searches.length) return false
+    this.normalizeSearchOrder(search.folderId)
     this.save()
     return true
   }
@@ -384,10 +462,10 @@ export class EquipmentLibraryRepository {
       const raw = readFileSync(this.filePath, 'utf8')
       if (raw.length > 50_000_000) throw new Error('Equipment library file is too large')
       const parsed = JSON.parse(raw) as Partial<EquipmentLibraryFile>
-      if (parsed.schemaVersion !== 1 || !Array.isArray(parsed.entries)) throw new Error('Unsupported equipment library schema')
+      if ((parsed.schemaVersion !== 1 && parsed.schemaVersion !== 2) || !Array.isArray(parsed.entries)) throw new Error('Unsupported equipment library schema')
       this.entries = parsed.entries.filter(isLibraryEntry).slice(0, MAX_ENTRIES)
       this.folders = Array.isArray(parsed.folders) ? parsed.folders.filter((folder): folder is EquipmentLibraryFolder => this.isFolder(folder)).slice(0, MAX_FOLDERS) : []
-      this.searches = Array.isArray(parsed.searches) ? parsed.searches.filter((search): search is SavedMarketSearch => this.isSearch(search)).slice(0, MAX_SEARCHES) : []
+      this.searches = Array.isArray(parsed.searches) ? parsed.searches.flatMap((search) => this.normalizeLoadedSearch(search)).slice(0, MAX_SEARCHES) : []
       this.selectedFolders = parsed.selectedFolders && typeof parsed.selectedFolders === 'object' ? parsed.selectedFolders : {}
       this.migrateLegacyFolders()
     } catch {
@@ -395,10 +473,10 @@ export class EquipmentLibraryRepository {
       if (!existsSync(backupPath)) return
       try {
         const parsed = JSON.parse(readFileSync(backupPath, 'utf8')) as Partial<EquipmentLibraryFile>
-        if (parsed.schemaVersion === 1 && Array.isArray(parsed.entries)) {
+        if ((parsed.schemaVersion === 1 || parsed.schemaVersion === 2) && Array.isArray(parsed.entries)) {
           this.entries = parsed.entries.filter(isLibraryEntry).slice(0, MAX_ENTRIES)
           this.folders = Array.isArray(parsed.folders) ? parsed.folders.filter((folder): folder is EquipmentLibraryFolder => this.isFolder(folder)).slice(0, MAX_FOLDERS) : []
-          this.searches = Array.isArray(parsed.searches) ? parsed.searches.filter((search): search is SavedMarketSearch => this.isSearch(search)).slice(0, MAX_SEARCHES) : []
+          this.searches = Array.isArray(parsed.searches) ? parsed.searches.flatMap((search) => this.normalizeLoadedSearch(search)).slice(0, MAX_SEARCHES) : []
           this.selectedFolders = parsed.selectedFolders && typeof parsed.selectedFolders === 'object' ? parsed.selectedFolders : {}
           this.migrateLegacyFolders()
         }
@@ -414,7 +492,7 @@ export class EquipmentLibraryRepository {
     const temporaryPath = `${this.filePath}.tmp`
     const backupPath = `${this.filePath}.backup.json`
     const file: EquipmentLibraryFile = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       entries: this.entries,
       folders: this.folders,
       searches: this.searches,
@@ -499,6 +577,9 @@ export class EquipmentLibraryRepository {
         delete this.selectedFolders[scope]
       }
     }
+    for (const folderId of [undefined, ...this.folders.filter((folder) => folder.scope === 'searches').map((folder) => folder.id)]) {
+      this.normalizeSearchOrder(folderId)
+    }
   }
 
   private isFolder(value: unknown): boolean {
@@ -508,11 +589,62 @@ export class EquipmentLibraryRepository {
       && typeof folder.name === 'string' && typeof folder.expanded === 'boolean'
   }
 
-  private isSearch(value: unknown): boolean {
-    if (!value || typeof value !== 'object') return false
-    const search = value as Partial<SavedMarketSearch>
-    return typeof search.id === 'string' && (search.realm === 'cn' || search.realm === 'global')
-      && typeof search.name === 'string' && typeof search.url === 'string'
-      && typeof search.createdAt === 'string' && typeof search.updatedAt === 'string'
+  private siblingSearches(folderId?: string): SavedMarketSearch[] {
+    return this.searches
+      .filter((search) => search.folderId === folderId)
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt))
+  }
+
+  private normalizeSearchOrder(folderId?: string): void {
+    this.siblingSearches(folderId).forEach((search, index) => { search.sortOrder = index })
+  }
+
+  private placeSearch(search: SavedMarketSearch, beforeId: string | null | undefined): void {
+    const siblings = this.siblingSearches(search.folderId).filter((candidate) => candidate.id !== search.id)
+    let index = siblings.length
+    if (beforeId) {
+      const before = this.searches.find((candidate) => candidate.id === beforeId)
+      if (!before || before.folderId !== search.folderId || before.id === search.id) throw new Error('Search sort target must be a sibling')
+      index = siblings.findIndex((candidate) => candidate.id === before.id)
+    }
+    siblings.splice(index, 0, search)
+    siblings.forEach((candidate, candidateIndex) => { candidate.sortOrder = candidateIndex })
+  }
+
+  private normalizeLoadedSearch(value: unknown): SavedMarketSearch[] {
+    if (!value || typeof value !== 'object') return []
+    const raw = value as Partial<SavedMarketSearch> & { url?: unknown }
+    if (typeof raw.id !== 'string' || (raw.realm !== 'cn' && raw.realm !== 'global')
+      || typeof raw.name !== 'string' || typeof raw.createdAt !== 'string' || typeof raw.updatedAt !== 'string') return []
+    const sourceUrl = typeof raw.canonicalUrl === 'string' ? raw.canonicalUrl : typeof raw.url === 'string' ? raw.url : ''
+    const parsed = parseOfficialSearchUrl(sourceUrl, raw.realm)
+    let reference = parsed
+    if (parsed && raw.querySnapshot && typeof raw.querySnapshot === 'object') {
+      const snapshot = raw.querySnapshot as Partial<NonNullable<SavedMarketSearch['querySnapshot']>>
+      if ((snapshot.source === 'official-page' || snapshot.source === 'superpoe-query') && typeof snapshot.capturedAt === 'string') {
+        try { reference = withSearchSnapshot(parsed, createSearchQuerySnapshot(snapshot.body, snapshot.source, snapshot.capturedAt)) } catch { /* code-only fallback */ }
+      }
+    }
+    const now = raw.monitorStatusChangedAt || raw.updatedAt
+    return [{
+      id: raw.id,
+      realm: raw.realm,
+      leagueId: reference?.leagueId || '',
+      searchCode: reference?.searchCode || '',
+      canonicalUrl: reference?.canonicalUrl || sourceUrl.slice(0, 2_048),
+      captureSource: reference?.captureSource || 'code-only',
+      ...(reference?.querySnapshot ? { querySnapshot: reference.querySnapshot } : {}),
+      validity: reference ? (raw.validity === 'needs-refresh' ? 'needs-refresh' : 'valid') : 'invalid',
+      ...(typeof raw.checkedAt === 'string' ? { checkedAt: raw.checkedAt } : {}),
+      name: raw.name.slice(0, 160),
+      ...(typeof raw.note === 'string' && raw.note.trim() ? { note: raw.note.slice(0, MAX_NOTE) } : {}),
+      ...(typeof raw.folderId === 'string' ? { folderId: raw.folderId } : {}),
+      sortOrder: Number.isFinite(raw.sortOrder) ? raw.sortOrder! : Number.MAX_SAFE_INTEGER,
+      monitorStatus: raw.monitorStatus === 'armed' || raw.monitorStatus === 'paused' || raw.monitorStatus === 'completed' ? raw.monitorStatus : 'saved',
+      monitorPriority: raw.monitorPriority === 'high' || raw.monitorPriority === 'low' ? raw.monitorPriority : 'normal',
+      monitorStatusChangedAt: now,
+      createdAt: raw.createdAt,
+      updatedAt: raw.updatedAt,
+    }]
   }
 }

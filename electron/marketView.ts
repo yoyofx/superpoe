@@ -1,9 +1,10 @@
 import { BrowserWindow, WebContentsView, shell, type Rectangle, type WebContents } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { MarketDomListingRef, MarketVisitHideoutResult } from '../src/types/market.js'
+import type { MarketDomListingRef, MarketSearchReference, MarketVisitHideoutResult, SavedSearchQuerySnapshot } from '../src/types/market.js'
 import { TradeCredentialStore } from './tradeCredentialStore.js'
 import { isGameOfflineVisitError, OfficialTradeRequestError } from './officialTradeRequestError.js'
+import { createSearchQuerySnapshot, parseOfficialSearchUrl, withSearchSnapshot } from './marketSearch.js'
 
 export type MarketRealm = 'cn' | 'global'
 export type MarketNavigationCommand = 'back' | 'forward' | 'reload' | 'stop' | 'home'
@@ -16,6 +17,7 @@ export interface MarketViewState {
   canGoBack: boolean
   canGoForward: boolean
   sessionStatus: 'anonymous' | 'valid' | 'unknown'
+  currentSearch?: MarketSearchReference
   error?: string
 }
 
@@ -84,6 +86,8 @@ export class MarketViewManager {
   private readonly sessionStates = new Map<MarketRealm, { status: MarketViewState['sessionStatus']; checkedAt: number }>()
   private readonly sessionChecks = new Map<MarketRealm, Promise<MarketViewState['sessionStatus']>>()
   private readonly sessionRestores = new Map<MarketRealm, Promise<void>>()
+  private readonly generatedSearches = new Map<string, SavedSearchQuerySnapshot>()
+  private readonly recentOfficialQueries = new Map<MarketRealm, { webContentsId: number; leagueId: string; snapshot: SavedSearchQuerySnapshot; capturedAt: number }>()
 
   constructor(
     private readonly window: BrowserWindow,
@@ -162,11 +166,37 @@ export class MarketViewManager {
     return this.buildState(view, this.activeRealm)
   }
 
+  getCurrentSearch(): MarketSearchReference | null {
+    const contents = this.activeView?.webContents
+    if (!contents || contents.isDestroyed()) return null
+    return this.resolveSearchReference(contents, this.activeRealm)
+  }
+
+  rememberGeneratedSearch(realm: MarketRealm, leagueId: string, searchCode: string, body: unknown): void {
+    const reference = parseOfficialSearchUrl(
+      `https://${realm === 'cn' ? 'poe.game.qq.com' : 'www.pathofexile.com'}/trade2/search/poe2/${encodeURIComponent(leagueId)}/${encodeURIComponent(searchCode)}`,
+      realm,
+    )
+    if (!reference) throw new Error('Official trade search returned an invalid reference')
+    this.generatedSearches.set(`${realm}:${leagueId}:${searchCode}`, createSearchQuerySnapshot(body, 'superpoe-query'))
+    while (this.generatedSearches.size > 100) this.generatedSearches.delete(this.generatedSearches.keys().next().value as string)
+  }
+
   getRealmForSender(contents: WebContents): MarketRealm | null {
     for (const [realm, view] of this.views) {
       if (!view.webContents.isDestroyed() && view.webContents === contents) return realm
     }
     return null
+  }
+
+  ensureMonitoringView(realm: MarketRealm): void {
+    const view = this.getOrCreateView(realm)
+    void this.loadHomeIfNeeded(view, MARKET_PROFILES[realm])
+  }
+
+  sendMonitorSync(realm: MarketRealm, configs: Array<{ searchId: string; realm: MarketRealm; liveUrl: string }>): void {
+    const view = this.getOrCreateView(realm)
+    if (!view.webContents.isDestroyed()) view.webContents.send('market-monitor:sync', configs)
   }
 
   async fetchListing(ref: MarketDomListingRef): Promise<unknown> {
@@ -178,6 +208,26 @@ export class MarketViewManager {
     const query = ref.queryId ? `?query=${encodeURIComponent(ref.queryId)}&realm=poe2` : '?realm=poe2'
     return this.requestJson(ref.realm,
       `${origin}/api/trade2/fetch/${encodeURIComponent(ref.listingId)}${query}`,
+      { credentials: 'include', headers: { Accept: 'application/json' } },
+    )
+  }
+
+  async fetchListings(realm: MarketRealm, listingIds: string[], searchCode: string): Promise<unknown> {
+    const ids = [...new Set(listingIds)].filter((id) => MARKET_ID_PATTERN.test(id)).slice(0, 10)
+    if (!ids.length || !MARKET_ID_PATTERN.test(searchCode)) throw new Error('Invalid official trade fetch request')
+    const origin = realm === 'cn' ? 'https://poe.game.qq.com' : 'https://www.pathofexile.com'
+    return this.requestJson(realm,
+      `${origin}/api/trade2/fetch/${ids.map(encodeURIComponent).join(',')}?query=${encodeURIComponent(searchCode)}&realm=poe2`,
+      { credentials: 'include', headers: { Accept: 'application/json' } },
+    )
+  }
+
+  async fetchLiveResult(realm: MarketRealm, resultToken: string, searchCode: string): Promise<unknown> {
+    if (resultToken.length > 4_096 || !/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2}$/.test(resultToken)
+      || !MARKET_ID_PATTERN.test(searchCode)) throw new Error('Invalid official live result token')
+    const origin = realm === 'cn' ? 'https://poe.game.qq.com' : 'https://www.pathofexile.com'
+    return this.requestJson(realm,
+      `${origin}/api/trade2/fetch/${encodeURIComponent(resultToken)}?query=${encodeURIComponent(searchCode)}&realm=poe2`,
       { credentials: 'include', headers: { Accept: 'application/json' } },
     )
   }
@@ -317,6 +367,20 @@ export class MarketViewManager {
     })
 
     contents.session.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false))
+    const apiOrigin = profile.realm === 'cn' ? 'https://poe.game.qq.com' : 'https://www.pathofexile.com'
+    contents.session.webRequest.onBeforeRequest({ urls: [`${apiOrigin}/api/trade2/search/poe2/*`] }, (details, callback) => {
+      try {
+        if (details.method !== 'POST' || details.webContentsId !== contents.id) return callback({})
+        const apiUrl = new URL(details.url)
+        const encodedLeague = apiUrl.pathname.match(/^\/api\/trade2\/search\/poe2\/([^/]+)$/)?.[1]
+        const bytes = details.uploadData?.length === 1 ? details.uploadData[0].bytes : undefined
+        if (!encodedLeague || !bytes || bytes.byteLength > 500_000) return callback({})
+        const leagueId = decodeURIComponent(encodedLeague)
+        const snapshot = createSearchQuerySnapshot(JSON.parse(Buffer.from(bytes).toString('utf8')) as unknown, 'official-page')
+        this.recentOfficialQueries.set(profile.realm, { webContentsId: contents.id, leagueId, snapshot, capturedAt: Date.now() })
+      } catch { /* An ambiguous or malformed body remains code-only. */ }
+      callback({})
+    })
     contents.session.cookies.on('changed', (_event, cookie, _cause, removed) => {
       if (!this.credentialStore.matches(profile.realm, cookie)) return
       if (removed) this.credentialStore.remove(profile.realm)
@@ -364,6 +428,7 @@ export class MarketViewManager {
 
   private async buildState(view: WebContentsView, realm: MarketRealm, error?: string): Promise<MarketViewState> {
     const contents = view.webContents
+    const currentSearch = this.resolveSearchReference(contents, realm)
     return {
       realm,
       url: contents.getURL(),
@@ -372,8 +437,21 @@ export class MarketViewManager {
       canGoBack: contents.navigationHistory.canGoBack(),
       canGoForward: contents.navigationHistory.canGoForward(),
       sessionStatus: await this.resolveSessionStatus(contents, MARKET_PROFILES[realm]),
+      ...(currentSearch ? { currentSearch } : {}),
       ...(error ? { error } : {}),
     }
+  }
+
+  private resolveSearchReference(contents: WebContents, realm: MarketRealm): MarketSearchReference | null {
+    const reference = parseOfficialSearchUrl(contents.getURL(), realm)
+    if (!reference) return null
+    const generated = this.generatedSearches.get(`${realm}:${reference.leagueId}:${reference.searchCode}`)
+    if (generated) return withSearchSnapshot(reference, generated)
+    const recent = this.recentOfficialQueries.get(realm)
+    if (recent && recent.webContentsId === contents.id && recent.leagueId === reference.leagueId && Date.now() - recent.capturedAt <= 120_000) {
+      return withSearchSnapshot(reference, recent.snapshot)
+    }
+    return reference
   }
 
   private async resolveSessionStatus(contents: WebContents, profile: MarketRealmProfile): Promise<MarketViewState['sessionStatus']> {

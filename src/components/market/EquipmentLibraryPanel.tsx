@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type DragEvent as ReactDragEvent, type ReactNode } from 'react'
 import {
-  Bookmark, Check, ChevronDown, ChevronRight, ExternalLink, Folder, FolderInput, FolderPlus, FolderTree, Home,
-  ListChecks, MessageSquareText, PanelLeftClose, PanelLeftOpen, Pencil, Save, Search, Square,
-  SquareCheckBig, Tags, Trash2, X,
+  BellRing, Bookmark, Check, ChevronDown, ChevronRight, ExternalLink, Folder, FolderInput, FolderPlus, FolderTree, Home,
+  ListChecks, PanelLeftClose, PanelLeftOpen, Pencil, Save, Search, Square,
+  RefreshCw, Replace, ShieldCheck, SquareCheckBig, Tags, Trash2, TriangleAlert, X,
 } from 'lucide-react'
 import type {
   EquipmentLibraryEntry, EquipmentLibraryFolder, EquipmentLibrarySidebarSnapshot, LibraryTreeScope,
-  EquipmentLibrarySourceKind, MarketFavoriteSource, MarketRealm, SavedMarketSearch, TradeLeague,
+  EquipmentLibrarySourceKind, MarketFavoriteSource, MarketMonitoringSnapshot, MarketRealm, MarketSearchReference, SavedMarketSearch, TradeLeague,
 } from '@/types/market'
 
 interface EquipmentLibraryPanelProps {
   realm: MarketRealm
   zh: boolean
-  currentUrl: string
+  currentSearch?: MarketSearchReference
+  monitoring: MarketMonitoringSnapshot | null
   activeTab: LibraryTreeScope
   onTabChange: (tab: LibraryTreeScope) => void
   onClose: () => void
@@ -28,6 +29,14 @@ type LibraryDragPayload =
 type FolderEditorState =
   | { mode: 'create'; name: string; parentId?: string }
   | { mode: 'rename'; name: string; folderId: string }
+
+type SearchEditorState = {
+  mode: 'create' | 'edit'
+  id?: string
+  name: string
+  note: string
+  folderId: string
+}
 
 function marketSource(entry: EquipmentLibraryEntry): MarketFavoriteSource | undefined {
   return entry.sources.find((source): source is MarketFavoriteSource => source.kind === 'market-favorite')
@@ -80,7 +89,7 @@ function isDescendant(folder: EquipmentLibraryFolder, ancestorId: string, folder
   return false
 }
 
-export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, onTabChange, onClose }: EquipmentLibraryPanelProps) {
+export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, activeTab, onTabChange, onClose }: EquipmentLibraryPanelProps) {
   const bridge = window.pob2Market
   const [entries, setEntries] = useState<EquipmentLibraryEntry[]>([])
   const [sidebar, setSidebar] = useState<EquipmentLibrarySidebarSnapshot>(EMPTY_SIDEBAR)
@@ -104,6 +113,7 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, onTabC
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
   const [bulkSelecting, setBulkSelecting] = useState(false)
   const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(() => new Set())
+  const [searchEditor, setSearchEditor] = useState<SearchEditorState | null>(null)
 
   const load = useCallback(async () => {
     if (!bridge) return
@@ -221,12 +231,34 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, onTabC
     setDeleteCandidate(null)
   }
 
-  const saveCurrentSearch = async () => {
-    if (!bridge || !currentUrl) return
-    const name = window.prompt(zh ? '搜索名称' : 'Search name', document.title || (zh ? '已保存的搜索' : 'Saved search'))?.trim()
-    if (!name) return
-    const searchNote = window.prompt(zh ? '备注（可选）' : 'Note (optional)', '')?.trim() || undefined
-    await run('save-search', () => bridge.saveSearch({ realm, name, note: searchNote, url: currentUrl, ...(selectedFolderId ? { folderId: selectedFolderId } : {}) }), zh ? '已保存当前搜索' : 'Current search saved')
+  const openSearchCreator = async () => {
+    if (!bridge || !currentSearch) return
+    const existing = sidebar.searches.find((search) => search.realm === currentSearch.realm
+      && search.leagueId === currentSearch.leagueId && search.searchCode === currentSearch.searchCode)
+    if (existing) {
+      await selectFolder('searches', existing.folderId)
+      setNotice(zh ? `“${existing.name}”已经收藏` : `“${existing.name}” is already saved`)
+      return
+    }
+    setSearchEditor({
+      mode: 'create',
+      name: currentSearch.leagueId || (zh ? '已保存的搜索' : 'Saved search'),
+      note: '',
+      folderId: selectedFolderId || '',
+    })
+  }
+
+  const submitSearchEditor = async () => {
+    if (!bridge || !searchEditor?.name.trim()) return
+    const editor = searchEditor
+    const input = { name: editor.name.trim(), note: editor.note.trim(), ...(editor.folderId ? { folderId: editor.folderId } : {}) }
+    if (editor.mode === 'create') {
+      await run('save-search', () => bridge.saveSearch(input), zh ? '已保存当前搜索' : 'Current search saved')
+    } else if (editor.id) {
+      const id = editor.id
+      await run(id, () => bridge.updateSearch({ id, ...input, folderId: editor.folderId || null }), zh ? '保存的搜索已更新' : 'Saved search updated')
+    }
+    setSearchEditor(null)
   }
 
   const beginEdit = (entry: EquipmentLibraryEntry) => {
@@ -312,6 +344,16 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, onTabC
     setDragOverPosition('inside')
   }
 
+  const dropSearchBefore = (event: ReactDragEvent, target: SavedMarketSearch) => {
+    if (dragging?.kind !== 'search' || dragging.id === target.id) return
+    event.preventDefault()
+    event.stopPropagation()
+    const source = sidebar.searches.find((search) => search.id === dragging.id)
+    setDragging(null)
+    if (!source || source.folderId !== target.folderId) return
+    void run(`sort:${source.id}`, () => bridge!.updateSearch({ id: source.id, beforeId: target.id }))
+  }
+
   const renderEntry = (entry: EquipmentLibraryEntry) => {
     const source = marketSource(entry)
     const similarLeagueId = source?.leagueId || leagueId
@@ -377,21 +419,29 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, onTabC
     draggable
     onDragStart={(event) => startDrag(event, { kind: 'search', id: search.id })}
     onDragEnd={endDrag}
+    onDragOver={(event) => {
+      if (dragging?.kind === 'search' && dragging.id !== search.id) {
+        event.preventDefault()
+        event.dataTransfer.dropEffect = 'move'
+      }
+    }}
+    onDrop={(event) => dropSearchBefore(event, search)}
     key={search.id}
   >
-    <span><strong>{search.note || search.name}</strong>{search.note && <small>{search.name}</small>}<em>{search.realm === 'cn' ? '腾讯服' : 'Global'}</em></span>
+    <span><strong>{search.name}</strong><small>{search.note || `${search.leagueId} · ${search.captureSource === 'code-only' ? (zh ? '仅搜索码' : 'Code only') : (zh ? '可恢复' : 'Recoverable')}`}</small><em>{search.realm === 'cn' ? '腾讯服' : 'Global'}</em></span>
+    <div className={`trade-helper-search-state ${search.validity}`}>
+      {search.validity === 'valid' ? <ShieldCheck /> : <TriangleAlert />}
+      <span>{search.validity === 'valid' ? (zh ? '搜索有效' : 'Valid search') : search.validity === 'needs-refresh' ? (zh ? '需要刷新' : 'Refresh required') : (zh ? '搜索无效' : 'Invalid search')}</span>
+      <small>{search.leagueId || (zh ? '未知赛季' : 'Unknown league')}</small>
+    </div>
     <footer>
-      <button onClick={() => void bridge?.openSearch(search.id)} title={zh ? '跳转到搜索' : 'Open search'}><ExternalLink /></button>
-      <button onClick={() => {
-        const name = window.prompt(zh ? '搜索名称' : 'Search name', search.name)?.trim()
-        if (name) void run(search.id, () => bridge!.updateSearch({ id: search.id, name }))
-      }} title={zh ? '重命名' : 'Rename'}><Pencil /></button>
-      <button onClick={() => {
-        const nextNote = window.prompt(zh ? '搜索备注' : 'Search note', search.note || '')
-        if (nextNote != null) void run(search.id, () => bridge!.updateSearch({ id: search.id, note: nextNote }))
-      }} title={zh ? '编辑备注' : 'Edit note'}><MessageSquareText /></button>
+      <button className="primary-action" disabled={search.validity === 'invalid' || monitoring?.purchaseTargets.some((target) => target.sourceSearchId === search.id && target.status !== 'completed')} onClick={() => void run(`target:${search.id}`, () => bridge!.createMonitorTarget(search.id), zh ? '已创建购买目标，请到实时监控中管理' : 'Purchase target created')} title={zh ? '创建独立的购买目标' : 'Create purchase target'}><BellRing /><span>{monitoring?.purchaseTargets.some((target) => target.sourceSearchId === search.id && target.status !== 'completed') ? (zh ? '已有目标' : 'Target exists') : (zh ? '创建购买目标' : 'Create target')}</span></button>
+      <button disabled={search.validity === 'invalid'} onClick={() => void bridge?.openSearch(search.id)} title={zh ? '跳转到搜索' : 'Open search'}><ExternalLink /></button>
+      <button onClick={() => setSearchEditor({ mode: 'edit', id: search.id, name: search.name, note: search.note || '', folderId: search.folderId || '' })} title={zh ? '编辑搜索' : 'Edit search'}><Pencil /></button>
+      {search.querySnapshot && <button onClick={() => void run(`recover:${search.id}`, () => bridge!.recoverSearch(search.id), zh ? '搜索码已重新生成' : 'Search code regenerated')} title={zh ? '重新生成搜索码' : 'Regenerate search code'}><RefreshCw /></button>}
+      <button disabled={!currentSearch || currentSearch.realm !== search.realm} onClick={() => window.confirm(zh ? '用当前页面的搜索条件替换这个收藏？' : 'Replace this saved search with the current page?') && void run(search.id, () => bridge!.replaceSearchFromCurrent(search.id), zh ? '搜索条件已更新' : 'Search conditions updated')} title={zh ? '用当前搜索更新' : 'Update from current search'}><Replace /></button>
       <button onClick={() => setMovingId((current) => current === `search:${search.id}` ? null : `search:${search.id}`)} title={zh ? '移动到目录' : 'Move to folder'}><FolderInput /></button>
-      <button className="danger" onClick={() => window.confirm(zh ? '删除这个搜索收藏？' : 'Delete this saved search?') && void run(search.id, () => bridge!.deleteSearch(search.id))} title={zh ? '删除' : 'Delete'}><Trash2 /></button>
+      <button className="danger" onClick={() => window.confirm(zh ? '删除这个保存的搜索？独立购买目标不会被删除。' : 'Delete this saved search? Independent purchase targets are retained.') && void run(search.id, () => bridge!.deleteSearch(search.id))} title={zh ? '删除' : 'Delete'}><Trash2 /></button>
     </footer>
     {movingId === `search:${search.id}` && <div className="trade-helper-move"><FolderInput /><select value={search.folderId || ''} onChange={(event) => void run(search.id, async () => {
       await bridge!.updateSearch({ id: search.id, folderId: event.target.value || null })
@@ -454,7 +504,7 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, onTabC
     <header className="trade-helper-header"><Bookmark /><strong>{zh ? '装备仓库' : 'Equipment Library'}</strong><span className="trade-helper-header-actions"><button onClick={onClose} title={zh ? '收起仓库' : 'Collapse library'}><X /></button></span></header>
     <nav className="trade-helper-tabs">
       <button className={activeTab === 'items' ? 'active' : ''} onClick={() => onTabChange('items')}>{zh ? '物品收藏' : 'Items'}</button>
-      <button className={activeTab === 'searches' ? 'active' : ''} onClick={() => onTabChange('searches')}>{zh ? '搜索收藏' : 'Searches'}</button>
+      <button className={activeTab === 'searches' ? 'active' : ''} onClick={() => onTabChange('searches')}>{zh ? '保存的搜索' : 'Saved searches'}</button>
     </nav>
     <div className={`trade-helper-workspace${directoryCompact ? ' directory-compact' : ''}`}>
       <section className="trade-helper-directory-pane">
@@ -506,7 +556,7 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, onTabC
         <div className="trade-helper-content-top">
           {(notice || error) && <div className={error ? 'trade-helper-message error' : 'trade-helper-message'}>{error || notice}<button onClick={() => { setError(null); setNotice(null) }}><X /></button></div>}
           <div className="trade-helper-actions">
-            {activeTab === 'searches' && <button disabled={!currentUrl} onClick={() => void saveCurrentSearch()}><Bookmark />{zh ? '保存当前搜索' : 'Save current search'}</button>}
+            {activeTab === 'searches' && <button disabled={!currentSearch} onClick={() => void openSearchCreator()} title={!currentSearch ? (zh ? '请先打开有效的官方搜索结果页' : 'Open a valid official search result first') : undefined}><Bookmark />{zh ? '保存当前搜索' : 'Save current search'}</button>}
           {activeTab === 'items' && <>
             <label><Search /><input value={query} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setQuery(event.target.value) }} placeholder={zh ? '搜索收藏' : 'Search favorites'} /></label>
             <select value={sourceKind} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setSourceKind(event.target.value as EquipmentLibrarySourceKind | 'all') }} aria-label={zh ? '来源分类' : 'Source category'}>
@@ -536,9 +586,25 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, onTabC
         <div className="trade-helper-content-list">
           {activeTab === 'items' && visibleEntries.map(renderEntry)}
           {activeTab === 'searches' && visibleSearches.map(renderSearch)}
-          {!contentCount && <div className="trade-helper-empty"><Bookmark /><span>{activeTab === 'items' ? (zh ? '此目录还没有收藏装备' : 'No favorite items in this folder') : (zh ? '此目录还没有收藏搜索' : 'No saved searches in this folder')}</span></div>}
+          {!contentCount && <div className="trade-helper-empty"><Bookmark /><span>{activeTab === 'items' ? (zh ? '此目录还没有收藏装备' : 'No favorite items in this folder') : (zh ? '此目录还没有保存的搜索' : 'No saved searches in this folder')}</span></div>}
         </div>
       </section>
+      {searchEditor && <div className="trade-helper-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSearchEditor(null) }}>
+        <section className="trade-helper-search-dialog" role="dialog" aria-modal="true" aria-labelledby="saved-search-dialog-title">
+          <header><div><small>{zh ? '保存的搜索' : 'Saved search'}</small><strong id="saved-search-dialog-title">{searchEditor.mode === 'create' ? (zh ? '保存当前搜索' : 'Save current search') : (zh ? '编辑保存的搜索' : 'Edit saved search')}</strong></div><button onClick={() => setSearchEditor(null)} title={zh ? '关闭' : 'Close'}><X /></button></header>
+          <div className="trade-helper-search-dialog-body">
+            {searchEditor.mode === 'create' && currentSearch && <div className="trade-helper-search-summary"><GlobeLabel realm={currentSearch.realm} zh={zh} /><span><strong>{currentSearch.leagueId}</strong><small>{currentSearch.captureSource === 'code-only' ? (zh ? '仅保存搜索码；失效后需要手动更新' : 'Code only; manual refresh is required if it expires') : (zh ? '已保存查询快照，可恢复搜索码' : 'Query snapshot available for recovery')}</small></span></div>}
+            <label><span>{zh ? '名称' : 'Name'}</span><input autoFocus maxLength={160} value={searchEditor.name} onChange={(event) => setSearchEditor({ ...searchEditor, name: event.target.value })} /></label>
+            <label><span>{zh ? '目录' : 'Folder'}</span><select value={searchEditor.folderId} onChange={(event) => setSearchEditor({ ...searchEditor, folderId: event.target.value })}><option value="">{zh ? '默认' : 'Default'}</option>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folderPath(folder, folders)}</option>)}</select></label>
+            <label><span>{zh ? '备注' : 'Note'}</span><textarea maxLength={4000} rows={3} value={searchEditor.note} onChange={(event) => setSearchEditor({ ...searchEditor, note: event.target.value })} /></label>
+          </div>
+          <footer><button onClick={() => setSearchEditor(null)}>{zh ? '取消' : 'Cancel'}</button><button className="primary" disabled={!searchEditor.name.trim() || busyId === 'save-search'} onClick={() => void submitSearchEditor()}><Save />{zh ? '保存' : 'Save'}</button></footer>
+        </section>
+      </div>}
     </div>
   </aside>
+}
+
+function GlobeLabel({ realm, zh }: { realm: MarketRealm; zh: boolean }) {
+  return <em>{realm === 'cn' ? (zh ? '腾讯服' : 'CN') : (zh ? '国际服' : 'Global')}</em>
 }

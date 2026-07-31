@@ -19,7 +19,29 @@ export interface MarketViewState {
   canGoBack: boolean
   canGoForward: boolean
   sessionStatus: MarketSessionStatus
+  currentSearch?: MarketSearchReference
   error?: string
+}
+
+export type SavedSearchCaptureSource = 'official-page' | 'superpoe-query' | 'code-only'
+export type SavedSearchValidity = 'unknown' | 'valid' | 'needs-refresh' | 'invalid'
+export type MonitorTaskStatus = 'saved' | 'armed' | 'paused' | 'completed'
+export type MonitorTaskPriority = 'high' | 'normal' | 'low'
+
+export interface SavedSearchQuerySnapshot {
+  source: Exclude<SavedSearchCaptureSource, 'code-only'>
+  body: unknown
+  hash: string
+  capturedAt: string
+}
+
+export interface MarketSearchReference {
+  realm: MarketRealm
+  leagueId: string
+  searchCode: string
+  canonicalUrl: string
+  captureSource: SavedSearchCaptureSource
+  querySnapshot?: SavedSearchQuerySnapshot
 }
 
 export type LibraryModifierGroup = 'enchant' | 'rune' | 'implicit' | 'explicit'
@@ -184,10 +206,20 @@ export interface EquipmentLibraryFolder {
 export interface SavedMarketSearch {
   id: string
   realm: MarketRealm
+  leagueId: string
+  searchCode: string
+  canonicalUrl: string
+  captureSource: SavedSearchCaptureSource
+  querySnapshot?: SavedSearchQuerySnapshot
+  validity: SavedSearchValidity
+  checkedAt?: string
   name: string
   note?: string
-  url: string
   folderId?: string
+  sortOrder: number
+  monitorStatus: MonitorTaskStatus
+  monitorPriority: MonitorTaskPriority
+  monitorStatusChangedAt: string
   createdAt: string
   updatedAt: string
 }
@@ -214,19 +246,138 @@ export interface EquipmentLibraryFolderPatch {
 }
 
 export interface SavedMarketSearchInput {
-  realm: MarketRealm
   name: string
   note?: string
-  url: string
   folderId?: string
 }
+
+export interface SavedMarketSearchRecordInput extends SavedMarketSearchInput, MarketSearchReference {}
 
 export interface SavedMarketSearchPatch {
   id: string
   name?: string
   note?: string
   folderId?: string | null
+  beforeId?: string | null
+  monitorStatus?: MonitorTaskStatus
+  monitorPriority?: MonitorTaskPriority
 }
+
+export type PurchaseTargetStatus = 'armed' | 'paused' | 'completed'
+
+export interface PurchaseTarget {
+  id: string
+  sourceSearchId?: string
+  sourceSearchUpdatedAt?: string
+  sourceSearchChanged?: boolean
+  name: string
+  note?: string
+  status: PurchaseTargetStatus
+  priority: MonitorTaskPriority
+  search: MarketSearchReference
+  createdAt: string
+  updatedAt: string
+  statusChangedAt: string
+}
+
+export type MonitorConnectionStatus = 'disabled' | 'connecting' | 'connected' | 'reconnecting' | 'auth-required' | 'invalid-search' | 'error'
+
+export interface MonitorRuntimeState {
+  targetId: string
+  /** @deprecated Transport compatibility with the injected Live client. */
+  searchId: string
+  connectionStatus: MonitorConnectionStatus
+  connectedAt?: string
+  retryAttempt: number
+  nextRetryAt?: string
+  lastErrorCode?: string
+  lastOpportunityAt?: string
+  pendingOpportunityCount: number
+}
+
+export type OpportunityStatus = 'detected' | 'fetching' | 'actionable' | 'attempting' | 'attempted' | 'skipped' | 'unavailable' | 'expired' | 'error'
+
+export interface MarketOpportunityItemSummary {
+  name: string
+  baseType: string
+  rarity?: string
+  iconUrl?: string
+  price?: string
+  itemLevel?: number
+  quality?: number
+  sockets?: string
+  corrupted?: boolean
+  identified?: boolean
+  modifiers?: LibraryModifier[]
+}
+
+export interface OpportunityBatch {
+  id: string
+  targetId: string
+  detectedAt: string
+  opportunityIds: string[]
+}
+
+export interface MarketOpportunity {
+  id: string
+  targetId: string
+  batchId: string
+  /** @deprecated Kept when loading older opportunity history. */
+  searchId: string
+  realm: MarketRealm
+  leagueId: string
+  searchCode: string
+  listingId: string
+  status: OpportunityStatus
+  detectedAt: string
+  fetchedAt?: string
+  attemptedAt?: string
+  item?: MarketOpportunityItemSummary
+}
+
+export type GameRuntimeState =
+  | { status: 'unknown'; checkedAt?: string }
+  | { status: 'stopped'; checkedAt: string }
+  | {
+      status: 'background' | 'foreground'
+      checkedAt: string
+      clientRealm: MarketRealm | 'unknown'
+      processName: string
+      pid: number
+      bounds?: MarketBounds
+      elevated?: boolean
+    }
+
+export interface MarketMonitorSettings {
+  overlayEnabled: boolean
+  soundEnabled: boolean
+  soundVolume: number
+  doNotDisturb: boolean
+  overlayCorner: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'
+}
+
+export interface MarketMonitoringSnapshot {
+  purchaseTargets: PurchaseTarget[]
+  targets: MonitorRuntimeState[]
+  batches: OpportunityBatch[]
+  opportunities: MarketOpportunity[]
+  game: GameRuntimeState
+  settings: MarketMonitorSettings
+  globalPaused: boolean
+}
+
+export interface OpportunityOverlayState {
+  searchName: string
+  detectedCount: number
+  actionableCount: number
+  current?: MarketOpportunity
+  alternatives: MarketOpportunity[]
+  canVisitHideout: boolean
+  matchedTargetCount?: number
+  statusMessage?: string
+}
+
+export type MarketOpportunityAttemptResult = 'attempted' | 'game-offline' | 'unavailable' | 'error'
 
 export interface MarketDomListingRef {
   realm: MarketRealm

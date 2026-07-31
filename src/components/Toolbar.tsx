@@ -27,6 +27,7 @@ import { translateGameText } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { buildRealmLabel } from '@/engine/buildRealm'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
+import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
 import {
   DEFAULT_ZOOM,
   MAX_ZOOM,
@@ -206,6 +207,7 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
             <option value="global">{lang === 'zh-rCN' ? '国际服' : 'Global'}</option>
           </select>
           <span className={`save-state ${saveStatus}`}><i />{saveLabels[saveStatus]}</span>
+          <GameRuntimeIndicator />
         </div>
 
         <div className="command-actions">

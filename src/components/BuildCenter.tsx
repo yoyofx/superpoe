@@ -11,6 +11,7 @@ import { getBuildCharacterLevel } from '@/engine/buildCode'
 import { getTreeAssetUrl, loadTreeAssetIndex } from '@/engine/treeAssetIndex'
 import type { SpriteIndex } from '@/engine/spriteLoader'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
+import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
 
 interface BuildCenterProps {
   onCreate: () => void
@@ -159,12 +160,11 @@ export function BuildCenter({ onCreate, onImport, onOpen, onMarket, onSettings }
       <header className="center-app-bar">
         <div className="app-brand center-brand"><img className="app-brand-logo" src="/assets/ui/superpoe2-logo.png" alt="" /><span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span></div>
         <div className="center-actions">
-          <button className="icon-command" onClick={onMarket} title={zh ? '打开集市' : 'Open market'} aria-label={zh ? '打开集市' : 'Open market'}><Store /></button>
           <button className="icon-command" onClick={onSettings} title={zh ? '全局设置' : 'Global settings'} aria-label={zh ? '全局设置' : 'Global settings'}><Settings /></button>
           <button className="icon-command" title={zh ? '帮助' : 'Help'} aria-label={zh ? '帮助' : 'Help'}><CircleHelp /></button>
         </div>
         <div className="center-command-row">
-          <div><h1>{zh ? '构筑中心' : 'Build center'}</h1><p>{zh ? '管理本地构筑，或从 PoB、WeGame 和 JSON 导入。' : 'Manage local builds or import from PoB, WeGame, and JSON.'}</p></div>
+          <div className="center-game-entry"><button className="secondary-command" onClick={onMarket}><Store />{zh ? '打开集市' : 'Open market'}</button><GameRuntimeIndicator /></div>
           <div><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button></div>
         </div>
       </header>

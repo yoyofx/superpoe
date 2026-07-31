@@ -57,6 +57,8 @@ declare global {
       selectFolder(scope: import('@/types/market').LibraryTreeScope, folderId?: string): Promise<import('@/types/market').EquipmentLibrarySidebarSnapshot>
       saveSearch(input: import('@/types/market').SavedMarketSearchInput): Promise<import('@/types/market').SavedMarketSearch>
       updateSearch(patch: import('@/types/market').SavedMarketSearchPatch): Promise<import('@/types/market').SavedMarketSearch>
+      replaceSearchFromCurrent(id: string): Promise<import('@/types/market').SavedMarketSearch>
+      recoverSearch(id: string): Promise<import('@/types/market').SavedMarketSearch>
       deleteSearch(id: string): Promise<boolean>
       openSearch(id: string): Promise<void>
       visitHideout(entryId: string): Promise<import('@/types/market').MarketVisitHideoutResult>
@@ -68,9 +70,20 @@ declare global {
       saveEquipmentItem(input: import('@/types/market').EquipmentLibraryItemInput): Promise<import('@/types/market').EquipmentLibraryEntry>
       searchLibrary(input: import('@/types/market').TradeSearchRequest): Promise<import('@/types/market').TradeSearchResult>
       listLeagues(realm: import('@/types/market').MarketRealm): Promise<import('@/types/market').TradeLeague[]>
+      getMonitoring(): Promise<import('@/types/market').MarketMonitoringSnapshot>
+      createMonitorTarget(searchId: string, priority?: import('@/types/market').MonitorTaskPriority): Promise<import('@/types/market').PurchaseTarget>
+      setMonitorTarget(targetId: string, status: import('@/types/market').MonitorTaskStatus, priority?: import('@/types/market').MonitorTaskPriority): Promise<import('@/types/market').PurchaseTarget>
+      setMonitorPriority(targetId: string, priority: import('@/types/market').MonitorTaskPriority): Promise<import('@/types/market').PurchaseTarget>
+      deleteMonitorTarget(targetId: string): Promise<boolean>
+      refreshMonitorTarget(targetId: string): Promise<import('@/types/market').PurchaseTarget>
+      setMonitoringPaused(paused: boolean): Promise<import('@/types/market').MarketMonitoringSnapshot>
+      updateMonitorSettings(patch: Partial<import('@/types/market').MarketMonitorSettings>): Promise<import('@/types/market').MarketMonitoringSnapshot>
+      previewMonitorSound(): Promise<void>
+      attemptMonitorOpportunity(id: string): Promise<import('@/types/market').MarketOpportunityAttemptResult>
       onStateChanged(callback: (state: import('@/types/market').MarketViewState) => void): () => void
       onLibraryChanged(callback: () => void): () => void
       onSidebarRequest(callback: (scope: import('@/types/market').LibraryTreeScope) => void): () => void
+      onMonitoringChanged(callback: (snapshot: import('@/types/market').MarketMonitoringSnapshot) => void): () => void
     }
     pob2Updater?: {
       check(channel?: 'release' | 'dev'): Promise<UpdateCheckResult>

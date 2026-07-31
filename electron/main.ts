@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, powerMonitor, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -13,9 +13,13 @@ import { EquipmentLibraryRepository, equipmentSourceKey, pobSourceKey } from './
 import { normalizeMarketListing } from './marketListing.js'
 import type {
   EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
-  EquipmentLibraryMetadataPatch, LibraryTreeScope, MarketDomListingRef, SavedMarketSearchInput, SavedMarketSearchPatch,
+  EquipmentLibraryMetadataPatch, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
+  MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch,
 } from '../src/types/market.js'
 import { OfficialTradeProvider, TradeReferenceDataCache } from './tradeService.js'
+import { GameWindowService } from './gameWindowService.js'
+import { MarketMonitoringCoordinator } from './marketMonitoring.js'
+import { OpportunityOverlayController } from './opportunityOverlay.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
@@ -141,6 +145,9 @@ function registerAppProtocol(): void {
 let mainWindow: BrowserWindow | null = null
 let marketViewManager: MarketViewManager | null = null
 let tradeProvider: OfficialTradeProvider | null = null
+let gameWindowService: GameWindowService | null = null
+let marketMonitoring: MarketMonitoringCoordinator | null = null
+let opportunityOverlay: OpportunityOverlayController | null = null
 let defaultRealm: MarketRealm = 'global'
 const tradeCredentialStore = new TradeCredentialStore(path.join(userDataPath, 'trade', 'credentials.v1.json'))
 const equipmentLibrary = new EquipmentLibraryRepository(path.join(userDataPath, 'library', 'equipment-library.v1.json'))
@@ -172,16 +179,6 @@ function validateListingRef(value: unknown, senderRealm: MarketRealm): MarketDom
     throw new Error('Invalid market source URL')
   }
   return { realm: senderRealm, listingId, queryId, sourceUrl: url.toString() }
-}
-
-function validateOfficialMarketUrl(value: unknown, realm: MarketRealm): string {
-  const sourceUrl = validateShortString(value, 'market URL', 2_048)
-  const url = new URL(sourceUrl)
-  const allowedHost = realm === 'cn'
-    ? url.hostname === 'poe.game.qq.com'
-    : url.hostname === 'www.pathofexile.com' || url.hostname === 'pathofexile.com'
-  if (url.protocol !== 'https:' || !allowedHost || !url.pathname.startsWith('/trade2')) throw new Error('Invalid market URL')
-  return url.toString()
 }
 
 function requireMarketSender(event: IpcMainEvent): MarketRealm {
@@ -256,8 +253,38 @@ function createWindow(): BrowserWindow {
     if (!window.isDestroyed()) window.webContents.send('market:state-changed', state)
   }, tradeCredentialStore)
   tradeProvider = new OfficialTradeProvider(marketViewManager, new TradeReferenceDataCache(path.join(userDataPath, 'trade', 'reference')))
+  opportunityOverlay = new OpportunityOverlayController(window, {
+    skip: (id) => marketMonitoring?.skipOpportunity(id),
+    pause: (targetId) => { marketMonitoring?.setTarget(targetId, 'paused') },
+    complete: (targetId) => { marketMonitoring?.setTarget(targetId, 'completed') },
+    attempt: async (id) => marketMonitoring ? marketMonitoring.attemptOpportunity(id) : 'error',
+    searchName: (targetId) => marketMonitoring?.snapshot().purchaseTargets.find((target) => target.id === targetId)?.name,
+  })
+  marketMonitoring = new MarketMonitoringCoordinator(
+    marketViewManager,
+    equipmentLibrary,
+    path.join(userDataPath, 'market', 'opportunities.v1.json'),
+    {
+      changed: (snapshot) => {
+        if (!window.isDestroyed()) window.webContents.send('market:monitoring-changed', snapshot)
+        opportunityOverlay?.updateSnapshot(snapshot)
+      },
+      actionable: (opportunities) => opportunityOverlay?.actionable(opportunities),
+    },
+  )
+  gameWindowService = new GameWindowService()
+  gameWindowService.on('changed', (state) => marketMonitoring?.setGameState(state))
+  marketMonitoring.setGameState(gameWindowService.getState())
+  marketMonitoring.start()
+  gameWindowService.start()
   marketViewManager.setRealm(defaultRealm)
   window.on('closed', () => {
+    gameWindowService?.stop()
+    gameWindowService = null
+    marketMonitoring?.dispose()
+    marketMonitoring = null
+    opportunityOverlay?.dispose()
+    opportunityOverlay = null
     marketViewManager?.dispose()
     marketViewManager = null
     tradeProvider = null
@@ -272,6 +299,7 @@ const pobLuaService = new PobLuaService()
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
+  powerMonitor.on('resume', () => marketMonitoring?.refreshTargets())
 
   const iconPath = getAppIconPath()
   if (process.platform === 'darwin' && existsSync(iconPath)) {
@@ -334,6 +362,105 @@ app.whenReady().then(() => {
     requireMainWindowSender(event)
     if (!marketViewManager) throw new Error('Market browser is unavailable')
     return marketViewManager.getState()
+  })
+
+  ipcMain.on('market-monitor:ready', (event) => {
+    const realm = requireMarketSender(event)
+    if (rendererUrl) console.info(`[Market monitor] preload ready realm=${realm}`)
+    marketMonitoring?.handlePreloadReady(realm)
+  })
+  ipcMain.on('market-monitor:state', (event, value: unknown) => {
+    const realm = requireMarketSender(event)
+    if (rendererUrl && value && typeof value === 'object') {
+      const state = value as { searchId?: unknown; connectionStatus?: unknown; retryAttempt?: unknown; lastErrorCode?: unknown }
+      console.info(`[Market monitor] state realm=${realm} search=${String(state.searchId || '')} status=${String(state.connectionStatus || '')} retry=${String(state.retryAttempt || 0)} error=${String(state.lastErrorCode || '')}`)
+    }
+    marketMonitoring?.handleRuntime(realm, value)
+  })
+  ipcMain.on('market-monitor:result', (event, value: unknown) => {
+    const realm = requireMarketSender(event)
+    if (rendererUrl && value && typeof value === 'object') {
+      const result = value as { searchId?: unknown; listingIds?: unknown; resultTokens?: unknown }
+      console.info(`[Market monitor] result realm=${realm} search=${String(result.searchId || '')} listings=${Array.isArray(result.listingIds) ? result.listingIds.length : 0} tokens=${Array.isArray(result.resultTokens) ? result.resultTokens.length : 0}`)
+    }
+    marketMonitoring?.handleLiveResult(realm, value)
+  })
+  ipcMain.on('market-monitor:frame', (event, value: unknown) => {
+    const realm = requireMarketSender(event)
+    if (!rendererUrl || !value || typeof value !== 'object') return
+    const frame = value as { searchId?: unknown; keys?: unknown; auth?: unknown; count?: unknown; resultCount?: unknown; resultType?: unknown; resultLength?: unknown; resultKeys?: unknown; invalidCharacters?: unknown }
+    const keys = Array.isArray(frame.keys) ? frame.keys.filter((key): key is string => typeof key === 'string').slice(0, 12).join(',') : ''
+    const resultKeys = Array.isArray(frame.resultKeys) ? frame.resultKeys.filter((key): key is string => typeof key === 'string').slice(0, 12).join(',') : ''
+    console.info(`[Market monitor] frame realm=${realm} search=${String(frame.searchId || '')} keys=${keys} auth=${frame.auth === true} count=${String(frame.count ?? '')} results=${String(frame.resultCount ?? '')} resultType=${String(frame.resultType ?? '')} resultLength=${String(frame.resultLength ?? '')} resultKeys=${resultKeys} invalidChars=${String(frame.invalidCharacters ?? '')}`)
+  })
+  ipcMain.on('market-opportunity:action', (event, value: unknown) => {
+    if (!opportunityOverlay?.ownsWebContents(event.sender) || typeof value !== 'string'
+      || !['select', 'next', 'skip', 'close', 'pause', 'complete', 'attempt', 'open-app'].includes(value.split(':')[0])) return
+    opportunityOverlay.handleAction(value)
+  })
+  ipcMain.handle('market:get-monitoring', (event) => {
+    requireMainWindowSender(event)
+    if (!marketMonitoring) throw new Error('Market monitoring is unavailable')
+    return marketMonitoring.snapshot()
+  })
+  ipcMain.handle('market:set-monitor-target', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!marketMonitoring || !value || typeof value !== 'object') throw new Error('Invalid monitoring target')
+    const input = value as { searchId?: unknown; status?: unknown; priority?: unknown }
+    const searchId = validateShortString(input.searchId, 'purchase target or saved search ID', 128)
+    if (!['saved', 'armed', 'paused', 'completed'].includes(String(input.status))) throw new Error('Invalid monitoring target status')
+    const priority = input.priority == null ? undefined : String(input.priority)
+    if (priority && !['high', 'normal', 'low'].includes(priority)) throw new Error('Invalid monitoring priority')
+    return marketMonitoring.setTarget(searchId, input.status as MonitorTaskStatus, priority as MonitorTaskPriority | undefined)
+  })
+  ipcMain.handle('market:create-monitor-target', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!marketMonitoring || !value || typeof value !== 'object') throw new Error('Invalid purchase target')
+    const input = value as { searchId?: unknown; priority?: unknown }
+    const searchId = validateShortString(input.searchId, 'saved search ID', 128)
+    const priority = input.priority == null ? 'normal' : String(input.priority)
+    if (!['high', 'normal', 'low'].includes(priority)) throw new Error('Invalid monitoring priority')
+    return marketMonitoring.createTarget(searchId, priority as MonitorTaskPriority)
+  })
+  ipcMain.handle('market:delete-monitor-target', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!marketMonitoring) throw new Error('Market monitoring is unavailable')
+    return marketMonitoring.deleteTarget(validateShortString(value, 'purchase target ID', 128))
+  })
+  ipcMain.handle('market:refresh-monitor-target', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!marketMonitoring) throw new Error('Market monitoring is unavailable')
+    return marketMonitoring.refreshTargetFromSource(validateShortString(value, 'purchase target ID', 128))
+  })
+  ipcMain.handle('market:set-monitor-priority', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!marketMonitoring || !value || typeof value !== 'object') throw new Error('Invalid monitoring priority')
+    const input = value as { searchId?: unknown; priority?: unknown }
+    const searchId = validateShortString(input.searchId, 'purchase target ID', 128)
+    if (!['high', 'normal', 'low'].includes(String(input.priority))) throw new Error('Invalid monitoring priority')
+    return marketMonitoring.setPriority(searchId, input.priority as MonitorTaskPriority)
+  })
+  ipcMain.handle('market:set-monitor-paused', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!marketMonitoring || typeof value !== 'boolean') throw new Error('Invalid global monitoring state')
+    marketMonitoring.setGlobalPaused(value)
+    return marketMonitoring.snapshot()
+  })
+  ipcMain.handle('market:update-monitor-settings', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!marketMonitoring || !value || typeof value !== 'object') throw new Error('Invalid monitoring settings')
+    marketMonitoring.updateSettings(value as Partial<MarketMonitorSettings>)
+    return marketMonitoring.snapshot()
+  })
+  ipcMain.handle('market:preview-monitor-sound', (event) => {
+    requireMainWindowSender(event)
+    if (!marketMonitoring || !opportunityOverlay) throw new Error('Market monitoring is unavailable')
+    opportunityOverlay.previewSound(marketMonitoring.snapshot().settings.soundVolume)
+  })
+  ipcMain.handle('market:attempt-opportunity', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!marketMonitoring) throw new Error('Market monitoring is unavailable')
+    return marketMonitoring.attemptOpportunity(validateShortString(value, 'opportunity ID', 128))
   })
 
   ipcMain.on('market-enhancement:status-request', (event, value: unknown) => {
@@ -456,14 +583,48 @@ app.whenReady().then(() => {
     requireMainWindowSender(event)
     if (!value || typeof value !== 'object') throw new Error('Invalid saved search')
     const input = value as Partial<SavedMarketSearchInput>
-    if (input.realm !== 'cn' && input.realm !== 'global') throw new Error('Invalid market realm')
+    const reference = marketViewManager?.getCurrentSearch()
+    if (!reference) throw new Error('The current page is not a valid official trade search')
     const search = equipmentLibrary.saveSearch({
-      realm: input.realm,
+      ...reference,
       name: validateShortString(input.name, 'search name', 160),
-      url: validateOfficialMarketUrl(input.url, input.realm),
       ...(typeof input.note === 'string' && input.note.trim() ? { note: input.note.slice(0, 4_000) } : {}),
       ...(typeof input.folderId === 'string' ? { folderId: validateShortString(input.folderId, 'folder ID', 128) } : {}),
     })
+    notifyLibraryChanged()
+    return search
+  })
+  ipcMain.handle('market:replace-search-current', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    const id = validateShortString(value, 'saved search ID', 128)
+    const current = marketViewManager?.getCurrentSearch()
+    if (!current) throw new Error('The current page is not a valid official trade search')
+    const existing = equipmentLibrary.getSearch(id)
+    if (!existing) throw new Error('Saved search not found')
+    const search = equipmentLibrary.replaceSearchReference(id, { ...current, name: existing.name, note: existing.note, folderId: existing.folderId })
+    marketMonitoring?.refreshTargets()
+    notifyLibraryChanged()
+    return search
+  })
+  ipcMain.handle('market:recover-search', async (event, value: unknown) => {
+    requireMainWindowSender(event)
+    const id = validateShortString(value, 'saved search ID', 128)
+    const existing = equipmentLibrary.getSearch(id)
+    if (!existing || !existing.querySnapshot || !tradeProvider) throw new Error('This saved search cannot be recovered automatically')
+    const recreated = await tradeProvider.recreateSearch(existing.realm, existing.leagueId, existing.querySnapshot.body)
+    const current = marketViewManager?.getCurrentSearch()
+    const reference = current?.searchCode === recreated.searchId && current.realm === existing.realm
+      ? current
+      : {
+          realm: existing.realm,
+          leagueId: existing.leagueId,
+          searchCode: recreated.searchId,
+          canonicalUrl: recreated.url,
+          captureSource: existing.querySnapshot.source,
+          querySnapshot: existing.querySnapshot,
+        } as const
+    const search = equipmentLibrary.replaceSearchReference(id, { ...reference, name: existing.name, note: existing.note, folderId: existing.folderId })
+    marketMonitoring?.refreshTargets()
     notifyLibraryChanged()
     return search
   })
@@ -475,6 +636,7 @@ app.whenReady().then(() => {
     if ('name' in input) patch.name = validateShortString(input.name, 'search name', 160)
     if ('note' in input) patch.note = typeof input.note === 'string' ? input.note.slice(0, 4_000) : ''
     if ('folderId' in input) patch.folderId = input.folderId == null ? null : validateShortString(input.folderId, 'folder ID', 128)
+    if ('beforeId' in input) patch.beforeId = input.beforeId == null ? null : validateShortString(input.beforeId, 'saved search sort target', 128)
     const search = equipmentLibrary.updateSearch(patch)
     notifyLibraryChanged()
     return search
@@ -482,14 +644,18 @@ app.whenReady().then(() => {
   ipcMain.handle('market:delete-search', (event, value: unknown) => {
     requireMainWindowSender(event)
     const deleted = equipmentLibrary.deleteSearch(validateShortString(value, 'saved search ID', 128))
-    if (deleted) notifyLibraryChanged()
+    if (deleted) {
+      marketMonitoring?.refreshTargets()
+      notifyLibraryChanged()
+    }
     return deleted
   })
   ipcMain.handle('market:open-search', (event, value: unknown) => {
     requireMainWindowSender(event)
     const search = equipmentLibrary.getSearch(validateShortString(value, 'saved search ID', 128))
     if (!search || !marketViewManager) throw new Error('Saved search not found')
-    marketViewManager.openSource(search.realm, search.url)
+    if (search.validity === 'invalid') throw new Error('This saved search is invalid and must be updated')
+    marketViewManager.openSource(search.realm, search.canonicalUrl)
   })
   ipcMain.handle('market:visit-hideout', async (event, value: unknown) => {
     requireMainWindowSender(event)

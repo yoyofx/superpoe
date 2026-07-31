@@ -1,4 +1,151 @@
 import { ipcRenderer } from 'electron'
+import { parseLiveResult } from './marketLive.js'
+
+interface MonitorConfig {
+  searchId: string
+  realm: 'cn' | 'global'
+  liveUrl: string
+}
+
+interface LiveConnection {
+  config: MonitorConfig
+  socket?: WebSocket
+  retryAttempt: number
+  retryTimer?: ReturnType<typeof setTimeout>
+  stopped: boolean
+}
+
+const liveConnections = new Map<string, LiveConnection>()
+const retryDelays = [1_000, 2_000, 5_000, 10_000, 30_000, 60_000]
+
+function sendMonitorState(connection: LiveConnection, connectionStatus: string, extra: Record<string, unknown> = {}): void {
+  ipcRenderer.send('market-monitor:state', {
+    searchId: connection.config.searchId,
+    connectionStatus,
+    retryAttempt: connection.retryAttempt,
+    ...extra,
+  })
+}
+
+function validLiveUrl(config: MonitorConfig): boolean {
+  try {
+    const url = new URL(config.liveUrl)
+    const host = config.realm === 'cn' ? 'poe.game.qq.com' : 'www.pathofexile.com'
+    return url.protocol === 'wss:' && url.hostname === host
+      && /^\/api\/trade2\/live\/poe2\/[^/]+\/[A-Za-z0-9_-]{1,128}$/.test(url.pathname)
+  } catch {
+    return false
+  }
+}
+
+function stopLive(connection: LiveConnection): void {
+  connection.stopped = true
+  if (connection.retryTimer) clearTimeout(connection.retryTimer)
+  connection.socket?.close(1000, 'monitor stopped')
+  connection.socket = undefined
+  sendMonitorState(connection, 'disabled')
+}
+
+function scheduleReconnect(connection: LiveConnection): void {
+  if (connection.stopped || connection.retryTimer) return
+  const delay = retryDelays[Math.min(connection.retryAttempt, retryDelays.length - 1)]
+  connection.retryAttempt += 1
+  const nextRetryAt = new Date(Date.now() + delay).toISOString()
+  sendMonitorState(connection, 'reconnecting', { nextRetryAt })
+  connection.retryTimer = setTimeout(() => {
+    connection.retryTimer = undefined
+    connectLive(connection)
+  }, delay)
+}
+
+function connectLive(connection: LiveConnection): void {
+  if (connection.stopped || connection.socket) return
+  if (!validLiveUrl(connection.config)) {
+    sendMonitorState(connection, 'invalid-search', { lastErrorCode: 'invalid-live-url' })
+    return
+  }
+  sendMonitorState(connection, connection.retryAttempt ? 'reconnecting' : 'connecting')
+  let socket: WebSocket
+  try {
+    socket = new WebSocket(connection.config.liveUrl)
+  } catch {
+    scheduleReconnect(connection)
+    return
+  }
+  connection.socket = socket
+  socket.addEventListener('open', () => {
+    connection.retryAttempt = 0
+    sendMonitorState(connection, 'connecting')
+  })
+  socket.addEventListener('message', (event) => {
+    if (typeof event.data !== 'string' || event.data.length > 1_000_000) return
+    try {
+      const payload = JSON.parse(event.data) as unknown
+      if (payload && typeof payload === 'object') {
+        const message = payload as { auth?: unknown; count?: unknown; result?: unknown; new?: unknown }
+        ipcRenderer.send('market-monitor:frame', {
+          searchId: connection.config.searchId,
+          keys: Object.keys(message).slice(0, 12),
+          auth: message.auth === true,
+          count: Number.isFinite(Number(message.count)) ? Number(message.count) : undefined,
+          resultCount: Array.isArray(message.result) ? message.result.length : Array.isArray(message.new) ? message.new.length : undefined,
+          resultType: Array.isArray(message.result) ? 'array' : typeof message.result,
+          resultLength: typeof message.result === 'string' ? message.result.length : undefined,
+          resultKeys: message.result && typeof message.result === 'object' && !Array.isArray(message.result) ? Object.keys(message.result).slice(0, 12) : undefined,
+          invalidCharacters: typeof message.result === 'string' ? message.result.replace(/[A-Za-z0-9_-]/g, '').slice(0, 40) : undefined,
+        })
+        if (message.auth === true) sendMonitorState(connection, 'connected', { connectedAt: new Date().toISOString() })
+      }
+      const result = parseLiveResult(payload)
+      if (result.listingIds.length || result.resultTokens.length) {
+        ipcRenderer.send('market-monitor:result', { searchId: connection.config.searchId, ...result })
+      }
+    } catch { /* Ignore malformed official frames. */ }
+  })
+  socket.addEventListener('error', () => sendMonitorState(connection, 'error', { lastErrorCode: 'websocket-error' }))
+  socket.addEventListener('close', (event) => {
+    if (connection.socket === socket) connection.socket = undefined
+    if (connection.stopped) return
+    if (event.code === 1008 || event.code === 4004) {
+      sendMonitorState(connection, 'invalid-search', { lastErrorCode: `close-${event.code}` })
+      return
+    }
+    if (event.code === 1013) {
+      sendMonitorState(connection, 'error', { lastErrorCode: 'rate-limited' })
+      return
+    }
+    if (event.code === 4001 || event.code === 4401) {
+      sendMonitorState(connection, 'auth-required', { lastErrorCode: `close-${event.code}` })
+      return
+    }
+    scheduleReconnect(connection)
+  })
+}
+
+ipcRenderer.on('market-monitor:sync', (_event, value: unknown) => {
+  const configs = Array.isArray(value) ? value.filter((entry): entry is MonitorConfig => {
+    if (!entry || typeof entry !== 'object') return false
+    const config = entry as Partial<MonitorConfig>
+    return typeof config.searchId === 'string' && (config.realm === 'cn' || config.realm === 'global') && typeof config.liveUrl === 'string'
+  }).slice(0, 20) : []
+  const wanted = new Set(configs.map((config) => config.searchId))
+  for (const [searchId, connection] of liveConnections) {
+    if (!wanted.has(searchId)) {
+      stopLive(connection)
+      liveConnections.delete(searchId)
+    }
+  }
+  for (const config of configs) {
+    const existing = liveConnections.get(config.searchId)
+    if (existing && existing.config.liveUrl === config.liveUrl) continue
+    if (existing) stopLive(existing)
+    const connection: LiveConnection = { config, retryAttempt: 0, stopped: false }
+    liveConnections.set(config.searchId, connection)
+    connectLive(connection)
+  }
+})
+
+ipcRenderer.send('market-monitor:ready')
 
 type FavoriteVisualState = 'idle' | 'pending' | 'active' | 'error'
 

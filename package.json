@@ -12,7 +12,7 @@
     "dev": "npm run dev:electron",
     "dev:renderer": "vite",
     "dev:server": "tsx server/index.ts",
-    "build:electron:main": "tsc -p tsconfig.electron.json && esbuild electron/marketPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/electron/marketPreload.cjs",
+    "build:electron:main": "tsc -p tsconfig.electron.json && esbuild electron/marketPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/electron/marketPreload.cjs && esbuild electron/opportunityPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/electron/opportunityPreload.cjs",
     "dev:electron:main": "npm run build:electron:main && wait-on http://127.0.0.1:3000 && electron .",
     "dev:electron": "concurrently -k \"npm run dev:renderer\" \"cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:3000 npm run dev:electron:main\"",
     "build:electron": "cross-env ELECTRON_BUILD=true npm run build && npm run build:electron:main",
@@ -124,6 +124,7 @@
   "dependencies": {
     "fast-xml-parser": "^5.8.0",
     "fastify": "^5.8.5",
+    "koffi": "^2.15.1",
     "lucide-react": "^0.468.0",
     "pako": "^2.1.0",
     "pixi.js": "^8.18.1",

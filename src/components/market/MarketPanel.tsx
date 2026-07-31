@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import { Archive, ArrowLeft, ArrowRight, ChevronLeft, ExternalLink, Globe2, Home, Library, LoaderCircle, LogIn, RefreshCw, Square, Store } from 'lucide-react'
+import { Archive, ArrowLeft, ArrowRight, ChevronLeft, ExternalLink, Globe2, Home, Library, LoaderCircle, LogIn, Pause, Play, RefreshCw, Square, Store } from 'lucide-react'
 import type { BuildRealm } from '@/types/tree'
-import type { LibraryTreeScope, MarketBounds, MarketNavigationCommand, MarketViewState } from '@/types/market'
+import type { LibraryTreeScope, MarketBounds, MarketMonitoringSnapshot, MarketNavigationCommand, MarketViewState } from '@/types/market'
 import { useTranslation } from '@/i18n/useTranslation'
 import { EquipmentLibraryPanel } from '@/components/market/EquipmentLibraryPanel'
 
@@ -51,6 +51,7 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
   const [libraryOpen, setLibraryOpen] = useState(true)
   const [libraryWidthPercent, setLibraryWidthPercent] = useState(44)
   const [libraryTab, setLibraryTab] = useState<LibraryTreeScope>('items')
+  const [monitoring, setMonitoring] = useState<MarketMonitoringSnapshot | null>(null)
   const viewSuspended = suspended
   const bridge = window.pob2Market
   const realmLabel = realm === 'cn' ? (zh ? '腾讯服' : 'Tencent CN') : (zh ? '国际服' : 'Global')
@@ -83,6 +84,14 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
     setLibraryTab(scope)
     setLibraryOpen(true)
   }), [bridge])
+
+  useEffect(() => {
+    if (!bridge) return
+    let active = true
+    void bridge.getMonitoring().then((snapshot) => { if (active) setMonitoring(snapshot) }).catch(() => {})
+    const unsubscribe = bridge.onMonitoringChanged((snapshot) => { if (active) setMonitoring(snapshot) })
+    return () => { active = false; unsubscribe() }
+  }, [bridge])
 
   useEffect(() => {
     if (!bridge) return
@@ -154,6 +163,9 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
     if (state.sessionStatus === 'anonymous') return zh ? '未登录' : 'Signed out'
     return zh ? '检查登录状态' : 'Checking session'
   }, [state.sessionStatus, zh])
+  const armedCount = monitoring?.targets.filter((target) => target.connectionStatus !== 'disabled').length || 0
+  const connectedCount = monitoring?.targets.filter((target) => target.connectionStatus === 'connected').length || 0
+  const pendingCount = monitoring?.targets.reduce((total, target) => total + target.pendingOpportunityCount, 0) || 0
 
   return <section className="market-workspace">
     <header className="market-toolbar">
@@ -163,6 +175,9 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
         <button className="icon-command compact" disabled={!bridge} onClick={() => navigate(state.loading ? 'stop' : 'reload')} title={state.loading ? (zh ? '停止加载' : 'Stop') : (zh ? '刷新' : 'Reload')} aria-label={state.loading ? (zh ? '停止加载' : 'Stop') : (zh ? '刷新' : 'Reload')}>{state.loading ? <Square /> : <RefreshCw />}</button>
         <button className="icon-command compact" disabled={!bridge} onClick={() => navigate('home')} title={zh ? '集市首页' : 'Market home'} aria-label={zh ? '集市首页' : 'Market home'}><Home /></button>
       </div>
+
+      <span className="market-monitor-count" title={zh ? `监控 ${connectedCount}/${armedCount}，待处理 ${pendingCount}` : `${connectedCount}/${armedCount} monitoring, ${pendingCount} pending`}>{connectedCount}/{armedCount} · {pendingCount}</span>
+      <button className="icon-command compact" disabled={!bridge || !monitoring} onClick={() => void bridge?.setMonitoringPaused(!monitoring?.globalPaused)} title={monitoring?.globalPaused ? (zh ? '恢复全部监控' : 'Resume all monitoring') : (zh ? '暂停全部监控' : 'Pause all monitoring')}>{monitoring?.globalPaused ? <Play /> : <Pause />}</button>
 
       <div className="market-location" title={state.title || state.url || officialHost}>
         {state.loading ? <LoaderCircle className="market-loading-icon" /> : <Globe2 />}
@@ -215,7 +230,7 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
             setLibraryWidthPercent((current) => Math.min(75, Math.max(30, current + (event.key === 'ArrowLeft' ? 2 : -2))))
           }}
         />
-        <EquipmentLibraryPanel realm={realm} zh={zh} currentUrl={state.url} activeTab={libraryTab} onTabChange={setLibraryTab} onClose={() => setLibraryOpen(false)} />
+        <EquipmentLibraryPanel realm={realm} zh={zh} currentSearch={state.currentSearch} monitoring={monitoring} activeTab={libraryTab} onTabChange={setLibraryTab} onClose={() => setLibraryOpen(false)} />
       </>
       : <button className="trade-helper-rail" onClick={() => setLibraryOpen(true)} title={zh ? '打开装备仓库' : 'Open equipment library'} aria-label={zh ? '打开装备仓库' : 'Open equipment library'}><Archive /><strong>{zh ? '装备仓库' : 'Equipment Library'}</strong><ChevronLeft /></button>}
     </div>

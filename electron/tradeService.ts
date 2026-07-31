@@ -204,6 +204,7 @@ export class OfficialTradeProvider {
     const response = record(await this.limited(() => this.manager.search(realm, leagueId, built.query))) as SearchResponse
     const searchId = clean(response.id)
     if (!searchId) throw new Error('Official trade search did not return a search ID')
+    this.manager.rememberGeneratedSearch(realm, leagueId, searchId, built.query)
     const origin = realm === 'cn' ? 'https://poe.game.qq.com' : 'https://www.pathofexile.com'
     return {
       searchId,
@@ -213,6 +214,15 @@ export class OfficialTradeProvider {
       unresolvedModifierCount: built.unresolved,
       resolvedItem,
     }
+  }
+
+  async recreateSearch(realm: MarketRealm, leagueId: string, query: unknown): Promise<{ searchId: string; url: string }> {
+    const response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
+    const searchId = clean(response.id)
+    if (!searchId) throw new Error('Official trade search did not return a search ID')
+    this.manager.rememberGeneratedSearch(realm, leagueId, searchId, query)
+    const origin = realm === 'cn' ? 'https://poe.game.qq.com' : 'https://www.pathofexile.com'
+    return { searchId, url: `${origin}/trade2/search/poe2/${encodeURIComponent(leagueId)}/${encodeURIComponent(searchId)}` }
   }
 
   private limited<T>(operation: () => Promise<T>): Promise<T> {

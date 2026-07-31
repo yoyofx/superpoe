@@ -1,11 +1,12 @@
 # SuperPoE2 集市浏览、页面增强与统一装备仓库设计
 
-> 状态：M0 应用侧已实现，待真实登录站点 smoke test
-> 更新日期：2026-07-29
+> 状态：M0 应用侧与搜索收藏 O0 已实现；实时购买目标监控待实施，整体待真实站点 smoke test
+> 更新日期：2026-07-31
 > 适用项目：`D:\sources\superpoe`
 > 关联设计：[price-check-design.md](./price-check-design.md)
+> 订阅设计：[market-subscription-design.md](./market-subscription-design.md)
 
-> 实现说明：双区服 `WebContentsView`、隔离 market preload、官方 Fetch 校验、统一多来源仓库、侧栏/独立仓库界面和仓库官方搜索已接入。公开会话无法越过腾讯登录与 Cloudflare，因此新版 listing DOM Adapter 仍需在用户 Electron 登录分区中验收。
+> 实现说明：双区服 `WebContentsView`、隔离 market preload、官方 Fetch 校验、统一多来源仓库、侧栏/独立仓库界面、仓库官方搜索和搜索收藏 O0 已接入。公开会话无法越过腾讯登录与 Cloudflare，因此新版 listing DOM Adapter、官方搜索请求快照捕获和收藏恢复仍需在用户 Electron 登录分区中验收。
 
 ## 1. 结论
 
@@ -47,16 +48,17 @@
 - PriceCheck Search/Fetch 自动复用该登录状态。
 - 显示当前区服和登录状态，支持重新登录和按区服注销。
 - 支持收藏交易结果装备，在 SuperPoE2 统一装备仓库中查看；“市场收藏”只是来源筛选视图。
+- 支持严格识别并保存当前官方搜索，维护名称、备注、目录和排序；现有 URL 书签式实现不视为完成。
 - 页面增强失效时，官方网页浏览与 PriceCheck API 仍能独立工作。
 
 ### 2.2 后续能力
 
 - 从网页选中装备后打开结构化详情面板。
 - 仓库装备加入候选比较列表。
-- 保存官方查询页面书签。
 - 将候选装备转换为 PoB Item。
 - 代入当前构筑计算 DPS、防御和资源变化。
 - 用户主动刷新收藏状态或重新搜索同类装备。
+- 将已保存的官方搜索启用为购买目标，通过 Trade2 Live WebSocket 接收新 listing，经突发合并、有限 Fetch、有效性校验和排序后，在游戏机会面板展示少量重点候选；详细方案见 [market-subscription-design.md](./market-subscription-design.md)。
 
 ### 2.3 不做
 
@@ -439,7 +441,7 @@ interface TradeStatResolutionSnapshot {
 - 不保存 Cookie、密码、私聊、完整 HTML、DOM 节点或网页脚本状态。
 - 第一版不引入 SQLite；数据量和价格历史需要索引时在 Repository 内部迁移，IPC 与 UI 模型保持不变。
 
-第一版支持按来源、realm、赛季、装备槽、目录和标签过滤，支持备注、归档、打开来源页和用户主动刷新。第一版不做后台轮询或价格监控。现有 `EquipmentItem` 继续作为构筑模型，仓库通过显式 Adapter 转换，市场 DTO 不得直接进入构筑模型。
+第一版支持按来源、realm、赛季、装备槽、目录和标签过滤，支持备注、归档、打开来源页和用户主动刷新。第一版不做后台轮询或价格变化监控；后续的购买目标监控只消费官方 Live 新 listing 事件，并在用户尝试行动前重新校验 listing，不轮询价格。现有 `EquipmentItem` 继续作为构筑模型，仓库通过显式 Adapter 转换，市场 DTO 不得直接进入构筑模型。
 
 ## 12. IPC 边界
 
@@ -588,7 +590,17 @@ src/types/
 
 完成标准：同一装备可保留多个来源；取消单一收藏来源不误删仓库主体；Adapter 失效时不会收藏错误装备，官网和 PriceCheck 仍正常。
 
-### Phase 4：构筑联动
+### Phase 4：搜索收藏可用化
+
+- 严格解析当前双区服官方搜索页并生成 canonical URL。
+- 保存 leagueId、searchCode、查询能力等级和可用的 validated query snapshot。
+- 使用项目内 modal 保存名称、备注、目录和是否开始监控，不再使用 `window.prompt()`。
+- 补齐重复检测、用当前搜索更新、目录/卡片排序、删除和失效恢复。
+- 与购买目标的连接生命周期原子协调；完整实现与验收见订阅设计 Phase O0。
+
+完成标准：搜索收藏不再只是 URL 书签，可以稳定去重、更新、跨重启打开，并能作为 Live 购买目标的可信输入；搜索码失效时可自动恢复或明确引导人工更新。
+
+### Phase 5：构筑联动
 
 - 页面卡片收藏标记与仓库详情侧栏。
 - 仓库装备通过 Adapter 转为 PoB Item。
@@ -601,6 +613,8 @@ src/types/
 单元测试：
 
 - realm profile、URL allowlist 和 bounds validator。
+- 严格搜索 URL parser、canonical URL、重复检测、query hash 和 code-only 降级。
+- 搜索收藏 schema 迁移、目录/卡片排序、条件更新、搜索码恢复和原子回滚。
 - session 状态机，测试数据不包含 Cookie value。
 - equipment-library schema、来源幂等、迁移、原子保存和损坏恢复。
 - 同一装备来自市场收藏、PoB 导入和装备界面收藏时保留多来源且不重复创建。
@@ -615,6 +629,8 @@ Electron 集成测试：
 - Tab、modal、最小化和主窗口关闭时不残留 webContents。
 - popup、redirect、permission 和 download policy。
 - realm partition 隔离与跨重启恢复。
+- Search POST body 观察的 URL/webContents/league/时间窗约束，不记录 Cookie、Header 或认证请求。
+- 保存当前搜索、定位重复、用当前搜索更新和删除活动搜索的 IPC 闭环。
 - 远程 preload 无法调用主窗口能力。
 
 手工回归：
@@ -622,6 +638,7 @@ Electron 集成测试：
 - 1024x720、1440x960、高 DPI 和所有 UI scale。
 - 双区服登录、注销、切换和重启。
 - 搜索、分页、详情、私聊按钮和返回导航。
+- 双区服有效搜索收藏、非搜索页拒绝、重复定位、条件更新、目录拖拽和失效搜索恢复。
 - 页面增强启用、失效和关闭。
 - 收藏后刷新页面、按钮状态恢复、listing 下架和赛季切换。
 - 集市登录后直接执行一次 PriceCheck Search + Fetch。

@@ -27,6 +27,8 @@ contextBridge.exposeInMainWorld('pob2Market', {
   selectFolder: (scope: import('../src/types/market.js').LibraryTreeScope, folderId?: string) => ipcRenderer.invoke('market:select-folder', { scope, folderId }) as Promise<import('../src/types/market.js').EquipmentLibrarySidebarSnapshot>,
   saveSearch: (input: import('../src/types/market.js').SavedMarketSearchInput) => ipcRenderer.invoke('market:save-search', input) as Promise<import('../src/types/market.js').SavedMarketSearch>,
   updateSearch: (patch: import('../src/types/market.js').SavedMarketSearchPatch) => ipcRenderer.invoke('market:update-search', patch) as Promise<import('../src/types/market.js').SavedMarketSearch>,
+  replaceSearchFromCurrent: (id: string) => ipcRenderer.invoke('market:replace-search-current', id) as Promise<import('../src/types/market.js').SavedMarketSearch>,
+  recoverSearch: (id: string) => ipcRenderer.invoke('market:recover-search', id) as Promise<import('../src/types/market.js').SavedMarketSearch>,
   deleteSearch: (id: string) => ipcRenderer.invoke('market:delete-search', id) as Promise<boolean>,
   openSearch: (id: string) => ipcRenderer.invoke('market:open-search', id) as Promise<void>,
   visitHideout: (entryId: string) => ipcRenderer.invoke('market:visit-hideout', entryId) as Promise<import('../src/types/market.js').MarketVisitHideoutResult>,
@@ -38,6 +40,16 @@ contextBridge.exposeInMainWorld('pob2Market', {
   saveEquipmentItem: (input: import('../src/types/market.js').EquipmentLibraryItemInput) => ipcRenderer.invoke('market:save-equipment-item', input) as Promise<import('../src/types/market.js').EquipmentLibraryEntry>,
   searchLibrary: (input: import('../src/types/market.js').TradeSearchRequest) => ipcRenderer.invoke('market:search-library', input) as Promise<import('../src/types/market.js').TradeSearchResult>,
   listLeagues: (realm: import('../src/types/market.js').MarketRealm) => ipcRenderer.invoke('market:list-leagues', realm) as Promise<import('../src/types/market.js').TradeLeague[]>,
+  getMonitoring: () => ipcRenderer.invoke('market:get-monitoring') as Promise<import('../src/types/market.js').MarketMonitoringSnapshot>,
+  createMonitorTarget: (searchId: string, priority?: import('../src/types/market.js').MonitorTaskPriority) => ipcRenderer.invoke('market:create-monitor-target', { searchId, priority }) as Promise<import('../src/types/market.js').PurchaseTarget>,
+  setMonitorTarget: (targetId: string, status: import('../src/types/market.js').MonitorTaskStatus, priority?: import('../src/types/market.js').MonitorTaskPriority) => ipcRenderer.invoke('market:set-monitor-target', { searchId: targetId, status, priority }) as Promise<import('../src/types/market.js').PurchaseTarget>,
+  setMonitorPriority: (targetId: string, priority: import('../src/types/market.js').MonitorTaskPriority) => ipcRenderer.invoke('market:set-monitor-priority', { searchId: targetId, priority }) as Promise<import('../src/types/market.js').PurchaseTarget>,
+  deleteMonitorTarget: (targetId: string) => ipcRenderer.invoke('market:delete-monitor-target', targetId) as Promise<boolean>,
+  refreshMonitorTarget: (targetId: string) => ipcRenderer.invoke('market:refresh-monitor-target', targetId) as Promise<import('../src/types/market.js').PurchaseTarget>,
+  setMonitoringPaused: (paused: boolean) => ipcRenderer.invoke('market:set-monitor-paused', paused) as Promise<import('../src/types/market.js').MarketMonitoringSnapshot>,
+  updateMonitorSettings: (patch: Partial<import('../src/types/market.js').MarketMonitorSettings>) => ipcRenderer.invoke('market:update-monitor-settings', patch) as Promise<import('../src/types/market.js').MarketMonitoringSnapshot>,
+  previewMonitorSound: () => ipcRenderer.invoke('market:preview-monitor-sound') as Promise<void>,
+  attemptMonitorOpportunity: (id: string) => ipcRenderer.invoke('market:attempt-opportunity', id) as Promise<import('../src/types/market.js').MarketOpportunityAttemptResult>,
   onStateChanged: (callback: (state: import('../src/types/market.js').MarketViewState) => void) => {
     const handler = (_event: unknown, state: import('../src/types/market.js').MarketViewState) => callback(state)
     ipcRenderer.on('market:state-changed', handler)
@@ -52,6 +64,11 @@ contextBridge.exposeInMainWorld('pob2Market', {
     const handler = (_event: unknown, scope: import('../src/types/market.js').LibraryTreeScope) => callback(scope)
     ipcRenderer.on('market:sidebar-request', handler)
     return () => { ipcRenderer.removeListener('market:sidebar-request', handler) }
+  },
+  onMonitoringChanged: (callback: (snapshot: import('../src/types/market.js').MarketMonitoringSnapshot) => void) => {
+    const handler = (_event: unknown, snapshot: import('../src/types/market.js').MarketMonitoringSnapshot) => callback(snapshot)
+    ipcRenderer.on('market:monitoring-changed', handler)
+    return () => { ipcRenderer.removeListener('market:monitoring-changed', handler) }
   },
 })
 
