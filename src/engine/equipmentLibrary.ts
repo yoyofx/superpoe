@@ -1,5 +1,12 @@
 import type { EquipmentItem } from '@/types/equipment'
-import type { LibraryItemSnapshot, LibraryModifier, LibraryModifierSource, LibraryModifierTag } from '@/types/market'
+import type { LibraryItemSnapshot, LibraryModifier, LibraryModifierSource, LibraryModifierTag, LibraryTextLocale } from '@/types/market'
+
+interface EquipmentLibraryLocalization {
+  locale: Exclude<LibraryTextLocale, 'en' | 'unknown'>
+  name: string
+  baseType: string
+  translate: (text: string) => string
+}
 
 function parseNumber(value: string | undefined): number | undefined {
   if (!value) return undefined
@@ -12,9 +19,14 @@ function sourceFromTags(tags: string[]): LibraryModifierSource {
     .find((tag) => tags.includes(tag)) || 'unknown'
 }
 
-export function equipmentItemToLibrarySnapshot(item: EquipmentItem, iconUrl?: string): LibraryItemSnapshot {
+export function equipmentItemToLibrarySnapshot(item: EquipmentItem, iconUrl?: string, localization?: EquipmentLibraryLocalization): LibraryItemSnapshot {
   const inputModifiers = item.modifiers || item.lines.map((text) => ({ text, tags: [], group: 'explicit' as const }))
-  const modifiers: LibraryModifier[] = inputModifiers.flatMap((modifier, index) => {
+  const modifiers: LibraryModifier[] = inputModifiers.filter((modifier) => {
+    const text = modifier.text.replace(/\{[^}]+\}/g, '').trim()
+    const socketed = modifier.group === 'rune' || modifier.tags.includes('rune')
+    const bonded = /^(?:Bonded|羁绊)\s*[:：]/i.test(text)
+    return !socketed && !bonded
+  }).flatMap((modifier, index) => {
     const text = modifier.text.replace(/\{[^}]+\}/g, '').trim()
     const currentValues = [...text.matchAll(/[-+]?\d+(?:\.\d+)?/g)].map((match) => Number(match[0]))
     const source = sourceFromTags(modifier.tags)
@@ -34,6 +46,12 @@ export function equipmentItemToLibrarySnapshot(item: EquipmentItem, iconUrl?: st
       tierRanges: [],
       tradeResolutions: [],
     }
+    const localizedText = localization?.translate(text).trim()
+    if (localization && localizedText && localizedText !== text) {
+      normalized.localized = {
+        [localization.locale]: { lines: [localizedText], displayText: localizedText },
+      }
+    }
     return [normalized]
   })
 
@@ -46,6 +64,9 @@ export function equipmentItemToLibrarySnapshot(item: EquipmentItem, iconUrl?: st
     sockets: item.sockets,
     iconUrl: iconUrl || item.imageUrl,
     rawText: item.raw,
+    ...(localization ? { localized: {
+      [localization.locale]: { name: localization.name, baseType: localization.baseType },
+    } } : {}),
     modifiers,
   }
 }

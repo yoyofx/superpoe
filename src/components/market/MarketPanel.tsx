@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { ArrowLeft, ArrowRight, ExternalLink, Globe2, Home, Library, LoaderCircle, LogIn, RefreshCw, Square, Star, Store } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
+import { Archive, ArrowLeft, ArrowRight, ChevronLeft, ExternalLink, Globe2, Home, Library, LoaderCircle, LogIn, RefreshCw, Square, Store } from 'lucide-react'
 import type { BuildRealm } from '@/types/tree'
 import type { LibraryTreeScope, MarketBounds, MarketNavigationCommand, MarketViewState } from '@/types/market'
 import { useTranslation } from '@/i18n/useTranslation'
@@ -43,11 +43,13 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
   const { lang } = useTranslation()
   const zh = lang === 'zh-rCN'
   const hostRef = useRef<HTMLDivElement>(null)
+  const contentRef = useRef<HTMLDivElement>(null)
   const activatedRef = useRef(false)
+  const resizingRef = useRef(false)
   const [state, setState] = useState<MarketViewState>({ ...EMPTY_STATE, realm })
   const [bridgeError, setBridgeError] = useState<string | null>(null)
   const [libraryOpen, setLibraryOpen] = useState(true)
-  const [libraryExpanded, setLibraryExpanded] = useState(false)
+  const [libraryWidthPercent, setLibraryWidthPercent] = useState(44)
   const [libraryTab, setLibraryTab] = useState<LibraryTreeScope>('items')
   const viewSuspended = suspended
   const bridge = window.pob2Market
@@ -125,6 +127,28 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
     })
   }, [bridge])
 
+  const resizeLibrary = useCallback((clientX: number) => {
+    const rect = contentRef.current?.getBoundingClientRect()
+    if (!rect?.width) return
+    const nextWidth = ((rect.right - clientX) / rect.width) * 100
+    setLibraryWidthPercent(Math.min(75, Math.max(30, nextWidth)))
+  }, [])
+
+  const startLibraryResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    resizingRef.current = true
+    event.currentTarget.setPointerCapture(event.pointerId)
+    resizeLibrary(event.clientX)
+  }
+
+  const moveLibraryResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (resizingRef.current) resizeLibrary(event.clientX)
+  }
+
+  const stopLibraryResize = (event: ReactPointerEvent<HTMLDivElement>) => {
+    resizingRef.current = false
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) event.currentTarget.releasePointerCapture(event.pointerId)
+  }
+
   const statusLabel = useMemo(() => {
     if (state.sessionStatus === 'valid') return zh ? '已登录' : 'Signed in'
     if (state.sessionStatus === 'anonymous') return zh ? '未登录' : 'Signed out'
@@ -153,7 +177,11 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
       <button className="icon-command compact" disabled={!bridge || !state.url} onClick={() => void bridge?.openExternal()} title={zh ? '在系统浏览器打开' : 'Open in browser'} aria-label={zh ? '在系统浏览器打开' : 'Open in browser'}><ExternalLink /></button>
     </header>
 
-    <div className={`market-content${libraryOpen ? ` library-open${libraryExpanded ? ' library-expanded' : ''}` : ' library-collapsed'}`}>
+    <div
+      className={`market-content${libraryOpen ? ' library-open' : ' library-collapsed'}`}
+      ref={contentRef}
+      style={{ '--market-library-width': `${libraryWidthPercent}%` } as CSSProperties}
+    >
     <div className="market-browser-host" ref={hostRef}>
       {!bridge && <div className="market-browser-fallback">
         <Store />
@@ -167,8 +195,29 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
       </div>}
     </div>
     {libraryOpen
-      ? <EquipmentLibraryPanel realm={realm} zh={zh} currentUrl={state.url} activeTab={libraryTab} expanded={libraryExpanded} onTabChange={setLibraryTab} onToggleExpanded={() => setLibraryExpanded((value) => !value)} onClose={() => setLibraryOpen(false)} />
-      : <button className="trade-helper-rail" onClick={() => setLibraryOpen(true)} title={zh ? '打开收藏侧栏' : 'Open favorites sidebar'} aria-label={zh ? '打开收藏侧栏' : 'Open favorites sidebar'}><Star /></button>}
+      ? <>
+        <div
+          className="market-splitter"
+          role="separator"
+          aria-label={zh ? '调整集市与仓库宽度' : 'Resize market and library'}
+          aria-orientation="vertical"
+          aria-valuemin={30}
+          aria-valuemax={75}
+          aria-valuenow={Math.round(libraryWidthPercent)}
+          tabIndex={0}
+          onPointerDown={startLibraryResize}
+          onPointerMove={moveLibraryResize}
+          onPointerUp={stopLibraryResize}
+          onPointerCancel={stopLibraryResize}
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return
+            event.preventDefault()
+            setLibraryWidthPercent((current) => Math.min(75, Math.max(30, current + (event.key === 'ArrowLeft' ? 2 : -2))))
+          }}
+        />
+        <EquipmentLibraryPanel realm={realm} zh={zh} currentUrl={state.url} activeTab={libraryTab} onTabChange={setLibraryTab} onClose={() => setLibraryOpen(false)} />
+      </>
+      : <button className="trade-helper-rail" onClick={() => setLibraryOpen(true)} title={zh ? '打开装备仓库' : 'Open equipment library'} aria-label={zh ? '打开装备仓库' : 'Open equipment library'}><Archive /><strong>{zh ? '装备仓库' : 'Equipment Library'}</strong><ChevronLeft /></button>}
     </div>
   </section>
 }

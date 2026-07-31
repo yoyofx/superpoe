@@ -55,4 +55,31 @@ describe('shared trade resolver and query builder', () => {
     const resolved = new TradeStatResolver().resolve(item(['+109 to maximum Life']), { ...catalog, realm: 'cn' })
     expect(buildTradeQuery(resolved, 'cn').query).toMatchObject({ query: { status: { option: 'securable' } } })
   })
+
+  it('uses localized base types and modifier text for Tencent searches', () => {
+    const localizedItem = item(['+109 to maximum Life'])
+    localizedItem.localized = { 'zh-CN': { name: '灾厄之壳', baseType: '专家咒术长袍' } }
+    localizedItem.modifiers[0].localized = {
+      'zh-CN': { lines: ['+109 最大生命'], displayText: '+109 最大生命' },
+    }
+    const cnCatalog = {
+      ...catalog,
+      realm: 'cn' as const,
+      entries: [{ id: 'explicit.stat_3299347043', text: '# 最大生命' }],
+    }
+
+    const resolved = new TradeStatResolver().resolve(localizedItem, cnCatalog)
+    const built = buildTradeQuery(resolved, 'cn')
+
+    expect(resolved.modifiers[0].tradeResolutions[0]).toMatchObject({
+      queryStatId: 'explicit.stat_3299347043', status: 'resolved',
+    })
+    expect(built.query).toMatchObject({
+      query: {
+        status: { option: 'securable' },
+        type: '专家咒术长袍',
+        stats: [{ filters: [{ id: 'explicit.stat_3299347043', value: { min: 109 } }] }],
+      },
+    })
+  })
 })

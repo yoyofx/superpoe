@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type DragEvent as ReactDragEvent, type ReactNode } from 'react'
 import {
-  Bookmark, Check, ChevronDown, ChevronRight, ExternalLink, Eye, Folder, FolderInput, FolderPlus, FolderTree, Home,
-  Maximize2, MessageSquareText, Minimize2, PanelLeftClose, PanelLeftOpen, Pencil, Save, Search, Tags, Trash2, X,
+  Bookmark, Check, ChevronDown, ChevronRight, ExternalLink, Folder, FolderInput, FolderPlus, FolderTree, Home,
+  ListChecks, MessageSquareText, PanelLeftClose, PanelLeftOpen, Pencil, Save, Search, Square,
+  SquareCheckBig, Tags, Trash2, X,
 } from 'lucide-react'
 import type {
   EquipmentLibraryEntry, EquipmentLibraryFolder, EquipmentLibrarySidebarSnapshot, LibraryTreeScope,
@@ -13,9 +14,7 @@ interface EquipmentLibraryPanelProps {
   zh: boolean
   currentUrl: string
   activeTab: LibraryTreeScope
-  expanded: boolean
   onTabChange: (tab: LibraryTreeScope) => void
-  onToggleExpanded: () => void
   onClose: () => void
 }
 
@@ -81,7 +80,7 @@ function isDescendant(folder: EquipmentLibraryFolder, ancestorId: string, folder
   return false
 }
 
-export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, expanded, onTabChange, onToggleExpanded, onClose }: EquipmentLibraryPanelProps) {
+export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, onTabChange, onClose }: EquipmentLibraryPanelProps) {
   const bridge = window.pob2Market
   const [entries, setEntries] = useState<EquipmentLibraryEntry[]>([])
   const [sidebar, setSidebar] = useState<EquipmentLibrarySidebarSnapshot>(EMPTY_SIDEBAR)
@@ -102,7 +101,9 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, expand
   const [directoryCompact, setDirectoryCompact] = useState(false)
   const [folderEditor, setFolderEditor] = useState<FolderEditorState | null>(null)
   const [deleteCandidate, setDeleteCandidate] = useState<EquipmentLibraryFolder | null>(null)
-  const [detailsOpenId, setDetailsOpenId] = useState<string | null>(null)
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
+  const [bulkSelecting, setBulkSelecting] = useState(false)
+  const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(() => new Set())
 
   const load = useCallback(async () => {
     if (!bridge) return
@@ -125,6 +126,19 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, expand
   }, [load])
 
   useEffect(() => bridge?.onLibraryChanged(() => void load()), [bridge, load])
+
+  useEffect(() => {
+    setBulkSelecting(false)
+    setSelectedEntryIds(new Set())
+  }, [activeTab])
+
+  useEffect(() => {
+    const availableIds = new Set(entries.map((entry) => entry.id))
+    setSelectedEntryIds((current) => {
+      const next = new Set([...current].filter((id) => availableIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [entries])
 
   useEffect(() => {
     let active = true
@@ -155,8 +169,27 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, expand
   }
 
   const selectFolder = (scope: LibraryTreeScope, id?: string) => run(id || 'root', async () => {
+    setBulkSelecting(false)
+    setSelectedEntryIds(new Set())
     setSidebar(await bridge!.selectFolder(scope, id))
   })
+
+  const toggleEntrySelection = (entryId: string) => {
+    setSelectedEntryIds((current) => {
+      const next = new Set(current)
+      if (next.has(entryId)) next.delete(entryId)
+      else next.add(entryId)
+      return next
+    })
+  }
+
+  const startBulkSelection = () => {
+    setEditingId(null)
+    setMovingId(null)
+    setSelectedEntryId(null)
+    setSelectedEntryIds(new Set())
+    setBulkSelecting(true)
+  }
 
   const createFolder = (parentId?: string) => {
     setDirectoryCompact(false)
@@ -282,17 +315,19 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, expand
   const renderEntry = (entry: EquipmentLibraryEntry) => {
     const source = marketSource(entry)
     const similarLeagueId = source?.leagueId || leagueId
-    const selected = detailsOpenId === entry.id
+    const selected = bulkSelecting ? selectedEntryIds.has(entry.id) : selectedEntryId === entry.id
+    const localizedItem = zh ? entry.item.localized?.['zh-CN'] : undefined
     return <article
-      className={`trade-helper-item rarity-${entry.item.rarity.toLowerCase()}${dragging?.kind === 'item' && dragging.id === entry.id ? ' dragging' : ''}${selected ? ' selected details-open' : ''}`}
-      draggable
+      className={`trade-helper-item rarity-${entry.item.rarity.toLowerCase()}${dragging?.kind === 'item' && dragging.id === entry.id ? ' dragging' : ''}${selected ? ' selected' : ''}${bulkSelecting ? ' bulk-selecting' : ''}`}
+      draggable={!bulkSelecting}
       tabIndex={0}
       aria-selected={selected}
-      onClick={() => setDetailsOpenId(entry.id)}
+      onClick={() => bulkSelecting ? toggleEntrySelection(entry.id) : setSelectedEntryId(entry.id)}
       onKeyDown={(event) => {
         if (event.key !== 'Enter' && event.key !== ' ') return
         event.preventDefault()
-        setDetailsOpenId(entry.id)
+        if (bulkSelecting) toggleEntrySelection(entry.id)
+        else setSelectedEntryId(entry.id)
       }}
       onDragStart={(event) => startDrag(event, { kind: 'item', id: entry.id })}
       onDragEnd={endDrag}
@@ -300,8 +335,10 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, expand
     >
       <header>
         {entry.item.iconUrl && <img src={entry.item.iconUrl} alt="" />}
-        <span><strong>{entry.item.name}</strong><small>{entry.item.baseType}</small></span>
-        <button onClick={() => beginEdit(entry)} title={zh ? '编辑备注和标签' : 'Edit note and tags'} aria-label={zh ? '编辑备注和标签' : 'Edit note and tags'}><Pencil /></button>
+        <span><strong>{localizedItem?.name || entry.item.name}</strong><small>{localizedItem?.baseType || entry.item.baseType}</small></span>
+        {bulkSelecting
+          ? <button className="trade-helper-item-select" aria-pressed={selected} onClick={(event) => { event.stopPropagation(); toggleEntrySelection(entry.id) }} title={selected ? (zh ? '取消选择' : 'Deselect') : (zh ? '选择装备' : 'Select item')} aria-label={selected ? (zh ? '取消选择' : 'Deselect') : (zh ? '选择装备' : 'Select item')}>{selected ? <SquareCheckBig /> : <Square />}</button>
+          : <button onClick={(event) => { event.stopPropagation(); beginEdit(entry) }} title={zh ? '编辑备注和标签' : 'Edit note and tags'} aria-label={zh ? '编辑备注和标签' : 'Edit note and tags'}><Pencil /></button>}
       </header>
       {source?.price && <div className="trade-helper-price">{source.price.display}</div>}
       <div className="trade-helper-sources">{entry.sources.map((entrySource) => <span className={`source-${entrySource.kind}`} key={entrySource.sourceKey}>{sourceLabel(entrySource.kind, zh)}</span>)}<span className="modifier-count">{entry.item.modifiers.length ? `${entry.item.modifiers.length}${zh ? ' 条词缀' : ' mods'}` : (zh ? '暂无词条' : 'No modifiers')}</span></div>
@@ -309,7 +346,7 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, expand
         {entry.item.modifiers.map((modifier) => <div className={modifierClass(modifier)} key={modifier.id}>
           {modifier.affixKind && <span className={`affix-kind ${modifier.affixKind}`}>{modifier.affixKind === 'prefix' ? (zh ? '前缀' : 'Pre') : (zh ? '后缀' : 'Suf')}</span>}
           {tierLabel(modifier) && <span className="affix-tier">{tierLabel(modifier)}</span>}
-          <span>{modifier.original.displayText}</span>
+          <span>{(zh ? modifier.localized?.['zh-CN']?.displayText : undefined) || modifier.original.displayText}</span>
         </div>)}
         {!entry.item.modifiers.length && <span className="trade-helper-no-modifiers">{zh ? '此收藏没有词条快照，重新收藏可更新装备详情。' : 'No modifier snapshot is available. Favorite the listing again to refresh it.'}</span>}
       </div>
@@ -321,18 +358,14 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, expand
           setEditingId(null)
         })}><Save /></button></div>
       </div>}
-      <footer>
-        <button className={selected ? 'active' : ''} onClick={(event) => {
-          event.stopPropagation()
-          setDetailsOpenId((current) => current === entry.id ? null : entry.id)
-        }} title={zh ? '装备详情' : 'Item details'} aria-label={zh ? '装备详情' : 'Item details'} aria-pressed={selected}><Eye /></button>
+      {!bulkSelecting && <footer>
         {source && <button className="primary-action" disabled={busyId === entry.id} onClick={() => void run(entry.id, () => visitHideout(entry.id), zh ? '已发送前往藏身处请求' : 'Hideout travel request sent')} title={zh ? '前往藏身处' : 'Travel to hideout'}><Home /><span>{zh ? '藏身处' : 'Hideout'}</span></button>}
         {source && <button onClick={() => void bridge?.openLibrarySource(entry.id, source.sourceKey)} title={zh ? '打开来源' : 'Open source'}><ExternalLink /></button>}
         <button className="primary-action" disabled={!similarLeagueId || busyId === entry.id} onClick={() => void run(entry.id, () => bridge!.searchLibrary({ entryId: entry.id, realm: source?.realm || realm, leagueId: similarLeagueId }), zh ? '已生成相似装备搜索' : 'Similar-item search created')} title={zh ? '找相似装备' : 'Find similar items'}><Search /><span>{zh ? '找相似' : 'Similar'}</span></button>
         <button onClick={() => setMovingId((current) => current === `item:${entry.id}` ? null : `item:${entry.id}`)} title={zh ? '移动到目录' : 'Move to folder'}><FolderInput /></button>
         <button className="danger" onClick={() => window.confirm(zh ? `删除“${entry.item.name}”？` : `Delete “${entry.item.name}”?`) && void run(entry.id, () => bridge!.deleteLibrary(entry.id))} title={zh ? '删除' : 'Delete'}><Trash2 /></button>
-      </footer>
-      {movingId === `item:${entry.id}` && <div className="trade-helper-move"><FolderInput /><select value={entry.folderId || ''} onChange={(event) => void run(entry.id, async () => {
+      </footer>}
+      {!bulkSelecting && movingId === `item:${entry.id}` && <div className="trade-helper-move"><FolderInput /><select value={entry.folderId || ''} onChange={(event) => void run(entry.id, async () => {
         await bridge!.updateLibrary({ id: entry.id, folderId: event.target.value || null })
         setMovingId(null)
       })}><option value="">{zh ? '默认' : 'Default'}</option>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folderPath(folder, folders)}</option>)}</select></div>}
@@ -403,9 +436,22 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, expand
   const visibleSearches = selectedFolderId ? sidebar.searches.filter((search) => search.folderId === selectedFolderId) : rootSearches
   const selectedFolder = selectedFolderId ? folders.find((folder) => folder.id === selectedFolderId) : undefined
   const contentCount = activeTab === 'items' ? visibleEntries.length : visibleSearches.length
+  const allVisibleEntriesSelected = Boolean(visibleEntries.length) && visibleEntries.every((entry) => selectedEntryIds.has(entry.id))
+
+  const deleteSelectedEntries = async () => {
+    if (!bridge || !selectedEntryIds.size) return
+    const count = selectedEntryIds.size
+    if (!window.confirm(zh ? `确定删除选中的 ${count} 件装备？此操作无法撤销。` : `Delete the ${count} selected items? This cannot be undone.`)) return
+    await run('bulk-delete', async () => {
+      const deleted = await bridge.deleteLibraries([...selectedEntryIds])
+      setSelectedEntryIds(new Set())
+      setBulkSelecting(false)
+      return deleted
+    }, zh ? `已删除 ${count} 件装备` : `${count} items deleted`)
+  }
 
   return <aside className="equipment-library-panel trade-helper-sidebar">
-    <header className="trade-helper-header"><Bookmark /><strong>{zh ? '装备仓库' : 'Equipment Library'}</strong><span className="trade-helper-header-actions"><button onClick={onToggleExpanded} title={expanded ? (zh ? '缩小仓库' : 'Reduce library') : (zh ? '展开仓库' : 'Expand library')}>{expanded ? <Minimize2 /> : <Maximize2 />}</button><button onClick={onClose} title={zh ? '收起仓库' : 'Collapse library'}><X /></button></span></header>
+    <header className="trade-helper-header"><Bookmark /><strong>{zh ? '装备仓库' : 'Equipment Library'}</strong><span className="trade-helper-header-actions"><button onClick={onClose} title={zh ? '收起仓库' : 'Collapse library'}><X /></button></span></header>
     <nav className="trade-helper-tabs">
       <button className={activeTab === 'items' ? 'active' : ''} onClick={() => onTabChange('items')}>{zh ? '物品收藏' : 'Items'}</button>
       <button className={activeTab === 'searches' ? 'active' : ''} onClick={() => onTabChange('searches')}>{zh ? '搜索收藏' : 'Searches'}</button>
@@ -462,8 +508,8 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, expand
           <div className="trade-helper-actions">
             {activeTab === 'searches' && <button disabled={!currentUrl} onClick={() => void saveCurrentSearch()}><Bookmark />{zh ? '保存当前搜索' : 'Save current search'}</button>}
           {activeTab === 'items' && <>
-            <label><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={zh ? '搜索收藏' : 'Search favorites'} /></label>
-            <select value={sourceKind} onChange={(event) => setSourceKind(event.target.value as EquipmentLibrarySourceKind | 'all')} aria-label={zh ? '来源分类' : 'Source category'}>
+            <label><Search /><input value={query} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setQuery(event.target.value) }} placeholder={zh ? '搜索收藏' : 'Search favorites'} /></label>
+            <select value={sourceKind} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setSourceKind(event.target.value as EquipmentLibrarySourceKind | 'all') }} aria-label={zh ? '来源分类' : 'Source category'}>
               <option value="all">{zh ? '全部来源' : 'All sources'}</option>
               <option value="market-favorite">{zh ? '集市收藏' : 'Market favorites'}</option>
               <option value="pob-import">{zh ? 'PoB 导入' : 'PoB imports'}</option>
@@ -476,7 +522,16 @@ export function EquipmentLibraryPanel({ realm, zh, currentUrl, activeTab, expand
         </div>
         <header className="trade-helper-content-header">
           <span><Folder /><strong>{selectedFolder ? folderPath(selectedFolder, folders) : (zh ? '默认' : 'Default')}</strong></span>
-          <small>{contentCount}{zh ? ' 项' : ' items'}</small>
+          <span className="trade-helper-content-summary">
+            {activeTab === 'items' && !bulkSelecting && Boolean(visibleEntries.length) && <button onClick={startBulkSelection} title={zh ? '批量选择' : 'Bulk select'} aria-label={zh ? '批量选择' : 'Bulk select'}><ListChecks /></button>}
+            {activeTab === 'items' && bulkSelecting && <>
+              <small>{zh ? `已选 ${selectedEntryIds.size} / ${visibleEntries.length}` : `${selectedEntryIds.size} / ${visibleEntries.length} selected`}</small>
+              <button onClick={() => setSelectedEntryIds(allVisibleEntriesSelected ? new Set() : new Set(visibleEntries.map((entry) => entry.id)))} title={allVisibleEntriesSelected ? (zh ? '取消全选' : 'Deselect all') : (zh ? '全选当前目录' : 'Select all in folder')} aria-label={allVisibleEntriesSelected ? (zh ? '取消全选' : 'Deselect all') : (zh ? '全选当前目录' : 'Select all in folder')}>{allVisibleEntriesSelected ? <Square /> : <SquareCheckBig />}</button>
+              <button className="danger" disabled={!selectedEntryIds.size || busyId === 'bulk-delete'} onClick={() => void deleteSelectedEntries()} title={zh ? '删除选中装备' : 'Delete selected items'} aria-label={zh ? '删除选中装备' : 'Delete selected items'}><Trash2 /></button>
+              <button onClick={() => { setBulkSelecting(false); setSelectedEntryIds(new Set()) }} title={zh ? '退出批量选择' : 'Exit bulk selection'} aria-label={zh ? '退出批量选择' : 'Exit bulk selection'}><X /></button>
+            </>}
+            {!bulkSelecting && <small>{contentCount}{zh ? ' 项' : ' items'}</small>}
+          </span>
         </header>
         <div className="trade-helper-content-list">
           {activeTab === 'items' && visibleEntries.map(renderEntry)}

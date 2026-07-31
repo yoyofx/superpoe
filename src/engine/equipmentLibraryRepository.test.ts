@@ -147,4 +147,33 @@ describe('EquipmentLibraryRepository', () => {
     store.removeSource(marketSourceKey('global', 'listing-1'))
     expect(store.list()).toEqual([])
   })
+
+  it('deletes multiple selected entries in one operation', () => {
+    const store = repository()
+    const first = store.upsert(item(), marketSource(2))
+    const second = store.upsert(
+      { ...item(), name: 'Doom Ward' },
+      { ...marketSource(3), sourceKey: marketSourceKey('global', 'listing-2'), listingId: 'listing-2' },
+    )
+
+    expect(store.deleteMany([first.id, second.id, 'missing-entry'])).toBe(2)
+    expect(store.list()).toEqual([])
+    expect(store.deleteMany([])).toBe(0)
+  })
+
+  it('can enrich an item without changing its library sort timestamp', () => {
+    const store = repository()
+    const entry = store.upsert(item(), marketSource(2))
+    const enriched = structuredClone(entry.item)
+    enriched.modifiers[0].tradeResolutions = [{
+      realm: 'global', queryStatId: 'explicit.stat_3299347043', baseStatId: 'explicit.stat_3299347043',
+      candidateStatIds: ['explicit.stat_3299347043'], source: 'explicit', valueMode: 'numeric', valueTransform: 'identity',
+      resolvedBy: 'exact-text', status: 'resolved',
+    }]
+
+    const updated = store.updateItem(entry.id, enriched, { touchUpdatedAt: false })
+
+    expect(updated.updatedAt).toBe(entry.updatedAt)
+    expect(updated.item.modifiers[0].tradeResolutions[0]?.queryStatId).toBe('explicit.stat_3299347043')
+  })
 })

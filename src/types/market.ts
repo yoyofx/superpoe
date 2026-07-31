@@ -25,6 +25,12 @@ export interface MarketViewState {
 export type LibraryModifierGroup = 'enchant' | 'rune' | 'implicit' | 'explicit'
 export type LibraryModifierSource = LibraryModifierGroup | 'fractured' | 'crafted' | 'desecrated' | 'unknown'
 export type LibraryModifierTag = LibraryModifierSource | 'corrupted' | 'mutated'
+export type LibraryTextLocale = 'zh-CN' | 'zh-TW' | 'en' | 'ko-KR' | 'unknown'
+
+export interface LibraryLocalizedText {
+  lines: string[]
+  displayText: string
+}
 
 export interface TradeStatResolutionSnapshot {
   realm: MarketRealm
@@ -49,10 +55,11 @@ export interface LibraryModifier {
   sourceTags: LibraryModifierTag[]
   affixKind?: 'prefix' | 'suffix'
   original: {
-    locale: 'zh-CN' | 'zh-TW' | 'en' | 'unknown'
+    locale: LibraryTextLocale
     lines: string[]
     displayText: string
   }
+  localized?: Partial<Record<LibraryTextLocale, LibraryLocalizedText>>
   valueMode: 'numeric' | 'presence' | 'fixed-option'
   currentValues: number[]
   tierRanges: Array<{ min: number; max: number }>
@@ -75,6 +82,7 @@ export interface LibraryItemSnapshot {
   identified?: boolean
   iconUrl?: string
   rawText?: string
+  localized?: Partial<Record<LibraryTextLocale, { name: string; baseType: string }>>
   modifiers: LibraryModifier[]
 }
 

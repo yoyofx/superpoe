@@ -115,12 +115,15 @@ export class TradeStatResolver {
       const [baseId] = existing.queryStatId?.split('|') || []
       if (baseId && catalog.entries.some((entry) => entry.id === baseId)) return structuredClone(modifier)
     }
-    const template = normalizeTemplate(modifier.original.displayText)
+    const sourceText = catalog.realm === 'cn'
+      ? modifier.localized?.['zh-CN']?.displayText || modifier.original.displayText
+      : modifier.original.displayText
+    const template = normalizeTemplate(sourceText)
     const directMatches = catalog.entries
       .filter((entry) => normalizeTemplate(entry.text) === template)
       .map((entry) => ({ entry, queryStatId: entry.id }))
     const optionMatches = catalog.entries.flatMap((entry) => (entry.option?.options || []).flatMap((option) => (
-      normalizeText(entry.text.replace('#', option.text)) === normalizeText(modifier.original.displayText)
+      normalizeText(entry.text.replace('#', option.text)) === normalizeText(sourceText)
         ? [{ entry, option, queryStatId: `${entry.id}|${option.id}` }]
         : []
     )))
@@ -163,7 +166,7 @@ export function buildTradeQuery(item: LibraryItemSnapshot, realm: MarketRealm): 
     query: {
       query: {
         status: { option: realm === 'cn' ? 'securable' : 'online' },
-        type: item.baseType || undefined,
+        type: (realm === 'cn' ? item.localized?.['zh-CN']?.baseType : undefined) || item.baseType || undefined,
         stats: filters.length ? [{ type: 'and', filters }] : [],
       },
       sort: { price: 'asc' },

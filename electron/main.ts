@@ -522,6 +522,14 @@ app.whenReady().then(() => {
     if (deleted) notifyLibraryChanged()
     return deleted
   })
+  ipcMain.handle('market:delete-libraries', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!Array.isArray(value) || value.length > 5_000) throw new Error('Invalid equipment library entry IDs')
+    const ids = value.map((id) => validateShortString(id, 'library entry ID', 128))
+    const deleted = equipmentLibrary.deleteMany(ids)
+    if (deleted) notifyLibraryChanged()
+    return deleted
+  })
   ipcMain.handle('market:remove-library-source', (event, value: unknown) => {
     requireMainWindowSender(event)
     const result = equipmentLibrary.removeSource(validateShortString(value, 'library source key', 512))
@@ -580,7 +588,7 @@ app.whenReady().then(() => {
     const leagueId = validateShortString(input.leagueId, 'trade league', 128)
     if (!tradeProvider || !marketViewManager) throw new Error('Trade provider is unavailable')
     const result = await tradeProvider.search(realm, leagueId, entry.item)
-    equipmentLibrary.updateItem(entry.id, result.resolvedItem)
+    equipmentLibrary.updateItem(entry.id, result.resolvedItem, { touchUpdatedAt: false })
     notifyLibraryChanged()
     marketViewManager.openSource(realm, result.url)
     const { resolvedItem: _resolvedItem, ...response } = result

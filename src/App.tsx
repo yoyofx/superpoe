@@ -85,12 +85,16 @@ export default function App() {
     const factor = appSettings.uiScalePercent / 100
     if (window.pob2Desktop?.setUiScale) {
       document.documentElement.style.removeProperty('zoom')
-      void window.pob2Desktop.setUiScale(factor).catch(() => {
-        document.documentElement.style.setProperty('zoom', String(factor))
-      })
+      void window.pob2Desktop.setUiScale(factor)
+        .then(() => window.dispatchEvent(new Event('resize')))
+        .catch(() => {
+          document.documentElement.style.setProperty('zoom', String(factor))
+          window.dispatchEvent(new Event('resize'))
+        })
       return
     }
     document.documentElement.style.setProperty('zoom', String(factor))
+    window.dispatchEvent(new Event('resize'))
   }, [appSettings.uiScalePercent])
 
   useEffect(() => {

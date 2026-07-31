@@ -192,6 +192,16 @@ export class EquipmentLibraryRepository {
     return true
   }
 
+  deleteMany(ids: string[]): number {
+    const selectedIds = new Set(ids)
+    if (!selectedIds.size) return 0
+    const before = this.entries.length
+    this.entries = this.entries.filter((entry) => !selectedIds.has(entry.id))
+    const deleted = before - this.entries.length
+    if (deleted) this.save()
+    return deleted
+  }
+
   updateMetadata(patch: EquipmentLibraryMetadataPatch): EquipmentLibraryEntry {
     const entry = this.entries.find((candidate) => candidate.id === patch.id)
     if (!entry) throw new Error('Equipment library entry not found')
@@ -212,13 +222,13 @@ export class EquipmentLibraryRepository {
     return structuredClone(entry)
   }
 
-  updateItem(id: string, item: LibraryItemSnapshot): EquipmentLibraryEntry {
+  updateItem(id: string, item: LibraryItemSnapshot, options: { touchUpdatedAt?: boolean } = {}): EquipmentLibraryEntry {
     if (!isLibraryItem(item)) throw new Error('Invalid equipment library item')
     const entry = this.entries.find((candidate) => candidate.id === id)
     if (!entry) throw new Error('Equipment library entry not found')
     entry.item = structuredClone(item)
     entry.fingerprint = fingerprintLibraryItem(item)
-    entry.updatedAt = new Date().toISOString()
+    if (options.touchUpdatedAt !== false) entry.updatedAt = new Date().toISOString()
     this.save()
     return structuredClone(entry)
   }

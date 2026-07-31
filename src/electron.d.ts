@@ -62,6 +62,7 @@ declare global {
       visitHideout(entryId: string): Promise<import('@/types/market').MarketVisitHideoutResult>
       updateLibrary(patch: import('@/types/market').EquipmentLibraryMetadataPatch): Promise<import('@/types/market').EquipmentLibraryEntry>
       deleteLibrary(id: string): Promise<boolean>
+      deleteLibraries(ids: string[]): Promise<number>
       removeLibrarySource(sourceKey: string): Promise<{ removedEntryId?: string; entry?: import('@/types/market').EquipmentLibraryEntry }>
       openLibrarySource(entryId: string, sourceKey: string): Promise<{ kind: import('@/types/market').EquipmentLibrarySourceKind }>
       saveEquipmentItem(input: import('@/types/market').EquipmentLibraryItemInput): Promise<import('@/types/market').EquipmentLibraryEntry>
