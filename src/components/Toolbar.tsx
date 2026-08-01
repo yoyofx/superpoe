@@ -2,8 +2,9 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   CircleHelp,
   BellRing,
-  Download,
   ArrowLeft,
+  FileInput,
+  FileOutput,
   LockKeyhole,
   MoreVertical,
   Redo2,
@@ -14,7 +15,6 @@ import {
   Store,
   Swords,
   Undo2,
-  Upload,
   Workflow,
   ZoomIn,
   ZoomOut,
@@ -199,26 +199,28 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
               <span><i>{lang === 'zh-rCN' ? '已分配天赋' : 'Allocated passives'}</i><b>{allocatedNodes.size}</b></span>
             </span>
           </span>
-          <select
-            className={`build-realm-select ${buildRealm}`}
-            value={buildRealm}
-            onChange={(event) => setBuildRealm(event.target.value as 'cn' | 'global')}
-            aria-label={lang === 'zh-rCN' ? '游戏服务器' : 'Game realm'}
-            title={lang === 'zh-rCN' ? '修改当前构筑的游戏服务器' : 'Change this build realm'}
-          >
-            <option value="cn">{lang === 'zh-rCN' ? '腾讯服' : 'Tencent CN'}</option>
-            <option value="global">{lang === 'zh-rCN' ? '国际服' : 'Global'}</option>
-          </select>
-          <span className={`save-state ${saveStatus}`}><i />{saveLabels[saveStatus]}</span>
         </div>
 
         <div className="command-actions">
+          <div className={`build-status-control ${buildRealm}`}>
+            <select
+              className={`build-realm-select ${buildRealm}`}
+              value={buildRealm}
+              onChange={(event) => setBuildRealm(event.target.value as 'cn' | 'global')}
+              aria-label={lang === 'zh-rCN' ? '游戏服务器' : 'Game realm'}
+              title={lang === 'zh-rCN' ? '修改当前构筑的游戏服务器' : 'Change this build realm'}
+            >
+              <option value="cn">{lang === 'zh-rCN' ? '腾讯服' : 'Tencent CN'}</option>
+              <option value="global">{lang === 'zh-rCN' ? '国际服' : 'Global'}</option>
+            </select>
+            <span className={`save-state ${saveStatus}`}><i />{saveLabels[saveStatus]}</span>
+          </div>
           <span className="version-indicator" title={lang === 'zh-rCN' ? '构筑版本已确定' : 'Build version is fixed'} aria-label={`${t('toolbar.version')} ${treeVersion.replace('_', '.')}`}>
             <LockKeyhole />
             <span>{treeVersion.replace('_', '.')}</span>
           </span>
-          <button className="icon-command" onClick={onImport} title={t('toolbar.importTitle')} aria-label={t('toolbar.importTitle')}><Upload /></button>
-          <button className="icon-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')} aria-label={t('toolbar.exportTitle')}><Download /></button>
+          <button className="secondary-command toolbar-text-command" onClick={onImport} title={t('toolbar.importTitle')}><FileInput /><span>{lang === 'zh-rCN' ? '导入' : 'Import'}</span></button>
+          <button className="secondary-command toolbar-text-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')}><FileOutput /><span>{lang === 'zh-rCN' ? '导出' : 'Export'}</span></button>
           <button className="primary-command" onClick={onSave}><Save />{lang === 'zh-rCN' ? '保存' : 'Save'}</button>
           <GameRuntimeIndicator />
           <button className="icon-command" onClick={onSettings} title={lang === 'zh-rCN' ? '全局设置' : 'Global settings'} aria-label={lang === 'zh-rCN' ? '全局设置' : 'Global settings'}><Settings /></button>

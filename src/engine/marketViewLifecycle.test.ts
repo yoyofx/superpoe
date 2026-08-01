@@ -35,4 +35,31 @@ describe('MarketViewManager lifecycle', () => {
     expect(() => manager.dispose()).not.toThrow()
     expect(close).toHaveBeenCalledOnce()
   })
+
+  it('does not reattach a deactivated market view when the window is restored', () => {
+    const listeners = new Map<string, () => void>()
+    const addChildView = vi.fn()
+    const removeChildView = vi.fn()
+    const owner = {
+      isDestroyed: () => false,
+      contentView: { addChildView, removeChildView },
+      on: vi.fn((event: string, listener: () => void) => listeners.set(event, listener)),
+    }
+    const manager = new MarketViewManager(
+      owner as never,
+      vi.fn(),
+      {} as TradeCredentialStore,
+    )
+    const view = {
+      setBounds: vi.fn(),
+      webContents: { isDestroyed: () => false, close: vi.fn() },
+    }
+    Object.assign(manager, { activeView: view, attached: true, visible: true })
+
+    manager.deactivate()
+    listeners.get('restore')?.()
+
+    expect(removeChildView).toHaveBeenCalledWith(view)
+    expect(addChildView).not.toHaveBeenCalled()
+  })
 })

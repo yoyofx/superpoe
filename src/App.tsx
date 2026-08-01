@@ -145,6 +145,12 @@ export default function App() {
   }, [screen])
 
   useEffect(() => {
+    if (screen !== 'trade' || marketWorkspace !== 'market') {
+      void window.pob2Market?.deactivate().catch(() => {})
+    }
+  }, [marketWorkspace, screen])
+
+  useEffect(() => {
     const openEquipment = () => setActiveView('equipment')
     window.addEventListener('open-equipment-panel', openEquipment)
     return () => window.removeEventListener('open-equipment-panel', openEquipment)

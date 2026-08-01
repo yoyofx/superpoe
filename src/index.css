@@ -36,7 +36,7 @@ svg { flex: 0 0 auto; }
 .workspace-loading small { max-width: 560px; color: #b86961; }
 .workspace-loading.error svg { color: #c66c62; animation: none; }
 .workbench-header { position: relative; z-index: 60; min-width: 0; border-bottom: 1px solid #5a503b; background: rgba(9, 11, 11, .98); box-shadow: 0 8px 24px rgba(0, 0, 0, .38); }
-.app-command-bar { height: 52px; display: grid; grid-template-columns: 210px minmax(250px, 1fr) auto; border-bottom: 1px solid #302f2a; }
+.app-command-bar { height: 52px; display: grid; grid-template-columns: 210px minmax(180px, 1fr) max-content; border-bottom: 1px solid #302f2a; }
 
 .app-brand { display: flex; align-items: center; gap: 10px; padding: 0 16px; border-right: 1px solid #35332d; }
 .app-brand-logo { width: 34px; height: 34px; flex: 0 0 auto; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0, 0, 0, .72)); }
@@ -44,7 +44,7 @@ svg { flex: 0 0 auto; }
 .app-brand strong { display: block; color: #e1d5b7; font: 500 18px Georgia, serif; }
 .app-brand small { display: block; color: #716c60; font-size: 10px; margin-top: 1px; }
 
-.current-build { min-width: 0; display: flex; align-items: center; gap: 10px; padding: 0 14px; }
+.current-build { min-width: 0; overflow: hidden; display: flex; align-items: center; gap: 10px; padding: 0 14px; }
 .current-build-profile { position: relative; min-width: 0; display: flex; align-items: center; gap: 9px; }
 .class-emblem { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid #62573d; background: #1b1b16; color: #c5aa6e; font: 500 14px Georgia, serif; }
 .class-emblem img { width: 100%; height: 100%; display: block; object-fit: cover; }
@@ -64,14 +64,16 @@ svg { flex: 0 0 auto; }
 .realm-tag { display: inline-flex; align-items: center; justify-content: center; min-height: 18px; padding: 1px 6px; border: 1px solid #4d665e; background: #13201c; color: #7eb39e; font-size: 8px; font-style: normal; font-weight: 500; line-height: 1; white-space: nowrap; }
 .realm-tag.cn { border-color: #71443e; background: #241412; color: #d47a70; }
 .current-build > .realm-tag { flex: 0 0 auto; }
-.build-realm-select { width: 78px; height: 24px; flex: 0 0 auto; padding: 0 20px 0 7px; border: 1px solid #4d665e; border-radius: 0; background: #13201c; color: #7eb39e; font-size: 9px; cursor: pointer; }
-.build-realm-select.cn { border-color: #71443e; background: #241412; color: #d47a70; }
+.build-status-control { height: 32px; flex: 0 0 auto; display: inline-flex; align-items: stretch; border: 1px solid #4d665e; background: #111714; }
+.build-status-control.cn { border-color: #67423d; background: #1c1211; }
+.build-realm-select { width: 82px; height: 30px; flex: 0 0 auto; padding: 0 21px 0 8px; border: 0; border-right: 1px solid #40554e; border-radius: 0; outline: 0; background: #13201c; color: #83b9a4; font-size: 10px; cursor: pointer; }
+.build-realm-select.cn { border-right-color: #593833; background: #241412; color: #db8176; }
 .build-realm-select:hover { filter: brightness(1.18); }
-.save-state { display: inline-flex; align-items: center; gap: 5px; color: #747168; font-size: 10px; white-space: nowrap; }
+.save-state { min-width: 61px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 9px; color: #858177; font-size: 10px; white-space: nowrap; }
 .save-state i { width: 5px; height: 5px; border-radius: 50%; background: #55a676; }
 
 .command-actions, .context-tools { display: flex; align-items: center; gap: 6px; }
-.command-actions { padding: 0 12px; }
+.command-actions { width: max-content; min-width: max-content; padding: 0 12px; white-space: nowrap; }
 .icon-command, .primary-command, .compact-select, .context-select { height: 32px; border: 1px solid #4d493e; background: var(--control); color: #b8b1a3; }
 .icon-command { width: 32px; display: inline-grid; place-items: center; cursor: pointer; }
 .icon-command svg { width: 15px; height: 15px; }
@@ -82,6 +84,9 @@ svg { flex: 0 0 auto; }
 .primary-command svg { width: 14px; height: 14px; }
 .primary-command:hover:not(:disabled) { background: #2e2819; border-color: #a28a53; }
 .primary-command:disabled { opacity: .45; cursor: default; }
+.toolbar-text-command { height: 32px; min-height: 32px; padding-inline: 11px; color: #b8b1a3; font-size: 11px; }
+.toolbar-text-command svg { width: 15px; height: 15px; color: #9b8a66; }
+.toolbar-text-command:hover:not(:disabled) svg { color: #d4b873; }
 .compact-select, .context-select { padding: 0 24px 0 8px; color: #a9a294; font-size: 11px; cursor: pointer; }
 .version-indicator { height: 32px; min-width: 68px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 0 10px; border: 1px solid #4d493e; background: var(--control); color: #8e887d; font-size: 11px; cursor: default; }
 .version-indicator svg { width: 13px; height: 13px; color: #76694e; }

@@ -82,6 +82,7 @@ export class MarketViewManager {
   private activeView: WebContentsView | null = null
   private activeRealm: MarketRealm = 'global'
   private attached = false
+  private visible = false
   private disposed = false
   private bounds: Rectangle = { x: 0, y: 0, width: 1, height: 1 }
   private readonly sessionStates = new Map<MarketRealm, { status: MarketViewState['sessionStatus']; checkedAt: number }>()
@@ -97,7 +98,7 @@ export class MarketViewManager {
   ) {
     window.on('minimize', () => this.detach())
     window.on('restore', () => {
-      if (this.activeView) this.attach(this.activeView)
+      if (this.visible && this.activeView) this.attach(this.activeView)
     })
   }
 
@@ -108,13 +109,14 @@ export class MarketViewManager {
     this.detach()
     const view = this.getOrCreateView(realm)
     this.activeView = view
-    this.attach(view)
+    if (this.visible) this.attach(view)
     void this.loadHomeIfNeeded(view, MARKET_PROFILES[realm])
     void this.publishState(view, realm)
   }
 
   activate(bounds: Rectangle): void {
     this.bounds = bounds
+    this.visible = true
     const view = this.getOrCreateView(this.activeRealm)
     if (this.activeView !== view) this.detach()
     this.activeView = view
@@ -125,6 +127,7 @@ export class MarketViewManager {
   }
 
   deactivate(): void {
+    this.visible = false
     this.detach()
   }
 
@@ -284,6 +287,7 @@ export class MarketViewManager {
   dispose(): void {
     if (this.disposed) return
     this.disposed = true
+    this.visible = false
     this.detach()
     for (const view of this.views.values()) {
       if (!view.webContents.isDestroyed()) view.webContents.close()
@@ -404,7 +408,7 @@ export class MarketViewManager {
   }
 
   private attach(view: WebContentsView): void {
-    if (this.disposed || this.window.isDestroyed() || view.webContents.isDestroyed()) return
+    if (this.disposed || !this.visible || this.window.isDestroyed() || view.webContents.isDestroyed()) return
     if (!this.attached) {
       this.window.contentView.addChildView(view)
       this.attached = true
