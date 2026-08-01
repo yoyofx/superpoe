@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useTreeStore } from '@/store/treeStore'
 import { useTranslation } from '@/i18n/useTranslation'
-import { decodeBuildCode } from '@/engine/buildCode'
+import { importPobBuildCode } from '@/engine/importPobBuildCode'
 
 interface ImportPanelProps {
   embedded?: boolean
@@ -38,8 +38,6 @@ export function ImportPanel({ embedded = false }: ImportPanelProps) {
 
 
 
-  const importAllocatedNodes = useTreeStore((s) => s.importAllocatedNodes)
-
   const clearAllocatedNodes = useTreeStore((s) => s.clearAllocatedNodes)
 
 
@@ -61,31 +59,7 @@ export function ImportPanel({ embedded = false }: ImportPanelProps) {
 
 
     try {
-      const data = decodeBuildCode(trimmed)
-      const nodeIds: string[] = data.nodes || []
-      const nodeAttributeSelections = data.nodeAttributeSelections || {}
-
-      if (nodeIds.length > 0) {
-
-        await importAllocatedNodes(nodeIds, data.nodeWeaponSets || {}, {
-          treeVersion: data.treeVersion,
-          classId: data.classInternalId || data.classId,
-          ascendClassId: data.ascendancyInternalId || data.ascendClassId,
-          importedBuildCode: trimmed,
-          nodeAttributeSelections,
-        })
-
-      }
-
-
-
-      setResult({
-
-        nodeCount: nodeIds.length,
-
-        treeVersion: data.treeVersion || 'unknown',
-
-      })
+      setResult(await importPobBuildCode(trimmed))
 
     } catch (err: unknown) {
 

@@ -134,7 +134,8 @@ const NODE_DETAIL_MIN_ZOOM = 0.1
 
 const CONNECTOR_CULL_MARGIN = 160
 
-const ASCENDANCY_CENTER_MARGIN = 120
+const ASCENDANCY_CENTER_MARGIN = 300
+const BGTREE_VISIBLE_DIAMETER_RATIO = 0.8
 
 interface AscendancyProjection {
   ascendancyName: string
@@ -143,6 +144,8 @@ interface AscendancyProjection {
   targetX: number
   targetY: number
   scale: number
+  backgroundSize: number
+  frameSize: number
 }
 
 function matchesAscendancy(asc: AscendancyClass, id: string): boolean {
@@ -169,10 +172,8 @@ function getSelectedAscendancyProjection(
     if (node.ascendancyName !== ascendancy.name) return max
     return Math.max(max, Math.hypot(node.x - sourceX, node.y - sourceY))
   }, Math.max(ascendancy.background.width, ascendancy.background.height) / 2)
-  const boundaryRadius = Math.max(
-    1,
-    Math.hypot(startNode.x - targetX, startNode.y - targetY) - ASCENDANCY_CENTER_MARGIN,
-  )
+  const startRadius = Math.hypot(startNode.x - targetX, startNode.y - targetY)
+  const boundaryRadius = Math.max(1, startRadius - ASCENDANCY_CENTER_MARGIN)
   const scale = maxRadius > 0 ? Math.min(1, boundaryRadius / maxRadius) : 1
 
   return {
@@ -182,6 +183,8 @@ function getSelectedAscendancyProjection(
     targetX,
     targetY,
     scale,
+    backgroundSize: startRadius * 2,
+    frameSize: (startRadius * 2) / BGTREE_VISIBLE_DIAMETER_RATIO,
   }
 }
 
@@ -203,10 +206,9 @@ function shouldProjectConnector(connector: TreeConnectorQuad, projection: Ascend
   return !!projection && connector.ascendancyName === projection.ascendancyName
 }
 
-function isClassToAscendancyConnector(node1?: TreeNode, node2?: TreeNode): boolean {
+function isExternalAscendancyConnector(node1?: TreeNode, node2?: TreeNode): boolean {
   if (!node1 || !node2) return false
-  return (node1.type === 'ClassStart' && node2.type === 'AscendClassStart')
-    || (node2.type === 'ClassStart' && node1.type === 'AscendClassStart')
+  return Boolean(node1.ascendancyName) !== Boolean(node2.ascendancyName)
 }
 
 function buildScreenLineQuad(
@@ -576,53 +578,7 @@ export function TreeCanvas() {
 
 
 
-    // ---- Main Tree Background (BGTree) ----
-    if (ddsReady && spriteLoader.isAvailable()) {
-      const bgInfo = spriteLoader.getByName('BGTree')
-      if (bgInfo) {
-        const bgImg = imageCache.current.get(bgInfo.file)
-        if (bgImg) {
-          const [cx, cy] = treeToScreen(0, 0, cam, W, H)
-          const bgw = 2000 * zoom
-          const bgh = 2000 * zoom
-          ctx.globalAlpha = 0.35
-          drawCenteredSprite(ctx, bgImg, bgInfo, cx, cy, bgw / 2, bgh / 2)
-          ctx.globalAlpha = 1
-        } else {
-          spriteLoader.getImage(bgInfo).then((loaded) => cacheLoadedImage(bgInfo.file, loaded))
-        }
-      }
-    }
-
-    // ---- BGTreeActive: rotating ring overlay ----
-
     const clsData2 = selectedClassId ? treeData.constants.classes?.[selectedClassId] : undefined
-    if (ddsReady && spriteLoader.isAvailable() && clsData2?.background?.active) {
-      const activeInfo = spriteLoader.getByName('BGTreeActive')
-      if (activeInfo) {
-        const activeImg = imageCache.current.get(activeInfo.file)
-        if (activeImg) {
-          const [cx, cy] = treeToScreen(0, 0, cam, W, H)
-          let angleRad = 0
-          if (clsData2.startNodeId && treeData.nodes[clsData2.startNodeId]) {
-            const sn = treeData.nodes[clsData2.startNodeId]
-            angleRad = Math.atan2(sn.y - 0, sn.x - 0) + Math.PI / 2
-          }
-          const aw = clsData2.background.active.width * zoom
-          const ah = clsData2.background.active.height * zoom
-          ctx.save()
-          ctx.translate(cx, cy)
-          ctx.rotate(angleRad)
-          ctx.globalAlpha = 0.5
-          drawCenteredSprite(ctx, activeImg, activeInfo, 0, 0, aw / 2, ah / 2)
-          ctx.globalAlpha = 1
-          ctx.restore()
-        } else {
-          spriteLoader.getImage(activeInfo).then((loaded) => cacheLoadedImage(activeInfo.file, loaded))
-        }
-      }
-    }
-
     // ---- Class/selected ascendancy background (center art) ----
     if (ddsReady && spriteLoader.isAvailable() && clsData2?.background?.image) {
       const selectedAsc = clsData2.ascendancies?.find((asc) => matchesAscendancy(asc, selectedAscendancyId))
@@ -632,14 +588,51 @@ export function TreeCanvas() {
         const img = imageCache.current.get(info.file)
         if (img) {
           const [cx, cy] = treeToScreen(clsData2.background.x, clsData2.background.y, cam, W, H)
-          const centerScale = selectedAscendancyProjection?.scale ?? 1
-          const cw = centerBg.width * centerScale * zoom
-          const ch = centerBg.height * centerScale * zoom
+          const backgroundSize = selectedAscendancyProjection?.backgroundSize ?? centerBg.width
+          const cw = backgroundSize * zoom
+          const ch = backgroundSize * zoom
           ctx.globalAlpha = 0.8
           drawCenteredSprite(ctx, img, info, cx, cy, cw / 2, ch / 2)
           ctx.globalAlpha = 1
         } else {
           spriteLoader.getImage(info).then((loaded) => cacheLoadedImage(info.file, loaded))
+        }
+      }
+    }
+
+    // ---- Central frame overlays (drawn above the projected background) ----
+    if (ddsReady && spriteLoader.isAvailable() && clsData2?.background) {
+      const [cx, cy] = treeToScreen(clsData2.background.x, clsData2.background.y, cam, W, H)
+      const activeInfo = spriteLoader.getByName('BGTreeActive')
+      if (activeInfo) {
+        const activeImg = imageCache.current.get(activeInfo.file)
+        if (activeImg) {
+          const startNode = clsData2.startNodeId ? treeData.nodes[clsData2.startNodeId] : undefined
+          const angleRad = startNode
+            ? Math.PI / 2 + Math.atan2(startNode.y - clsData2.background.y, startNode.x - clsData2.background.x)
+            : 0
+          ctx.save()
+          ctx.translate(cx, cy)
+          ctx.rotate(angleRad)
+          ctx.globalAlpha = 0.8
+          const frameHalfSize = (selectedAscendancyProjection?.frameSize ?? 2000) * zoom / 2
+          drawCenteredSprite(ctx, activeImg, activeInfo, 0, 0, frameHalfSize, frameHalfSize)
+          ctx.restore()
+        } else {
+          spriteLoader.getImage(activeInfo).then((loaded) => cacheLoadedImage(activeInfo.file, loaded))
+        }
+      }
+
+      const treeInfo = spriteLoader.getByName('BGTree')
+      if (treeInfo) {
+        const treeImg = imageCache.current.get(treeInfo.file)
+        if (treeImg) {
+          ctx.globalAlpha = 0.9
+          const frameHalfSize = (selectedAscendancyProjection?.frameSize ?? 2000) * zoom / 2
+          drawCenteredSprite(ctx, treeImg, treeInfo, cx, cy, frameHalfSize, frameHalfSize)
+          ctx.globalAlpha = 1
+        } else {
+          spriteLoader.getImage(treeInfo).then((loaded) => cacheLoadedImage(treeInfo.file, loaded))
         }
       }
     }
@@ -795,7 +788,7 @@ export function TreeCanvas() {
         const node1 = treeData.nodes[connector.nodeId1]
         const node2 = treeData.nodes[connector.nodeId2]
         const selectedAscendancyName = selectedAscendancyProjection?.ascendancyName
-        if (isClassToAscendancyConnector(node1, node2)) continue
+        if (isExternalAscendancyConnector(node1, node2)) continue
         const mixedProjectedConnector = projectConnector
           && node1
           && node2

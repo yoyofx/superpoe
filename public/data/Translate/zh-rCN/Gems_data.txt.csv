@@ -147,7 +147,7 @@ Contaminate,玷污
 "Fire Elemental Cone",火元素炎锥
 "Fire Nova Mine",火焰新星地雷
 "Fire Projectile Retaliation",火焰反击投射
-"Flame Breath",火焰之息
+"Flame Breath",龙炎吐息
 "Flask Charge Nova",药剂充能冰霜
 "Flicker Thrust",闪光突刺
 Focus,专注
@@ -170,7 +170,7 @@ Kill,击败
 "Piety Beam",派蒂光束
 "Piety Reverse Cleave",派蒂反向劈砍
 "Primal Aegis",原能护盾
-"Rain Of Blades",刀雨
+"Rain Of Blades",刀刃之雨
 "Range Finder",距离探测
 "Rending Steel (NOT CURRENTLY USED)",裂肉铁刃（非当前使用）
 "Slow Aura",缓速光环
@@ -252,7 +252,7 @@ Cleave,劈砍
 "Cold Snap",霜暴
 Conductivity,导电
 "Consecrated Path",奉献之路
-Contagion,顽疾
+Contagion,瘟疫
 "Conversion Trap",迷魅陷阱
 Convocation,号召
 "Corrupting Fever",腐灼热瘟
@@ -265,7 +265,7 @@ Cyclone,旋风斩
 Dash,冲刺
 "Death Aura",死神光环
 "Decoy Totem",诱饵图腾
-"Defiance Banner",抗争之旗
+"Defiance Banner",抗争战旗
 Desecrate,亵渎
 Despair,绝望
 "Destructive Link",毁灭羁绊
@@ -279,7 +279,7 @@ Discipline,纪律
 "Divine Ire",圣怨
 "Dominating Blow",霸气之击
 "Double Strike",双重打击
-"Dread Banner",恐怖之旗
+"Dread Banner",恐怖战旗
 "Dual Strike",双持打击
 Earthquake,震地
 Earthshatter,尖刺战吼
@@ -383,7 +383,7 @@ Perforate,凿击
 "Pestilent Strike",致疫打击
 "Petrified Blood",赤血凝结
 "Phase Run",暗影迷踪
-"Plague Bearer",瘟疫使徒
+"Plague Bearer",瘟疫使者
 "Poacher's Mark",盗猎者印记
 "Poisonous Concoction",毒爆灵药
 Polymorph,变形
@@ -768,7 +768,7 @@ Sit!,坐下！
 "Frozen Legion of Rallying",集结之冰封军团
 "Volcanic Fissure of Snaking",蜿蜒之火山裂缝
 "Summon Dark Effigy",召唤黑暗塑像
-Barkskin,树皮御体
+Barkskin,树肤术
 "Penance Mark",忏悔印记
 Affliction,折磨
 Pacify,宁心
@@ -843,7 +843,7 @@ Caltrops,铁蒺藜
 "Cast on Ignite",点燃时施放
 "Cast on Melee Kill",近战击败时施放
 "Cast on Melee Stun",近战击晕时施放
-"Cast on Minion Death",召唤生物被击败时施放
+"Cast on Minion Death",召唤生物死亡时施放
 "Cast on Shock",感电时施放
 "Cast when Damage Taken",受伤时施放
 "Cast when Stunned",被晕眩时施放
@@ -860,13 +860,13 @@ Comet,彗星落
 "Command: {0} ","号令：{0} "
 "Companion: {0}",伙伴：{0}
 "Compose Requiem",谱写镇魂曲
-"Consume Corpse",消耗灵盒
+"Consume Corpse",消耗灵柩
 Convalescence,康复
 "Crackling Palm",霹雳掌
 Crater,陨坑
 "Crossbow Shot",战弩射击
 "Cull the Weak",终结弱者
-"Curse on Block",格挡时诅咒
+"Curse on Block",格挡时施放诅咒
 "Dagger Stab",匕首突刺
 "Dark Effigy",黑暗塑像
 "Death From Above",天降制裁
@@ -890,7 +890,7 @@ Disengage,退避三舍
 "Emergency Reload",紧急装填
 "Encase in Jade",青玉囚笼
 "Enervating Nova",衰颓新星
-Enrage,激怒
+Enrage,狂暴
 "Escape Shot",逃脱射击
 "Explosive Demise",烈火牺牲
 "Explosive Grenade",高爆榴弹
@@ -956,7 +956,7 @@ Hypothermia,急冻
 "Ice Shards",冰屑
 "Ice Strike",幽寒打
 "Ice-Tipped Arrows",冰尖箭矢
-Impale,贯穿
+Impale,穿刺
 Impurity,不净
 "Incendiary Shot",燃烧射击
 "Incendiary Siege Cascade",燃烧摧城倾泻
@@ -1058,7 +1058,7 @@ Sacrifice,替代牺牲
 "Siphoning Strike",汲能击
 "Skeletal Arsonist Minion",魔侍焚焰使召唤生物
 "Skeletal Brute Minion",魔侍蛮兵召唤生物
-"Skeletal Cleric Minion",魔侍纯洁者召唤生物
+"Skeletal Cleric Minion",魔侍祭司召唤生物
 "Skeletal Frost Mage Minion",魔侍冰霜法师召唤生物
 "Skeletal Reaver Minion",魔侍掠夺者召唤生物
 "Skeletal Sniper Minion",魔侍神射手召唤生物
@@ -1067,14 +1067,14 @@ Sacrifice,替代牺牲
 "Skittering Stone",飞掠石
 Snap,激变
 "Solar Orb",日曜球
-"Sorcery Ward",巫术结界
+"Sorcery Ward",元素结界
 "Soul Offering",心灵奉献
 Soulbreaker,破魂者
 "Spear of Solaris",日耀之矛
 "Spear Stab",战矛突刺
 "Spear Throw",战矛飞掷
 Spearfield,枪林矛阵
-"Spectre: {0} ","灵体：{0} "
+"Spectre: {0} ",灵体：{0}
 "Spinning Inferno",飞旋炽焰
 "Spiral Volley",螺旋齐射
 "Staggering Palm",惊风掌
@@ -1089,7 +1089,7 @@ Stampede,奔踏
 "Summon Demon Magus",召唤恶魔术士
 "Summon Infernal Hound",召唤炽焰猎犬
 "Summon Spell Totem",召唤法术图腾
-"Summon Wolf",召唤恶狼
+"Summon Wolf",召唤巨狼
 "Supercharged Slam",蓄威神锤
 "Supporting Fire",支援火力
 "Sword Slash",剑挥砍
@@ -1163,7 +1163,7 @@ Eviscerate,剔骨
 "Spectral Helix of Trarthus",特拉特斯之灵幻旋斩
 "Spectral Shield Throw of Trarthus",特拉特斯之灵盾投掷
 "Spectral Throw of Trarthus",特拉特斯之灵体投掷
-Starfall,星辰坠落
+Starfall,星陨
 "Storm Call of Trarthus",特拉特斯之风暴呼唤
 "Summon Shaper Memory",召唤塑界者的记忆
 "Summon Skeletons of Archers",射手之召唤魔侍
@@ -1213,3 +1213,176 @@ Thunderstorm,雷霆风暴
 "Will of the Lords",君主意志
 Windburst,风爆术
 "Wreathed in Light",辉耀加身
+"Accelerated Growth",迅猛绽放
+"Align Fate",命运同调
+Annihilation,湮灭
+Apocalypse,天灾
+"Arctic Howl",极地战嚎
+Briarpatch,荆刺之缚
+"Cackling Companions",鬣狗同伴
+"Catalysing Discharge",催化迸放
+"Coursing Current",奔雷疾走
+"Crash Lightning",崩雷闪击
+"Creeping Chill",蔓延霜寒
+"Cross Slash",双爪劈击
+"Deadly Resolve",致命决心
+Devour,吞噬
+Electromagnetism,电磁力场
+"Empowered Sparks",强化火花
+Entangle,纠缠
+"Eternal Rage",永恒狂怒
+"Fan the Flames",煽风点火
+"Feral Invocation",野性召唤
+"Fiery Reclamation",烈焰征伐
+"Fury of the Mountain",山岳之怒
+Hailstorm,冰雹风暴
+"Kelari's Brutality",凯拉里之残暴
+"Kelari's Deception",凯拉里之诡计
+"Kelari's Judgment",凯拉里之审判
+"Kelari's Malediction",凯拉里之诅咒
+"Kelari, the Tainted Sands",凯拉里，污秽沙暴
+"Lunar Assault",月痕突袭
+"Lunar Blessing",月神赐福
+Meteor,陨石
+Meteors,陨石群
+"Mirage Deadeye",蜃影神射
+"Mirror of Refraction",折射之镜
+"Molten Crash",熔岩冲击
+"Moment of Vulnerability",脆弱瞬间
+Moonbeam,月华碎影
+"Navira's Calming",纳薇拉之抚
+"Navira's Embrace",纳薇拉之拥
+"Navira's Fracturing",纳薇拉之裂
+"Navira's Oasis",纳薇拉之绿洲
+"Navira's Well",纳薇拉之井
+"Navira, the Last Mirage",纳薇拉，终末幻影
+"Oil Barrage",黏油炮弹
+"Poison Spores",毒孢迸溅
+Pounce,巨狼猛扑
+"Predator's Mark",掠食者印记
+"Primal Avatar",荒野化身
+Rend,龙爪撕裂
+"Ruzhan's Brand",鲁詹之印记
+"Ruzhan's Fury",鲁詹之怒火
+"Ruzhan's Reckoning",鲁詹之清算
+"Ruzhan's Trap",鲁詹之陷阱
+"Ruzhan's Zealotry",鲁詹的狂热
+"Ruzhan, the Blazing Sword",鲁詹，炽焰之剑
+Sandblast,流沙冲击
+"Savage Fury",凶蛮怒火
+"Shattering Spite",碎裂恶意
+Shred,狼爪撕裂
+"Spell Totem",法术图腾
+"Static Shocks",静电脉冲
+"Thrashing Vines",鞭笞藤蔓
+"Walking Calamity",灾厄行者
+"Wing Blast",烈风吹袭
+"Wolf Pack",狼群
+"Blazing Glare",炽燃怒视
+"Bursting Toad",爆裂蟾蜍
+"Caustic Retribution",腐汁复仇
+"Ceaseless Flesh",无尽血肉
+"Charged Dash of Projection",投射之蓄力疾风闪
+Cinders,烬火
+"Creeping Frost of Floes",浮冰之电光寒霜
+"Divine Blast",神圣冲击
+Fissure,裂地
+"Flamethrower Trap of Stability",稳定之掷火陷阱
+Foulgrasp,邪秽之握
+"Frost Wall of Encroachment",侵袭之冰墙
+"Holy Hammers",神圣之锤
+"Holy Strike",神圣打击
+"Holy Sweep",神圣横扫
+"Kinetic Fusillade of Detonation",引爆之念动齐射
+Mesmerize,魅惑
+"Orb of Storms of Squalls",狂风之风暴旋涡
+"Return to Mirage Portal",返回沙海幻境时空之门
+"Rings of Light",圣光之环
+"Searing Bond of Detonation",引爆之灼热连接
+"Shield of Light",光明之盾
+"Shock Nova of Procession",加护之闪电新星
+"Shockwave Totem of Authority",统御之震波图腾
+"Siphoning Trap of Pain",痛苦之虹吸陷阱
+"Static Strike of Gathering Lightning",聚雷之充能打击
+"Storm Burst of Repulsion",抗拒之裂风雷球
+"Summon Hiveborn",召唤裂隙虫群
+"Suspend in Time",时空凝滞
+"Tears of Rot",腐朽之泪
+"Void Shockwave",虚空震波
+Voidstorm,虚空风暴
+"Animus Exchange",命源交换
+"Animus Splinters",命源碎片
+"Archon of Chayula",夏乌拉执政官
+"Azmerian Swarms",阿兹莫里虫群
+"Azmerian Wolf",阿兹莫里巨狼
+"Bitter Dead",苦涩死亡
+"Blood Explosion",赤血爆炸
+"Charge Regulation",能量球调节
+"Chayula's Will",夏乌拉的意志
+"Coiling Bolts",盘绕魔弹
+"Concussive Runes",震荡符文
+"Conductive Runes",导电符文
+"Corrupted Cry",腐化战吼
+"Crushing Fear",恐惧终结
+"Dark Consequences",黑暗恶果
+"Detonate Living",活体引爆
+"Embrace The Fall",天陨之拥
+"Eternal Hunt",永恒狩猎
+"Eternal March",永恒行军
+"Explosive Transmutation",烈性转化
+"Falling Blade",落刃
+"Fist of Kalguur",卡古兰之拳
+"Fragment Self",破碎拟像
+"Fragments of the Past",往昔碎片
+"Frostflame Nova",霜焰新星
+"Gelid Palm",寒冰掌
+Grenade,榴弹
+"Grim Pillars",阴森之柱
+"Harbinger of Madness",疯魔先驱
+"Herald of the Royal Queen",皇后之捷
+"Hollow Focus",虚空钟灵
+"Hollow Form",虚空魅影
+"Hollow Resonance",虚空和鸣
+"Hollow Shell",虚空之壳
+"Kinetic Bash",动能重击
+Leylines,地脉
+"Mad Flight",群鸦掠镜
+"Manifest Rune",化形符文
+"Midnight Zenith",午夜天顶
+"Mirror Breaker",破镜者
+"Mist Raven",雾鸦
+"Molten Shower",熔岩骤雨
+"Nature's Exchange",自然交换
+"Powered by Verisium",维金供能
+"Primal Bounty",枭羽馈赠
+"Profane Decay",亵渎朽坏
+Refutation,反制
+"Remnants of Kalguur",卡古兰残片
+Repulsion,斥退
+"Repulsion Wave",斥退波
+"Righteous Descent",正义天降
+"Rite of Restoration",恢复圣仪
+Roar,咆哮
+"Runeforged Blades",符文之刃
+"Runic Reprieve",符文援护
+"Sanguine Revelry",嗜血狂宴
+Skyfall,天降杀机
+Slam,猛击
+"Smash to Smithereens",碎甲崩灭
+"Soaring Midnight",午夜翱翔
+"Spiraling Conspiracy",鸦群密谋
+"Spirit Vessel",灵魂容器
+"Starborn Onslaught",星辰冲击
+"The Stars Answer",群星召唤
+"Transmutation Explosion",转化爆破
+"Triskelion Cascade",三耀辉轮
+"Twisted Pact",扭曲契约
+"Verisium Manifestations",维金化形
+"Virtuous Barrier",美德壁垒
+"Vivid Stampede",雄鹿践踏
+"Voltaic Barrier",电能屏障
+"Voltaic Fulmination",电流爆发
+"Wardbound Minions",结界仆从
+"Wild Protector",野性守护
+"Wildwood's Gifts",荒林之赐
+"Winged Entropy",混沌飞翼

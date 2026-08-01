@@ -325,7 +325,7 @@ Sekhem,威能權杖
 "Oscillating Sceptre",猶疑權杖
 "Stabilising Sceptre",安定權杖
 "Alternating Sceptre",輪迴權杖
-"Fishing Rod",釣竿
+"Fishing Rod",魚竿
 "Carving Knife",雕刻刀
 "Boot Knife",戰亂刀
 "Copper Kris",銅器波刃
@@ -1111,9 +1111,9 @@ Starcaller,喚星者
 "The Monastery Bell",修道院之鐘
 "Jiquani's Potential",吉卡尼的潛力
 "Unlight Extant",黯光存現
-"Reflecting Staff",映像之杖
+"Reflecting Staff",映像長杖
 "Skullcrusher Quarterstaff",碎顱細杖
-"Soaring Spear",翱翔長矛
+"Soaring Spear",展翼長矛
 "Guardian Spear",衛者長矛
 "Changeling Talisman",變形魔符
 "Nettle Talisman",蕁麻魔符
@@ -1142,6 +1142,92 @@ Starcaller,喚星者
 "Jade Talisman",翠玉魔符
 "Amor Mandragora",阿莫爾．曼德拉戈拉
 "Fury of the King",帝王之怒
-"Atziri's Contempt",阿茲里的蔑視
+"Atziri's Contempt",阿茲里的輕視
 "Hysseg's Claw",希塞格之爪
 "The Flesh Poppet",血肉傀儡
+"The Sands of Time",時間之砂
+Skysunder,墜天者
+Fleshrender,血肉撕扯者
+"The Sacred Chalice",神浸聖盃
+"The Desecrated Chalice",瀆染髒盃
+"The Flame of Hope",希望之焰
+"The Broken Elegy",破碎輓歌
+"The Bane of Hope",希望之終
+"Twisted Wand",扭曲法杖
+"Runic Fork",符文尖叉
+"Runemastered Runic Fork",符煉符文尖叉
+"Runemastered Torment Club",符煉磨難棍棒
+"Runeforged Marching Mace",符鍛行軍之錘
+"Runeforged Wooden Club",符鍛木製棍棒
+"Runemastered Wooden Club",符煉木製棍棒
+"Runeforged Slim Mace",符鍛纖細之錘
+"Runeforged Spiked Club",符鍛鈍釘木棒
+"Runeforged Warpick",符鍛戰鎬
+"Runeforged Kalguuran Forgehammer",符鍛卡爾葛鍛造錘
+"Runeforged Morning Star",符鍛晨星
+"Runeforged Crude Bow",符鍛粗製弓
+"Runeforged Shortbow",符鍛短弓
+"Runeforged Recurve Bow",符鍛反曲弓
+"Runeforged Composite Bow",符鍛合成弓
+"Runeforged Dualstring Bow",符鍛雙弦弓
+"Runeforged Zealot Bow",符鍛狂熱者之弓
+"Heartwood Shortbow",赤木之弓
+"Perching Staff",棲羽長杖
+"Runeforged Felled Greatclub",符鍛墮落巨棍棒
+"Runemastered Felled Greatclub",符煉墮落巨棍棒
+"Runeforged Oak Greathammer",符鍛橡木巨錘
+"Runemastered Oak Greathammer",符煉橡木巨錘
+"Runeforged Forge Maul",符鍛鍛造重錘
+"Runeforged Studded Greatclub",符鍛鑲釘巨棍棒
+"Runemastered Studded Greatclub",符煉鑲釘巨棍棒
+"Runeforged Cultist Greathammer",符鍛教徒巨錘
+"Runeforged Temple Maul",符鍛神殿重錘
+"Runeforged Leaden Greathammer",符鍛麻木巨錘
+"Runeforged Crumbling Maul",符鍛崩毀重錘
+"Runeforged Pointed Maul",符鍛尖銳重錘
+"Aberrant Sledge",怪異攻城錘
+"Runemastered Aberrant Sledge",符煉怪異攻城錘
+"Runeforged Wrapped Quarterstaff",符鍛纏繞細杖
+"Runeforged Long Quarterstaff",符鍛加長細杖
+"Runemastered Long Quarterstaff",符煉加長細杖
+"Runeforged Gothic Quarterstaff",符鍛歌德細杖
+"Runemastered Gothic Quarterstaff",符煉歌德細杖
+"Runeforged Crescent Quarterstaff",符鍛新月細杖
+"Runeforged Steelpoint Quarterstaff",符鍛鋼尖細杖
+"Warding Quarterstaff",庇護細杖
+"Runemastered Warding Quarterstaff",符煉庇護細杖
+"Runeforged Hardwood Spear",符鍛硬木長矛
+"Runeforged Ironhead Spear",符鍛鐵木長矛
+"Runemastered Ironhead Spear",符煉鐵木長矛
+"Runeforged Hunting Spear",符鍛狩獵長矛
+"Runeforged Winged Spear",符鍛羽翅長矛
+"Runeforged War Spear",符鍛戰爭長矛
+"Runeforged Forked Spear",符鍛叉狀長矛
+"Runeforged Barbed Spear",符鍛鉤刺長矛
+"Runeforged Makeshift Crossbow",符鍛臨時十字弓
+"Runeforged Tense Crossbow",符鍛緊繃十字弓
+"Runemastered Tense Crossbow",符煉緊繃十字弓
+"Runeforged Sturdy Crossbow",符鍛堅固十字弓
+"Runeforged Dyad Crossbow",符鍛雙生十字弓
+"Runemastered Dyad Crossbow",符煉雙生十字弓
+"Runeforged Bombard Crossbow",符鍛轟擊十字弓
+"Trarthan Cannon",特拉特斯巨砲
+"Runeforged Changeling Talisman",符鍛變形魔符
+"Runeforged Nettle Talisman",符鍛蕁麻魔符
+"Runemastered Nettle Talisman",符煉蕁麻魔符
+"Runeforged Familial Talisman",符鍛家族魔符
+"Runemastered Familial Talisman",符煉家族魔符
+"Runeforged Vicious Talisman",符鍛惡毒魔符
+"Liminal Coil",臨界纏繞
+Periphery,邊陲
+"Sylvan's Effigy",林木塑像
+"The Ordained",神授命使
+"The Raven's Flock",渡鴉集束
+"Twisted Empyrean",畸變星穹
+"Serle's Grit",瑟雷的毅力
+Redemption,救贖
+Duality,二元性
+"Sadist's Mercy",殘虐者的慈悲
+"Spiteful Floret",決恨花簇
+"Surge of the Tide",潮汐浪湧
+"Runeseeker's Call",符文探求者之喚

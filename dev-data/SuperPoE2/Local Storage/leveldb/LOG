@@ -1,0 +1,29 @@
+2026/07/23-18:22:21.938 7688 Reusing MANIFEST C:\Users\yoyofx\AppData\Roaming\SuperPoE2\Local Storage\leveldb/MANIFEST-000001
+2026/07/23-18:22:21.942 7688 Recovering log #36
+2026/07/23-18:22:21.943 7688 Level-0 table #39: started
+2026/07/23-18:22:21.949 7688 Level-0 table #39: 70700 bytes OK
+2026/07/23-18:22:21.952 7688 Delete type=0 #36
+2026/07/23-18:39:27.727 6fd4 Level-0 table #42: started
+2026/07/23-18:39:27.733 6fd4 Level-0 table #42: 87849 bytes OK
+2026/07/23-18:39:27.735 6fd4 Delete type=0 #40
+2026/07/23-18:40:06.554 6fd4 Level-0 table #44: started
+2026/07/23-18:40:06.558 6fd4 Level-0 table #44: 74797 bytes OK
+2026/07/23-18:40:06.561 6fd4 Delete type=0 #41
+2026/07/23-18:40:06.564 6fd4 Compacting 4@0 + 1@1 files
+2026/07/23-18:40:06.569 6fd4 Generated table #45@0: 6 keys, 85754 bytes
+2026/07/23-18:40:06.569 6fd4 Compacted 4@0 + 1@1 files => 85754 bytes
+2026/07/23-18:40:06.571 6fd4 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/07/23-18:40:06.572 6fd4 Delete type=2 #35
+2026/07/23-18:40:06.572 6fd4 Delete type=2 #37
+2026/07/23-18:40:06.572 6fd4 Delete type=2 #39
+2026/07/23-18:40:06.572 6fd4 Delete type=2 #42
+2026/07/23-18:40:06.572 6fd4 Delete type=2 #44
+2026/07/23-18:48:52.474 6fd4 Level-0 table #47: started
+2026/07/23-18:48:52.479 6fd4 Level-0 table #47: 74801 bytes OK
+2026/07/23-18:48:52.481 6fd4 Delete type=0 #43
+2026/07/23-18:52:39.192 6fd4 Level-0 table #49: started
+2026/07/23-18:52:39.196 6fd4 Level-0 table #49: 74761 bytes OK
+2026/07/23-18:52:39.199 6fd4 Delete type=0 #46
+2026/07/23-18:54:57.913 6fd4 Level-0 table #51: started
+2026/07/23-18:54:57.918 6fd4 Level-0 table #51: 102834 bytes OK
+2026/07/23-18:54:57.920 6fd4 Delete type=0 #48

@@ -31,7 +31,7 @@ function CalcBreakdownClass:IsMouseOver()
 	if not self:IsShown() then
 		return
 	end
-	return self:IsMouseInBounds() or self:GetMouseOverControl() 
+	return self:IsMouseInBounds() or self:GetMouseOverControl()
 end
 
 function CalcBreakdownClass:SetBreakdownData(displayData, pinned)
@@ -87,7 +87,7 @@ function CalcBreakdownClass:SetBreakdownData(displayData, pinned)
 						local _, num = string.gsub(row[col.key], "%d%d%d%d", "") -- count how many commas will be added
 						if main.showThousandsSeparators and num > 0 then
 							col.width = m_max(col.width or 0, DrawStringWidth(16, "VAR", col.label) + 6, DrawStringWidth(12, "VAR", row[col.key]) + 6 + (4 * num))
-						else 
+						else
 							col.width = m_max(col.width or 0, DrawStringWidth(16, "VAR", col.label) + 6, DrawStringWidth(12, "VAR", row[col.key]) + 6)
 						end
 					end
@@ -176,7 +176,7 @@ function CalcBreakdownClass:AddBreakdownSection(sectionData)
 		local section = {
 			type = "TABLE",
 			rowList = breakdown.reservations,
-			colList = { 
+			colList = {
 				{ label = "Skill", key = "skillName" },
 				{ label = "Base", key = "base" },
 				{ label = "MCM", key = "mult" },
@@ -195,7 +195,7 @@ function CalcBreakdownClass:AddBreakdownSection(sectionData)
 		local section = {
 			type = "TABLE",
 			rowList = breakdown.damageTypes,
-			colList = { 
+			colList = {
 				{ label = "From", key = "source", right = true },
 				{ label = "Base", key = "base" },
 				{ label = "Inc/red", key = "inc" },
@@ -242,8 +242,8 @@ function CalcBreakdownClass:AddBreakdownSection(sectionData)
 		table.sort(rowList, function(a, b)
 			return a['base'] > b['base']
 		end)
-		
-		local section = { 
+
+		local section = {
 			type = "TABLE",
 			rowList = rowList,
 			colList = colList,
@@ -275,7 +275,7 @@ function CalcBreakdownClass:AddModSection(sectionData, modList)
 	-- Build list of modifiers to display
 	local cfg = (sectionData.cfg and actor.mainSkill[sectionData.cfg.."Cfg"] and copyTable(actor.mainSkill[sectionData.cfg.."Cfg"], true)) or { }
 	cfg.source = sectionData.modSource
-	cfg.ignoreSourceinCheckConditions = true
+	cfg.ignoreSourceInCheckConditions = true
 	cfg.actor = sectionData.actor
 	local rowList
 	local modStore = (sectionData.enemy and actor.enemy.modDB) or (sectionData.cfg and actor.mainSkill.skillModList) or actor.modDB
@@ -297,7 +297,7 @@ function CalcBreakdownClass:AddModSection(sectionData, modList)
 		type = "TABLE",
 		label = sectionData.label,
 		rowList = rowList,
-		colList = { 
+		colList = {
 			{ label = "Value", key = "displayValue" },
 			{ label = "Stat", key = "name" },
 			{ label = "Skill types", key = "flags" },
@@ -340,7 +340,7 @@ function CalcBreakdownClass:AddModSection(sectionData, modList)
 			local sourceType = row.mod.source:match("[^:]+")
 			if not sourceTotals[sourceType] then
 				sourceTotals[sourceType] = { }
-			end	
+			end
 		end
 		for sourceType, lines in pairs(sourceTotals) do
 			cfg.source = sourceType
@@ -402,7 +402,7 @@ function CalcBreakdownClass:AddModSection(sectionData, modList)
 				row.sourceNameTooltip = function(tooltip)
 					local args = row.mod.sourceSlot
 					if row.mod.sourceSlot == "Jewel" and row.mod.sourceSlotNum ~= nil and build.spec.nodes[row.mod.sourceSlotNum] and build.spec.nodes[row.mod.sourceSlotNum].containJewelSocket then
-						args = { nodeId = row.mod.sourceSlotNum }
+						args = build.itemsTab.sockets[row.mod.sourceSlotNum]
 					end
 					build.itemsTab:AddItemTooltip(tooltip, item, args)
 				end
@@ -481,6 +481,8 @@ function CalcBreakdownClass:AddModSection(sectionData, modList)
 					else
 						desc = "Skill type: "..(tag.neg and "Not " or "")..self:FormatModName(SkillTypeName[tag.skillType])
 					end
+				elseif tag.type == "GemTag" then
+					desc = "Gem tag: "..(tag.neg and "Not " or "")..self:FormatVarNameOrList(tag.gemTag, tag.gemTagList)
 				elseif tag.type == "BaseFlag" then
 					desc = "Base flag: "..(tag.neg and "Not " or "")..self:FormatModName(tostring(tag.baseFlag))
 				elseif tag.type == "SlotNumber" then
@@ -488,7 +490,11 @@ function CalcBreakdownClass:AddModSection(sectionData, modList)
 				elseif tag.type == "GlobalEffect" then
 					desc = self:FormatModName(tag.effectType)
 				elseif tag.type == "Limit" then
-					desc = "Limited to "..(tag.limitVar and self:FormatModName(tag.limitVar) or self:FormatModBase(row.mod, tag.limit))
+					if tag.neg then
+						desc = "Limited to "..(tag.limitVar and "-"..self:FormatModName(tag.limitVar) or self:FormatModBase(row.mod, -tag.limit))
+					else
+						desc = "Limited to "..(tag.limitVar and self:FormatModName(tag.limitVar) or self:FormatModBase(row.mod, tag.limit))
+					end
 				elseif tag.type == "MonsterTag" then
 					desc = "Monster Tag: "..(tag.monsterTagList and table.concat(tag.monsterTagList, "/") or tag.monsterTag)
 				else
@@ -540,7 +546,7 @@ function CalcBreakdownClass:FormatModValue(value, modType)
 			return "?"
 		end
 	else
-		return value		
+		return value
 	end
 end
 
@@ -698,10 +704,11 @@ function CalcBreakdownClass:Draw(viewPort)
 	else
 		SetDrawColor(0.33, 0.66, 0.33)
 	end
-	DrawImage(nil, x, y, width, 2)
-	DrawImage(nil, x, y + height - 2, width, 2)
-	DrawImage(nil, x, y, 2, height)
-	DrawImage(nil, x + width - 2, y, 2, height)
+	local borderThickness = 2
+	DrawImage(nil, x, y, width, borderThickness)
+	DrawImage(nil, x, y + height - borderThickness, width, borderThickness)
+	DrawImage(nil, x, y, borderThickness, height)
+	DrawImage(nil, x + width - borderThickness, y, borderThickness, height)
 	SetDrawLayer(nil, 10)
 	self:DrawControls(viewPort)
 	-- Draw the sections

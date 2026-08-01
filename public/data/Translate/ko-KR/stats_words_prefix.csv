@@ -129,7 +129,7 @@
 " Grasp"," 장악"
 " Grinder"," 갈이개"
 " Grip"," 손아귀"
-" Guard"," 수호"
+" Guard",가호
 " Guardian"," 가디언"
 " Guide"," 안내"
 " Gutter"," 시궁창"
@@ -533,3 +533,6 @@
 " Project"," 프로젝트"
 " Design"," 설계"
 " Terraform"," 테라폼"
+" Grind"," 갈음질"
+" Hustle"," 일거리"
+" Toil"," 노고"

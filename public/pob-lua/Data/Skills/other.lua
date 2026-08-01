@@ -18,6 +18,8 @@ skills["TriggeredAbyssalApparitionPlayer"] = {
 	cannotBeSupported = true,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, },
 		[2] = { levelRequirement = 3, },
@@ -132,7 +134,9 @@ skills["AcidicConcoctionPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_base_area_of_effect_radius", 0.2 },
+		{ "active_skill_base_area_of_effect_radius", 0.2, { 0 } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { attackSpeedMultiplier = -15, baseMultiplier = 0.7, critChance = 5, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -351,7 +355,9 @@ skills["AlignFatePlayer"] = {
 	skillTypes = { [SkillType.Buff] = true, [SkillType.OngoingSkill] = true, [SkillType.HasReservation] = true, [SkillType.Persistent] = true, [SkillType.AttackInPlace] = true, [SkillType.EmpowersOtherSkill] = true, [SkillType.ReserveInAllSets] = true, [SkillType.AffectedByCooldownRate] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "spellflux_frequency_+%_final", 1 },
+		{ "spellflux_frequency_+%_final", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -476,7 +482,9 @@ skills["AncestralSpiritsPlayer"] = {
 	minionSkillTypes = { [SkillType.Attack] = true, [SkillType.Melee] = true, [SkillType.MeleeSingleTarget] = true, [SkillType.Spell] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Projectile] = true, [SkillType.Chains] = true, [SkillType.Duration] = true, [SkillType.DamageOverTime] = true, [SkillType.RangedAttack] = true, [SkillType.ProjectilesFromUser] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "active_skill_minion_life_+%_final", 1 },
+		{ "active_skill_minion_life_+%_final", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -602,7 +610,10 @@ skills["AnimusExchangePlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.UsableWhileMoving] = true, [SkillType.Cooldown] = true, [SkillType.Triggerable] = true, },
 	castTime = 0.6,
 	qualityStats = {
-		{ "base_cooldown_speed_+%", 1 },
+		{ "base_cooldown_speed_+%", 1, {  } },
+	},
+	altQualityStats = {
+		{ "animus_exchange_gain_%_maximum_life_spent_as_ward", 0.25, {  } },
 	},
 	levels = {
 		[1] = { cooldown = 4, levelRequirement = 0, storedUses = 1, cost = { Mana = 15, }, },
@@ -715,10 +726,13 @@ skills["MetaAnimusSplintersPlayer"] = {
 	icon = "Art/2DArt/SkillIcons/ExpeditionFalseLife.dds",
 	color = 4,
 	description = "Expend a large amount of Runic Ward to instantly create a short-lived copy of yourself that uses a Socketed Skill once, then vanishes. This Skill's cost is equal to the total cost of Socketed Skills. The copy cannot perform Channelled, Remote, Cooldown or Conditional Skills, or summon Minions.",
-	skillTypes = { [SkillType.Meta] = true, [SkillType.Instant] = true, [SkillType.InstantNoRepeatWhenHeld] = true, [SkillType.Cooldown] = true, },
+	skillTypes = { [SkillType.Meta] = true, [SkillType.Instant] = true, [SkillType.InstantNoRepeatWhenHeld] = true, [SkillType.Cooldown] = true, [SkillType.UsableWhileShapeshifted] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "base_skill_cost_efficiency_+%", 1 },
+		{ "base_skill_cost_efficiency_+%", 1, {  } },
+	},
+	altQualityStats = {
+		{ "skill_effect_duration_+%", 1, {  } },
 	},
 	levels = {
 		[1] = { cooldown = 8, levelRequirement = 0, storedUses = 1, cost = { Ward = 0, }, },
@@ -775,7 +789,6 @@ skills["MetaAnimusSplintersPlayer"] = {
 			},
 			stats = {
 				"meta_skill_base_costs_equals_%_total_base_costs_from_all_socketed_skills",
-				"usable_while_shapeshifted",
 				"base_deal_no_damage",
 				"hide_minion_frame",
 			},
@@ -834,6 +847,8 @@ skills["SupportAnimusSplintersPlayer"] = {
 	ignoreMinionTypes = true,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, },
 		[2] = { levelRequirement = 0, },
@@ -887,7 +902,9 @@ skills["ApocalypsePlayer"] = {
 	skillTypes = { [SkillType.Triggers] = true, [SkillType.Spell] = true, [SkillType.Area] = true, [SkillType.Buff] = true, [SkillType.Duration] = true, [SkillType.UsableWhileMoving] = true, [SkillType.HasUsageCondition] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "unleash_the_elements_trigger_frequency_+%", 0.75 },
+		{ "unleash_the_elements_trigger_frequency_+%", 0.75, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 8, }, },
@@ -1007,6 +1024,8 @@ skills["ApocalypseColdPlayer"] = {
 	skillTypes = { [SkillType.Triggered] = true, [SkillType.Triggerable] = true, [SkillType.Spell] = true, [SkillType.Area] = true, [SkillType.Damage] = true, [SkillType.Duration] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Cold] = true, [SkillType.Storm] = true, },
 	castTime = 0,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { critChance = 12, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -1136,6 +1155,8 @@ skills["ApocalypseFirePlayer"] = {
 	castTime = 0,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { critChance = 7, levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { critChance = 7, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -1260,6 +1281,8 @@ skills["ApocalypseLightningPlayer"] = {
 	skillTypes = { [SkillType.Triggered] = true, [SkillType.Triggerable] = true, [SkillType.Spell] = true, [SkillType.Area] = true, [SkillType.Damage] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Lightning] = true, },
 	castTime = 0,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { critChance = 10, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -1504,7 +1527,9 @@ skills["ArchonOfChayulaPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "archon_of_chayula_physical_and_chaos_damage_+%_final", 0.25 },
+		{ "archon_of_chayula_physical_and_chaos_damage_+%_final", 0.25, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -1640,6 +1665,8 @@ skills["ArchonOfChayulaTornadoPlayer"] = {
 	castTime = 0,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { baseMultiplier = 0.45, levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { baseMultiplier = 0.49, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -1770,7 +1797,9 @@ skills["AzmerianSwarmPlayer"] = {
 	minionSkillTypes = { [SkillType.Attack] = true, [SkillType.Melee] = true, [SkillType.Area] = true, [SkillType.Fire] = true, [SkillType.Cold] = true, [SkillType.Lightning] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "max_azmerian_swarms", 0.1 },
+		{ "max_azmerian_swarms", 0.1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -1906,7 +1935,9 @@ skills["SummonAzmerianWolfPlayer"] = {
 	minionSkillTypes = { [SkillType.Attack] = true, [SkillType.Projectile] = true, [SkillType.Duration] = true, [SkillType.Area] = true, [SkillType.CreatesGroundEffect] = true, [SkillType.Melee] = true, [SkillType.MeleeSingleTarget] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_minion_life_+%_final", 1 },
+		{ "active_skill_minion_life_+%_final", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -2020,6 +2051,8 @@ skills["CommandPackleaderPlayer"] = {
 	skillTypes = { [SkillType.CommandsMinions] = true, [SkillType.UsableWhileMoving] = true, [SkillType.UsableWhileShapeshifted] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 8, }, },
@@ -2137,7 +2170,10 @@ skills["BitterDeadPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Trappable] = true, [SkillType.Totemable] = true, [SkillType.Mineable] = true, [SkillType.Multicastable] = true, [SkillType.Triggerable] = true, [SkillType.Cold] = true, [SkillType.Cascadable] = true, [SkillType.Unleashable] = true, [SkillType.AreaSpell] = true, [SkillType.UsableWhileMoving] = true, [SkillType.TargetsDestructibleCorpses] = true, },
 	castTime = 0.75,
 	qualityStats = {
-		{ "volatile_dead_base_number_of_corpses_to_consume", 0.05 },
+		{ "volatile_dead_base_number_of_corpses_to_consume", 0.05, {  } },
+	},
+	altQualityStats = {
+		{ "base_chance_to_not_consume_corpse_%", 0.5, {  } },
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Ward = 11, }, },
@@ -2272,46 +2308,46 @@ skills["BitterDeadPlayer"] = {
 				"spell_maximum_base_cold_damage",
 			},
 			levels = {
-				[1] = { 9, 14, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 1, },
-				[2] = { 13, 19, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 3.4519999027252, },
-				[3] = { 17, 26, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 6.7670001983643, },
-				[4] = { 23, 34, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 10.307999610901, },
-				[5] = { 29, 43, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 14.074999809265, },
-				[6] = { 35, 53, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 18.068000793457, },
-				[7] = { 43, 65, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 22.287000656128, },
-				[8] = { 52, 78, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 26.732000350952, },
-				[9] = { 62, 93, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 31.40299987793, },
-				[10] = { 73, 110, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 36.299999237061, },
-				[11] = { 86, 129, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 41.423000335693, },
-				[12] = { 100, 151, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 46.771999359131, },
-				[13] = { 117, 175, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 52.34700012207, },
-				[14] = { 136, 204, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 58.147998809814, },
-				[15] = { 157, 236, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 64.175003051758, },
-				[16] = { 181, 272, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 70.428001403809, },
-				[17] = { 209, 314, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 76.906997680664, },
-				[18] = { 241, 362, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 83.611999511719, },
-				[19] = { 277, 416, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 90.542999267578, },
-				[20] = { 319, 478, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 97.699996948242, },
-				[21] = { 366, 549, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 105.08300018311, },
-				[22] = { 421, 631, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 112.69200134277, },
-				[23] = { 483, 725, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 120.52700042725, },
-				[24] = { 555, 832, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 128.58799743652, },
-				[25] = { 637, 956, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 136.875, },
-				[26] = { 732, 1099, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 145.38800048828, },
-				[27] = { 842, 1263, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 154.12699890137, },
-				[28] = { 968, 1453, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 163.09199523926, },
-				[29] = { 1114, 1672, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 172.28300476074, },
-				[30] = { 1284, 1925, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 181.69999694824, },
-				[31] = { 1479, 2219, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 191.34300231934, },
-				[32] = { 1707, 2560, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 201.21200561523, },
-				[33] = { 1971, 2956, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 211.30700683594, },
-				[34] = { 2278, 3417, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 221.62800598145, },
-				[35] = { 2636, 3954, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 232.17500305176, },
-				[36] = { 3054, 4580, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 242.94799804688, },
-				[37] = { 3541, 5312, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 253.94700622559, },
-				[38] = { 4112, 6168, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 265.17199707031, },
-				[39] = { 4781, 7171, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 276.62298583984, },
-				[40] = { 5565, 8348, 0, statInterpolation = { 1, 1, 1, }, actorLevel = 288.29998779297, },
+				[1] = { 9, 14, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 1, },
+				[2] = { 13, 19, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 3.4519999027252, },
+				[3] = { 17, 26, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 6.7670001983643, },
+				[4] = { 23, 34, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 10.307999610901, },
+				[5] = { 29, 43, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 14.074999809265, },
+				[6] = { 35, 53, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 18.068000793457, },
+				[7] = { 43, 65, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 22.287000656128, },
+				[8] = { 52, 78, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 26.732000350952, },
+				[9] = { 62, 93, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 31.40299987793, },
+				[10] = { 73, 110, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 36.299999237061, },
+				[11] = { 86, 129, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 41.423000335693, },
+				[12] = { 100, 151, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 46.771999359131, },
+				[13] = { 117, 175, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 52.34700012207, },
+				[14] = { 136, 204, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 58.147998809814, },
+				[15] = { 157, 236, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 64.175003051758, },
+				[16] = { 181, 272, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 70.428001403809, },
+				[17] = { 209, 314, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 76.906997680664, },
+				[18] = { 241, 362, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 83.611999511719, },
+				[19] = { 277, 416, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 90.542999267578, },
+				[20] = { 319, 478, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 97.699996948242, },
+				[21] = { 366, 549, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 105.08300018311, },
+				[22] = { 421, 631, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 112.69200134277, },
+				[23] = { 483, 725, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 120.52700042725, },
+				[24] = { 555, 832, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 128.58799743652, },
+				[25] = { 637, 956, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 136.875, },
+				[26] = { 732, 1099, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 145.38800048828, },
+				[27] = { 842, 1263, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 154.12699890137, },
+				[28] = { 968, 1453, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 163.09199523926, },
+				[29] = { 1114, 1672, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 172.28300476074, },
+				[30] = { 1284, 1925, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 181.69999694824, },
+				[31] = { 1479, 2219, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 191.34300231934, },
+				[32] = { 1707, 2560, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 201.21200561523, },
+				[33] = { 1971, 2956, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 211.30700683594, },
+				[34] = { 2278, 3417, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 221.62800598145, },
+				[35] = { 2636, 3954, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 232.17500305176, },
+				[36] = { 3054, 4580, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 242.94799804688, },
+				[37] = { 3541, 5312, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 253.94700622559, },
+				[38] = { 4112, 6168, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 265.17199707031, },
+				[39] = { 4781, 7171, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 276.62298583984, },
+				[40] = { 5565, 8348, 0, critChance = 12, statInterpolation = { 1, 1, 1, }, actorLevel = 288.29998779297, },
 			},
 		},
 		[3] = {
@@ -2466,7 +2502,9 @@ skills["BleedingConcoctionPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_base_area_of_effect_radius", 0.2 },
+		{ "active_skill_base_area_of_effect_radius", 0.2, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { attackSpeedMultiplier = -15, baseMultiplier = 0.7, critChance = 5, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -2601,7 +2639,9 @@ skills["BloodBoilPlayer"] = {
 	skillTypes = { [SkillType.HasReservation] = true, [SkillType.OngoingSkill] = true, [SkillType.Buff] = true, [SkillType.Persistent] = true, [SkillType.Duration] = true, [SkillType.Physical] = true, [SkillType.DamageOverTime] = true, [SkillType.Area] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "base_skill_effect_duration", 75 },
+		{ "base_skill_effect_duration", 75, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -2722,6 +2762,8 @@ skills["MeleeBowPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -2919,7 +2961,9 @@ skills["ExplodingPoisonToadPlayer"] = {
 	skillTypes = { [SkillType.Attack] = true, [SkillType.Area] = true, [SkillType.Chaos] = true, [SkillType.Physical] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Triggerable] = true, [SkillType.NonWeaponAttack] = true, [SkillType.NoAttackOrCastTime] = true, [SkillType.UseGlobalStats] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "trigger_toad_spawn_chance_%", 0.5 },
+		{ "trigger_toad_spawn_chance_%", 0.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { baseMultiplier = 2.25, critChance = 5, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -3042,7 +3086,9 @@ skills["MetaDeadeyeMarksPlayer"] = {
 	skillTypes = { [SkillType.OngoingSkill] = true, [SkillType.Meta] = true, [SkillType.Persistent] = true, [SkillType.Buff] = true, [SkillType.CanHaveMultipleOngoingSkillInstances] = true, [SkillType.Triggers] = true, [SkillType.Area] = true, [SkillType.HasReservation] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_base_area_of_effect_radius", 0.2 },
+		{ "active_skill_base_area_of_effect_radius", 0.2, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -3157,6 +3203,8 @@ skills["SupportMetaDeadeyeMarksPlayer"] = {
 	excludeSkillTypes = { },
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, },
 		[2] = { levelRequirement = 0, },
@@ -3267,7 +3315,9 @@ skills["MetaCastOnCharmUsePlayer"] = {
 	skillTypes = { [SkillType.HasReservation] = true, [SkillType.OngoingSkill] = true, [SkillType.Meta] = true, [SkillType.Persistent] = true, [SkillType.Buff] = true, [SkillType.CanHaveMultipleOngoingSkillInstances] = true, [SkillType.GeneratesEnergy] = true, [SkillType.Triggers] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "energy_generated_+%", 0.75 },
+		{ "energy_generated_+%", 0.75, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -3383,6 +3433,8 @@ skills["SupportMetaCastOnCharmUsePlayer"] = {
 	excludeSkillTypes = { SkillType.InbuiltTrigger, },
 	isTrigger = true,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -3530,6 +3582,8 @@ skills["ChaosSpearTriggerChaosSurgePlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { baseMultiplier = 0.5, levelRequirement = 0, },
 		[2] = { baseMultiplier = 0.55, levelRequirement = 3, },
@@ -3643,12 +3697,15 @@ skills["ConductiveRunesPlayer"] = {
 	baseTypeName = "Conductive Runes",
 	icon = "Art/2DArt/SkillIcons/ExpeditionRunewordHazard.dds",
 	color = 4,
-	description = "Spend Runic Ward to create a number of Hazardous Runes in a cone in front of you, which arm after a time. After arming, these Runes will activate when enemies step on them, exploding to deal Attack damage and apply Electrocution buildup.",
-	skillTypes = { [SkillType.Area] = true, [SkillType.Hazard] = true, [SkillType.Duration] = true, [SkillType.Attack] = true, [SkillType.Damage] = true, [SkillType.Limit] = true, [SkillType.UseGlobalStats] = true, [SkillType.NonWeaponAttack] = true, [SkillType.Lightning] = true, [SkillType.Totemable] = true, },
+	description = "Spend Runic Ward to create a number of Hazardous Runes in a cone in front of you, which arm after a time. After arming, these Runes will activate when enemies step on them, exploding to deal Attack damage that is not based on your Weapon's damage and apply Electrocution buildup.",
+	skillTypes = { [SkillType.Area] = true, [SkillType.Hazard] = true, [SkillType.Duration] = true, [SkillType.Attack] = true, [SkillType.Damage] = true, [SkillType.Limit] = true, [SkillType.UseGlobalStats] = true, [SkillType.NonWeaponAttack] = true, [SkillType.Lightning] = true, [SkillType.Totemable] = true, [SkillType.UsableWhileShapeshifted] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "rune_hazard_arming_time_ms", -5 },
-		{ "rune_hazard_detonate_time_ms", -5 },
+		{ "rune_hazard_arming_time_ms", -5, {  } },
+		{ "rune_hazard_detonate_time_ms", -5, {  } },
+	},
+	altQualityStats = {
+		{ "active_skill_base_area_of_effect_radius", 0.3, {  } },
 	},
 	levels = {
 		[1] = { critChance = 7, levelRequirement = 0, cost = { Ward = 15, }, },
@@ -3713,12 +3770,12 @@ skills["ConductiveRunesPlayer"] = {
 				{ "movement_speed_+%_final_while_performing_action", -70 },
 				{ "movement_speed_acceleration_+%_per_second_while_performing_action", 160 },
 				{ "movement_speed_while_performing_action_locked_duration_%", 50 },
+				{ "dps_display_statset_index", 1 },
 			},
 			stats = {
 				"can_perform_skill_while_moving",
 				"cast_time_overrides_attack_duration",
 				"base_deal_no_damage",
-				"usable_while_shapeshifted",
 			},
 			levels = {
 				[1] = { actorLevel = 1, },
@@ -3769,7 +3826,7 @@ skills["ConductiveRunesPlayer"] = {
 			incrementalEffectiveness = 0.27349999547005,
 			statDescriptionScope = "conductive_runes_statset_1",
 			baseFlags = {
-				attack = true,
+				nonWeaponAttack = true,
 			},
 			constantStats = {
 				{ "rune_hazard_cone_angle", 80 },
@@ -3780,6 +3837,7 @@ skills["ConductiveRunesPlayer"] = {
 				{ "movement_speed_+%_final_while_performing_action", -70 },
 				{ "movement_speed_acceleration_+%_per_second_while_performing_action", 160 },
 				{ "movement_speed_while_performing_action_locked_duration_%", 50 },
+				{ "dps_display_statset_index", 1 },
 				{ "active_skill_base_area_of_effect_radius", 14 },
 				{ "active_skill_base_physical_damage_%_to_convert_to_lightning", 100 },
 			},
@@ -3789,10 +3847,11 @@ skills["ConductiveRunesPlayer"] = {
 				"active_skill_electrocutes_as_though_dealt_damage_+%_final",
 				"can_perform_skill_while_moving",
 				"cast_time_overrides_attack_duration",
-				"usable_while_shapeshifted",
 				"is_area_damage",
 				"replace_main_hand_unarmed_attack_stats_with_nothing_type",
 				"base_lightning_damage_can_electrocute",
+				"is_hazard",
+				"base_skill_show_average_damage_instead_of_dps",
 			},
 			levels = {
 				[1] = { 1, 11, 50, baseMultiplier = 0.5, statInterpolation = { 1, 1, 1, }, actorLevel = 1, },
@@ -3852,6 +3911,8 @@ skills["MeleeCrossbowPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -3987,6 +4048,8 @@ skills["UnloadAmmoPlayer"] = {
 	castTime = 0.5,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, },
 		[2] = { levelRequirement = 0, },
@@ -4106,49 +4169,51 @@ skills["CrushingFearPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_area_of_effect_+%_final", 0.5 },
+		{ "active_skill_area_of_effect_+%_final", 0.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
-		[1] = { attackSpeedMultiplier = -25, baseMultiplier = 4, levelRequirement = 0, cost = { Mana = 6, }, },
-		[2] = { attackSpeedMultiplier = -25, baseMultiplier = 4.4, levelRequirement = 3, cost = { Mana = 7, }, },
-		[3] = { attackSpeedMultiplier = -25, baseMultiplier = 4.84, levelRequirement = 6, cost = { Mana = 8, }, },
-		[4] = { attackSpeedMultiplier = -25, baseMultiplier = 5.29, levelRequirement = 10, cost = { Mana = 9, }, },
-		[5] = { attackSpeedMultiplier = -25, baseMultiplier = 5.73, levelRequirement = 14, cost = { Mana = 10, }, },
-		[6] = { attackSpeedMultiplier = -25, baseMultiplier = 6.18, levelRequirement = 18, cost = { Mana = 11, }, },
-		[7] = { attackSpeedMultiplier = -25, baseMultiplier = 6.64, levelRequirement = 22, cost = { Mana = 13, }, },
-		[8] = { attackSpeedMultiplier = -25, baseMultiplier = 7.08, levelRequirement = 26, cost = { Mana = 14, }, },
-		[9] = { attackSpeedMultiplier = -25, baseMultiplier = 7.48, levelRequirement = 31, cost = { Mana = 16, }, },
-		[10] = { attackSpeedMultiplier = -25, baseMultiplier = 7.9, levelRequirement = 36, cost = { Mana = 17, }, },
-		[11] = { attackSpeedMultiplier = -25, baseMultiplier = 8.37, levelRequirement = 41, cost = { Mana = 19, }, },
-		[12] = { attackSpeedMultiplier = -25, baseMultiplier = 8.86, levelRequirement = 46, cost = { Mana = 21, }, },
-		[13] = { attackSpeedMultiplier = -25, baseMultiplier = 9.39, levelRequirement = 52, cost = { Mana = 23, }, },
-		[14] = { attackSpeedMultiplier = -25, baseMultiplier = 9.97, levelRequirement = 58, cost = { Mana = 25, }, },
-		[15] = { attackSpeedMultiplier = -25, baseMultiplier = 10.59, levelRequirement = 64, cost = { Mana = 28, }, },
-		[16] = { attackSpeedMultiplier = -25, baseMultiplier = 11.25, levelRequirement = 66, cost = { Mana = 30, }, },
-		[17] = { attackSpeedMultiplier = -25, baseMultiplier = 11.97, levelRequirement = 72, cost = { Mana = 33, }, },
-		[18] = { attackSpeedMultiplier = -25, baseMultiplier = 12.75, levelRequirement = 78, cost = { Mana = 36, }, },
-		[19] = { attackSpeedMultiplier = -25, baseMultiplier = 13.58, levelRequirement = 84, cost = { Mana = 38, }, },
-		[20] = { attackSpeedMultiplier = -25, baseMultiplier = 14.49, levelRequirement = 90, cost = { Mana = 42, }, },
-		[21] = { attackSpeedMultiplier = -25, baseMultiplier = 15.45, levelRequirement = 90, cost = { Mana = 45, }, },
-		[22] = { attackSpeedMultiplier = -25, baseMultiplier = 16.48, levelRequirement = 90, cost = { Mana = 49, }, },
-		[23] = { attackSpeedMultiplier = -25, baseMultiplier = 17.58, levelRequirement = 90, cost = { Mana = 52, }, },
-		[24] = { attackSpeedMultiplier = -25, baseMultiplier = 18.75, levelRequirement = 90, cost = { Mana = 56, }, },
-		[25] = { attackSpeedMultiplier = -25, baseMultiplier = 20, levelRequirement = 90, cost = { Mana = 60, }, },
-		[26] = { attackSpeedMultiplier = -25, baseMultiplier = 21.33, levelRequirement = 90, cost = { Mana = 65, }, },
-		[27] = { attackSpeedMultiplier = -25, baseMultiplier = 22.75, levelRequirement = 90, cost = { Mana = 70, }, },
-		[28] = { attackSpeedMultiplier = -25, baseMultiplier = 24.27, levelRequirement = 90, cost = { Mana = 75, }, },
-		[29] = { attackSpeedMultiplier = -25, baseMultiplier = 25.89, levelRequirement = 90, cost = { Mana = 80, }, },
-		[30] = { attackSpeedMultiplier = -25, baseMultiplier = 27.61, levelRequirement = 90, cost = { Mana = 86, }, },
-		[31] = { attackSpeedMultiplier = -25, baseMultiplier = 29.45, levelRequirement = 90, cost = { Mana = 92, }, },
-		[32] = { attackSpeedMultiplier = -25, baseMultiplier = 31.41, levelRequirement = 90, cost = { Mana = 98, }, },
-		[33] = { attackSpeedMultiplier = -25, baseMultiplier = 33.51, levelRequirement = 90, cost = { Mana = 105, }, },
-		[34] = { attackSpeedMultiplier = -25, baseMultiplier = 35.74, levelRequirement = 90, cost = { Mana = 112, }, },
-		[35] = { attackSpeedMultiplier = -25, baseMultiplier = 38.12, levelRequirement = 90, cost = { Mana = 119, }, },
-		[36] = { attackSpeedMultiplier = -25, baseMultiplier = 40.66, levelRequirement = 90, cost = { Mana = 127, }, },
-		[37] = { attackSpeedMultiplier = -25, baseMultiplier = 43.37, levelRequirement = 90, cost = { Mana = 136, }, },
-		[38] = { attackSpeedMultiplier = -25, baseMultiplier = 46.26, levelRequirement = 90, cost = { Mana = 144, }, },
-		[39] = { attackSpeedMultiplier = -25, baseMultiplier = 49.34, levelRequirement = 90, cost = { Mana = 154, }, },
-		[40] = { attackSpeedMultiplier = -25, baseMultiplier = 52.62, levelRequirement = 90, cost = { Mana = 164, }, },
+		[1] = { attackSpeedMultiplier = -25, baseMultiplier = 1.1, levelRequirement = 0, cost = { Mana = 6, }, },
+		[2] = { attackSpeedMultiplier = -25, baseMultiplier = 1.21, levelRequirement = 3, cost = { Mana = 7, }, },
+		[3] = { attackSpeedMultiplier = -25, baseMultiplier = 1.33, levelRequirement = 6, cost = { Mana = 8, }, },
+		[4] = { attackSpeedMultiplier = -25, baseMultiplier = 1.45, levelRequirement = 10, cost = { Mana = 9, }, },
+		[5] = { attackSpeedMultiplier = -25, baseMultiplier = 1.57, levelRequirement = 14, cost = { Mana = 10, }, },
+		[6] = { attackSpeedMultiplier = -25, baseMultiplier = 1.68, levelRequirement = 18, cost = { Mana = 11, }, },
+		[7] = { attackSpeedMultiplier = -25, baseMultiplier = 1.8, levelRequirement = 22, cost = { Mana = 13, }, },
+		[8] = { attackSpeedMultiplier = -25, baseMultiplier = 1.91, levelRequirement = 26, cost = { Mana = 14, }, },
+		[9] = { attackSpeedMultiplier = -25, baseMultiplier = 2.01, levelRequirement = 31, cost = { Mana = 16, }, },
+		[10] = { attackSpeedMultiplier = -25, baseMultiplier = 2.11, levelRequirement = 36, cost = { Mana = 17, }, },
+		[11] = { attackSpeedMultiplier = -25, baseMultiplier = 2.21, levelRequirement = 41, cost = { Mana = 19, }, },
+		[12] = { attackSpeedMultiplier = -25, baseMultiplier = 2.32, levelRequirement = 46, cost = { Mana = 21, }, },
+		[13] = { attackSpeedMultiplier = -25, baseMultiplier = 2.44, levelRequirement = 52, cost = { Mana = 23, }, },
+		[14] = { attackSpeedMultiplier = -25, baseMultiplier = 2.56, levelRequirement = 58, cost = { Mana = 25, }, },
+		[15] = { attackSpeedMultiplier = -25, baseMultiplier = 2.69, levelRequirement = 64, cost = { Mana = 28, }, },
+		[16] = { attackSpeedMultiplier = -25, baseMultiplier = 2.82, levelRequirement = 66, cost = { Mana = 30, }, },
+		[17] = { attackSpeedMultiplier = -25, baseMultiplier = 2.96, levelRequirement = 72, cost = { Mana = 33, }, },
+		[18] = { attackSpeedMultiplier = -25, baseMultiplier = 3.11, levelRequirement = 78, cost = { Mana = 36, }, },
+		[19] = { attackSpeedMultiplier = -25, baseMultiplier = 3.27, levelRequirement = 84, cost = { Mana = 38, }, },
+		[20] = { attackSpeedMultiplier = -25, baseMultiplier = 3.43, levelRequirement = 90, cost = { Mana = 42, }, },
+		[21] = { attackSpeedMultiplier = -25, baseMultiplier = 3.6, levelRequirement = 90, cost = { Mana = 45, }, },
+		[22] = { attackSpeedMultiplier = -25, baseMultiplier = 3.78, levelRequirement = 90, cost = { Mana = 49, }, },
+		[23] = { attackSpeedMultiplier = -25, baseMultiplier = 3.97, levelRequirement = 90, cost = { Mana = 52, }, },
+		[24] = { attackSpeedMultiplier = -25, baseMultiplier = 4.17, levelRequirement = 90, cost = { Mana = 56, }, },
+		[25] = { attackSpeedMultiplier = -25, baseMultiplier = 4.38, levelRequirement = 90, cost = { Mana = 60, }, },
+		[26] = { attackSpeedMultiplier = -25, baseMultiplier = 4.6, levelRequirement = 90, cost = { Mana = 65, }, },
+		[27] = { attackSpeedMultiplier = -25, baseMultiplier = 4.83, levelRequirement = 90, cost = { Mana = 70, }, },
+		[28] = { attackSpeedMultiplier = -25, baseMultiplier = 5.07, levelRequirement = 90, cost = { Mana = 75, }, },
+		[29] = { attackSpeedMultiplier = -25, baseMultiplier = 5.32, levelRequirement = 90, cost = { Mana = 80, }, },
+		[30] = { attackSpeedMultiplier = -25, baseMultiplier = 5.59, levelRequirement = 90, cost = { Mana = 86, }, },
+		[31] = { attackSpeedMultiplier = -25, baseMultiplier = 5.87, levelRequirement = 90, cost = { Mana = 92, }, },
+		[32] = { attackSpeedMultiplier = -25, baseMultiplier = 6.16, levelRequirement = 90, cost = { Mana = 98, }, },
+		[33] = { attackSpeedMultiplier = -25, baseMultiplier = 6.47, levelRequirement = 90, cost = { Mana = 105, }, },
+		[34] = { attackSpeedMultiplier = -25, baseMultiplier = 6.79, levelRequirement = 90, cost = { Mana = 112, }, },
+		[35] = { attackSpeedMultiplier = -25, baseMultiplier = 7.13, levelRequirement = 90, cost = { Mana = 119, }, },
+		[36] = { attackSpeedMultiplier = -25, baseMultiplier = 7.49, levelRequirement = 90, cost = { Mana = 127, }, },
+		[37] = { attackSpeedMultiplier = -25, baseMultiplier = 7.86, levelRequirement = 90, cost = { Mana = 136, }, },
+		[38] = { attackSpeedMultiplier = -25, baseMultiplier = 8.26, levelRequirement = 90, cost = { Mana = 144, }, },
+		[39] = { attackSpeedMultiplier = -25, baseMultiplier = 8.67, levelRequirement = 90, cost = { Mana = 154, }, },
+		[40] = { attackSpeedMultiplier = -25, baseMultiplier = 9.1, levelRequirement = 90, cost = { Mana = 164, }, },
 	},
 	statSets = {
 		[1] = {
@@ -4328,7 +4393,9 @@ skills["DemonFormPlayer"] = {
 	skillTypes = { [SkillType.Buff] = true, [SkillType.Cooldown] = true, [SkillType.Shapeshift] = true, [SkillType.ManualCooldownConsumption] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "demon_form_grants_cast_speed_+%", 0.5 },
+		{ "demon_form_grants_cast_speed_+%", 0.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 15, levelRequirement = 0, storedUses = 1, cost = { Mana = 6, }, },
@@ -4390,6 +4457,9 @@ skills["DemonFormPlayer"] = {
 				},
 			},
 			baseFlags = {
+			},
+			baseMods = {
+				flag("Condition:Shapeshifted", { type = "GlobalEffect", effectType = "Buff" }, { type = "Condition", var = "DemonForm" }),
 			},
 			constantStats = {
 				{ "demon_form_spell_damage_+%_final_per_stack", 3 },
@@ -4454,7 +4524,10 @@ skills["DetonateLivingPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Trappable] = true, [SkillType.Totemable] = true, [SkillType.Mineable] = true, [SkillType.Multicastable] = true, [SkillType.Triggerable] = true, [SkillType.Cascadable] = true, [SkillType.Unleashable] = true, [SkillType.AreaSpell] = true, [SkillType.Physical] = true, [SkillType.UsableWhileMoving] = true, },
 	castTime = 0.65,
 	qualityStats = {
-		{ "corpse_explosion_monster_life_permillage_physical", 1 },
+		{ "corpse_explosion_monster_life_permillage_physical", 1, { 1 } },
+	},
+	altQualityStats = {
+		{ "active_skill_base_area_of_effect_radius", 0.2, {  } },
 	},
 	levels = {
 		[1] = { critChance = 12, levelRequirement = 0, cost = { Ward = 11, }, },
@@ -4655,7 +4728,9 @@ skills["ElementalExpressionTriggeredPlayer"] = {
 	skillTypes = { [SkillType.Damage] = true, [SkillType.Triggerable] = true, [SkillType.Spell] = true, [SkillType.Cooldown] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Lightning] = true, [SkillType.Cold] = true, [SkillType.Fire] = true, [SkillType.Projectile] = true, [SkillType.Area] = true, [SkillType.Chains] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "base_cooldown_speed_+%", 1 },
+		{ "base_cooldown_speed_+%", 1, { 0 } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 0.25, levelRequirement = 0, storedUses = 1, cost = { Mana = 3, }, },
@@ -4966,7 +5041,9 @@ skills["ElementalStormPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Duration] = true, [SkillType.Trappable] = true, [SkillType.Totemable] = true, [SkillType.Mineable] = true, [SkillType.Triggerable] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Orb] = true, [SkillType.AreaSpell] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Cooldown] = true, [SkillType.Fire] = true, [SkillType.Cold] = true, [SkillType.Lightning] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "base_cooldown_speed_+%", 0.5 },
+		{ "base_cooldown_speed_+%", 0.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 3, levelRequirement = 0, storedUses = 1, cost = { Mana = 8, }, },
@@ -5340,7 +5417,9 @@ skills["AmazonTriggerElementalSurgePlayer"] = {
 	skillTypes = { [SkillType.Attack] = true, [SkillType.Area] = true, [SkillType.Fire] = true, [SkillType.Cold] = true, [SkillType.Lightning] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Triggerable] = true, [SkillType.NoAttackOrCastTime] = true, [SkillType.CannotConsumeCharges] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_base_area_of_effect_radius", 0.15 },
+		{ "active_skill_base_area_of_effect_radius", 0.15, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { baseMultiplier = 0.5, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -5586,7 +5665,9 @@ skills["EncaseInJadePlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Buff] = true, [SkillType.Guard] = true, [SkillType.Duration] = true, [SkillType.Physical] = true, },
 	castTime = 0.3,
 	qualityStats = {
-		{ "maximum_life_%_damage_absorbed_per_jade_consumed", 0.05 },
+		{ "maximum_life_%_damage_absorbed_per_jade_consumed", 0.05, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 15, }, },
@@ -5735,7 +5816,10 @@ skills["EternalMarchPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Minion] = true, [SkillType.AttackInPlace] = true, [SkillType.Cooldown] = true, [SkillType.Instant] = true, [SkillType.Triggerable] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "skill_eternal_march_maximum_ward_cost", 10 },
+		{ "skill_eternal_march_maximum_ward_cost", 10, {  } },
+	},
+	altQualityStats = {
+		{ "base_cooldown_speed_+%", 2, {  } },
 	},
 	levels = {
 		[1] = { cooldown = 4, levelRequirement = 0, storedUses = 1, },
@@ -5852,7 +5936,9 @@ skills["ExplosiveConcoctionPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "explosive_concoction_number_of_secondary_projectiles", 0.1 },
+		{ "explosive_concoction_number_of_secondary_projectiles", 0.1, { 1 } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { attackSpeedMultiplier = -15, baseMultiplier = 0.7, critChance = 5, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -5982,6 +6068,8 @@ skills["ExplosiveTransmutationPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, spiritReservationFlat = 30, },
 		[2] = { levelRequirement = 3, spiritReservationFlat = 30, },
@@ -6089,7 +6177,10 @@ skills["TriggeredExplosiveTransmutationExplosionPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Area] = true, [SkillType.Cascadable] = true, [SkillType.Physical] = true, [SkillType.Cold] = true, [SkillType.Fire] = true, [SkillType.Lightning] = true, [SkillType.Chaos] = true, [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Cooldown] = true, [SkillType.Damage] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "active_skill_base_area_of_effect_radius", 0.1 },
+		{ "active_skill_base_area_of_effect_radius", 0.1, {  } },
+	},
+	altQualityStats = {
+		{ "base_ward_cost_efficiency_+%", 1.5, {  } },
 	},
 	levels = {
 		[1] = { cooldown = 0.5, critChance = 14, levelRequirement = 0, storedUses = 5, cost = { Ward = 7, }, },
@@ -6152,7 +6243,6 @@ skills["TriggeredExplosiveTransmutationExplosionPlayer"] = {
 				"spell_maximum_base_physical_damage",
 				"is_area_damage",
 				"triggerable_in_any_set",
-				"usable_while_shapeshifted",
 				"triggered_by_primary_skill",
 				"display_statset_hide_usage_stats",
 			},
@@ -6223,7 +6313,6 @@ skills["TriggeredExplosiveTransmutationExplosionPlayer"] = {
 				"spell_maximum_base_cold_damage",
 				"is_area_damage",
 				"triggerable_in_any_set",
-				"usable_while_shapeshifted",
 				"triggered_by_primary_skill",
 				"display_statset_hide_usage_stats",
 			},
@@ -6296,7 +6385,6 @@ skills["TriggeredExplosiveTransmutationExplosionPlayer"] = {
 				"spell_maximum_base_fire_damage",
 				"is_area_damage",
 				"triggerable_in_any_set",
-				"usable_while_shapeshifted",
 				"triggered_by_primary_skill",
 				"display_statset_hide_usage_stats",
 			},
@@ -6369,7 +6457,6 @@ skills["TriggeredExplosiveTransmutationExplosionPlayer"] = {
 				"spell_maximum_base_lightning_damage",
 				"is_area_damage",
 				"triggerable_in_any_set",
-				"usable_while_shapeshifted",
 				"triggered_by_primary_skill",
 				"display_statset_hide_usage_stats",
 			},
@@ -6442,7 +6529,6 @@ skills["TriggeredExplosiveTransmutationExplosionPlayer"] = {
 				"spell_maximum_base_chaos_damage",
 				"is_area_damage",
 				"triggerable_in_any_set",
-				"usable_while_shapeshifted",
 				"triggered_by_primary_skill",
 				"display_statset_hide_usage_stats",
 			},
@@ -6507,7 +6593,9 @@ skills["MetaCastFireSpellOnHitPlayer"] = {
 	skillTypes = { [SkillType.HasReservation] = true, [SkillType.OngoingSkill] = true, [SkillType.Meta] = true, [SkillType.Persistent] = true, [SkillType.Buff] = true, [SkillType.Fire] = true, [SkillType.CanHaveMultipleOngoingSkillInstances] = true, [SkillType.GeneratesEnergy] = true, [SkillType.Triggers] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "energy_generated_+%", 0.75 },
+		{ "energy_generated_+%", 0.75, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -6623,6 +6711,8 @@ skills["SupportMetaCastFireSpellOnHitPlayer"] = {
 	excludeSkillTypes = { SkillType.InbuiltTrigger, },
 	isTrigger = true,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -6783,6 +6873,8 @@ skills["TriggeredFistOfKalguurPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { baseMultiplier = 1.2, cooldown = 0.5, levelRequirement = 0, storedUses = 1, cost = { Ward = 0, }, },
 		[2] = { baseMultiplier = 1.32, cooldown = 0.5, levelRequirement = 0, storedUses = 1, cost = { Ward = 0, }, },
@@ -6890,7 +6982,7 @@ skills["FragmentsOfThePastPlayer"] = {
 	icon = "Art/2DArt/SkillIcons/ExpeditionFragmentsofthePast.dds",
 	color = 4,
 	description = "Spend Runic Ward to create a Verisium volcano that deals damage on initial eruption and Triggers Ice Fragments.",
-	skillTypes = { [SkillType.Attack] = true, [SkillType.Area] = true, [SkillType.Duration] = true, [SkillType.Projectile] = true, [SkillType.Trappable] = true, [SkillType.Totemable] = true, [SkillType.Mineable] = true, [SkillType.Damage] = true, [SkillType.Projectile] = true, [SkillType.UsableWhileMoving] = true, [SkillType.Limit] = true, [SkillType.GamepadDeflectable] = true, [SkillType.Cold] = true, [SkillType.Sustained] = true, },
+	skillTypes = { [SkillType.Attack] = true, [SkillType.Area] = true, [SkillType.Duration] = true, [SkillType.Projectile] = true, [SkillType.Trappable] = true, [SkillType.Totemable] = true, [SkillType.Mineable] = true, [SkillType.Damage] = true, [SkillType.Projectile] = true, [SkillType.UsableWhileMoving] = true, [SkillType.Limit] = true, [SkillType.GamepadDeflectable] = true, [SkillType.Cold] = true, [SkillType.Sustained] = true, [SkillType.UsableWhileShapeshifted] = true, },
 	weaponTypes = {
 		["Bow"] = true,
 		["Claw"] = true,
@@ -6910,7 +7002,10 @@ skills["FragmentsOfThePastPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_base_area_of_effect_radius", 0.2 },
+		{ "active_skill_base_area_of_effect_radius", 0.2, {  } },
+	},
+	altQualityStats = {
+		{ "base_skill_effect_duration", 50, {  } },
 	},
 	levels = {
 		[1] = { attackSpeedMultiplier = -40, baseMultiplier = 0.5, levelRequirement = 0, cost = { Ward = 11, }, },
@@ -6975,7 +7070,6 @@ skills["FragmentsOfThePastPlayer"] = {
 			},
 			stats = {
 				"can_perform_skill_while_moving",
-				"usable_while_shapeshifted",
 			},
 			levels = {
 				[1] = { actorLevel = 1, },
@@ -7029,7 +7123,9 @@ skills["FragmentsOfThePastFragmentPlayer"] = {
 	skillTypes = { [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Triggerable] = true, [SkillType.RangedAttack] = true, [SkillType.Projectile] = true, [SkillType.Attack] = true, [SkillType.DetonatesAfterTime] = true, [SkillType.Area] = true, [SkillType.Cold] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_base_area_of_effect_radius", 0.2 },
+		{ "active_skill_base_area_of_effect_radius", 0.2, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { baseMultiplier = 0.45, levelRequirement = 0, },
@@ -7100,7 +7196,6 @@ skills["FragmentsOfThePastFragmentPlayer"] = {
 				"base_is_projectile",
 				"ballistic_projectiles_always_bounce",
 				"triggerable_in_any_set",
-				"usable_while_shapeshifted",
 				"is_area_damage",
 				"triggered_by_primary_skill",
 			},
@@ -7158,7 +7253,10 @@ skills["FrostflameNovaPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Trappable] = true, [SkillType.Totemable] = true, [SkillType.Mineable] = true, [SkillType.Multicastable] = true, [SkillType.Triggerable] = true, [SkillType.Cold] = true, [SkillType.Unleashable] = true, [SkillType.AreaSpell] = true, [SkillType.Nova] = true, [SkillType.Invokable] = true, [SkillType.UsableWhileMoving] = true, [SkillType.Cascadable] = true, [SkillType.Fire] = true, },
 	castTime = 0.7,
 	qualityStats = {
-		{ "active_skill_base_area_of_effect_radius", 0.5 },
+		{ "active_skill_base_area_of_effect_radius", 0.5, { 0 } },
+	},
+	altQualityStats = {
+		{ "damage_+%_vs_frozen_enemies", 1, { 1 } },
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Ward = 11, }, },
@@ -7348,7 +7446,9 @@ skills["FulminatingConcoctionPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_shock_chance_+%_final", 2 },
+		{ "active_skill_shock_chance_+%_final", 2, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { attackSpeedMultiplier = -15, baseMultiplier = 0.7, critChance = 8, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -7480,7 +7580,9 @@ skills["FuturePastPlayer"] = {
 	skillTypes = { [SkillType.HasReservation] = true, [SkillType.OngoingSkill] = true, [SkillType.Persistent] = true, [SkillType.Buff] = true, [SkillType.Duration] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "base_secondary_skill_effect_duration", 15 },
+		{ "base_secondary_skill_effect_duration", 15, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -7601,6 +7703,8 @@ skills["GelidPalmPlayer"] = {
 	},
 	castTime = 0,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -7784,6 +7888,8 @@ skills["MeleeGrenadeLauncherPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { baseMultiplier = 0.65, cooldown = 1, levelRequirement = 0, storedUses = 3, cost = { Mana = 0, }, },
 		[2] = { baseMultiplier = 0.71, cooldown = 1, levelRequirement = 3, storedUses = 3, cost = { Mana = 0, }, },
@@ -7913,7 +8019,10 @@ skills["GrimPillarsPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Damage] = true, [SkillType.Duration] = true, [SkillType.Cold] = true, [SkillType.CreatesGroundEffect] = true, [SkillType.IceCrystal] = true, [SkillType.Area] = true, [SkillType.Nova] = true, [SkillType.Cascadable] = true, [SkillType.ToggleSpawnedObjectTargetable_DefaultOn] = true, [SkillType.Limit] = true, [SkillType.Totemable] = true, [SkillType.Triggerable] = true, },
 	castTime = 0.7,
 	qualityStats = {
-		{ "grim_pillars_number_of_pillars_to_create", 0.1 },
+		{ "grim_pillars_number_of_pillars_to_create", 0.1, { 0 } },
+	},
+	altQualityStats = {
+		{ "active_skill_base_secondary_area_of_effect_radius", 0.2, {  } },
 	},
 	levels = {
 		[1] = { critChance = 12, levelRequirement = 0, cost = { Ward = 15, }, },
@@ -8129,6 +8238,8 @@ skills["HarbingerOfMadnessPlayer"] = {
 	castTime = 0,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, },
 		[2] = { levelRequirement = 3, },
@@ -8260,7 +8371,9 @@ skills["UniqueAtziriHeraldPlayer"] = {
 	skillTypes = { [SkillType.OngoingSkill] = true, [SkillType.HasReservation] = true, [SkillType.Buff] = true, [SkillType.Persistent] = true, [SkillType.Herald] = true, [SkillType.UseGlobalStats] = true, [SkillType.Area] = true, [SkillType.Attack] = true, [SkillType.Physical] = true, [SkillType.SkillConsumesBleeding] = true, [SkillType.NoAttackOrCastTime] = true, [SkillType.AttackInPlace] = true, [SkillType.NonWeaponAttack] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_damage_+%_final", 0.5 },
+		{ "active_skill_damage_+%_final", 0.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -8520,7 +8633,9 @@ skills["HollowFocusPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_base_secondary_area_of_effect_radius", -0.2 },
+		{ "active_skill_base_secondary_area_of_effect_radius", -0.2, { 0 } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -8705,7 +8820,7 @@ skills["MetaHollowFormPlayer"] = {
 	fromTree = true,
 	color = 4,
 	description = "Channel to create fleeting images of your astral self near the target location. The images perform a Socketed Melee Attack once then vanish, targeting the closest enemy if possible. The images cannot perform Channelled Skills or Conditional Skills. Consuming a Power Charge creates additional images.",
-	skillTypes = { [SkillType.Meta] = true, [SkillType.Attack] = true, [SkillType.ConsumesCharges] = true, [SkillType.SkillConsumesPowerChargesOnUse] = true, [SkillType.AttackInPlace] = true, [SkillType.Channel] = true, [SkillType.Melee] = true, [SkillType.Sustained] = true, [SkillType.UsableWhileMoving] = true, [SkillType.GamepadDoNotChannelSkillAtLocation] = true, },
+	skillTypes = { [SkillType.Meta] = true, [SkillType.Attack] = true, [SkillType.ConsumesCharges] = true, [SkillType.SkillConsumesPowerChargesOnUse] = true, [SkillType.AttackInPlace] = true, [SkillType.Channel] = true, [SkillType.Melee] = true, [SkillType.Sustained] = true, [SkillType.UsableWhileMoving] = true, [SkillType.GamepadDoNotChannelSkillAtLocation] = true, [SkillType.UsableWhileShapeshifted] = true, },
 	weaponTypes = {
 		["Claw"] = true,
 		["Dagger"] = true,
@@ -8722,7 +8837,9 @@ skills["MetaHollowFormPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "base_power_charge_skip_consume_chance_%", 0.5 },
+		{ "base_power_charge_skip_consume_chance_%", 0.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { attackSpeedMultiplier = -30, levelRequirement = 0, },
@@ -8785,7 +8902,6 @@ skills["MetaHollowFormPlayer"] = {
 			},
 			stats = {
 				"base_deal_no_damage",
-				"usable_while_shapeshifted",
 				"disable_quadruped_head_control",
 				"hide_minion_frame",
 				"can_perform_skill_while_moving",
@@ -8846,6 +8962,8 @@ skills["SupportHollowFormPlayer"] = {
 	excludeSkillTypes = { SkillType.HasUsageCondition, SkillType.Meta, SkillType.Triggered, SkillType.Persistent, SkillType.Channel, SkillType.UsedByProxy, SkillType.SupportedByHollowForm, SkillType.NOT, SkillType.AND, },
 	ignoreMinionTypes = true,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -8980,7 +9098,9 @@ skills["HollowResonancePlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_hit_damage_stun_multiplier_+%_final", 1.5 },
+		{ "active_skill_hit_damage_stun_multiplier_+%_final", 1.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { baseMultiplier = 0.6, cooldown = 0.5, levelRequirement = 0, storedUses = 3, },
@@ -9097,7 +9217,10 @@ skills["HollowShellPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Buff] = true, [SkillType.Area] = true, [SkillType.Cascadable] = true, [SkillType.Nova] = true, [SkillType.Triggerable] = true, },
 	castTime = 0.6,
 	qualityStats = {
-		{ "skill_hollow_shell_spent_ward_%_to_grant_as_guard", 0.25 },
+		{ "skill_hollow_shell_spent_ward_%_to_grant_as_guard", 0.25, {  } },
+	},
+	altQualityStats = {
+		{ "base_skill_effect_duration", 100, {  } },
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Ward = 3, }, },
@@ -9216,7 +9339,9 @@ skills["InevitableAgonyPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Area] = true, [SkillType.Duration] = true, [SkillType.Trappable] = true, [SkillType.Totemable] = true, [SkillType.Mineable] = true, [SkillType.Multicastable] = true, [SkillType.Triggerable] = true, [SkillType.Cascadable] = true, [SkillType.Unleashable] = true, [SkillType.AreaSpell] = true, [SkillType.UsableWhileMoving] = true, [SkillType.Cooldown] = true, },
 	castTime = 0.7,
 	qualityStats = {
-		{ "active_skill_base_area_of_effect_radius", 0.25 },
+		{ "active_skill_base_area_of_effect_radius", 0.25, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 2, levelRequirement = 0, storedUses = 1, cost = { Mana = 41, }, },
@@ -9339,7 +9464,9 @@ skills["IntoTheBreachPlayer"] = {
 	skillTypes = { [SkillType.Buff] = true, [SkillType.Persistent] = true, [SkillType.OngoingSkill] = true, [SkillType.HasReservation] = true, [SkillType.GeneratesRemnants] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "remnant_effect_+%", 0.75 },
+		{ "remnant_effect_+%", 0.75, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -9462,7 +9589,9 @@ skills["CorpseBeetlesPlayer"] = {
 	minionSkillTypes = { [SkillType.Spell] = true, [SkillType.Physical] = true, [SkillType.Area] = true, [SkillType.Damage] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "maximum_corpse_beetles_allowed", 0.2 },
+		{ "maximum_corpse_beetles_allowed", 0.2, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -9578,6 +9707,8 @@ skills["CommandCorpseBeetleExplodePlayer"] = {
 	skillTypes = { [SkillType.CommandsMinions] = true, [SkillType.UsableWhileMoving] = true, [SkillType.UsableWhileShapeshifted] = true, },
 	castTime = 0.4,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 7, }, },
@@ -9703,6 +9834,8 @@ skills["SummonSandDjinnPlayer"] = {
 	castTime = 0,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, },
 		[2] = { levelRequirement = 3, },
@@ -9815,6 +9948,8 @@ skills["CommandSandDjinnKnifeThrowPlayer"] = {
 	skillTypes = { [SkillType.CommandsMinions] = true, [SkillType.UsableWhileMoving] = true, [SkillType.UsableWhileShapeshifted] = true, },
 	castTime = 0.4,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 3, }, },
@@ -9931,7 +10066,10 @@ skills["LeylinesPlayer"] = {
 	skillTypes = { [SkillType.OngoingSkill] = true, [SkillType.HasReservation] = true, [SkillType.Buff] = true, [SkillType.Persistent] = true, [SkillType.AttackInPlace] = true, [SkillType.Area] = true, [SkillType.Duration] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "skill_leylines_spell_damage_+%_final", 0.5 },
+		{ "skill_leylines_spell_damage_+%_final", 0.5, {  } },
+	},
+	altQualityStats = {
+		{ "active_skill_base_area_of_effect_radius", 0.5, {  } },
 	},
 	levels = {
 		[1] = { levelRequirement = 0, spiritReservationFlat = 30, },
@@ -10051,7 +10189,9 @@ skills["LifeRemnantsPlayer"] = {
 	skillTypes = { [SkillType.Buff] = true, [SkillType.HasReservation] = true, [SkillType.OngoingSkill] = true, [SkillType.Persistent] = true, [SkillType.GeneratesRemnants] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "life_remnants_chance_to_spawn_orb_on_killing_enemy_%", 0.5 },
+		{ "life_remnants_chance_to_spawn_orb_on_killing_enemy_%", 0.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -10172,6 +10312,8 @@ skills["Melee1HMacePlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { baseMultiplier = 1.1, levelRequirement = 3, cost = { Mana = 0, }, },
@@ -10289,6 +10431,8 @@ skills["Melee2HMacePlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -10408,6 +10552,8 @@ skills["MeleeMaceMacePlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -10543,7 +10689,9 @@ skills["ManifestWeaponPlayer"] = {
 	},
 	castTime = 0,
 	qualityStats = {
-		{ "minion_attack_speed_+%", 1 },
+		{ "minion_attack_speed_+%", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -10675,7 +10823,9 @@ skills["BearMaulPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "gain_x_rage_on_attack_hit", 0.1 },
+		{ "gain_x_rage_on_attack_hit", 0.1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { baseMultiplier = 0.8, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -10794,7 +10944,9 @@ skills["MeditatePlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Channel] = true, [SkillType.Cooldown] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "meditate_energy_shield_recharge_rate_+%_final", 0.5 },
+		{ "meditate_energy_shield_recharge_rate_+%_final", 0.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 7, levelRequirement = 0, storedUses = 1, },
@@ -10945,49 +11097,51 @@ skills["MidnightStarPlayer"] = {
 	skillTypes = { [SkillType.OngoingSkill] = true, [SkillType.HasReservation] = true, [SkillType.Buff] = true, [SkillType.Persistent] = true, [SkillType.Duration] = true, [SkillType.AttackInPlace] = true, [SkillType.Cold] = true, [SkillType.IceCrystal] = true, [SkillType.Area] = true, [SkillType.Limit] = true, [SkillType.Damage] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "midnight_star_max_ice_crystals", 0.1 },
+		{ "midnight_star_max_ice_crystals", 0.1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
-		[1] = { critChance = 11, levelRequirement = 0, },
-		[2] = { critChance = 11, levelRequirement = 3, },
-		[3] = { critChance = 11, levelRequirement = 6, },
-		[4] = { critChance = 11, levelRequirement = 10, },
-		[5] = { critChance = 11, levelRequirement = 14, },
-		[6] = { critChance = 11, levelRequirement = 18, },
-		[7] = { critChance = 11, levelRequirement = 22, },
-		[8] = { critChance = 11, levelRequirement = 26, },
-		[9] = { critChance = 11, levelRequirement = 31, },
-		[10] = { critChance = 11, levelRequirement = 36, },
-		[11] = { critChance = 11, levelRequirement = 41, },
-		[12] = { critChance = 11, levelRequirement = 46, },
-		[13] = { critChance = 11, levelRequirement = 52, },
-		[14] = { critChance = 11, levelRequirement = 58, },
-		[15] = { critChance = 11, levelRequirement = 64, },
-		[16] = { critChance = 11, levelRequirement = 66, },
-		[17] = { critChance = 11, levelRequirement = 72, },
-		[18] = { critChance = 11, levelRequirement = 78, },
-		[19] = { critChance = 11, levelRequirement = 84, },
-		[20] = { critChance = 11, levelRequirement = 90, },
-		[21] = { critChance = 11, levelRequirement = 90, },
-		[22] = { critChance = 11, levelRequirement = 90, },
-		[23] = { critChance = 11, levelRequirement = 90, },
-		[24] = { critChance = 11, levelRequirement = 90, },
-		[25] = { critChance = 11, levelRequirement = 90, },
-		[26] = { critChance = 11, levelRequirement = 90, },
-		[27] = { critChance = 11, levelRequirement = 90, },
-		[28] = { critChance = 11, levelRequirement = 90, },
-		[29] = { critChance = 11, levelRequirement = 90, },
-		[30] = { critChance = 11, levelRequirement = 90, },
-		[31] = { critChance = 11, levelRequirement = 90, },
-		[32] = { critChance = 11, levelRequirement = 90, },
-		[33] = { critChance = 11, levelRequirement = 90, },
-		[34] = { critChance = 11, levelRequirement = 90, },
-		[35] = { critChance = 11, levelRequirement = 90, },
-		[36] = { critChance = 11, levelRequirement = 90, },
-		[37] = { critChance = 11, levelRequirement = 90, },
-		[38] = { critChance = 11, levelRequirement = 90, },
-		[39] = { critChance = 11, levelRequirement = 90, },
-		[40] = { critChance = 11, levelRequirement = 90, },
+		[1] = { levelRequirement = 0, },
+		[2] = { levelRequirement = 3, },
+		[3] = { levelRequirement = 6, },
+		[4] = { levelRequirement = 10, },
+		[5] = { levelRequirement = 14, },
+		[6] = { levelRequirement = 18, },
+		[7] = { levelRequirement = 22, },
+		[8] = { levelRequirement = 26, },
+		[9] = { levelRequirement = 31, },
+		[10] = { levelRequirement = 36, },
+		[11] = { levelRequirement = 41, },
+		[12] = { levelRequirement = 46, },
+		[13] = { levelRequirement = 52, },
+		[14] = { levelRequirement = 58, },
+		[15] = { levelRequirement = 64, },
+		[16] = { levelRequirement = 66, },
+		[17] = { levelRequirement = 72, },
+		[18] = { levelRequirement = 78, },
+		[19] = { levelRequirement = 84, },
+		[20] = { levelRequirement = 90, },
+		[21] = { levelRequirement = 90, },
+		[22] = { levelRequirement = 90, },
+		[23] = { levelRequirement = 90, },
+		[24] = { levelRequirement = 90, },
+		[25] = { levelRequirement = 90, },
+		[26] = { levelRequirement = 90, },
+		[27] = { levelRequirement = 90, },
+		[28] = { levelRequirement = 90, },
+		[29] = { levelRequirement = 90, },
+		[30] = { levelRequirement = 90, },
+		[31] = { levelRequirement = 90, },
+		[32] = { levelRequirement = 90, },
+		[33] = { levelRequirement = 90, },
+		[34] = { levelRequirement = 90, },
+		[35] = { levelRequirement = 90, },
+		[36] = { levelRequirement = 90, },
+		[37] = { levelRequirement = 90, },
+		[38] = { levelRequirement = 90, },
+		[39] = { levelRequirement = 90, },
+		[40] = { levelRequirement = 90, },
 	},
 	statSets = {
 		[1] = {
@@ -11072,9 +11226,8 @@ skills["MidnightStarPlayer"] = {
 			stats = {
 				"secondary_minimum_base_cold_damage",
 				"secondary_maximum_base_cold_damage",
-				"secondary_minimum_base_cold_damage",
-				"secondary_maximum_base_cold_damage",
-				"frost_wall_maximum_life",
+				"midnight_star_gain_x_ice_seeds_when_you_critically_hit_a_rare_or_unique_enemy",
+				"midnight_star_attempt_to_consume_x_ice_seeds_to_create_an_ice_crystal_each_time_you_gain_ice_seeds",
 				"frost_wall_maximum_life",
 				"midnight_star_gain_ice_seeds_equal_to_enemy_power_on_kill_with_critical_hit",
 				"display_statset_hide_usage_stats",
@@ -11089,46 +11242,46 @@ skills["MidnightStarPlayer"] = {
 				"secondary_maximum_base_cold_damage",
 			},
 			levels = {
-				[1] = { 2, 3, 2, 3, 14, 14, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 1, },
-				[2] = { 2, 4, 2, 4, 24, 24, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 3.4519999027252, },
-				[3] = { 3, 5, 3, 5, 41, 41, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 6.7670001983643, },
-				[4] = { 4, 6, 4, 6, 62, 62, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 10.307999610901, },
-				[5] = { 5, 8, 5, 8, 90, 90, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 14.074999809265, },
-				[6] = { 6, 10, 6, 10, 126, 126, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 18.068000793457, },
-				[7] = { 8, 12, 8, 12, 173, 173, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 22.287000656128, },
-				[8] = { 9, 14, 9, 14, 234, 234, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 26.732000350952, },
-				[9] = { 11, 16, 11, 16, 312, 312, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 31.40299987793, },
-				[10] = { 13, 19, 13, 19, 413, 413, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 36.299999237061, },
-				[11] = { 15, 22, 15, 22, 540, 540, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 41.423000335693, },
-				[12] = { 17, 25, 17, 25, 700, 700, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 46.771999359131, },
-				[13] = { 19, 29, 19, 29, 903, 903, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 52.34700012207, },
-				[14] = { 22, 33, 22, 33, 1158, 1158, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 58.147998809814, },
-				[15] = { 25, 38, 25, 38, 1478, 1478, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 64.175003051758, },
-				[16] = { 29, 43, 29, 43, 1881, 1881, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 70.428001403809, },
-				[17] = { 32, 49, 32, 49, 2386, 2386, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 76.906997680664, },
-				[18] = { 37, 55, 37, 55, 3012, 3012, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 83.611999511719, },
-				[19] = { 41, 62, 41, 62, 3795, 3795, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 90.542999267578, },
-				[20] = { 47, 70, 47, 70, 4768, 4768, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 97.699996948242, },
-				[21] = { 53, 79, 53, 79, 5007, 5007, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 105.08300018311, },
-				[22] = { 59, 89, 59, 89, 5257, 5257, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 112.69200134277, },
-				[23] = { 67, 100, 67, 100, 5520, 5520, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 120.52700042725, },
-				[24] = { 75, 112, 75, 112, 5796, 5796, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 128.58799743652, },
-				[25] = { 84, 126, 84, 126, 6085, 6085, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 136.875, },
-				[26] = { 95, 142, 95, 142, 6390, 6390, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 145.38800048828, },
-				[27] = { 106, 159, 106, 159, 6709, 6709, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 154.12699890137, },
-				[28] = { 119, 179, 119, 179, 7044, 7044, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 163.09199523926, },
-				[29] = { 134, 201, 134, 201, 7397, 7397, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 172.28300476074, },
-				[30] = { 150, 225, 150, 225, 7767, 7767, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 181.69999694824, },
-				[31] = { 169, 253, 169, 253, 8155, 8155, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 191.34300231934, },
-				[32] = { 190, 285, 190, 285, 8563, 8563, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 201.21200561523, },
-				[33] = { 213, 320, 213, 320, 8991, 8991, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 211.30700683594, },
-				[34] = { 240, 360, 240, 360, 9440, 9440, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 221.62800598145, },
-				[35] = { 270, 405, 270, 405, 9912, 9912, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 232.17500305176, },
-				[36] = { 304, 455, 304, 455, 10408, 10408, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 242.94799804688, },
-				[37] = { 342, 513, 342, 513, 10928, 10928, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 253.94700622559, },
-				[38] = { 385, 578, 385, 578, 11475, 11475, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 265.17199707031, },
-				[39] = { 434, 651, 434, 651, 12048, 12048, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 276.62298583984, },
-				[40] = { 490, 735, 490, 735, 12651, 12651, critChance = 22, statInterpolation = { 1, 1, 1, 1, 1, 1, }, actorLevel = 288.29998779297, },
+				[1] = { 2, 3, 2, 10, 14, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 1, },
+				[2] = { 2, 4, 2, 10, 24, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 3.4519999027252, },
+				[3] = { 3, 5, 2, 10, 41, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 6.7670001983643, },
+				[4] = { 4, 6, 2, 10, 62, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 10.307999610901, },
+				[5] = { 5, 8, 2, 10, 90, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 14.074999809265, },
+				[6] = { 6, 10, 2, 10, 126, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 18.068000793457, },
+				[7] = { 8, 12, 2, 10, 173, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 22.287000656128, },
+				[8] = { 9, 14, 2, 10, 234, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 26.732000350952, },
+				[9] = { 11, 16, 2, 10, 312, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 31.40299987793, },
+				[10] = { 13, 19, 2, 10, 413, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 36.299999237061, },
+				[11] = { 15, 22, 3, 10, 540, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 41.423000335693, },
+				[12] = { 17, 25, 3, 10, 700, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 46.771999359131, },
+				[13] = { 19, 29, 3, 10, 903, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 52.34700012207, },
+				[14] = { 22, 33, 3, 10, 1158, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 58.147998809814, },
+				[15] = { 25, 38, 3, 10, 1478, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 64.175003051758, },
+				[16] = { 29, 43, 3, 10, 1881, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 70.428001403809, },
+				[17] = { 32, 49, 3, 10, 2386, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 76.906997680664, },
+				[18] = { 37, 55, 3, 10, 3012, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 83.611999511719, },
+				[19] = { 41, 62, 3, 10, 3795, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 90.542999267578, },
+				[20] = { 47, 70, 4, 10, 4768, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 97.699996948242, },
+				[21] = { 53, 79, 4, 10, 5007, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 105.08300018311, },
+				[22] = { 59, 89, 4, 10, 5257, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 112.69200134277, },
+				[23] = { 67, 100, 4, 10, 5520, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 120.52700042725, },
+				[24] = { 75, 112, 4, 10, 5796, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 128.58799743652, },
+				[25] = { 84, 126, 4, 10, 6085, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 136.875, },
+				[26] = { 95, 142, 4, 10, 6390, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 145.38800048828, },
+				[27] = { 106, 159, 4, 10, 6709, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 154.12699890137, },
+				[28] = { 119, 179, 4, 10, 7044, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 163.09199523926, },
+				[29] = { 134, 201, 4, 10, 7397, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 172.28300476074, },
+				[30] = { 150, 225, 5, 10, 7767, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 181.69999694824, },
+				[31] = { 169, 253, 5, 10, 8155, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 191.34300231934, },
+				[32] = { 190, 285, 5, 10, 8563, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 201.21200561523, },
+				[33] = { 213, 320, 5, 10, 8991, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 211.30700683594, },
+				[34] = { 240, 360, 5, 10, 9440, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 221.62800598145, },
+				[35] = { 270, 405, 5, 10, 9912, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 232.17500305176, },
+				[36] = { 304, 455, 6, 10, 10408, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 242.94799804688, },
+				[37] = { 342, 513, 6, 10, 10928, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 253.94700622559, },
+				[38] = { 385, 578, 6, 10, 11475, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 265.17199707031, },
+				[39] = { 434, 651, 6, 10, 12048, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 276.62298583984, },
+				[40] = { 490, 735, 7, 10, 12651, critChance = 11, statInterpolation = { 1, 1, 1, 1, 1, }, actorLevel = 288.29998779297, },
 			},
 		},
 	}
@@ -11148,6 +11301,8 @@ skills["MetaMirageDeadeyePlayer"] = {
 	},
 	castTime = 0,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -11258,6 +11413,8 @@ skills["SupportMirageDeadeyePlayer"] = {
 	excludeSkillTypes = { SkillType.HasUsageCondition, SkillType.Melee, SkillType.Meta, SkillType.Triggered, SkillType.Persistent, SkillType.UsedByProxy, SkillType.SupportedByMirageDeadeye, SkillType.NOT, SkillType.AND, },
 	ignoreMinionTypes = true,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -11378,7 +11535,9 @@ skills["MirageDeadeyeSpawnPlayer"] = {
 	},
 	castTime = 0,
 	qualityStats = {
-		{ "base_skill_effect_duration", 50 },
+		{ "base_skill_effect_duration", 50, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 10, levelRequirement = 0, storedUses = 1, },
@@ -11495,7 +11654,9 @@ skills["SummonMistRavenPlayer"] = {
 	minionSkillTypes = { [SkillType.Attack] = true, [SkillType.Projectile] = true, [SkillType.Duration] = true, [SkillType.Area] = true, [SkillType.Melee] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "chance_to_gain_1_more_frenzy_charge_%", 1 },
+		{ "chance_to_gain_1_more_frenzy_charge_%", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -11610,6 +11771,8 @@ skills["CommandMistRavenPlayer"] = {
 	skillTypes = { [SkillType.CommandsMinions] = true, [SkillType.UsableWhileMoving] = true, [SkillType.UsableWhileShapeshifted] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 8, }, },
@@ -11728,7 +11891,9 @@ skills["TriggeredMoltenShowerPlayer"] = {
 	skillTypes = { [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Fire] = true, [SkillType.Attack] = true, [SkillType.Projectile] = true, [SkillType.ProjectileNoCollision] = true, [SkillType.NoAttackOrCastTime] = true, [SkillType.AttackInPlace] = true, [SkillType.Cooldown] = true, [SkillType.Instant] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "base_cooldown_speed_+%", 1 },
+		{ "base_cooldown_speed_+%", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { baseMultiplier = 0.5, cooldown = 0.25, levelRequirement = 0, storedUses = 3, cost = { Mana = 0, }, },
@@ -11849,7 +12014,9 @@ skills["MomentOfVulnerabilityPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Nova] = true, [SkillType.Area] = true, [SkillType.UsableWhileMoving] = true, [SkillType.Damage] = true, [SkillType.Cooldown] = true, },
 	castTime = 0.65,
 	qualityStats = {
-		{ "time_rip_damage_share_%", 1 },
+		{ "time_rip_damage_share_%", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 1, levelRequirement = 0, storedUses = 1, cost = { Mana = 6, }, },
@@ -11974,8 +12141,8 @@ skills["SupportMorrigansInsight"] = {
 	color = 4,
 	support = true,
 	requireSkillTypes = { SkillType.Attack, SkillType.Damage, SkillType.CrossbowAmmoSkill, },
-	addSkillTypes = { },
-	excludeSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SupportedByElementalDischarge, },
+	addSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SupportedByBitingFrost, },
+	excludeSkillTypes = { SkillType.SkillConsumesFreeze, SkillType.SupportedByBitingFrost, SkillType.NOT, SkillType.AND, },
 	gemFamily = { "BitingFrost",},
 	isLineage = true,
 	flavourText = {"\"Wild energy is as misunderstood as the Mórrigan", "itself. Many revere life, yet revile death. What is dead", "feeds the living. Death is but one aspect of the whole.\"", },
@@ -12015,6 +12182,8 @@ skills["TriggeredMorrigansInsightPlayer"] = {
 	skillTypes = { [SkillType.SkillGrantedBySupport] = true, [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Cold] = true, [SkillType.Guard] = true, [SkillType.Duration] = true, [SkillType.Cooldown] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 8, levelRequirement = 0, storedUses = 1, cost = { Ward = 0, }, },
@@ -12144,6 +12313,8 @@ skills["SummonWaterDjinnPlayer"] = {
 	castTime = 0,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, },
 		[2] = { levelRequirement = 3, },
@@ -12256,6 +12427,8 @@ skills["CommandWaterDjinnBubblePlayer"] = {
 	skillTypes = { [SkillType.CommandsMinions] = true, [SkillType.UsableWhileMoving] = true, [SkillType.UsableWhileShapeshifted] = true, },
 	castTime = 0.4,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 7, }, },
@@ -12444,6 +12617,8 @@ skills["ParryPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { attackTime = 750, baseMultiplier = 0.65, critChance = 5, levelRequirement = 0, cost = { Mana = 0, ManaPerMinute = 0, }, },
 	},
@@ -12515,7 +12690,9 @@ skills["PinnacleOfPowerPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Duration] = true, [SkillType.ConsumesCharges] = true, [SkillType.SkillConsumesPowerChargesOnUse] = true, [SkillType.Instant] = true, [SkillType.Cooldown] = true, [SkillType.Buff] = true, [SkillType.Fire] = true, [SkillType.Cold] = true, [SkillType.Lightning] = true, [SkillType.HasUsageCondition] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "elemental_power_elemental_damage_+%_final_per_power_charge", 0.1 },
+		{ "elemental_power_elemental_damage_+%_final_per_power_charge", 0.1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[20] = { cooldown = 4, levelRequirement = 0, storedUses = 1, cost = { Mana = 93, }, },
@@ -12568,7 +12745,10 @@ skills["PoweredByVerisiumPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.GeneratesInfusion] = true, [SkillType.Multicastable] = true, [SkillType.Triggerable] = true, [SkillType.Unleashable] = true, [SkillType.Cooldown] = true, },
 	castTime = 0.7,
 	qualityStats = {
-		{ "verisium_infusion_duration_+%", 2.5 },
+		{ "verisium_infusion_duration_+%", 2.5, {  } },
+	},
+	altQualityStats = {
+		{ "additional_infusion_gain_chance_%", 1, {  } },
 	},
 	levels = {
 		[1] = { cooldown = 7, levelRequirement = 0, storedUses = 1, cost = { Ward = 20, }, },
@@ -12677,7 +12857,9 @@ skills["PrimalBountyPlayer"] = {
 	skillTypes = { [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.ModifiesNextSkill] = true, [SkillType.Instant] = true, [SkillType.EmpowersOtherSkill] = true, [SkillType.Buff] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "multishot_empowered_projectile_speed_+%", 1.5 },
+		{ "multishot_empowered_projectile_speed_+%", 1.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -12827,6 +13009,8 @@ skills["MeleeUnarmedPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { baseMultiplier = 1.1, levelRequirement = 3, cost = { Mana = 0, }, },
@@ -12944,6 +13128,8 @@ skills["MeleeQuarterstaffPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -13074,7 +13260,9 @@ skills["RainOfBladesPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "base_cooldown_speed_+%", 1 },
+		{ "base_cooldown_speed_+%", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 10, levelRequirement = 0, storedUses = 1, cost = { Ward = 11, }, },
@@ -13203,7 +13391,10 @@ skills["RainOfBladesTriggeredPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "base_cooldown_speed_+%", 1 },
+		{ "base_cooldown_speed_+%", 1, {  } },
+	},
+	altQualityStats = {
+		{ "hit_damage_immobilisation_multiplier_+%", 1.5, {  } },
 	},
 	levels = {
 		[1] = { baseMultiplier = 0.8, cooldown = 0.3, levelRequirement = 0, storedUses = 5, cost = { Ward = 5, }, },
@@ -13322,6 +13513,8 @@ skills["ShieldBlockPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { attackTime = 550, baseMultiplier = 0.8, critChance = 5, levelRequirement = 0, cost = { Mana = 0, ManaPerMinute = 0, }, },
 	},
@@ -13378,7 +13571,10 @@ skills["RefutationPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Buff] = true, [SkillType.Duration] = true, [SkillType.Triggerable] = true, [SkillType.Unleashable] = true, [SkillType.UsableWhileMoving] = true, [SkillType.Cooldown] = true, },
 	castTime = 0.65,
 	qualityStats = {
-		{ "runic_fortress_stun_threshold_+%_final", 1 },
+		{ "runic_fortress_stun_threshold_+%_final", 1, {  } },
+	},
+	altQualityStats = {
+		{ "base_skill_effect_duration", 50, {  } },
 	},
 	levels = {
 		[1] = { cooldown = 11.9, levelRequirement = 0, storedUses = 1, cost = { Ward = 3, }, },
@@ -13503,8 +13699,11 @@ skills["MetaRemnantsOfKalguurPlayer"] = {
 	skillTypes = { [SkillType.OngoingSkill] = true, [SkillType.HasReservation] = true, [SkillType.Buff] = true, [SkillType.Persistent] = true, [SkillType.AttackInPlace] = true, [SkillType.GeneratesRemnants] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "ward_remnants_chance_to_spawn_orb_on_killing_enemy_%", 0.25 },
-		{ "ward_remnants_chance_to_spawn_remnant_on_stun_%", 0.25 },
+		{ "ward_remnants_chance_to_spawn_orb_on_killing_enemy_%", 0.25, {  } },
+		{ "ward_remnants_chance_to_spawn_remnant_on_stun_%", 0.25, {  } },
+	},
+	altQualityStats = {
+		{ "ward_remnants_spawn_remnant_on_stun_cooldown_ms", -2.5, {  } },
 	},
 	levels = {
 		[1] = { levelRequirement = 0, spiritReservationFlat = 30, },
@@ -13623,7 +13822,9 @@ skills["WyvernRendPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "wyvern_devour_base_all_damage_%_to_gain_as_lightning", 0.5 },
+		{ "wyvern_devour_base_all_damage_%_to_gain_as_lightning", 0.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { attackSpeedMultiplier = -10, baseMultiplier = 1.1, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -13804,6 +14005,8 @@ skills["CurseOfRepulsionPlayer"] = {
 	castTime = 0.5,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Ward = 15, }, },
 		[2] = { levelRequirement = 3, cost = { Ward = 18, }, },
@@ -13924,7 +14127,10 @@ skills["CurseOfRepulsionShockwavePlayer"] = {
 	skillTypes = { [SkillType.Attack] = true, [SkillType.Area] = true, [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Physical] = true, [SkillType.UseGlobalStats] = true, [SkillType.NoAttackOrCastTime] = true, [SkillType.AttackInPlace] = true, [SkillType.NonWeaponAttack] = true, [SkillType.Cooldown] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "active_skill_hit_damage_stun_multiplier_+%_final", 2 },
+		{ "active_skill_hit_damage_stun_multiplier_+%_final", 2, {  } },
+	},
+	altQualityStats = {
+		{ "active_skill_damage_+%_final_vs_immobilised_enemies", 1, {  } },
 	},
 	levels = {
 		[1] = { baseMultiplier = 0.5, cooldown = 0.5, critChance = 6, levelRequirement = 0, storedUses = 5, cost = { Ward = 0, }, },
@@ -14054,49 +14260,51 @@ skills["RighteousDescentPlayer"] = {
 	skillTypes = { [SkillType.Attack] = true, [SkillType.Physical] = true, [SkillType.Lightning] = true, [SkillType.Area] = true, [SkillType.Movement] = true, [SkillType.Cooldown] = true, [SkillType.Spear] = true, [SkillType.ManualCooldownConsumption] = true, [SkillType.Slam] = true, [SkillType.Travel] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_base_area_of_effect_radius", 0.1 },
+		{ "active_skill_base_area_of_effect_radius", 0.1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
-		[1] = { baseMultiplier = 4, cooldown = 10, levelRequirement = 0, storedUses = 1, cost = { Mana = 0, }, },
-		[2] = { baseMultiplier = 4.4, cooldown = 10, levelRequirement = 3, storedUses = 1, cost = { Mana = 0, }, },
-		[3] = { baseMultiplier = 4.84, cooldown = 10, levelRequirement = 6, storedUses = 1, cost = { Mana = 0, }, },
-		[4] = { baseMultiplier = 5.29, cooldown = 10, levelRequirement = 10, storedUses = 1, cost = { Mana = 0, }, },
-		[5] = { baseMultiplier = 5.73, cooldown = 10, levelRequirement = 14, storedUses = 1, cost = { Mana = 0, }, },
-		[6] = { baseMultiplier = 6.18, cooldown = 10, levelRequirement = 18, storedUses = 1, cost = { Mana = 0, }, },
-		[7] = { baseMultiplier = 6.64, cooldown = 10, levelRequirement = 22, storedUses = 1, cost = { Mana = 0, }, },
-		[8] = { baseMultiplier = 7.08, cooldown = 10, levelRequirement = 26, storedUses = 1, cost = { Mana = 0, }, },
-		[9] = { baseMultiplier = 7.48, cooldown = 10, levelRequirement = 31, storedUses = 1, cost = { Mana = 0, }, },
-		[10] = { baseMultiplier = 7.9, cooldown = 10, levelRequirement = 36, storedUses = 1, cost = { Mana = 0, }, },
-		[11] = { baseMultiplier = 8.37, cooldown = 10, levelRequirement = 41, storedUses = 1, cost = { Mana = 0, }, },
-		[12] = { baseMultiplier = 8.86, cooldown = 10, levelRequirement = 46, storedUses = 1, cost = { Mana = 0, }, },
-		[13] = { baseMultiplier = 9.39, cooldown = 10, levelRequirement = 52, storedUses = 1, cost = { Mana = 0, }, },
-		[14] = { baseMultiplier = 9.97, cooldown = 10, levelRequirement = 58, storedUses = 1, cost = { Mana = 0, }, },
-		[15] = { baseMultiplier = 10.59, cooldown = 10, levelRequirement = 64, storedUses = 1, cost = { Mana = 0, }, },
-		[16] = { baseMultiplier = 11.25, cooldown = 10, levelRequirement = 66, storedUses = 1, cost = { Mana = 0, }, },
-		[17] = { baseMultiplier = 11.97, cooldown = 10, levelRequirement = 72, storedUses = 1, cost = { Mana = 0, }, },
-		[18] = { baseMultiplier = 12.75, cooldown = 10, levelRequirement = 78, storedUses = 1, cost = { Mana = 0, }, },
-		[19] = { baseMultiplier = 13.58, cooldown = 10, levelRequirement = 84, storedUses = 1, cost = { Mana = 0, }, },
-		[20] = { baseMultiplier = 14.49, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[21] = { baseMultiplier = 15.45, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[22] = { baseMultiplier = 16.48, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[23] = { baseMultiplier = 17.58, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[24] = { baseMultiplier = 18.75, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[25] = { baseMultiplier = 20, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[26] = { baseMultiplier = 21.33, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[27] = { baseMultiplier = 22.75, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[28] = { baseMultiplier = 24.27, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[29] = { baseMultiplier = 25.89, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[30] = { baseMultiplier = 27.61, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[31] = { baseMultiplier = 29.45, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[32] = { baseMultiplier = 31.41, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[33] = { baseMultiplier = 33.51, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[34] = { baseMultiplier = 35.74, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[35] = { baseMultiplier = 38.12, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[36] = { baseMultiplier = 40.66, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[37] = { baseMultiplier = 43.37, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[38] = { baseMultiplier = 46.26, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[39] = { baseMultiplier = 49.34, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
-		[40] = { baseMultiplier = 52.62, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[1] = { baseMultiplier = 2, cooldown = 10, levelRequirement = 0, storedUses = 1, cost = { Mana = 0, }, },
+		[2] = { baseMultiplier = 2.2, cooldown = 10, levelRequirement = 3, storedUses = 1, cost = { Mana = 0, }, },
+		[3] = { baseMultiplier = 2.42, cooldown = 10, levelRequirement = 6, storedUses = 1, cost = { Mana = 0, }, },
+		[4] = { baseMultiplier = 2.64, cooldown = 10, levelRequirement = 10, storedUses = 1, cost = { Mana = 0, }, },
+		[5] = { baseMultiplier = 2.86, cooldown = 10, levelRequirement = 14, storedUses = 1, cost = { Mana = 0, }, },
+		[6] = { baseMultiplier = 3.09, cooldown = 10, levelRequirement = 18, storedUses = 1, cost = { Mana = 0, }, },
+		[7] = { baseMultiplier = 3.32, cooldown = 10, levelRequirement = 22, storedUses = 1, cost = { Mana = 0, }, },
+		[8] = { baseMultiplier = 3.54, cooldown = 10, levelRequirement = 26, storedUses = 1, cost = { Mana = 0, }, },
+		[9] = { baseMultiplier = 3.74, cooldown = 10, levelRequirement = 31, storedUses = 1, cost = { Mana = 0, }, },
+		[10] = { baseMultiplier = 3.95, cooldown = 10, levelRequirement = 36, storedUses = 1, cost = { Mana = 0, }, },
+		[11] = { baseMultiplier = 4.18, cooldown = 10, levelRequirement = 41, storedUses = 1, cost = { Mana = 0, }, },
+		[12] = { baseMultiplier = 4.43, cooldown = 10, levelRequirement = 46, storedUses = 1, cost = { Mana = 0, }, },
+		[13] = { baseMultiplier = 4.7, cooldown = 10, levelRequirement = 52, storedUses = 1, cost = { Mana = 0, }, },
+		[14] = { baseMultiplier = 4.98, cooldown = 10, levelRequirement = 58, storedUses = 1, cost = { Mana = 0, }, },
+		[15] = { baseMultiplier = 5.29, cooldown = 10, levelRequirement = 64, storedUses = 1, cost = { Mana = 0, }, },
+		[16] = { baseMultiplier = 5.63, cooldown = 10, levelRequirement = 66, storedUses = 1, cost = { Mana = 0, }, },
+		[17] = { baseMultiplier = 5.99, cooldown = 10, levelRequirement = 72, storedUses = 1, cost = { Mana = 0, }, },
+		[18] = { baseMultiplier = 6.37, cooldown = 10, levelRequirement = 78, storedUses = 1, cost = { Mana = 0, }, },
+		[19] = { baseMultiplier = 6.79, cooldown = 10, levelRequirement = 84, storedUses = 1, cost = { Mana = 0, }, },
+		[20] = { baseMultiplier = 7.24, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[21] = { baseMultiplier = 7.73, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[22] = { baseMultiplier = 8.24, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[23] = { baseMultiplier = 8.79, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[24] = { baseMultiplier = 9.38, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[25] = { baseMultiplier = 10, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[26] = { baseMultiplier = 10.67, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[27] = { baseMultiplier = 11.38, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[28] = { baseMultiplier = 12.14, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[29] = { baseMultiplier = 12.94, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[30] = { baseMultiplier = 13.81, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[31] = { baseMultiplier = 14.73, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[32] = { baseMultiplier = 15.71, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[33] = { baseMultiplier = 16.75, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[34] = { baseMultiplier = 17.87, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[35] = { baseMultiplier = 19.06, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[36] = { baseMultiplier = 20.33, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[37] = { baseMultiplier = 21.68, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[38] = { baseMultiplier = 23.13, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[39] = { baseMultiplier = 24.67, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
+		[40] = { baseMultiplier = 26.31, cooldown = 10, levelRequirement = 90, storedUses = 1, cost = { Mana = 0, }, },
 	},
 	statSets = {
 		[1] = {
@@ -14242,7 +14450,9 @@ skills["SacredGroundPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Area] = true, [SkillType.Duration] = true, [SkillType.Trappable] = true, [SkillType.Mineable] = true, [SkillType.Triggerable] = true, [SkillType.AreaSpell] = true, [SkillType.Cooldown] = true, [SkillType.Totemable] = true, [SkillType.UsableWhileMoving] = true, [SkillType.Limit] = true, [SkillType.GainsStages] = true, },
 	castTime = 0.6,
 	qualityStats = {
-		{ "active_skill_base_area_of_effect_radius", 0.4 },
+		{ "active_skill_base_area_of_effect_radius", 0.4, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 10, levelRequirement = 0, storedUses = 1, cost = { Mana = 0, }, },
@@ -14369,7 +14579,9 @@ skills["RitualSacrificePlayer"] = {
 	skillTypes = { [SkillType.Buff] = true, [SkillType.Duration] = true, [SkillType.TargetsDestructibleRareCorpses] = true, },
 	castTime = 5,
 	qualityStats = {
-		{ "base_skill_effect_duration", 1000 },
+		{ "base_skill_effect_duration", 1000, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 20, }, },
@@ -14488,8 +14700,8 @@ skills["SupportRuneforgedBladesPlayer"] = {
 	color = 4,
 	support = true,
 	requireSkillTypes = { SkillType.Attack, SkillType.CrossbowAmmoSkill, },
-	addSkillTypes = { },
-	excludeSkillTypes = { SkillType.UsedByProxy, SkillType.Triggered, SkillType.Persistent, SkillType.Channel, SkillType.Sustained, SkillType.ConsumesFullyBrokenArmour, },
+	addSkillTypes = { SkillType.ConsumesFullyBrokenArmour, SkillType.SupportedByRuneforgedBlades, },
+	excludeSkillTypes = { SkillType.UsedByProxy, SkillType.Triggered, SkillType.Persistent, SkillType.Channel, SkillType.Sustained, SkillType.ConsumesFullyBrokenArmour, SkillType.SupportedByRuneforgedBlades, SkillType.NOT, SkillType.AND, },
 	ignoreMinionTypes = true,
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -14518,6 +14730,8 @@ skills["TriggeredRuneforgedBladesPlayer"] = {
 	skillTypes = { [SkillType.Attack] = true, [SkillType.Projectile] = true, [SkillType.Triggerable] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.SkillGrantedBySupport] = true, },
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { baseMultiplier = 1.5, levelRequirement = 0, cost = { Ward = 7, }, },
@@ -14698,7 +14912,10 @@ skills["RunicReprievePlayer"] = {
 	skillTypes = { [SkillType.Channel] = true, [SkillType.UsableWhileMoving] = true, [SkillType.Spell] = true, [SkillType.ActiveBlock] = true, [SkillType.CanCancelActions] = true, },
 	castTime = 0.12,
 	qualityStats = {
-		{ "active_skill_stun_threshold_+%_while_performing_action", 2 },
+		{ "active_skill_stun_threshold_+%_while_performing_action", 2, {  } },
+	},
+	altQualityStats = {
+		{ "rune_ward_block_%_damage_taken", 0.5, {  } },
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { WardPerMinute = 180, }, },
@@ -14827,6 +15044,8 @@ skills["RunicTemperingPlayer"] = {
 	castTime = 1.125,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { cooldown = 5, levelRequirement = 0, storedUses = 1, cost = { ManaPerMinute = 174, }, },
 		[2] = { cooldown = 5, levelRequirement = 3, storedUses = 1, cost = { ManaPerMinute = 201, }, },
@@ -14953,6 +15172,8 @@ skills["SummonFireDjinnPlayer"] = {
 	castTime = 0,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, },
 		[2] = { levelRequirement = 3, },
@@ -15066,6 +15287,8 @@ skills["CommandFireDjinnLivingBombPlayer"] = {
 	skillTypes = { [SkillType.CommandsMinions] = true, [SkillType.UsableWhileMoving] = true, [SkillType.UsableWhileShapeshifted] = true, },
 	castTime = 0.4,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 2, }, },
@@ -15183,7 +15406,9 @@ skills["SanguineRevelryPlayer"] = {
 	skillTypes = { [SkillType.Buff] = true, [SkillType.HasReservation] = true, [SkillType.TotemCastsAlone] = true, [SkillType.OngoingSkill] = true, [SkillType.Persistent] = true, [SkillType.GeneratesRemnants] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "sanguine_revelry_rage_gain_per_pickup", 0.1 },
+		{ "sanguine_revelry_rage_gain_per_pickup", 0.1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -15375,7 +15600,9 @@ skills["ShatteringConcoctionPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "freeze_duration_+%", 1 },
+		{ "freeze_duration_+%", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { attackSpeedMultiplier = -15, baseMultiplier = 0.7, critChance = 11, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -15511,7 +15738,9 @@ skills["WolfShredPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "attack_speed_+%", 1 },
+		{ "attack_speed_+%", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { attackSpeedMultiplier = 100, baseMultiplier = 0.4, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -15774,6 +16003,8 @@ skills["IceFragmentsPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { baseMultiplier = 0.45, levelRequirement = 0, },
 		[2] = { baseMultiplier = 0.49, levelRequirement = 3, },
@@ -15840,10 +16071,10 @@ skills["IceFragmentsPlayer"] = {
 				"base_is_projectile",
 				"ballistic_projectiles_always_bounce",
 				"triggerable_in_any_set",
-				"usable_while_shapeshifted",
 				"is_area_damage",
 				"projectiles_can_shotgun",
 				"triggered_by_primary_skill",
+				"display_statset_hide_usage_stats",
 			},
 			levels = {
 				[1] = { actorLevel = 1, },
@@ -15900,7 +16131,10 @@ skills["SkyfallPlayer"] = {
 	minionSkillTypes = { [SkillType.Attack] = true, [SkillType.Melee] = true, [SkillType.Area] = true, [SkillType.Cold] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "base_spell_%_chance_to_echo", 0.5 },
+		{ "base_spell_%_chance_to_echo", 0.5, {  } },
+	},
+	altQualityStats = {
+		{ "damage_+%_vs_frozen_enemies", 1, {  } },
 	},
 	levels = {
 		[1] = { critChance = 14, levelRequirement = 0, cost = { Ward = 25, }, },
@@ -16144,6 +16378,8 @@ skills["SmashToSmithereensPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { baseMultiplier = 1.3, cooldown = 0.5, levelRequirement = 0, storedUses = 1, cost = { Mana = 0, }, },
 		[2] = { baseMultiplier = 1.43, cooldown = 0.5, levelRequirement = 3, storedUses = 1, cost = { Mana = 0, }, },
@@ -16204,6 +16440,8 @@ skills["SmashToSmithereensPlayer"] = {
 			stats = {
 				"is_area_damage",
 				"display_statset_hide_usage_stats",
+				"display_no_sockets",
+				"base_skill_show_average_damage_instead_of_dps",
 			},
 			levels = {
 				[1] = { actorLevel = 1, },
@@ -16260,7 +16498,9 @@ skills["NightfallSoaringMidnightPlayer"] = {
 	skillTypes = { [SkillType.ManualCooldownConsumption] = true, [SkillType.Cooldown] = true, [SkillType.Attack] = true, [SkillType.Area] = true, [SkillType.Projectile] = true, [SkillType.RequiresShield] = true, [SkillType.Travel] = true, [SkillType.Physical] = true, [SkillType.Cold] = true, [SkillType.NonWeaponAttack] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "projectile_base_number_of_targets_to_pierce", 0.1 },
+		{ "projectile_base_number_of_targets_to_pierce", 0.1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { attackTime = 1000, baseMultiplier = 0.5, cooldown = 4, critChance = 10, levelRequirement = 0, storedUses = 1, cost = { Mana = 0, }, },
@@ -16394,6 +16634,8 @@ skills["NightfallEmbraceTheFallPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { attackTime = 650, critChance = 15, levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { attackTime = 650, baseMultiplier = 1.1, critChance = 15, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -16520,7 +16762,9 @@ skills["SorceryWardPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Aegis] = true, [SkillType.Fire] = true, [SkillType.Cold] = true, [SkillType.Lightning] = true, [SkillType.Buff] = true, [SkillType.OngoingSkill] = true, [SkillType.Persistent] = true, [SkillType.HasReservation] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "aegis_unique_shield_max_value_from_%_armour_evasion", 0.25 },
+		{ "aegis_unique_shield_max_value_from_%_armour_evasion", 0.25, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -16646,6 +16890,8 @@ skills["MeleeSpearOffHandPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { baseMultiplier = 1.1, levelRequirement = 3, cost = { Mana = 0, }, },
@@ -16763,6 +17009,8 @@ skills["MeleeSpearPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -16882,6 +17130,8 @@ skills["SpearThrowPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { attackSpeedMultiplier = -30, baseMultiplier = 1.25, levelRequirement = 0, },
@@ -17070,10 +17320,12 @@ skills["SpiritVesselPlayer"] = {
 	color = 4,
 	description = "Summons a Shapeshifting Spirit Vessel Companion that uses copies of socketed Bear, Werewolf, and Wyvern Skills.",
 	skillTypes = { [SkillType.Companion] = true, [SkillType.Minion] = true, [SkillType.CreatesMinion] = true, [SkillType.HasReservation] = true, [SkillType.Persistent] = true, [SkillType.CreatesCompanion] = true, [SkillType.AttackInPlace] = true, [SkillType.Meta] = true, [SkillType.Persistent] = true, },
-	minionSkillTypes = { [SkillType.Attack] = true, [SkillType.Melee] = true, },
+	minionSkillTypes = { [SkillType.Attack] = true, [SkillType.Melee] = true, [SkillType.MeleeSingleTarget] = true, [SkillType.Area] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_minion_life_+%_final", 1 },
+		{ "active_skill_minion_life_+%_final", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -17189,6 +17441,8 @@ skills["SpiritVesselSupport"] = {
 	ignoreMinionTypes = true,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, },
 		[2] = { levelRequirement = 0, },
@@ -17302,49 +17556,51 @@ skills["StarbornOnslaughtPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "empyrean_descent_number_of_explosions", 0.2 },
+		{ "empyrean_descent_number_of_explosions", 0.2, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
-		[1] = { baseMultiplier = 1.1, levelRequirement = 0, cost = { Mana = 0, }, },
-		[2] = { baseMultiplier = 1.21, levelRequirement = 3, cost = { Mana = 0, }, },
-		[3] = { baseMultiplier = 1.33, levelRequirement = 6, cost = { Mana = 0, }, },
-		[4] = { baseMultiplier = 1.45, levelRequirement = 10, cost = { Mana = 0, }, },
-		[5] = { baseMultiplier = 1.56, levelRequirement = 14, cost = { Mana = 0, }, },
-		[6] = { baseMultiplier = 1.68, levelRequirement = 18, cost = { Mana = 0, }, },
-		[7] = { baseMultiplier = 1.79, levelRequirement = 22, cost = { Mana = 0, }, },
-		[8] = { baseMultiplier = 1.89, levelRequirement = 26, cost = { Mana = 0, }, },
-		[9] = { baseMultiplier = 1.98, levelRequirement = 31, cost = { Mana = 0, }, },
-		[10] = { baseMultiplier = 2.07, levelRequirement = 36, cost = { Mana = 0, }, },
-		[11] = { baseMultiplier = 2.17, levelRequirement = 41, cost = { Mana = 0, }, },
-		[12] = { baseMultiplier = 2.27, levelRequirement = 46, cost = { Mana = 0, }, },
-		[13] = { baseMultiplier = 2.37, levelRequirement = 52, cost = { Mana = 0, }, },
-		[14] = { baseMultiplier = 2.48, levelRequirement = 58, cost = { Mana = 0, }, },
-		[15] = { baseMultiplier = 2.59, levelRequirement = 64, cost = { Mana = 0, }, },
-		[16] = { baseMultiplier = 2.7, levelRequirement = 66, cost = { Mana = 0, }, },
-		[17] = { baseMultiplier = 2.82, levelRequirement = 72, cost = { Mana = 0, }, },
-		[18] = { baseMultiplier = 2.94, levelRequirement = 78, cost = { Mana = 0, }, },
-		[19] = { baseMultiplier = 3.06, levelRequirement = 84, cost = { Mana = 0, }, },
-		[20] = { baseMultiplier = 3.19, levelRequirement = 90, cost = { Mana = 0, }, },
-		[21] = { baseMultiplier = 3.33, levelRequirement = 90, cost = { Mana = 0, }, },
-		[22] = { baseMultiplier = 3.47, levelRequirement = 90, cost = { Mana = 0, }, },
-		[23] = { baseMultiplier = 3.61, levelRequirement = 90, cost = { Mana = 0, }, },
-		[24] = { baseMultiplier = 3.76, levelRequirement = 90, cost = { Mana = 0, }, },
-		[25] = { baseMultiplier = 3.92, levelRequirement = 90, cost = { Mana = 0, }, },
-		[26] = { baseMultiplier = 4.09, levelRequirement = 90, cost = { Mana = 0, }, },
-		[27] = { baseMultiplier = 4.26, levelRequirement = 90, cost = { Mana = 0, }, },
-		[28] = { baseMultiplier = 4.44, levelRequirement = 90, cost = { Mana = 0, }, },
-		[29] = { baseMultiplier = 4.62, levelRequirement = 90, cost = { Mana = 0, }, },
-		[30] = { baseMultiplier = 4.82, levelRequirement = 90, cost = { Mana = 0, }, },
-		[31] = { baseMultiplier = 5.02, levelRequirement = 90, cost = { Mana = 0, }, },
-		[32] = { baseMultiplier = 5.23, levelRequirement = 90, cost = { Mana = 0, }, },
-		[33] = { baseMultiplier = 5.45, levelRequirement = 90, cost = { Mana = 0, }, },
-		[34] = { baseMultiplier = 5.68, levelRequirement = 90, cost = { Mana = 0, }, },
-		[35] = { baseMultiplier = 5.92, levelRequirement = 90, cost = { Mana = 0, }, },
-		[36] = { baseMultiplier = 6.17, levelRequirement = 90, cost = { Mana = 0, }, },
-		[37] = { baseMultiplier = 6.42, levelRequirement = 90, cost = { Mana = 0, }, },
-		[38] = { baseMultiplier = 6.69, levelRequirement = 90, cost = { Mana = 0, }, },
-		[39] = { baseMultiplier = 6.98, levelRequirement = 90, cost = { Mana = 0, }, },
-		[40] = { baseMultiplier = 7.27, levelRequirement = 90, cost = { Mana = 0, }, },
+		[1] = { baseMultiplier = 0.63, levelRequirement = 0, cost = { Mana = 0, }, },
+		[2] = { baseMultiplier = 0.69, levelRequirement = 3, cost = { Mana = 0, }, },
+		[3] = { baseMultiplier = 0.76, levelRequirement = 6, cost = { Mana = 0, }, },
+		[4] = { baseMultiplier = 0.82, levelRequirement = 10, cost = { Mana = 0, }, },
+		[5] = { baseMultiplier = 0.89, levelRequirement = 14, cost = { Mana = 0, }, },
+		[6] = { baseMultiplier = 0.95, levelRequirement = 18, cost = { Mana = 0, }, },
+		[7] = { baseMultiplier = 1.01, levelRequirement = 22, cost = { Mana = 0, }, },
+		[8] = { baseMultiplier = 1.06, levelRequirement = 26, cost = { Mana = 0, }, },
+		[9] = { baseMultiplier = 1.11, levelRequirement = 31, cost = { Mana = 0, }, },
+		[10] = { baseMultiplier = 1.16, levelRequirement = 36, cost = { Mana = 0, }, },
+		[11] = { baseMultiplier = 1.2, levelRequirement = 41, cost = { Mana = 0, }, },
+		[12] = { baseMultiplier = 1.25, levelRequirement = 46, cost = { Mana = 0, }, },
+		[13] = { baseMultiplier = 1.3, levelRequirement = 52, cost = { Mana = 0, }, },
+		[14] = { baseMultiplier = 1.35, levelRequirement = 58, cost = { Mana = 0, }, },
+		[15] = { baseMultiplier = 1.4, levelRequirement = 64, cost = { Mana = 0, }, },
+		[16] = { baseMultiplier = 1.45, levelRequirement = 66, cost = { Mana = 0, }, },
+		[17] = { baseMultiplier = 1.5, levelRequirement = 72, cost = { Mana = 0, }, },
+		[18] = { baseMultiplier = 1.55, levelRequirement = 78, cost = { Mana = 0, }, },
+		[19] = { baseMultiplier = 1.61, levelRequirement = 84, cost = { Mana = 0, }, },
+		[20] = { baseMultiplier = 1.66, levelRequirement = 90, cost = { Mana = 0, }, },
+		[21] = { baseMultiplier = 1.72, levelRequirement = 90, cost = { Mana = 0, }, },
+		[22] = { baseMultiplier = 1.77, levelRequirement = 90, cost = { Mana = 0, }, },
+		[23] = { baseMultiplier = 1.83, levelRequirement = 90, cost = { Mana = 0, }, },
+		[24] = { baseMultiplier = 1.89, levelRequirement = 90, cost = { Mana = 0, }, },
+		[25] = { baseMultiplier = 1.96, levelRequirement = 90, cost = { Mana = 0, }, },
+		[26] = { baseMultiplier = 2.02, levelRequirement = 90, cost = { Mana = 0, }, },
+		[27] = { baseMultiplier = 2.09, levelRequirement = 90, cost = { Mana = 0, }, },
+		[28] = { baseMultiplier = 2.16, levelRequirement = 90, cost = { Mana = 0, }, },
+		[29] = { baseMultiplier = 2.23, levelRequirement = 90, cost = { Mana = 0, }, },
+		[30] = { baseMultiplier = 2.3, levelRequirement = 90, cost = { Mana = 0, }, },
+		[31] = { baseMultiplier = 2.38, levelRequirement = 90, cost = { Mana = 0, }, },
+		[32] = { baseMultiplier = 2.46, levelRequirement = 90, cost = { Mana = 0, }, },
+		[33] = { baseMultiplier = 2.54, levelRequirement = 90, cost = { Mana = 0, }, },
+		[34] = { baseMultiplier = 2.62, levelRequirement = 90, cost = { Mana = 0, }, },
+		[35] = { baseMultiplier = 2.71, levelRequirement = 90, cost = { Mana = 0, }, },
+		[36] = { baseMultiplier = 2.8, levelRequirement = 90, cost = { Mana = 0, }, },
+		[37] = { baseMultiplier = 2.89, levelRequirement = 90, cost = { Mana = 0, }, },
+		[38] = { baseMultiplier = 2.99, levelRequirement = 90, cost = { Mana = 0, }, },
+		[39] = { baseMultiplier = 3.09, levelRequirement = 90, cost = { Mana = 0, }, },
+		[40] = { baseMultiplier = 3.19, levelRequirement = 90, cost = { Mana = 0, }, },
 	},
 	statSets = {
 		[1] = {
@@ -17584,7 +17840,9 @@ skills["SummonInfernalHoundPlayer"] = {
 	minionSkillTypes = { [SkillType.Attack] = true, [SkillType.Melee] = true, [SkillType.MeleeSingleTarget] = true, [SkillType.Area] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "active_skill_minion_life_+%_final", 1 },
+		{ "active_skill_minion_life_+%_final", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -17706,7 +17964,9 @@ skills["SupportingFirePlayer"] = {
 	minionSkillTypes = { [SkillType.Attack] = true, [SkillType.RangedAttack] = true, [SkillType.Rain] = true, [SkillType.Area] = true, [SkillType.Projectile] = true, [SkillType.ProjectilesNumberModifiersNotApplied] = true, [SkillType.Cooldown] = true, [SkillType.CannotChain] = true, [SkillType.GroundTargetedProjectile] = true, [SkillType.ProjectileNoCollision] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "active_skill_minion_damage_+%_final", 1 },
+		{ "active_skill_minion_damage_+%_final", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -17842,10 +18102,10 @@ skills["SupportTangMazusThuriblePlayer"] = {
 			statDescriptionScope = "gem_stat_descriptions",
 			statMap = {
 				["companion_evasion_rating_+_per_10_summoner_evasion_rating"] = {
-					mod("MinionModifier", "LIST", { mod = mod("Evasion", "BASE", nil, 0, 0, { type = "PerStat", stat = "Evasion", actor = "parent" }) }),
+					mod("MinionModifier", "LIST", { mod = mod("Evasion", "BASE", nil, 0, 0, { type = "PerStat", stat = "Evasion", actor = "parent", div = 10 }) }),
 				},
 				["companion_deflection_rating_+_per_10_summoner_deflection_rating"] = {
-					mod("MinionModifier", "LIST", { mod = mod("DeflectionRating", "BASE", nil, 0, 0, { type = "PerStat", stat = "DeflectionRating", actor = "parent" }) }),
+					mod("MinionModifier", "LIST", { mod = mod("DeflectionRating", "BASE", nil, 0, 0, { type = "PerStat", stat = "DeflectionRating", actor = "parent", div = 10 }) }),
 				},
 			},
 			baseFlags = {
@@ -17887,7 +18147,9 @@ skills["TemperWeaponPlayer"] = {
 	},
 	castTime = 1.125,
 	qualityStats = {
-		{ "skill_speed_+%", 1 },
+		{ "skill_speed_+%", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 5, levelRequirement = 0, storedUses = 1, cost = { ManaPerMinute = 174, }, },
@@ -18025,6 +18287,8 @@ skills["TemperWeaponCombustionPlayer"] = {
 	castTime = 0,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, },
 		[2] = { baseMultiplier = 1.1, levelRequirement = 0, },
@@ -18075,6 +18339,7 @@ skills["TemperWeaponCombustionPlayer"] = {
 			baseFlags = {
 				attack = true,
 				area = true,
+				melee = true,
 			},
 			constantStats = {
 				{ "imbue_weapon_combust_trigger_chance_%", 100 },
@@ -18141,7 +18406,9 @@ skills["TemporalRiftPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Cooldown] = true, [SkillType.HasReservation] = true, [SkillType.Buff] = true, [SkillType.Persistent] = true, [SkillType.OngoingSkill] = true, [SkillType.PersistentShowsCastTime] = true, [SkillType.FixedCastTime] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 0.1,
 	qualityStats = {
-		{ "base_cooldown_speed_+%", 0.5 },
+		{ "base_cooldown_speed_+%", 0.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 7, levelRequirement = 0, storedUses = 1, },
@@ -18257,6 +18524,8 @@ skills["TheStarsAnswerPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Buff] = true, [SkillType.Duration] = true, [SkillType.UsableWhileMoving] = true, [SkillType.Area] = true, [SkillType.Cold] = true, [SkillType.Physical] = true, [SkillType.UsableWhileShapeshifted] = true, },
 	castTime = 2,
 	qualityStats = {
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 10000, }, },
@@ -18378,7 +18647,9 @@ skills["TheStarsAnswerCometPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Triggered] = true, [SkillType.Triggerable] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Area] = true, [SkillType.Cold] = true, [SkillType.Physical] = true, [SkillType.Damage] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "base_skill_area_of_effect_+%", 1 },
+		{ "base_skill_area_of_effect_+%", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { critChance = 8, levelRequirement = 0, cost = { Mana = 0, }, },
@@ -18592,7 +18863,9 @@ skills["TimeFreezePlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Cooldown] = true, [SkillType.Area] = true, [SkillType.Duration] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 0.7,
 	qualityStats = {
-		{ "base_cooldown_speed_+%", 0.5 },
+		{ "base_cooldown_speed_+%", 0.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 65, levelRequirement = 0, storedUses = 1, cost = { Mana = 20, }, },
@@ -18708,7 +18981,9 @@ skills["TimeSnapPlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Cooldown] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 0.6,
 	qualityStats = {
-		{ "base_cooldown_speed_+%", 0.5 },
+		{ "base_cooldown_speed_+%", 0.5, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 40, levelRequirement = 0, storedUses = 1, cost = { Mana = 20, }, },
@@ -18849,6 +19124,8 @@ skills["TriggeredFracturedSelfPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Mana = 0, }, },
 		[2] = { levelRequirement = 0, cost = { Mana = 0, }, },
@@ -18960,7 +19237,10 @@ skills["TriskelionCascadePlayer"] = {
 	skillTypes = { [SkillType.Spell] = true, [SkillType.Cooldown] = true, [SkillType.Buff] = true, [SkillType.ModifiesNextSkill] = true, [SkillType.Duration] = true, [SkillType.EmpowersOtherSkill] = true, [SkillType.UsableWhileMoving] = true, },
 	castTime = 0.45,
 	qualityStats = {
-		{ "triskelion_cascade_next_skill_damage_+%_final", 0.5 },
+		{ "triskelion_cascade_next_skill_damage_+%_final", 0.5, {  } },
+	},
+	altQualityStats = {
+		{ "triskelion_cascade_next_skill_area_of_effect_+%_final", 0.25, {  } },
 	},
 	levels = {
 		[1] = { cooldown = 1, levelRequirement = 0, storedUses = 1, cost = { Ward = 20, }, },
@@ -19116,7 +19396,9 @@ skills["UnboundAvatarPlayer"] = {
 	skillTypes = { [SkillType.Buff] = true, [SkillType.Cooldown] = true, [SkillType.Instant] = true, [SkillType.Fire] = true, [SkillType.Cold] = true, [SkillType.Lightning] = true, [SkillType.InstantNoRepeatWhenHeld] = true, [SkillType.InstantShiftAttackForLeftMouse] = true, [SkillType.Duration] = true, [SkillType.HasUsageCondition] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "base_skill_effect_duration", 50 },
+		{ "base_skill_effect_duration", 50, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 12, levelRequirement = 0, storedUses = 1, },
@@ -19313,8 +19595,10 @@ skills["VirtuousBarrierPlayer"] = {
 	skillTypes = { [SkillType.Buff] = true, [SkillType.HasReservation] = true, [SkillType.OngoingSkill] = true, [SkillType.Persistent] = true, [SkillType.ReserveInAllSets] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "gem_barrier_blue_grants_life_regeneration_rate_+%", 0.125 },
-		{ "gem_barrier_blue_grants_mana_regeneration_rate_+%", 0.125 },
+		{ "gem_barrier_blue_grants_life_regeneration_rate_+%", 0.125, {  } },
+		{ "gem_barrier_blue_grants_mana_regeneration_rate_+%", 0.125, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -19455,6 +19739,8 @@ skills["VerisiumManifestationPlayer"] = {
 	castTime = 1,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, spiritReservationFlat = 30, },
 		[2] = { levelRequirement = 3, spiritReservationFlat = 30, },
@@ -19564,7 +19850,10 @@ skills["TriggeredManifestRunePlayer"] = {
 	minionSkillTypes = { [SkillType.Attack] = true, [SkillType.Projectile] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "base_skill_effect_duration", 100 },
+		{ "base_skill_effect_duration", 100, {  } },
+	},
+	altQualityStats = {
+		{ "base_number_of_verisium_runes_allowed", 0.1, {  } },
 	},
 	levels = {
 		[1] = { cooldown = 0.5, levelRequirement = 0, storedUses = 5, cost = { Ward = 7, }, },
@@ -19621,7 +19910,6 @@ skills["TriggeredManifestRunePlayer"] = {
 			},
 			stats = {
 				"triggerable_in_any_set",
-				"usable_while_shapeshifted",
 				"triggered_by_primary_skill",
 				"display_statset_hide_usage_stats",
 			},
@@ -19697,7 +19985,9 @@ skills["VividStampedePlayer"] = {
 	},
 	castTime = 0,
 	qualityStats = {
-		{ "active_skill_base_area_of_effect_radius", 0.25 },
+		{ "active_skill_base_area_of_effect_radius", 0.25, { 0 } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { cooldown = 0.3, levelRequirement = 0, storedUses = 1, },
@@ -19839,6 +20129,8 @@ skills["VoidIllusionPlayer"] = {
 	castTime = 0,
 	qualityStats = {
 	},
+	altQualityStats = {
+	},
 	levels = {
 		[1] = { levelRequirement = 0, },
 		[2] = { levelRequirement = 3, },
@@ -19948,7 +20240,9 @@ skills["VoidIllusionSpawnPlayer"] = {
 	skillTypes = { [SkillType.OngoingSkill] = true, [SkillType.Buff] = true, [SkillType.Duration] = true, [SkillType.Attack] = true, [SkillType.Area] = true, [SkillType.Triggered] = true, [SkillType.InbuiltTrigger] = true, [SkillType.Triggerable] = true, [SkillType.Cooldown] = true, [SkillType.AttackInPlace] = true, [SkillType.UsedByClone] = true, [SkillType.UsedByProxy] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "active_skill_base_area_of_effect_radius", 0.2 },
+		{ "active_skill_base_area_of_effect_radius", 0.2, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { baseMultiplier = 3.5, cooldown = 4, levelRequirement = 0, storedUses = 3, },
@@ -20078,7 +20372,9 @@ skills["VoltaicBarrierPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "skill_effect_duration_+%", 2 },
+		{ "skill_effect_duration_+%", 2, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { attackTime = 750, baseMultiplier = 0.2, levelRequirement = 0, cost = { Ward = 20, }, },
@@ -20215,7 +20511,10 @@ skills["VoltaicBarrierTriggeredChainLightningPlayer"] = {
 	},
 	castTime = 1,
 	qualityStats = {
-		{ "dummy_stat_display_nothing", 0 },
+		{ "dummy_stat_display_nothing", 0, {  } },
+	},
+	altQualityStats = {
+		{ "number_of_chains", 0.1, {  } },
 	},
 	levels = {
 		[1] = { baseMultiplier = 0.4, levelRequirement = 0, cost = { Ward = 0, }, },
@@ -20409,7 +20708,10 @@ skills["WardboundMinionsPlayer"] = {
 	minionSkillTypes = { [SkillType.Spell] = true, [SkillType.Damage] = true, [SkillType.Area] = true, [SkillType.Cold] = true, },
 	castTime = 0.75,
 	qualityStats = {
-		{ "wardbound_minion_maximum_number_of_casts", 0.1 },
+		{ "wardbound_minion_maximum_number_of_casts", 0.1, {  } },
+	},
+	altQualityStats = {
+		{ "base_skill_effect_duration", 250, {  } },
 	},
 	levels = {
 		[1] = { levelRequirement = 0, cost = { Ward = 11, }, },
@@ -20533,8 +20835,10 @@ skills["WildProtectorPlayer"] = {
 	minionSkillTypes = { [SkillType.Area] = true, [SkillType.Warcry] = true, [SkillType.Attack] = true, [SkillType.Slam] = true, [SkillType.Cooldown] = true, [SkillType.Duration] = true, [SkillType.Melee] = true, [SkillType.MeleeSingleTarget] = true, },
 	castTime = 0,
 	qualityStats = {
-		{ "active_skill_minion_damage_+%_final", 1 },
-		{ "active_skill_minion_life_+%_final", 1 },
+		{ "active_skill_minion_damage_+%_final", 1, {  } },
+		{ "active_skill_minion_life_+%_final", 1, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -20647,7 +20951,9 @@ skills["AncientGiftsPlayer"] = {
 	skillTypes = { [SkillType.Buff] = true, [SkillType.Persistent] = true, [SkillType.OngoingSkill] = true, [SkillType.HasReservation] = true, [SkillType.GeneratesRemnants] = true, [SkillType.AttackInPlace] = true, },
 	castTime = 1,
 	qualityStats = {
-		{ "remnant_effect_+%", 0.75 },
+		{ "remnant_effect_+%", 0.75, {  } },
+	},
+	altQualityStats = {
 	},
 	levels = {
 		[1] = { levelRequirement = 0, },
@@ -20756,6 +21062,42 @@ skills["AncientGiftsPlayer"] = {
 		},
 	}
 }
+			skills["BloodbarrierPlayer"] = {
+				name = "Bloodbarrier",
+				baseTypeName = "Bloodbarrier",
+				fromItem = true,
+				skillTypes = { [SkillType.Duration] = true,	[SkillType.AttackInPlace] = true, [SkillType.Physical] = true, [SkillType.DamageOverTime] = true },
+				cannotBeSupported = true,
+				castTime = 0,
+				levels = {
+					[1] = { levelRequirement = 0, },
+				},
+				statSets = {
+					[1] = {
+						label = "Corrupted Blood",
+						incrementalEffectiveness = 0,
+						statDescriptionScope = "skill_stat_descriptions",
+						statMap = {
+							["base_physical_damage_%_of_maximum_life_to_deal_per_minute"] = {
+								skill("PhysicalDot", nil, { type = "PercentStat", stat = "Life", percent = 1 }),
+							},
+						},
+						baseFlags = {
+							duration = true,
+						},
+						baseMods = {
+							skill("debuff", true),
+							flag("dotIsCorruptingBlood"),
+						},
+						constantStats = {},
+						stats = {},
+						levels = {
+							[1] = {},
+						},
+					},
+				},
+			}
+
 			skills["EnemyExplode"] = {
 				name = "On Kill Monster Explosion",
 				hidden = true,

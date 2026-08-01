@@ -1,27 +1,133 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
 import { useTreeStore } from '@/store/treeStore'
 import { TreePixiCanvas } from '@/components/TreePixiCanvas'
 import { Toolbar } from '@/components/Toolbar'
+import type { WorkspaceView } from '@/components/Toolbar'
 import { NodeTooltip } from '@/components/NodeTooltip'
-import { StatTable } from '@/components/StatTable'
+import { useTranslation } from '@/i18n/useTranslation'
+import { EquipmentPanel } from '@/components/EquipmentPanel'
+import { writePersistedImportedBuild } from '@/engine/buildPersistence'
+import { BuildCenter } from '@/components/BuildCenter'
+import { NewBuildDialog, type NewBuildInput } from '@/components/NewBuildDialog'
+import { UnifiedImportDialog, type ImportConfirmation } from '@/components/UnifiedImportDialog'
+import { importPobBuildCode } from '@/engine/importPobBuildCode'
+import type { SavedBuild } from '@/types/tree'
+import { SkillsWorkspace } from '@/components/SkillsWorkspace'
+import { GlobalSettingsDialog } from '@/components/GlobalSettingsDialog'
+import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/appSettings'
+import { UpdateDialog } from '@/components/UpdateDialog'
+import { initPobLuaEngine } from '@/engine/pobLuaClient'
+import { MarketShell, type MarketWorkspaceView } from '@/components/market/MarketShell'
+import type { MarketMonitoringSnapshot } from '@/types/market'
 
 export default function App() {
+  const { t, lang } = useTranslation()
   const hashLoadedRef = useRef(false)
+  const cleanSignatureRef = useRef('')
+  const [screen, setScreen] = useState<'center' | 'editor' | 'trade'>('center')
+  const [activeView, setActiveView] = useState<WorkspaceView>('equipment')
+  const [marketWorkspace, setMarketWorkspace] = useState<MarketWorkspaceView>('market')
+  const [tradeReturnScreen, setTradeReturnScreen] = useState<'center' | 'editor'>('center')
+  const [monitoring, setMonitoring] = useState<MarketMonitoringSnapshot | null>(null)
+  const [buildName, setBuildName] = useState(lang === 'zh-rCN' ? '未命名构筑' : 'Untitled build')
+  const [activeBuildId, setActiveBuildId] = useState<string | null>(null)
+  const [buildSource, setBuildSource] = useState<SavedBuild['source']>('local')
+  const [buildSourceUrl, setBuildSourceUrl] = useState<string | null>(null)
+  const [saveStatus, setSaveStatus] = useState<'saved' | 'dirty' | 'saving' | 'error'>('saved')
+  const [saveNotice, setSaveNotice] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [newBuildOpen, setNewBuildOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(false)
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
+  const [appSettings, setAppSettings] = useState(loadAppSettings)
   const { treeData, loading, error, loadTreeData, loadSavedBuilds } = useTreeStore()
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
   const nodeWeaponSets = useTreeStore((s) => s.nodeWeaponSets)
   const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
   const treeVersion = useTreeStore((s) => s.treeVersion)
+  const importedBuildCode = useTreeStore((s) => s.importedBuildCode)
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
   const encodeToHash = useTreeStore((s) => s.encodeToHash)
   const loadFromHash = useTreeStore((s) => s.loadFromHash)
   const treeLoaded = !!treeData
+  const saveBuild = useTreeStore((s) => s.saveBuild)
+  const loadBuild = useTreeStore((s) => s.loadBuild)
+  const clearAllocatedNodes = useTreeStore((s) => s.clearAllocatedNodes)
+  const selectClass = useTreeStore((s) => s.selectClass)
+  const selectAscendancy = useTreeStore((s) => s.selectAscendancy)
+  const setTreeVersion = useTreeStore((s) => s.setTreeVersion)
+  const importBuildJSON = useTreeStore((s) => s.importBuildJSON)
+  const buildRealm = useTreeStore((s) => s.buildRealm)
+  const setBuildRealm = useTreeStore((s) => s.setBuildRealm)
+  const calculationProfiles = useTreeStore((s) => s.calculationProfiles)
+  const activeCalculationProfileId = useTreeStore((s) => s.activeCalculationProfileId)
+
+  const buildSignature = useMemo(() => JSON.stringify({
+    nodes: [...allocatedNodes].sort(),
+    nodeWeaponSets,
+    nodeAttributeSelections,
+    treeVersion,
+    selectedClassId,
+    selectedAscendancyId,
+    buildRealm,
+    calculationProfiles,
+    activeCalculationProfileId,
+  }), [allocatedNodes, nodeWeaponSets, nodeAttributeSelections, treeVersion, selectedClassId, selectedAscendancyId, buildRealm, calculationProfiles, activeCalculationProfileId])
 
   useEffect(() => {
     loadTreeData()
     loadSavedBuilds()
+    void initPobLuaEngine().catch(() => {
+      // Calculation surfaces report runtime errors when the user needs them.
+    })
   }, [loadTreeData, loadSavedBuilds])
+
+  useEffect(() => {
+    const factor = appSettings.uiScalePercent / 100
+    if (window.pob2Desktop?.setUiScale) {
+      document.documentElement.style.removeProperty('zoom')
+      void window.pob2Desktop.setUiScale(factor)
+        .then(() => window.dispatchEvent(new Event('resize')))
+        .catch(() => {
+          document.documentElement.style.setProperty('zoom', String(factor))
+          window.dispatchEvent(new Event('resize'))
+        })
+      return
+    }
+    document.documentElement.style.setProperty('zoom', String(factor))
+    window.dispatchEvent(new Event('resize'))
+  }, [appSettings.uiScalePercent])
+
+  useEffect(() => {
+    void window.pob2Desktop?.setAppContext({ defaultRealm: appSettings.defaultRealm })
+  }, [appSettings.defaultRealm])
+
+  useEffect(() => {
+    const bridge = window.pob2Market
+    if (!bridge) return
+    let active = true
+    void bridge.getMonitoring().then((snapshot) => { if (active) setMonitoring(snapshot) }).catch(() => {})
+    const offChanged = bridge.onMonitoringChanged((snapshot) => { if (active) setMonitoring(snapshot) })
+    return () => { active = false; offChanged() }
+  }, [])
+
+  useEffect(() => {
+    const bridge = window.pob2Market
+    if (!bridge) return
+    return bridge.onOpenMonitoring(() => {
+      if (screen !== 'trade') setTradeReturnScreen(screen === 'editor' ? 'editor' : 'center')
+      setMarketWorkspace('monitoring')
+      setScreen('trade')
+    })
+  }, [screen])
+
+  useEffect(() => {
+    const openEquipment = () => setActiveView('equipment')
+    window.addEventListener('open-equipment-panel', openEquipment)
+    return () => window.removeEventListener('open-equipment-panel', openEquipment)
+  }, [])
 
   // Load from URL hash on tree ready
   useEffect(() => {
@@ -52,6 +158,7 @@ export default function App() {
           window.history.replaceState(null, '', window.location.pathname)
         }
       }
+      if (importedBuildCode) writePersistedImportedBuild(localStorage, hash, importedBuildCode)
     }, 500)
     return () => clearTimeout(timer)
   }, [
@@ -63,12 +170,114 @@ export default function App() {
     selectedAscendancyId,
     treeLoaded,
     encodeToHash,
+    importedBuildCode,
   ])
+
+  useEffect(() => {
+    if (screen !== 'editor' || !cleanSignatureRef.current) return
+    setSaveStatus(buildSignature === cleanSignatureRef.current ? 'saved' : 'dirty')
+  }, [buildSignature, screen])
+
+  useEffect(() => {
+    if (!saveNotice) return
+    const timer = window.setTimeout(() => setSaveNotice(null), 2500)
+    return () => window.clearTimeout(timer)
+  }, [saveNotice])
+
+  const markClean = useCallback(() => {
+    const state = useTreeStore.getState()
+    cleanSignatureRef.current = JSON.stringify({
+      nodes: [...state.allocatedNodes].sort(),
+      nodeWeaponSets: state.nodeWeaponSets,
+      nodeAttributeSelections: state.nodeAttributeSelections,
+      treeVersion: state.treeVersion,
+      selectedClassId: state.selectedClassId,
+      selectedAscendancyId: state.selectedAscendancyId,
+      buildRealm: state.buildRealm,
+      calculationProfiles: state.calculationProfiles,
+      activeCalculationProfileId: state.activeCalculationProfileId,
+    })
+    setSaveStatus('saved')
+  }, [])
+
+  const enterEditor = useCallback((name: string, id: string | null = null, source: SavedBuild['source'] = 'local', sourceUrl: string | null = null) => {
+    setBuildName(name)
+    setActiveBuildId(id)
+    setBuildSource(source)
+    setBuildSourceUrl(sourceUrl)
+    setActiveView('equipment')
+    setScreen('editor')
+    window.setTimeout(markClean, 0)
+  }, [markClean])
+
+  const handleOpenBuild = useCallback(async (build: SavedBuild) => {
+    await Promise.resolve(loadBuild(build.id))
+    enterEditor(build.name, build.id, build.source || (build.importedBuildCode ? 'pob' : 'local'), build.sourceUrl || null)
+  }, [enterEditor, loadBuild])
+
+  const handleCreateBuild = useCallback(async (input: NewBuildInput) => {
+    if (input.treeVersion !== useTreeStore.getState().treeVersion) await setTreeVersion(input.treeVersion)
+    selectClass(input.classId)
+    if (input.ascendancyId) selectAscendancy(input.ascendancyId)
+    else useTreeStore.setState({ selectedAscendancyId: '' })
+    clearAllocatedNodes()
+    setBuildRealm(input.realm)
+    setNewBuildOpen(false)
+    enterEditor(input.name, null, 'local')
+  }, [clearAllocatedNodes, enterEditor, selectAscendancy, selectClass, setBuildRealm, setTreeVersion])
+
+  const handleImportConfirmation = useCallback(async (confirmation: ImportConfirmation) => {
+    if (confirmation.kind === 'json') {
+      await importBuildJSON(confirmation.value)
+    } else {
+      const code = confirmation.kind === 'wegame' ? confirmation.code : confirmation.value
+      if (!code) throw new Error('Missing converted PoB code')
+      await importPobBuildCode(code)
+    }
+    setBuildRealm(confirmation.realm)
+    if (confirmation.mode === 'new' || screen === 'center') {
+      setBuildName(confirmation.suggestedName)
+      setActiveBuildId(null)
+    }
+    setBuildSource(confirmation.kind)
+    setBuildSourceUrl(confirmation.sourceUrl || null)
+    setActiveView('equipment')
+    setScreen('editor')
+    window.setTimeout(markClean, 0)
+  }, [importBuildJSON, markClean, screen, setBuildRealm])
+
+  const handleSave = useCallback(() => {
+    setSaveStatus('saving')
+    try {
+      const savedId = saveBuild(buildName.trim() || (lang === 'zh-rCN' ? '未命名构筑' : 'Untitled build'), activeBuildId, buildSource, buildSourceUrl)
+      setActiveBuildId(savedId)
+      markClean()
+      setSaveNotice({ type: 'success', message: lang === 'zh-rCN' ? '构筑已保存' : 'Build saved' })
+    } catch {
+      setSaveStatus('error')
+      setSaveNotice({ type: 'error', message: lang === 'zh-rCN' ? '保存失败，请检查本地存储空间' : 'Save failed. Check local storage availability.' })
+    }
+  }, [activeBuildId, buildName, buildSource, buildSourceUrl, lang, markClean, saveBuild])
+
+  const handleBuildNameChange = useCallback((name: string) => {
+    setBuildName(name)
+    setSaveStatus('dirty')
+  }, [])
+
+  const handleSettingsChange = useCallback((settings: AppSettings) => {
+    setAppSettings(settings)
+    saveAppSettings(settings)
+  }, [])
+
+  const requestHome = useCallback(() => {
+    if (saveStatus === 'dirty' && appSettings.confirmUnsavedExit) setLeaveConfirmOpen(true)
+    else setScreen('center')
+  }, [appSettings.confirmUnsavedExit, saveStatus])
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p className="text-lg text-gray-400">Loading passive tree...</p>
+        <p className="text-lg text-gray-400">{t('loading')}</p>
       </div>
     )
   }
@@ -76,19 +285,43 @@ export default function App() {
   if (error) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <p className="text-lg text-red-400">Error: {error}</p>
+        <p className="text-lg text-red-400">{t('error.prefix')}: {error}</p>
       </div>
     )
   }
 
   if (!treeData) return null
 
+  const tradeSuspended = settingsOpen || importOpen || newBuildOpen || leaveConfirmOpen
+
   return (
-    <div className="w-screen h-screen relative">
-      <TreePixiCanvas />
-      <Toolbar />
-      <NodeTooltip />
-      <StatTable />
+    <div className="superpoe-app">
+      {screen === 'center'
+        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} />
+        : screen === 'trade'
+          ? <MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onSettings={() => setSettingsOpen(true)} />
+          : <>
+      <Toolbar activeView={activeView} onViewChange={setActiveView} onTradeCenter={() => { setTradeReturnScreen('editor'); setScreen('trade') }} monitoring={monitoring} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} onSettings={() => setSettingsOpen(true)} />
+      <main className="workspace-view">
+        {activeView === 'passive' && (
+          <section className="passive-workspace">
+            <TreePixiCanvas />
+            <NodeTooltip />
+          </section>
+        )}
+        {activeView === 'equipment' && <EquipmentPanel buildId={activeBuildId} />}
+        {activeView === 'skills' && <SkillsWorkspace />}
+      </main>
+      </>}
+      <NewBuildDialog open={newBuildOpen} defaultRealm={appSettings.defaultRealm} onClose={() => setNewBuildOpen(false)} onCreate={(input) => void handleCreateBuild(input)} />
+      <UnifiedImportDialog open={importOpen} hasCurrentBuild={screen === 'editor'} defaultRealm={appSettings.defaultRealm} onClose={() => setImportOpen(false)} onConfirm={handleImportConfirmation} />
+      <GlobalSettingsDialog open={settingsOpen} settings={appSettings} onChange={handleSettingsChange} onClose={() => setSettingsOpen(false)} />
+      <UpdateDialog settings={appSettings} />
+      {leaveConfirmOpen && <div className="modal-backdrop"><section className="confirm-dialog" role="alertdialog" aria-modal="true"><AlertTriangle /><h2>{lang === 'zh-rCN' ? '离开当前构筑？' : 'Leave current build?'}</h2><p>{lang === 'zh-rCN' ? '当前构筑有未保存修改。离开后仍会保留自动草稿，但不会出现在命名构筑列表中。' : 'This build has unsaved changes. The draft remains locally, but it will not appear as a named build.'}</p><footer><button className="secondary-command" onClick={() => setLeaveConfirmOpen(false)}>{lang === 'zh-rCN' ? '继续编辑' : 'Keep editing'}</button><button className="primary-command" onClick={() => { setLeaveConfirmOpen(false); setScreen('center') }}>{lang === 'zh-rCN' ? '离开' : 'Leave'}</button></footer></section></div>}
+      {saveNotice && <div className={`save-notice ${saveNotice.type}`} role="status" aria-live="polite">
+        {saveNotice.type === 'success' ? <CheckCircle2 /> : <XCircle />}
+        <span>{saveNotice.message}</span>
+      </div>}
     </div>
   )
 }

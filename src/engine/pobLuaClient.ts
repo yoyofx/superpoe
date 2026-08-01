@@ -1,8 +1,9 @@
-import type { CalcApiResponse } from '@/types/calc'
+import type { CalcApiResponse, RankSkillsInput, SkillCalculationSelection, SkillDpsRankResponse } from '@/types/calc'
+import type { EquipmentInspectionItem, EquipmentInspectionResult } from '@/types/equipmentSemantics'
 
 interface WorkerRequest {
   id: number
-  type: 'init' | 'calculate'
+  type: 'init' | 'calculate' | 'inspectEquipment' | 'rankSkills'
   payload?: unknown
 }
 
@@ -13,7 +14,7 @@ interface WorkerResponse {
   error?: string
 }
 
-export interface CalculateBuildInput {
+export interface CalculateBuildInput extends SkillCalculationSelection {
   code: string
   xml: string
 }
@@ -21,6 +22,9 @@ export interface CalculateBuildInput {
 const BACKEND_FALLBACK = import.meta.env.VITE_CALC_BACKEND_FALLBACK === 'true'
 
 let worker: Worker | null = null
+let workerInitPromise: Promise<void> | null = null
+let engineInitPromise: Promise<'luajit' | 'wasmoon'> | null = null
+let nativeBackendFailed = false
 let nextId = 1
 const pending = new Map<number, {
   resolve: (value: unknown) => void
@@ -44,6 +48,7 @@ function getWorker(): Worker {
     pending.clear()
     worker?.terminate()
     worker = null
+    workerInitPromise = null
   }
   return worker
 }
@@ -58,7 +63,40 @@ function callWorker<T>(type: WorkerRequest['type'], payload?: unknown): Promise<
 }
 
 export async function initPobLuaWorker(): Promise<void> {
-  await callWorker<void>('init')
+  if (!workerInitPromise) {
+    workerInitPromise = callWorker<void>('init').catch((error) => {
+      workerInitPromise = null
+      throw error
+    })
+  }
+  await workerInitPromise
+}
+
+export async function initPobLuaEngine(): Promise<'luajit' | 'wasmoon'> {
+  if (!engineInitPromise) {
+    engineInitPromise = (async () => {
+      if (!nativeBackendFailed && window.pob2Desktop?.initPobLua) {
+        const status = await window.pob2Desktop.initPobLua()
+        if (status.available && status.backend === 'luajit') return 'luajit'
+      }
+      await initPobLuaWorker()
+      return 'wasmoon'
+    })().catch((error) => {
+      engineInitPromise = null
+      throw error
+    })
+  }
+  return engineInitPromise
+}
+
+export async function inspectEquipment(items: EquipmentInspectionItem[]): Promise<EquipmentInspectionResult> {
+  await initPobLuaWorker()
+  const result = await callWorker<EquipmentInspectionResult>('inspectEquipment', { items })
+  if (import.meta.env.DEV) {
+    const { initMs, parseMs, cacheHits, cacheMisses } = result.performance
+    console.debug(`[PoB Lua] equipment init=${initMs.toFixed(1)}ms parse=${parseMs.toFixed(1)}ms hits=${cacheHits} misses=${cacheMisses}`)
+  }
+  return result
 }
 
 async function calculateViaBackend(input: CalculateBuildInput): Promise<CalcApiResponse> {
@@ -74,6 +112,18 @@ async function calculateViaBackend(input: CalculateBuildInput): Promise<CalcApiR
 
 export async function calculateBuild(input: CalculateBuildInput): Promise<CalcApiResponse> {
   try {
+    if (window.pob2Desktop?.calculatePobLua) {
+      const backend = await initPobLuaEngine()
+      if (backend === 'luajit') {
+        try {
+          return await window.pob2Desktop.calculatePobLua(input)
+        } catch (error) {
+          nativeBackendFailed = true
+          engineInitPromise = null
+          console.warn('[PoB Lua] Native backend failed; switching to Wasmoon.', error)
+        }
+      }
+    }
     await initPobLuaWorker()
     return await callWorker<CalcApiResponse>('calculate', input)
   } catch (err) {
@@ -83,5 +133,26 @@ export async function calculateBuild(input: CalculateBuildInput): Promise<CalcAp
       success: false,
       error: `Front-end PoB Lua engine is not ready: ${message}`,
     }
+  }
+}
+
+export async function rankSkillsByEffectiveDps(input: RankSkillsInput): Promise<SkillDpsRankResponse> {
+  try {
+    if (window.pob2Desktop?.rankPobLuaSkills) {
+      const backend = await initPobLuaEngine()
+      if (backend === 'luajit') {
+        try {
+          return await window.pob2Desktop.rankPobLuaSkills(input)
+        } catch (error) {
+          nativeBackendFailed = true
+          engineInitPromise = null
+          console.warn('[PoB Lua] Native skill ranking failed; switching to Wasmoon.', error)
+        }
+      }
+    }
+    await initPobLuaWorker()
+    return await callWorker<SkillDpsRankResponse>('rankSkills', input)
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : String(err) }
   }
 }

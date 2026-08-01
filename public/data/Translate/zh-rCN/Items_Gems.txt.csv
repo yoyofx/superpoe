@@ -50,7 +50,7 @@ Lacerate,破空斩
 "Mirror Arrow",魅影射击
 "Pestilent Strike",致疫打击
 "Phase Run",暗影迷踪
-"Plague Bearer",灾难使徒
+"Plague Bearer",瘟疫使者
 "Poacher's Mark",盗猎者印记
 Precision,精准
 Puncture,放血
@@ -96,7 +96,7 @@ Clarity,清晰
 "Cold Snap",霜暴
 "Vaal Cold Snap",瓦尔：霜暴
 Conductivity,导电
-Contagion,顽疾
+Contagion,瘟疫
 "Conversion Trap",迷魅陷阱
 Convocation,号召
 "Dark Pact",暗夜契约
@@ -192,7 +192,7 @@ Cleave,劈砍
 Determination,坚定
 "Devouring Totem",吞噬图腾
 "Dominating Blow",霸气之击
-"Dread Banner",恐怖之旗
+"Dread Banner",恐怖战旗
 Earthquake,震地
 "Vaal Earthquake",瓦尔：震地
 "Enduring Cry",坚决战吼
@@ -314,7 +314,7 @@ Enlighten,启蒙(辅)
 "Increased Critical Strikes",提高暴击（辅）
 "Infernal Legion",炎军（辅）
 "Infused Channelling",灌能吟唱(辅)
-Innervate,亢奋
+Innervate,闪电支配
 Intensify,法术凝聚（辅）
 "Item Rarity",物品稀有度增幅(辅)
 "Lightning Penetration",闪电穿透
@@ -418,7 +418,7 @@ Spellslinger,法术节魔
 Archmage,大法师
 "Awakened Increased Area of Effect",增大范围（强辅）
 "Awakened Elemental Damage with Attacks",武器元素伤害（强辅）
-"Sniper's Mark",狙击之印
+"Sniper's Mark",狙击印记
 "Splitting Steel",分裂钢刃
 "Creeping Frost",电光寒霜
 "Blazing Salvo",怒炎穿心
@@ -491,7 +491,7 @@ Absolution,赦罪
 "Battlemage's Cry",魔武战号
 Boneshatter,七伤破
 "Corrupting Fever",腐灼热瘟
-"Defiance Banner",抗争之旗
+"Defiance Banner",抗争战旗
 "Explosive Concoction",爆破灵药
 Exsanguinate,赤炼魔光
 "Eye of Winter",凛冬之眼
@@ -570,7 +570,7 @@ Momentum,动量
 "Prismatic Burst",棱光魔爆（辅）
 Trauma,内伤（辅）
 Spellblade,碎影魔刃（辅）
-Devour,吞噬（辅）
+Devour,吞噬
 "Fresh Meat",鲜肉（辅）
 Flamewood,焚木烈火（辅）
 "Corrupting Cry",腐化战吼（辅）
@@ -682,7 +682,7 @@ Blink,闪现
 Malice,怨毒
 "Hammer of the Gods",诸天之锤
 "Living Bomb",活动炸弹
-Stampede,溃败
+Stampede,奔踏
 "Shield Wall",盾墙
 "Fortifying Cry",坚韧战吼
 "Ember Fusillade",灰烬连射
@@ -809,7 +809,7 @@ Future-Past,未来的过去
 "Abyssal Apparition",深渊幻象
 "Close Combat I","近战 I"
 "Close Combat II","近战 II"
-Enervation,弱能
+Enervation,衰退
 "Chance to Freeze",冻结几率
 "Essence Harvest",收割精华
 Invocation,祈求
@@ -874,8 +874,8 @@ Devastate,摧残
 "Infernal Legion II","炎军 II"
 "Infernal Legion III","炎军 III"
 "Fire Attunement",火焰协调
-"Efficiency I","高效 I"
-"Efficiency II","高效 II"
+"Efficiency I","效能 I"
+"Efficiency II","效能 II"
 Premeditation,先见之明
 "Raging Cry",愤怒战吼
 "Armour Demolisher I","护甲破坏者 I"
@@ -926,7 +926,7 @@ Shock,感电
 "Projectile Deceleration I","投射物减速 I"
 "Projectile Deceleration II","投射物减速 II"
 "Vilenta's Propulsion",薇伦塔之推进
-Electrocute,电殛
+Electrocute,触电
 "Overabundance I","冗余 I"
 "Overabundance II","冗余 II"
 "Overabundance III","冗余 III"
@@ -1016,7 +1016,7 @@ Stormfire,风暴之炎
 "Feeding Frenzy I","狂噬 I"
 "Feeding Frenzy II","狂噬 II"
 "Heightened Curse",强效诅咒
-"Corpse Conservation",灵盒留存
+"Corpse Conservation",灵柩留存
 "Cold Attunement",冰霜协调
 "Rapid Casting I","快速施法 I"
 "Rapid Casting II","快速施法 II"
@@ -1169,7 +1169,7 @@ Clash,形势逆转
 Malady,错乱病症
 Dazzle,眩目
 Syzygy,朔望
-Unyielding,不折
+Unyielding,不屈
 Desperation,孤注一掷
 Overextend,竭力痛击
 Excoriate,严厉申斥
@@ -1364,4 +1364,251 @@ Thunderstorm,雷霆风暴
 "Preserving Stillness",静谧守恒
 Windburst,风爆术（辅）
 "Kinetic Instability",念动失稳（辅）
-"Coursing Current",奔窜电流
+"Coursing Current",奔雷疾走
+"Molten Crash",熔岩冲击
+"Shattering Spite",碎裂恶意
+Rend,龙爪撕裂
+"Wolf Pack",狼群
+"Cackling Companions",鬣狗同伴
+Pounce,巨狼猛扑
+"Tectonic Slams",破釜一击
+"Nova Projectiles I","新星投射物 I"
+"Eonyr's Thunder",伊奥尼尔的雷霆
+"Shock Conduction I","感电传导 I"
+"Shock Conduction II","感电传导 II"
+Expand,扩展
+"Zarokh's Revolt",扎洛卡的反叛
+"Biting Frost I","刺骨寒意 I"
+"Biting Frost II","刺骨寒意 II"
+"Inexorable Critical I","命定绝杀 I"
+"Inexorable Critical II","命定绝杀 II"
+"Oisín's Oath",奥辛之誓
+"Ice Bite I","霜咬 I"
+"Ice Bite II","霜咬 II"
+"Bhatair's Vengeance",巴蒂尔的复仇
+"Hayoxi's Fulmination",海幽夏的诛罚
+"Zerphi's Infamy",泽佛伊的恶名
+"Helbrym's Hide",赫尔布林的隐瞒
+"Navira, the Last Mirage",纳薇拉，终末幻影
+"Navira's Fracturing",纳薇拉之裂
+"Navira's Well",纳薇拉之井
+"Ruzhan, the Blazing Sword",鲁詹，炽焰之剑
+"Ruzhan's Trap",鲁詹之陷阱
+"Ruzhan's Reckoning",鲁詹之清算
+"Ruzhan's Fury",鲁詹之怒火
+"Kelari, the Tainted Sands",凯拉里，污秽沙暴
+"Kelari's Deception",凯拉里之诡计
+"Kelari's Judgment",凯拉里之审判
+"Kelari's Malediction",凯拉里之诅咒
+"Align Fate",命运同调
+"Moment of Vulnerability",脆弱瞬间
+"Mirage Deadeye",蜃影神射
+"Guatelitzi's Ablation",瓜铁雷兹的消融
+"Ambrosia II","仙馔 II"
+"Cirel's Cultivation",西雷尔的教化
+"Splinter Totem I","碎片图腾 I"
+"Splinter Totem II","碎片图腾 II"
+"Mark for Death II","死亡印记 II"
+"Static Shocks",静电脉冲
+"Wing Blast",烈风吹袭
+"Oil Barrage",黏油炮弹
+"Flame Breath",龙炎吐息
+Entangle,纠缠
+Shred,狼爪撕裂
+"Fury of the Mountain",山岳之怒
+"Cross Slash",双爪劈击
+"Lunar Assault",月痕突袭
+"Primal Avatar",荒野化身
+"Thrashing Vines",鞭笞藤蔓
+"Lunar Blessing",月神赐福
+"Arctic Howl",极地战嚎
+Electromagnetism,电磁力场
+"Dominus' Grasp",神主之握
+"Atziri's Call",阿兹里的呼唤
+"Atziri's Communion",阿兹里的圣礼
+"Atziri's Impatience",阿兹里的焦躁
+"Dreamer's Knell",幻梦者的丧钟
+"Tasalio's Rhythm",塔萨里奥的律动
+"Xibaqua's Rending",夏巴夸亚的撕裂
+"Khatal's Rejuvenation",卡哈塔的复苏
+"Morgana's Tempest",莫甘娜的暴风
+"Navira's Oasis",纳薇拉之绿洲
+"Creeping Chill",蔓延霜寒
+Briarpatch,荆刺之缚
+"Eternal Rage",永恒狂怒
+"Savage Fury",凶蛮怒火
+"Walking Calamity",灾厄行者
+Apocalypse,天灾
+"Mark of Siphoning",虹吸印记
+"Mark of Siphoning II",虹吸印记II
+"Thrill of the Kill",杀戮快感
+"Thrill of the Kill II",杀戮快感II
+"Exposing Cry",洞悉战嚎
+"Opening Move",起手式
+"Accelerated Growth",迅猛绽放
+"Accelerated Growth II",迅猛绽放II
+"Fan The Flames",煽风点火
+"Fan The Flames II",煽风点火II
+"Mirror of Refraction",折射之镜
+Barkskin,树肤术
+"Feral Invocation",野性召唤
+"Poison Spores",毒孢迸溅
+"Deadly Resolve",致命决心
+"Advancing Storm",风暴行军
+"Echoing Cry",回荡战嚎
+Gorge,狼吞虎咽
+"Empowered Sparks I","强化火花 I"
+"Empowered Sparks II","强化火花 II"
+"Controlled Hazard",受控危技
+"Brittle Armour",脆弱护甲
+"Rending Apex",撕裂巅峰
+"Practical Magic I",实用魔法I
+"Practical Magic II",实用魔法II
+"Blazing Critical",炽烈绝杀
+"Concussive Spells",冲击法术
+"Eternal Mark",永恒印记
+"Catalysing Elements",元素催化
+"Nova Projectiles II","新星投射物 II"
+"Charged Mark",充能印记
+"Holy Sweep",神圣横扫
+"Holy Hammers",神圣之锤
+"Shield of Light",光明之盾
+"Holy Strike",神圣打击
+"Divine Blast",神圣冲击
+"Multiple Projectiles",多重投射（辅）
+"Greater Spell Cascade",高阶多重施法范围（辅）
+Eclipse,月蚀（辅）
+"Invert the Rules",逆转规则（辅）
+"Cast on Ward Break",结界破碎时释放（辅）
+Ward,结界（辅）
+"Vaal Sacrifice",瓦尔献祭（辅）
+"Greater Spell Echo",高阶施法回响（辅）
+"Vaal Temptation",瓦尔诱惑（辅）
+Machinations,诡诈阴谋（辅）
+Pyre,燃焰（辅）
+Bonespire,白骨尖塔（辅）
+Foulgrasp,邪秽之握（辅）
+Hiveborn,裂隙虫群（辅）
+"Scornful Herald",蔑视使者（辅）
+"Cull the Weak",弱肉强食（辅）
+"Greater Ancestral Call",高阶先祖召唤（辅）
+Fissure,裂缝（辅）
+Hextoad,魔蛊蟾蜍（辅）
+Hexpass,魔蛊通道（辅）
+"Greater Fork",高阶分裂（辅）
+"Greater Chain",高阶连锁（辅）
+"Lethal Dose",致死剂量（辅）
+Companionship,忠诚伙伴（辅）
+"Divine Sentinel",神圣哨兵（辅）
+Annihilation,抹灭（辅）
+Edify,启发（辅）
+Invention,发明（辅）
+"Greater Kinetic Instability",高阶念动失稳（辅）
+"Cooldown Recovery",冷却回复（辅）
+Voidstorm,虚空风暴（辅）
+"Void Shockwave",虚空震波（辅）
+"Eldritch Blasphemy",古神亵渎（辅）
+Gluttony,暴食（辅）
+Overheat,过热（辅）
+"Greater Multistrike",高阶多重打击（辅）
+Congregation,亡灵大军（辅）
+Frostmage,寒霜法师（辅）
+"Greater Devour",高阶吞噬（辅）
+Magnetism,磁力（辅）
+"Greater Unleash",高阶释出（辅）
+Pacifism,和平主义（辅）
+"Bloodsoaked Banner",血染旗帜（辅）
+"Minion Pact",随从契约（辅）
+"Harrowing Throng",亡灵大军（辅）
+"Unholy Trinity",不洁三体（辅）
+"Overloaded Intensity",过载强度（辅）
+Transfusion,渗透（辅）
+Excommunicate,神圣驱逐(辅）
+Exemplar,英勇典范（辅）
+"Blessed Call",祝福呼唤（辅）
+Hallow,圣化（辅）
+"Azmerian Wolf",阿兹莫里巨狼
+"Mist Raven",雾鸦
+"Spiraling Conspiracy",鸦群密谋
+"Virtuous Barrier",美德壁垒
+"Rite of Restoration",恢复圣仪
+"Coiling Bolts",盘绕魔弹
+"Crushing Fear",恐惧终结
+"Sanguine Revelry",嗜血狂宴
+Grenade,榴弹
+"Vivid Stampede",雄鹿践踏
+"Wild Protector",野性守护
+"Hollow Focus",虚空钟灵
+"Hollow Resonance",虚空和鸣
+"Primal Bounty",枭羽馈赠
+"The Stars Answer",群星召唤
+"Archon of Chayula",夏乌拉执政官
+"Wildwood's Gifts",荒林之赐
+"Righteous Descent",正义天降
+"Starborn Onslaught",星辰冲击
+"Azmerian Swarms",阿兹莫里虫群
+"Harbinger of Madness",疯魔先驱
+"Soaring Midnight",午夜翱翔
+"Midnight Zenith",午夜天顶
+"Kinetic Bash",动能重击
+Leylines,地脉
+"Frostflame Nova",霜焰新星
+"Hollow Shell",虚空之壳
+"Molten Shower",熔岩骤雨
+"Powered by Verisium",维金供能
+Refutation,反制
+Repulsion,斥退
+"Triskelion Cascade",三耀辉轮
+"Gelid Palm",寒冰掌
+Skyfall,天降杀机
+"Detonate Living",活体引爆
+"Animus Exchange",命源交换
+"Bitter Dead",苦涩死亡
+"Eternal March",永恒行军
+"Grim Pillars",阴森之柱
+"Verisium Manifestations",维金化形
+"Remnants of Kalguur",卡古兰残片
+"Wardbound Minions",结界仆从
+"Fragments Of The Past",往昔碎片
+"Conductive Runes",导电符文
+"Herald of the Royal Queen",皇后之捷
+"Runic Reprieve",符文援护
+"Voltaic Barrier",电能屏障
+"Explosive Transmutation",烈性转化
+"Rain of Blades",刀刃之雨
+"Smash to Smithereens",碎甲崩灭
+"Her Declaration",她的宣言
+"Prototype Seventeen",原型十七
+"Seraph's Heart",炽天使之心
+"Uhtred's Rite",乌崔德仪式
+"Trickster's Shard",欺诈者碎片
+"Arbiter's Reach",仲裁官之握
+"Tangmazu's Thurible",唐玛祖的香炉
+"Esh's Prowess",艾许的骁勇
+"Breachlord's Rift",裂隙领主的分歧
+"Breachlord's Amalgam",裂隙领主的融合体
+"Vruun's Aftermath",弗伦的余波
+"Vruun's Inevitability",弗伦的必然
+"Uhtred's Constellation",乌崔德的星图
+"Medved's Felling",梅德维德的砍伐
+"Vorana's Siege",沃拉娜的围城
+"Styrn's Mountain",斯泰恩的山岳
+"Styrn's Ferocity",斯泰恩的凶残
+"Styrn's Anthem",斯泰恩的颂歌
+"Catha's Brilliance",卡莎的光辉
+"Mórrigan's Insight",莫丽根的洞察
+"Tul's Avalanche",托沃的雪崩
+"Minion Splash I","召唤生物溅射伤害 I"
+"Minion Splash II","召唤生物溅射伤害 II"
+"Concussive Runes",震荡符文
+"Runic Infusion",符文灌注
+"Olroth's Hubris",欧罗什的傲慢
+"Runeforged Blades",符文之刃
+"Runic Extraction",符文提取
+"Scouring Flame",涤罪之火
+"Fist Of Kalguur",卡古兰之拳
+"Healing Runes",治疗符文
+"Olroth's Conviction",欧罗什的信念
+"Hollow Form",虚空魅影
+"Spirit Vessel",灵魂容器
+"Animus Splinters",命源碎片

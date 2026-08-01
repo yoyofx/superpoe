@@ -3,6 +3,7 @@ import react from '@vitejs/plugin-react'
 import path from 'node:path'
 
 export default defineConfig({
+  base: process.env.ELECTRON_BUILD === 'true' ? './' : '/',
   plugins: [react()],
   resolve: {
     alias: {
@@ -10,14 +11,8 @@ export default defineConfig({
     },
   },
   server: {
+    host: '127.0.0.1',
     port: 3000,
-    open: true,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-      },
-    },
   },
   build: {
     outDir: 'dist',

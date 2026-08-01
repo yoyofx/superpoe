@@ -1,5 +1,5 @@
 # External resources (not committed, copy on setup)
-sources/
+upstreams/
 Builds/
 
 # Dependencies
@@ -7,6 +7,8 @@ node_modules/
 
 # Build output
 dist/
+dist-electron/
+release/
 tsconfig.tsbuildinfo
 
 # Frontend runtime files. Everything under public/ is served by the app and
@@ -18,6 +20,11 @@ tsconfig.tsbuildinfo
 *.log
 log.txt
 _tsc*.txt
+.cache/
+
+# Committed development snapshots may contain LevelDB log files.
+!dev-data/
+!dev-data/**
 
 # Python cache
 __pycache__/
@@ -25,6 +32,8 @@ __pycache__/
 
 # External tool downloads
 scripts/texconv.zip
+
+# Prebuilt native runtimes are committed and packaged through extraResources.
 
 # Runtime sprite assets generated/copied by the resource pipeline.
 # These are committed so a fresh checkout can render the passive tree without

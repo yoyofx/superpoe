@@ -7,12 +7,10 @@ Atziri's Contempt
 Pronged Spear
 Source: Drops from unique{Atziri's Vault} in normal{Vaal Temple}
 League: Fate of the Vaal
-Implicits: 2
-Grants Skill: Spear Throw
-Grants Skill: Level (1-20) Shattering Spite
+UniqueShatteringSpiteSkill1
 UniqueLocalIncreasedPhysicalDamagePercent20
 UniqueLocalAddedFireDamage8
-UniqueLocalAddedLightningDamage7
+UniqueLocalAddedLightningDamage8
 UniqueLocalIncreasedAttackSpeed27
 UniquePresenceRadius5
 UniqueSpearsInflictBloodstoneLanceOnHit1
@@ -20,9 +18,6 @@ UniqueSpearsInflictBloodstoneLanceOnHit1
 Chainsting
 Hunting Spear
 League: Dawn of the Hunt
-Implicits: 2
-Grants Skill: Spear Throw
-SpearImplicitLocalChanceToMaim1
 UniqueLocalAddedPhysicalDamage19
 UniqueLocalIncreasedAccuracy7
 UniqueLocalIncreasedAttackSpeed1
@@ -32,20 +27,25 @@ UniqueLocalIncreasedProjectileSpeed1
 Daevata's Wind
 War Spear
 League: Dawn of the Hunt
-Implicits: 2
-Grants Skill: Spear Throw
-SpearImplicitLocalProjectileSpeed1
 UniqueLocalAddedPhysicalDamage22
 UniqueIncreasedEvasionRating4
 UniqueLocalIncreasedAttackSpeed20
 UniqueMeleeDamageIfProjectileHitRecently1
 UniqueProjectileDamageIfMeleeHitRecently1
 ]],[[
+The Ordained
+Grand Spear
+League: Runes of Aldur
+UniqueRighteousDescentSkill1
+UniqueLocalIncreasedPhysicalDamagePercent21
+UniqueLocalAddedLightningDamage11
+UniqueLocalCriticalStrikeChance10
+UniqueLifeLeechAlsoBasedOnLightningDamage1
+UniqueDivineFragments1
+]],[[
 Saitha's Spear
 Barbed Spear
 League: Dawn of the Hunt
-Implicits: 1
-Grants Skill: Spear Throw
 UniqueLocalAddedPhysicalDamage20
 UniqueLocalAddedFireDamage1
 UniqueLocalChanceToBleed2
@@ -57,8 +57,6 @@ Hardwood Spear
 League: Dawn of the Hunt
 Variant: Pre 0.3.0
 Variant: Current
-Implicits: 1
-Grants Skill: Spear Throw
 UniqueLocalAddedPhysicalDamage3
 {variant:2}DealNoElementalDamageUnique__3
 UniqueLocalWeaponRangeIncrease1
@@ -68,8 +66,6 @@ UniqueLocalPoisonOnHit1
 Skysliver
 Winged Spear
 League: Dawn of the Hunt
-Implicits: 1
-Grants Skill: Spear Throw
 UniqueLocalNoWeaponPhysicalDamage1
 UniqueLocalAddedLightningDamage1
 UniqueLocalIncreasedAttackSpeed3
@@ -81,9 +77,7 @@ Helix Spear
 League: Dawn of the Hunt
 Variant: Pre 0.2.1
 Variant: Current
-Implicits: 2
-Grants Skill: Spear Throw
-Grants Skill: Level (1-20) Chaotic Infusion
+UniqueGrantsChaosInfusion1
 UniqueLocalIncreasedAttackSpeed21
 {variant:1}UniqueLifeLeechLocal3[6,10]
 {variant:2}UniqueLifeLeechLocal3
@@ -97,8 +91,6 @@ Forked Spear
 Variant: Pre 0.3.0
 Variant: Current
 League: Dawn of the Hunt
-Implicits: 1
-Grants Skill: Spear Throw
 UniqueLocalAddedPhysicalDamage21
 {variant:1}UniqueLocalCriticalStrikeChance8[1000,2000]
 {variant:2}UniqueLocalCriticalStrikeChance8
@@ -109,8 +101,6 @@ UniqueLifeCost2
 Tyranny's Grip
 Ironhead Spear
 League: Dawn of the Hunt
-Implicits: 1
-Grants Skill: Spear Throw
 UniqueLocalIncreasedPhysicalDamagePercent12
 UniqueLocalIncreasedAttackSpeed16
 UniqueStrength38

@@ -1,16 +1,24 @@
-import type { CalcApiResponse } from '@/types/calc'
+import type { CalcApiResponse, SkillCalculationSelection } from '@/types/calc'
+import {
+  calculateWithLuaEngine,
+  inspectEquipmentWithLuaEngine,
+  installBuildHelpers,
+  installHostCompatibility,
+  rankSkillsWithLuaEngine,
+  type PobLuaManifest,
+} from '@/engine/pobLuaRuntime'
+import type {
+  EquipmentInspectionItem,
+  EquipmentInspectionResult,
+  EquipmentItemSemantics,
+} from '@/types/equipmentSemantics'
 import { LuaFactory } from 'wasmoon'
 import wasmUrl from 'wasmoon/dist/glue.wasm?url'
 
-interface PobLuaManifest {
-  version: string
-  files: Array<{ path: string; hash: string; size: number }>
-}
-
 interface WorkerRequest {
   id: number
-  type: 'init' | 'calculate'
-  payload?: { code?: string; xml?: string }
+  type: 'init' | 'calculate' | 'inspectEquipment' | 'rankSkills'
+  payload?: ({ code?: string; xml?: string } & SkillCalculationSelection) | { items?: EquipmentInspectionItem[] }
 }
 
 interface WorkerResponse {
@@ -27,6 +35,48 @@ let luaFactory: LuaFactory | null = null
 let luaWasm: Awaited<ReturnType<LuaFactory['getLuaModule']>> | null = null
 let lua: Awaited<ReturnType<LuaFactory['createEngine']>> | null = null
 let mountedFiles = false
+let initDurationMs = 0
+let operationQueue = Promise.resolve()
+const equipmentCache = new Map<string, EquipmentItemSemantics>()
+const EQUIPMENT_ANALYSIS_SCHEMA_VERSION = '4'
+const MOUNT_FETCH_CONCURRENCY = 24
+
+const TRADE_HELPERS_PATCHES: Array<[string, string]> = [
+  [
+    ':gsub("{.-} to {.-}", string.format("(%s to %s)", numberPattern, numberPattern))',
+    ':gsub("{.-} to {.-}", function()\n\t\t\t\treturn string.format("(%s to %s)", numberPattern, numberPattern)\n\t\t\tend)',
+  ],
+  [
+    '"%%%+%?(%%%-%?" .. numberPattern .. ")")',
+    'function()\n\t\t\t\t\treturn "%%%+%?(%%%-%?" .. numberPattern .. ")"\n\t\t\t\tend)',
+  ],
+]
+
+function applyBrowserCompatibility(path: string, source: string): string {
+  let patched = source
+  if (path === 'Classes/TradeHelpers.lua') {
+    for (const [original, replacement] of TRADE_HELPERS_PATCHES) {
+      if (!patched.includes(original)) throw new Error(`Browser compatibility patch no longer matches: ${path}`)
+      patched = patched.replace(original, replacement)
+    }
+  }
+  if (path === 'Modules/CalcOffence.lua') {
+    for (const expression of ['entry.distance', 'entry.capped', 'entry.excess']) {
+      const original = `string.len(${expression})`
+      const replacement = `string.len(tostring(${expression}))`
+      if (!patched.includes(original)) throw new Error(`Browser compatibility patch no longer matches: ${path}`)
+      patched = patched.split(original).join(replacement)
+    }
+  }
+  return patched
+}
+
+function assetUrl(path: string): string {
+  if (self.location.protocol === 'file:') {
+    return new URL(`../pob-lua/${path}`, self.location.href).href
+  }
+  return new URL(`/pob-lua/${path}`, self.location.origin).href
+}
 
 function respond(message: WorkerResponse) {
   self.postMessage(message)
@@ -35,7 +85,7 @@ function respond(message: WorkerResponse) {
 async function fetchText(path: string): Promise<string> {
   const cached = fileCache.get(path)
   if (cached != null) return cached
-  const response = await fetch(`/pob-lua/${path}`)
+  const response = await fetch(assetUrl(path))
   if (!response.ok) throw new Error(`Missing Lua bundle file: ${path}`)
   const text = await response.text()
   fileCache.set(path, text)
@@ -44,7 +94,7 @@ async function fetchText(path: string): Promise<string> {
 
 async function loadManifest(): Promise<PobLuaManifest> {
   if (manifest) return manifest
-  const response = await fetch('/pob-lua/manifest.json')
+  const response = await fetch(assetUrl('manifest.json'))
   if (!response.ok) {
     throw new Error('Missing /pob-lua/manifest.json. Run python scripts/build_pob_lua_bundle.py first.')
   }
@@ -55,6 +105,7 @@ async function loadManifest(): Promise<PobLuaManifest> {
 async function init(): Promise<void> {
   if (!initPromise) {
     initPromise = (async () => {
+      const startedAt = performance.now()
       const loadedManifest = await loadManifest()
       const required = new Set(['HeadlessWrapper.lua', 'Launch.lua'])
       for (const file of required) {
@@ -63,12 +114,14 @@ async function init(): Promise<void> {
         }
       }
 
-      luaFactory = new LuaFactory(wasmUrl, { CI: 'true' })
+      luaFactory = new LuaFactory(wasmUrl)
       luaWasm = await luaFactory.getLuaModule()
       await mountBundleFiles(loadedManifest)
       lua = await luaFactory.createEngine()
       installHostCompatibility(lua)
       lua.doFileSync('/HeadlessWrapper.lua')
+      installBuildHelpers(lua)
+      initDurationMs = performance.now() - startedAt
     })()
   }
   return initPromise
@@ -76,10 +129,16 @@ async function init(): Promise<void> {
 
 async function mountBundleFiles(loadedManifest: PobLuaManifest): Promise<void> {
   if (!luaFactory || !luaWasm || mountedFiles) return
-  for (const entry of loadedManifest.files) {
-    if (!entry.path.endsWith('.lua')) continue
-    const text = await fetchText(entry.path)
-    luaFactory.mountFileSync(luaWasm, `/${entry.path}`, text)
+  const luaEntries = loadedManifest.files.filter((entry) => entry.path.endsWith('.lua'))
+  for (let start = 0; start < luaEntries.length; start += MOUNT_FETCH_CONCURRENCY) {
+    const batch = luaEntries.slice(start, start + MOUNT_FETCH_CONCURRENCY)
+    const files = await Promise.all(batch.map(async (entry) => ({
+      path: entry.path,
+      text: applyBrowserCompatibility(entry.path, await fetchText(entry.path)),
+    })))
+    for (const file of files) {
+      luaFactory.mountFileSync(luaWasm, `/${file.path}`, file.text)
+    }
   }
   // A minimal manifest makes Launch.lua treat the runtime as repository/dev
   // mode, which disables the desktop updater in the browser worker.
@@ -87,275 +146,65 @@ async function mountBundleFiles(loadedManifest: PobLuaManifest): Promise<void> {
   mountedFiles = true
 }
 
-function installHostCompatibility(engine: Awaited<ReturnType<LuaFactory['createEngine']>>) {
-  engine.doStringSync(`
-    arg = arg or {}
-    unpack = table.unpack or unpack
-    loadstring = loadstring or load
-    math.atan2 = math.atan2 or math.atan
-    local nativeStringFormat = string.format
-    string.format = function(fmt, ...)
-      local values = { ... }
-      local index = 1
-      fmt:gsub("%%[-+ #0]*%d*%.?%d*[di]", function()
-        local value = values[index]
-        if type(value) == "number" and value ~= math.floor(value) then
-          values[index] = math.floor(value)
-        end
-        index = index + 1
-      end)
-      return nativeStringFormat(fmt, unpack(values))
-    end
-    jit = jit or { version = "wasmoon-lua5.4", off = function() end, opt = { start = function() end } }
-    package.path = "/?.lua;/?/init.lua;/Classes/?.lua;/Modules/?.lua;/Data/?.lua;" .. package.path
-
-    local nativeRequire = require
-    local loaded = package.loaded
-
-    local bit = {}
-    local function normalize(value)
-      value = value or 0
-      if value < 0 then value = 0x100000000 + value end
-      return value % 0x100000000
-    end
-    function bit.tobit(value)
-      value = normalize(value)
-      if value >= 0x80000000 then value = value - 0x100000000 end
-      return value
-    end
-    function bit.band(a, b, ...)
-      local result = normalize(a) & normalize(b)
-      for i = 1, select("#", ...) do result = bit.band(result, select(i, ...)) end
-      return result
-    end
-    function bit.bor(a, b, ...)
-      local result = normalize(a) | normalize(b)
-      for i = 1, select("#", ...) do result = bit.bor(result, select(i, ...)) end
-      return result
-    end
-    function bit.bxor(a, b, ...)
-      local result = normalize(a) ~ normalize(b)
-      for i = 1, select("#", ...) do result = bit.bxor(result, select(i, ...)) end
-      return result
-    end
-    function bit.bnot(a) return bit.tobit(~normalize(a)) end
-    function bit.lshift(a, disp) return bit.tobit(normalize(a) << disp) end
-    function bit.rshift(a, disp) return normalize(a) >> disp end
-    function bit.arshift(a, disp) return bit.tobit(a) >> disp end
-    bit.rol = function(a, disp)
-      disp = disp % 32
-      return bit.bor(bit.lshift(a, disp), bit.rshift(a, 32 - disp))
-    end
-    bit.ror = function(a, disp)
-      disp = disp % 32
-      return bit.bor(bit.rshift(a, disp), bit.lshift(a, 32 - disp))
-    end
-    bit.tohex = function(a, n)
-      n = n or 8
-      return string.sub(string.format("%08x", normalize(a)), -n)
-    end
-    loaded.bit = bit
-    _G.bit = bit
-
-    local utf8lib = {}
-    utf8lib.len = function(s) return #s end
-    utf8lib.sub = string.sub
-    utf8lib.gsub = string.gsub
-    utf8lib.find = string.find
-    utf8lib.match = string.match
-    utf8lib.reverse = string.reverse
-    utf8lib.next = function(s, i, offset)
-      i = i or 0
-      offset = offset or 1
-      local nextIndex = i + offset
-      if nextIndex < 1 or nextIndex > #s + 1 then return nil end
-      return nextIndex
-    end
-    loaded["lua-utf8"] = utf8lib
-    _G.utf8 = _G.utf8 or utf8lib
-
-    loaded["lcurl.safe"] = {}
-    loaded["lua-profiler"] = false
-    loaded["socket"] = loaded["socket"] or {}
-    loaded["lpeg"] = false
-
-    function require(name)
-      if loaded[name] ~= nil then return loaded[name] end
-      return nativeRequire(name)
-    end
-  `)
-}
-
-function detachLuaValue(value: unknown): unknown {
-  if (value == null || typeof value !== 'object') return value
-
-  const maybeDetachable = value as { $detach?: (dictType?: unknown) => unknown }
-  if (typeof maybeDetachable.$detach === 'function') {
-    return detachLuaValue(maybeDetachable.$detach())
-  }
-
-  if (value instanceof Map) {
-    const numericKeys = [...value.keys()].filter((key) => typeof key === 'number') as number[]
-    const isArrayLike = numericKeys.length === value.size
-      && numericKeys.every((key) => Number.isInteger(key) && key >= 1 && key <= value.size)
-    if (isArrayLike) {
-      return numericKeys
-        .sort((a, b) => a - b)
-        .map((key) => detachLuaValue(value.get(key)))
-    }
-
-    const obj: Record<string, unknown> = {}
-    for (const [key, nested] of value.entries()) {
-      obj[String(key)] = detachLuaValue(nested)
-    }
-    return obj
-  }
-
-  if (Array.isArray(value)) return value.map((nested) => detachLuaValue(nested))
-
-  const obj: Record<string, unknown> = {}
-  for (const [key, nested] of Object.entries(value)) {
-    obj[key] = detachLuaValue(nested)
-  }
-  return obj
-}
-
-const CALCULATION_SCRIPT = `
-local xmlText = __pobBuildXml
-if not xmlText or xmlText == "" then
-  return { success = false, error = "Empty XML input" }
-end
-
-local loadOk, loadErr = pcall(loadBuildFromXML, xmlText, "browser-build")
-if not loadOk then
-  return { success = false, error = "loadBuildFromXML failed: " .. tostring(loadErr) }
-end
-
-if not build then
-  return { success = false, error = "Build object not available after load" }
-end
-
-local mo = mainObject
-if mo and mo.promptMsg then
-  return { success = false, error = "Build load error: " .. tostring(mo.promptMsg) }
-end
-
-local calcOk, calcErr = pcall(function()
-  local calcs = build.calcsTab and build.calcsTab.calcs
-  if not calcs then
-    error("calcs module not available")
-  end
-  return calcs.buildOutput(build, "MAIN")
-end)
-
-if not calcOk then
-  return { success = false, error = "Calculation failed: " .. tostring(calcErr) }
-end
-
-local env = calcErr
-local output = env and env.player and env.player.output
-if not output then
-  return { success = false, error = "No output data produced" }
-end
-
-local function safeNum(v)
-  if v == nil then return nil end
-  if type(v) ~= "number" then return v end
-  if v ~= v then return nil end
-  if v == math.huge or v == -math.huge then return nil end
-  return v
-end
-
-local data = {
-  Str = safeNum(output.Str),
-  Dex = safeNum(output.Dex),
-  Int = safeNum(output.Int),
-  Life = safeNum(output.Life),
-  LifeUnreserved = safeNum(output.LifeUnreserved),
-  Mana = safeNum(output.Mana),
-  ManaUnreserved = safeNum(output.ManaUnreserved),
-  EnergyShield = safeNum(output.EnergyShield),
-  Armour = safeNum(output.Armour),
-  Evasion = safeNum(output.Evasion),
-  ArmourPhysicalDamageReduction = safeNum(output.ArmourPhysicalDamageReduction),
-  FireResist = safeNum(output.FireResist),
-  FireResistTotal = safeNum(output.FireResistTotal),
-  ColdResist = safeNum(output.ColdResist),
-  ColdResistTotal = safeNum(output.ColdResistTotal),
-  LightningResist = safeNum(output.LightningResist),
-  LightningResistTotal = safeNum(output.LightningResistTotal),
-  ChaosResist = safeNum(output.ChaosResist),
-  ChaosResistTotal = safeNum(output.ChaosResistTotal),
-  BlockChance = safeNum(output.BlockChance),
-  SpellBlockChance = safeNum(output.SpellBlockChance),
-  TotalDPS = safeNum(output.TotalDPS),
-  FullDPS = safeNum(output.FullDPS),
-  FullDotDPS = safeNum(output.FullDotDPS),
-  AverageHit = safeNum(output.AverageHit),
-  Speed = safeNum(output.Speed),
-  HitSpeed = safeNum(output.HitSpeed),
-  CritChance = safeNum(output.CritChance),
-  CritMultiplier = safeNum(output.CritMultiplier),
-  PowerChargesMax = safeNum(output.PowerChargesMax),
-  FrenzyChargesMax = safeNum(output.FrenzyChargesMax),
-  EnduranceChargesMax = safeNum(output.EnduranceChargesMax),
-  MovementSpeedMod = safeNum(output.MovementSpeedMod),
-  ActionSpeedMod = safeNum(output.ActionSpeedMod),
-  Ward = safeNum(output.Ward),
-  LifeRegen = safeNum(output.LifeRegen),
-  ManaRegen = safeNum(output.ManaRegen),
-  EnergyShieldRegen = safeNum(output.EnergyShieldRegen),
-  CharacterLevel = safeNum(env.player and env.player.level),
-  AscendClassName = build.ascendClassName,
-  ClassName = build.className,
-  allocatedNodes = build.spec and (function()
-    local c = 0
-    for _ in pairs(build.spec.allocNodes or {}) do c = c + 1 end
-    return c
-  end)() or 0,
-}
-
-if output.SkillDPS and #output.SkillDPS > 0 then
-  data.SkillDPS = {}
-  for _, skill in ipairs(output.SkillDPS) do
-    table.insert(data.SkillDPS, {
-      name = skill.name,
-      dps = safeNum(skill.dps),
-      count = skill.count,
-      trigger = skill.trigger,
-      skillPart = skill.skillPart,
-    })
-  end
-end
-
-return { success = true, data = data }
-`
-
-async function calculate(payload: { code?: string; xml?: string } | undefined): Promise<CalcApiResponse> {
+async function calculate(payload: ({ code?: string; xml?: string } & SkillCalculationSelection) | undefined): Promise<CalcApiResponse> {
   if (!payload?.xml) return { success: false, error: 'Missing build XML for front-end calculation' }
   await init()
   if (!lua) return { success: false, error: 'Lua VM was not initialized' }
-  try {
-    lua.global.set('__pobBuildXml', payload.xml)
-    const result = detachLuaValue(lua.doStringSync(CALCULATION_SCRIPT)) as CalcApiResponse
-    return result
-  } catch (err) {
-    return {
-      success: false,
-      error: err instanceof Error ? err.message : String(err),
-    }
-  } finally {
-    try {
-      lua.global.set('__pobBuildXml', undefined)
-    } catch {
-      // Ignore cleanup errors; the next calculation will overwrite the value.
+  return calculateWithLuaEngine(lua, payload.xml, payload)
+}
+
+async function equipmentCacheKey(raw: string): Promise<string> {
+  const version = manifest?.version || 'unknown'
+  const bytes = new TextEncoder().encode(`${EQUIPMENT_ANALYSIS_SCHEMA_VERSION}\0${version}\0${raw}`)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest), (value) => value.toString(16).padStart(2, '0')).join('')
+}
+
+async function inspectEquipment(payload: { items?: EquipmentInspectionItem[] } | undefined): Promise<EquipmentInspectionResult> {
+  await init()
+  if (!lua) throw new Error('Lua VM was not initialized')
+
+  const items = payload?.items || []
+  const output: EquipmentInspectionResult = {
+    items: {},
+    errors: {},
+    performance: { initMs: initDurationMs, parseMs: 0, cacheHits: 0, cacheMisses: 0 },
+  }
+  const missing: Array<{ item: EquipmentInspectionItem; key: string }> = []
+
+  for (const item of items) {
+    const key = await equipmentCacheKey(item.raw)
+    const cached = equipmentCache.get(key)
+    if (cached) {
+      output.items[item.id] = cached
+      output.performance.cacheHits += 1
+    } else {
+      missing.push({ item, key })
+      output.performance.cacheMisses += 1
     }
   }
+
+  if (missing.length) {
+    const startedAt = performance.now()
+    const inspected = inspectEquipmentWithLuaEngine(lua, missing.map(({ item }) => item.raw))
+    output.performance.parseMs = performance.now() - startedAt
+    missing.forEach(({ item, key }, index) => {
+      const semantics = inspected.results[index]
+      if (semantics) {
+        equipmentCache.set(key, semantics)
+        output.items[item.id] = semantics
+      } else {
+        output.errors[item.id] = inspected.errors[index] || 'PoB did not return equipment semantics'
+      }
+    })
+  }
+
+  return output
 }
 
 self.onmessage = (event: MessageEvent<WorkerRequest>) => {
   const request = event.data
-  void (async () => {
+  operationQueue = operationQueue.then(async () => {
     try {
       if (request.type === 'init') {
         await init()
@@ -363,7 +212,18 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         return
       }
       if (request.type === 'calculate') {
-        const result = await calculate(request.payload)
+        const result = await calculate(request.payload as ({ code?: string; xml?: string } & SkillCalculationSelection) | undefined)
+        respond({ id: request.id, success: true, data: result })
+        return
+      }
+      if (request.type === 'inspectEquipment') {
+        const result = await inspectEquipment(request.payload as { items?: EquipmentInspectionItem[] } | undefined)
+        respond({ id: request.id, success: true, data: result })
+        return
+      }
+      if (request.type === 'rankSkills') {
+        const payload = request.payload as { xml?: string; groupIds?: string[]; configOverrides?: SkillCalculationSelection['configOverrides'] } | undefined
+        const result = rankSkillsWithLuaEngine(lua!, payload?.xml || '', payload?.groupIds || [], payload?.configOverrides)
         respond({ id: request.id, success: true, data: result })
         return
       }
@@ -375,5 +235,5 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         error: err instanceof Error ? err.message : String(err),
       })
     }
-  })()
+  })
 }

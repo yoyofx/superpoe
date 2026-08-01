@@ -1,0 +1,270 @@
+name: Build Dev
+
+# Fixed rolling channel: always publish/update the single pre-release at tag `dev`
+# (Releases page: /releases/tag/dev). Local semver tags are not used for this channel.
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+
+concurrency:
+  group: build-dev-channel
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    name: Resolve dev version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      short_sha: ${{ steps.meta.outputs.short_sha }}
+      commit_sha: ${{ steps.meta.outputs.commit_sha }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute rolling dev version
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="$(node -p "require('./package.json').version")"
+          # Strip any existing pre-release / build metadata so we always append one -dev.N
+          base="${base%%-*}"
+          base="${base%%+*}"
+          short_sha="$(echo '${{ github.sha }}' | cut -c1-7)"
+          # package.json / installer show: 0.5.0-dev.<run>.<sha>
+          version="${base}-dev.${{ github.run_number }}.${short_sha}"
+          {
+            echo "version=${version}"
+            echo "short_sha=${short_sha}"
+            echo "commit_sha=${{ github.sha }}"
+          } >> "${GITHUB_OUTPUT}"
+          echo "Dev channel version=${version} commit=${{ github.sha }}"
+
+  build:
+    name: Build ${{ matrix.label }}
+    needs: prepare
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            label: win-x64
+            expected_arch: x64
+            electron_args: --win --x64
+            artifact_name: superpoe2-dev-win-x64
+          - os: macos-15
+            label: macOS Apple Silicon
+            expected_arch: arm64
+            electron_args: --mac --arm64
+            artifact_name: superpoe2-dev-macos-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify runner architecture
+        shell: bash
+        run: |
+          actual="$(node -p 'process.arch')"
+          expected="${{ matrix.expected_arch }}"
+          echo "Runner architecture: ${actual}; expected: ${expected}"
+          test "${actual}" = "${expected}"
+
+      - name: Apply rolling dev version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="${{ needs.prepare.outputs.version }}"
+          npm version "${version}" --no-git-tag-version --allow-same-version
+          node -e "const p=require('./package.json'); if (p.version !== process.argv[1]) process.exit(1); console.log('package.json version =', p.version)" "${version}"
+
+      - name: Bake GitHub repository identity for updater
+        shell: bash
+        run: |
+          set -euo pipefail
+          node <<'NODE'
+          const fs = require('node:fs')
+          const pkgPath = 'package.json'
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
+          const [owner, name] = (process.env.GITHUB_REPOSITORY || '').split('/')
+          if (!owner || !name) {
+            console.error('GITHUB_REPOSITORY is required (owner/name)')
+            process.exit(1)
+          }
+          pkg.repository = {
+            type: 'git',
+            url: `https://github.com/${owner}/${name}.git`,
+          }
+          pkg.superpoe = {
+            ...(pkg.superpoe || {}),
+            githubOwner: owner,
+            githubRepo: name,
+          }
+          fs.writeFileSync(pkgPath, `${JSON.stringify(pkg, null, 2)}\n`)
+          console.log(`Baked updater repo identity: ${owner}/${name}`)
+          NODE
+
+      - name: Run non-long unit tests
+        run: npm run test:ci
+
+      - name: Verify pinned PoB runtime
+        run: npm run verify:lua
+
+      - name: Verify prebuilt LuaJIT sidecar
+        run: node scripts/ensure_luajit_sidecar.mjs
+
+      - name: Test LuaJIT sidecar against PoB fixture
+        run: npm run test:native:lua
+
+      - name: Build Electron package
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: |
+          npm run build:electron
+          npx electron-builder ${{ matrix.electron_args }} --publish never
+
+      - name: Collect installer artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifact
+          shopt -s nullglob
+          for f in release/*.{exe,dmg,zip,AppImage,blockmap,yml,yaml}; do
+            if [[ -f "$f" ]]; then
+              cp -a "$f" artifact/
+            fi
+          done
+          if [[ -z "$(ls -A artifact 2>/dev/null || true)" ]]; then
+            for f in release/*; do
+              if [[ -f "$f" ]]; then
+                cp -a "$f" artifact/
+              fi
+            done
+          fi
+          ls -la artifact
+          test -n "$(ls -A artifact)"
+
+      - name: Upload Actions artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: artifact/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Publish fixed Dev pre-release
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist-assets
+          pattern: superpoe2-dev-*
+          merge-multiple: true
+
+      - name: List assets
+        shell: bash
+        run: |
+          set -euo pipefail
+          find dist-assets -type f | sort
+          test -n "$(find dist-assets -type f | head -1)"
+
+      - name: Create or refresh pre-release tag dev
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.prepare.outputs.version }}
+          SHORT_SHA: ${{ needs.prepare.outputs.short_sha }}
+          COMMIT_SHA: ${{ needs.prepare.outputs.commit_sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # gh release CLI resolves the repo via git by default; this job has no checkout.
+          # GH_REPO + --repo keep all commands on the API path.
+          REPO="${GH_REPO}"
+
+          NOTES_FILE="$(mktemp)"
+          cat > "${NOTES_FILE}" <<EOF
+          ## SuperPoE2 Dev channel
+
+          Rolling **pre-release** — always the latest successful build from the \`dev\` branch.
+
+          | | |
+          | --- | --- |
+          | **Channel tag** | \`dev\` (fixed) |
+          | **Build version** | \`${VERSION}\` |
+          | **Commit** | \`${COMMIT_SHA}\` (\`${SHORT_SHA}\`) |
+          | **Workflow run** | ${RUN_URL} |
+
+          ### Notes
+          - Not code-signed. Windows SmartScreen / macOS Gatekeeper may warn.
+          - Each push to \`dev\` rebuilds and **replaces** assets on this release.
+          - Stable releases use separately published version tags (not this page).
+          EOF
+          # Strip leading indentation from the heredoc body for readable release notes.
+          sed -i 's/^          //' "${NOTES_FILE}"
+
+          # Point lightweight tag `dev` at this commit (create or force-update).
+          if gh api "repos/${REPO}/git/ref/tags/dev" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/${REPO}/git/refs/tags/dev" \
+              -f sha="${COMMIT_SHA}" \
+              -F force=true
+          else
+            gh api --method POST "repos/${REPO}/git/refs" \
+              -f ref="refs/tags/dev" \
+              -f sha="${COMMIT_SHA}"
+          fi
+
+          if gh release view dev --repo "${REPO}" >/dev/null 2>&1; then
+            gh release edit dev --repo "${REPO}" \
+              --title "SuperPoE2 Dev" \
+              --prerelease \
+              --latest=false \
+              --target "${COMMIT_SHA}" \
+              --notes-file "${NOTES_FILE}"
+
+            # Drop previous channel assets so only the current build remains.
+            mapfile -t old_assets < <(gh release view dev --repo "${REPO}" --json assets -q '.assets[].name' 2>/dev/null || true)
+            for name in "${old_assets[@]+"${old_assets[@]}"}"; do
+              [[ -n "${name}" ]] || continue
+              gh release delete-asset dev "${name}" --repo "${REPO}" --yes
+            done
+          else
+            gh release create dev --repo "${REPO}" \
+              --title "SuperPoE2 Dev" \
+              --prerelease \
+              --latest=false \
+              --target "${COMMIT_SHA}" \
+              --notes-file "${NOTES_FILE}"
+          fi
+
+          # Upload current installers (names include rolling version).
+          shopt -s nullglob
+          files=(dist-assets/*)
+          if [[ ${#files[@]} -eq 0 ]]; then
+            echo "No files under dist-assets/" >&2
+            exit 1
+          fi
+          gh release upload dev --repo "${REPO}" "${files[@]}" --clobber
+
+          echo "Dev channel updated: https://github.com/${REPO}/releases/tag/dev"

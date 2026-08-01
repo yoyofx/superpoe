@@ -42,7 +42,7 @@ ORBIT_PNG_PATTERNS = [
 
 def copy_orbit_pngs(tree_version: str, web_dir: Path, source: Path | None = None, output: Path | None = None) -> int:
     """Copy orbit PNGs for a single tree version. Returns number of files copied."""
-    src_dir = source or (web_dir / "sources" / "src" / "TreeData" / tree_version)
+    src_dir = source or (web_dir / "upstreams" / "PathOfBuilding-PoE2" / "src" / "TreeData" / tree_version)
     dst_dir = output or (web_dir / "public" / "assets" / "orbit" / tree_version)
 
     if not src_dir.is_dir():
@@ -98,7 +98,7 @@ def main():
         versions = ["0_4"]
     elif args.all:
         # Discover all TreeData/*/ directories
-        tree_data_dir = web_dir / "sources" / "src" / "TreeData"
+        tree_data_dir = web_dir / "upstreams" / "PathOfBuilding-PoE2" / "src" / "TreeData"
         versions = sorted(
             d.name for d in tree_data_dir.iterdir()
             if d.is_dir() and ((d / "tree.json").exists() or (d / "tree.lua").exists())

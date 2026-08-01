@@ -1,0 +1,16 @@
+# Runtime hashes must be identical on Windows and macOS checkouts.
+public/pob-lua/** text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.py text eol=lf
+
+# Prebuilt native sidecars are committed verbatim.
+native/bin/** -text
+
+# Chromium LevelDB control files are byte-sensitive, including CURRENT's LF.
+"dev-data/SuperPoE2/Local Storage/leveldb/**" -text

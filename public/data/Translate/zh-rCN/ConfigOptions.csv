@@ -43,6 +43,7 @@ Are you always on Low Mana?,^xFFFFFF是否处于低^x7070FF魔^7状态?
 "You will automatically be considered to be on Low Energy Shield if you have at least 50% ES reserved,","^xFFFFFF如果你至少有 50% ^x88FFFF能量护盾^7保留将自动被视为低^x88FFFF盾^7状态,"
 Do you always have Energy Shield?,^xFFFFFF是否一直有^x88FFFF能量护盾^7?
 Are your Minions always on Full Life?,^7你的召唤物是否一直处于满^xE05030血^7状态?
+Are your Minions always on Low Life?,^7你的召唤物是否一直处于低^xE05030血^7状态?
 Minion is always on Full Energy Shield?,^7你的召唤物是否处于满^x88FFFF盾^7状态?
 Have your Minions been created Recently?,你的召唤物是否是近期内创造的?
 Ailment calculation mode:,异常状态计算模式:
@@ -439,6 +440,7 @@ You lose Rampage if you do not get a Kill within 5 seconds.,你会在持续5秒�
 	5% increased attack speed,	每层攻击速度加快5%
 	5% increased cast speed,	每层施法速度加快5%
 	1% increased character size per stack.,	每层角色体积提高1%
+# of Minion Soul Eater Stacks:,召唤物【噬魂者】层数:
 Are you Focused?,你有【专注】?
 Do you have Lifetap?,你有【赤炼】?
 Do you have Onslaught?,你有【猛攻】?
@@ -496,6 +498,14 @@ Do you have Divinity?,你有【神性】?
 Defiance:,【抗争】层数:
 "Base Maximum Rage is 30, and inherently grants 1% More Attack Damage per 1 Rage","^xFF9922怒火^7的基础最大层数为30,并每层固定赋予1%攻击伤害总增"
 You lose 10 Rage every second if you have not been Hit or gained Rage in the last 2 seconds.,^7你在2秒没有获得^xFF9922怒火^7或被击中后每秒失去10层^xFF9922怒火^7。
+Do you have Wild Savagery?,你有【狂野兽性】?
+"From Oshabi's Bloodline, grants:","来自欧莱娜血脉，赋予:"
+	100% increased Physical Damage,	物理伤害提高100%
+	10% increased Action Speed,	行动速度加快100%
+	Hits ignore Enemy Physical Damage Reduction,	击中敌人无视其物理减免
+	Cannot be Stunned,	免疫眩晕
+
+
 Are you Leeching?,你在【偷取】?
 "You will automatically be considered to be Leeching if you have 'Life Leech effects are not removed at Full Life',","^xFFFFFF如果你有'^xE05030生命^7偷取在满血时不会移除'，你将自动被认为在偷取，"
 Are you Leeching Life?,^xFFFFFF你在【偷取^xE05030生命^7】?
@@ -504,11 +514,15 @@ Are you Leeching Mana?,^xFFFFFF你在【偷取^x7070FF魔力^7】?
 Minion is Leeching Energy Shield?,^xFFFFFF召唤物在【偷取^x88FFFF能量护盾^7】?
 Do you have a Flask active?,你在【使用药剂】?
 "This is automatically enabled if you have a flask active,","如果有使用药剂将会自动启用此状态,"
+Used an Amethyst Flask recently?,你最近有使用紫晶药剂?
+Used a Ruby Flask recently?,你最近有使用红玉药剂?
+Used a Sapphire Flask recently?,你最近有使用蓝玉药剂?
+Used a Topaz Flask recently?,你最近有使用黄玉药剂?
 Do you have a Tincture active?,你在【使用酊剂】？
 "This is automatically enabled if you have a tincture active,","如果有使用酊剂将会自动启用此状态,"
 Mana Burn Stacks:,魔力燃烧叠层:
-Mana Burn Applies a 1% of mana degen per stack,法力燃烧每一层致使1%法力值流失
-This also applies Weeping Wounds if the Keystone is Allocated,如果泣血创伤基石有被分配则也适用
+Mana Burn Applies a 1% of mana degen per stack,每一层魔力燃烧致使1%魔力流失
+This also applies Weeping Wounds if the Keystone is Allocated,如果泣血创伤核心天赋有被分配则也适用
 Do you have a Totem summoned?,你有召唤图腾?
 "You will automatically be considered to have a Totem if your main skill is a Totem,","如果你的主技能是图腾技能将自动被视为有召唤图腾,"
 Have you Summoned a Totem Recently?,你近期内有召唤图腾?
@@ -521,12 +535,15 @@ Summoned Golem in past 10 Seconds?,过去10秒内召唤了魔像?
 # of Nearby Allies:,附近的友军数:
 # of Nearby Corpses:,附近的灵枢数:
 # of Summoned Minions:,召唤物数:
+# of non-vaal skill Summoned Minions:,非瓦尔技能召唤物数:
 Are you on Consecrated Ground?,你在【奉献地面】上?
 "In addition to allowing any 'while on Consecrated Ground' modifiers to apply,","启用时 '你在【奉献地面】上' 之类的修正生效,"
 Consecrated Ground grants 5% Life Regeneration to players and allies.,^xFFFFFF【奉献地面】使在上面的玩家和友军获得每秒6%^xE05030生命^7回复。
+Are you on Profane Ground?,你在【渎神地面】上?
+Minion on Profane Ground?,召唤物在【渎神地面】上?
 Are you on Caustic Ground?,你在【腐蚀地面】上?
 Are you on Fungal Ground?,你在【真菌地表】上?
-Allies on your Fungal Ground gain +25% ^xD02090Chaos ^7Resistance.,^xFFFFFF【真菌地表】上的友军获得+25%^xD02090混沌^7抗性。
+Allies on your Fungal Ground gain +25% Chaos Resistance.,^xFFFFFF【真菌地表】上的友军获得+25%^xD02090混沌^7抗性。
 Are you on Burning Ground?,^xFFFFFF你在【^xB97123燃烧^7地面】上?
 This also implies that you are Burning.,^xFFFFFF这也意味着你在^xB97123燃烧^7。
 Are you on Chilled Ground?,^xFFFFFF你在【^x3F6DB3冰缓^7地面】上?
@@ -559,6 +576,7 @@ Have you Crit Recently?,你近期有造成暴击?
 This also implies that your Skills have Crit Recently.,这也意味着你的技能近期有暴击。
 Have your Skills Crit Recently?,你的技能近期有暴击?
 Have your Herald Skills Crit Recently?,你的捷技能近期有暴击?
+# of times your Attacks have Crit Recently:,你近期攻击暴击次数:
 Lost a Non-Vaal Guard Skill buff recently?,你近期失去了一个非瓦尔技能的增益?
 Have you dealt a Non-Crit Recently?,你近期有造成非暴击?
 Are you Channelling?,你在持续吟唱?
@@ -592,6 +610,8 @@ Have you Shattered an enemy Recently?,^xFFFFFF你近期有^x3F6DB3【粉碎】^7
 Have you Ignited an enemy Recently?,^xFFFFFF你近期有^xB97123【点燃】^7敌人?
 Have you Shocked an enemy Recently?,^xFFFFFF你近期有^xADAA47【感电】^7敌人?
 Have you Stunned an enemy Recently?,你近期有击晕敌人?
+Have you been Stunned Recently?,你近期有被击晕?
+Have you Poisoned an enemy Recently?,^7你近期有使敌人^x60A060【中毒】^7?
 # of Poisons applied Recently:,近期施加【中毒】层数:
 # of Life spent Recently:,近期^xE05030生命^7消耗量:
 # of Mana spent Recently:,近期^x7070FF魔力^7消耗量:
@@ -695,6 +715,7 @@ Blocked a Hit from a Unique enemy in the past 10s?,你过去 10 秒内有格挡�
 Number of times you've Blocked in the past 10s,过去10秒内你格挡的次数
 Impaled an enemy recently?,近期有【穿刺】敌人?
 # of Impales on enemy (if not maximum):,敌人身上的【穿刺】层数(如果不是最大值):
+Have you caused Bleeding Recently?,^7你近期有造成^xE05030【流血】^7?
 # of Bleeds on enemy (if not maximum):,敌人身上的【流血】层数(如果不是最大值):
 Sets current number of Bleeds on the enemy if using the Crimson Dance keystone.,如果使用玫红之舞钥石天赋，设置敌人当前流血的层数。
 This also implies that the enemy is Bleeding.,这也意味着敌人在【流血】。
@@ -724,7 +745,7 @@ Custom PvP Damage multiplier percent:,Custom PvP Damage multiplier percent:
 "This multiplies the damage of a given skill in pvp, for instance any with damage multiplier specific to pvp (from skill or support or item like sire of shards)","This multiplies the damage of a given skill in pvp, for instance any with damage multiplier specific to pvp (from skill or support or item like sire of shards)"
 Have Acceleration Shrine?,你有【迅速神龛】？
 This will enable the Acceleration Shrine buff.,这将启用【迅速神龛】增益。
-	15% increased Action Speed,	行动速度加快 15%
+	50% increased Action Speed,	行动速度加快 50%
 	80% increased Projectile Speed,	投射物速度加快 80%
 Have Brutal Shrine?,你有【狂击神龛】？
 This will enable the Brutal Shrine buff.,这将启用【狂击神龛】增益。
@@ -746,6 +767,18 @@ Have Gloom Shrine?,你有【隐忍神龛】？
 This will enable the Gloom Shrine buff.,这将启用【隐忍神龛】增益。
 	Gain 10% of Non-Chaos Damage as extra Chaos Damage,	^7获得额外^xD02090混沌^7伤害，其数值等同于非^xD02090混沌^7伤害的 10%
 "	Enemies you Kill have a 40% chance to Explode, dealing a quarter of their maximum Life as Chaos Damage","	^7你击败的敌人有 40% 的几率爆炸，造成等同该敌人最大^xE05030生命^7四分之一的^xD02090混沌^7伤害"
+Have Greater Freezing Shrine?,你有【高等霜寒神龛】？
+This will enable the Greater Freezing Shrine buff.,这将启用【高等霜寒神龛】增益。
+	Gain 30% of Physical Damage as Extra Cold Damage,	^7获得额外^x3F6DB3冰霜^7伤害，其数值等同于物理伤害的 30%
+	Ice Novas happen around you,	冰霜新星环绕着你
+Have Greater Shocking Shrine?,你有【高等感电神龛】？
+This will enable the Greater Shocking Shrine buff.,这将启用【高等感电神龛】增益。
+	Gain 30% of Physical Damage as Extra Lightning Damage,	^7获得额外^xADAA47闪电^7伤害，其数值等同于物理伤害的 30%
+	Shock Novas happen around you,	闪电新星环绕着你
+Have Greater Skeletal Shrine?,你有【高等魔侍神龛】？
+This will enable the Greater Skeletal Shrine buff.,这将启用【高等魔侍神龛】增益。
+	Gain 30% of Physical Damage as Extra Chaos Damage,	^7获得额外^xD02090混沌^7伤害，其数值等同于物理伤害的 30%
+	Skeletons are summoned to you,	为你召唤魔侍
 Have Impenetrable Shrine?,你有【无畏神龛】？
 This will enable the Impenetrable Shrine buff.,这将启用【无畏神龛】增益。
 	100% increased Armour,	护甲提高 100%
@@ -758,7 +791,7 @@ This will enable the Massive Shrine buff.,这将启用【威猛神龛】增益�
 	40% increased maximum Life,	^xE05030生命^7上限提高 40%
 Have Replenishing Shrine?,你有【回复神龛】？
 This will enable the Replenishing Shrine buff.,这将启用【回复神龛】增益。
-	10% of Mana Regenerated per second,	^7每秒再生 10% ^x7070FF魔力^7
+	200% increased Mana Regeneration Rate,	^x7070FF魔力^7再生率提高200%
 	6.7% of Life Regenerated per second,	^7每秒再生 6.7% ^xE05030生命^7
 Have Resistance Shrine?,你有【抗性神龛】？
 This will enable the Resistance Shrine buff.,这将启用【抗性神龛】增益。
@@ -784,7 +817,7 @@ This will enable the Lesser Massive Shrine buff.,这将启用【次级威猛神�
 	20% increased maximum Life,	^xE05030生命^7上限提高 20%
 Have Lesser Replenishing Shrine?,你有【次级回复神龛】？
 This will enable the Lesser Replenishing Shrine buff.,这将启用【次级回复神龛】增益。
-	3.3% of Mana Regenerated per second,	^7每秒再生 3.3% ^x7070FF魔力^7
+	100% increased Mana Regeneration Rate,	^x7070FF魔力^7再生率提高100%
 	3.3% of Life Regenerated per second,	^7每秒再生 3.3% ^xE05030生命^7
 Have Lesser Resistance Shrine?,你有【次级抗性神龛】？
 This will enable the Lesser Resistance Shrine buff.,这将启用【次级抗性神龛】增益。
@@ -819,8 +852,9 @@ Cap to Single Bleed on enemy?,设置敌人只能拥有单层流血?
 "Rupture applies 25% more bleed damage and 25% faster bleeds for 3 seconds, up to 3 stacks","每一层残破会令目标所受流血伤害总增25%、流血生效速度提高25%，一个目标最多可受到3层残破"
 Is the enemy Poisoned?,敌人是否【中毒】?
 # of Poison on enemy:,敌人【中毒】层数:
-Cap to Single Poison on enemy?,只对敌人造成单层中毒?
-"This is for low tolerance, but will limit you to only applying a single poison on the enemy","此针对低容忍度，但会限制你只能对敌人造成一层中毒"
+Is the enemy non-Poisoned?,敌人还没【中毒】?
+"This is for low tolerance, but will limit you to only applying poison a single time","此针对低容忍度，但会限制你只能对敌人造成一层中毒"
+(Note that you can still apply multiple stacks via 'inflict additional poison' mods),^8(注意，你仍可以通过“施加额外中毒”等修正来造成多次中毒堆叠效果。)^7
 #% of Curse Expired on enemy:,敌人身上诅咒持续时间削减%:
 Curse Duration Expired on enemy:,敌人身上诅咒结束前存在时间:
 # of Withered Stacks:,【凋零】层数:
@@ -904,6 +938,13 @@ Is the enemy Intimidated?,敌人是否被【威吓】?
 Intimidated enemies take 10% increased Attack Damage.,被【威吓】的敌人承受的攻击伤害提高10%。
 Is the enemy Crushed?,敌人是否被【碾压】?
 Crushed enemies have 15% reduced Physical Damage Reduction.,被【碾压】的敌人的物理减伤减少15%。
+Is enemy affected by Hallowing Flame?,敌人是否被施加【崇敬烈焰】?
+Hallowing Flame stacks,【崇敬烈焰】层数
+Amount of Hallowing Flame stacks applied to the enemy.,敌人被施加【崇敬烈焰】的层数
+Hallowing Flames removed by an ally recently,【崇敬烈焰】近期被友军移除
+Amount of Hallowing Flame stacks removed from enemies by allies recently.,近期友军移除【崇敬烈焰】的层数。
+Inc. magnitude of Hallowing Flame stacks,【崇敬烈焰】效果强度叠加量
+The magnitude of Hallowing Flame stacks applied to the enemy,对敌人施加的【崇敬烈焰】效果的强度值
 Is the enemy near you Linked target?,敌人是否靠近你的羁绊对象?
 Is the enemy Unnerved?,敌人是否被【恐惧】?
 Unnerved enemies take 10% increased Spell Damage.,被【恐惧】的敌人承受的法术伤害提高10%。
@@ -941,9 +982,11 @@ Enemy hit you with Cold Damage?,^7敌人以^x3F6DB3冰霜^7伤害击中了你?
 This option sets whether or not the enemy has hit you with Cold Damage in the last 4 seconds.,^7此选项设置敌人是否在过去4秒内以^x3F6DB3冰霜^7伤害击中了你。
 Enemy hit you with Light. Damage?,^7敌人以^xADAA47闪电^7伤害击中了你?
 This option sets whether or not the enemy has hit you with Lightning Damage in the last 4 seconds.,^7此选项设置敌人是否在过去4秒内以^xADAA47闪电^7伤害击中了你。
-
-
-
+# of Mania Stacks,狂热叠层
+Mania Stacks apply:,狂热叠层施加:
+	4% inc Damage Taken per stack,	每层使承受伤害提高 4%
+	2% reduced Action Speed per stack,	每层使行动速度降低 2%
+	10% reduced Life ^7and ^x88FFFFEnergy Shield ^7Recovery Rate per stack,	^7每层使^xE05030生命^7和^x88FFFF能量护盾^7再生率降低 10%
 Enemy Stats,敌人数据
 Enemy Level:,敌人等级:
 This overrides the default enemy level used to estimate your hit and evade chance.,^xFFFFFF此设置决定会影响你的命中和^x33FF77闪避^7几率估算的敌人等级。
@@ -1043,3 +1086,49 @@ Enemy Skill Chaos Damage:,敌人技能^xD02090混沌^7伤害:
 
 
 Custom Modifiers,自定义修正
+
+Are you Sprinting?,你是否在冲刺?
+Are you surrounded?,你是否被包围?
+You are surrounded if there are at least 5 Enemies within 3 metres of you,"如果你周围 3 米范围内至少有 5 名敌人,则你被视为被包围"
+Do you have Quicksand Hourglass?,你是否拥有流沙沙漏?
+this will enable the Quicksand Hourglass buff itself,这将使时空法师的升华天赋流沙沙漏的增益效果自行启用
+# of Tailwind Stacks:,流顺之风(锐眼)层数:
+Are you out of Life Flask uses?,你的生命药水使用完了吗?
+Do you have a Charm active?,你是否有一个护符处于激活状态?
+This is automatically enable if you have a charm active.,如果你有一个护符处于激活状态，这将自动启用
+Is a Companion in your Presence?,你存在范围内是否有同伴?
+# of Minions in your Presence:,你存在范围内的召唤物数量:
+Have you been Stunned Recently?,你近期是否被眩晕过?
+Infusion consumed recently?,近期是否消耗过灌注?
+Are you in dodge roll?,你是否处于翻滚闪避状态?
+Do your hits always Heavy Stun?,你的击中是否总是造成沉重眩晕?
+Reserved Darkness:,保留的黑暗值(夏乌拉侍僧):
+Elemental Resistance penalty:,元素抗性惩罚:
+Cooldown calculation mode:,冷却时间计算模式:
+"Controls how the cooldown for skills is calculated:",控制技能冷却时间的计算方式:
+"	Base: The cooldown is calculated with normal behavior.",    基础模式:冷却时间按照正常行为计算.
+"	Average: The cooldown is adjusted to reflect the average time between uses, factoring in effects such as a chance to not consume a cooldown.",    平均模式:冷却时间被调整为技能使用间隔的平均时间，并考虑概率不消耗冷却时间等效果.
+Disable EHP gain on block/suppress:,禁用格挡/压制时的生命值获取
+Sets the EHP calc to not apply gain on block and suppress effects,有效生命值的计算不再考虑格挡和压制时的获取
+Distance to enemy:,与敌人的距离:
+# different Ammo Types Shot past 10s,过去10秒内射出的不同弹药类型数量
+# different Grenade Types Shot past 10s,过去10秒内射出的不同榴弹类型数量
+Is the Bleed Aggravated?,该流血是否已被恶化加剧?
+Is enemy Armour Broken?,敌人是否被破甲?
+# of Broken Armour on enemy (if not maximum):,敌人被破坏的护甲:
+"Use this field to set a custom Armour Break value.",设置自定义的护甲破坏值
+"If left empty or set to 0, Fully Broken Armour will be assumed.",如果留空或设置为0,将假定护甲已被完全破坏
+"Armour cannot be broken below 0 unless stated otherwise.",除非另有说明,否则护甲不能被击破至0以下
+Is the enemy Dazed?,敌人是否被目眩?
+Is the enemy Pinned?,敌人是否被钉身?
+Is the enemy Immobilised?,敌人是否被禁锢?
+Is the enemy Heavy Stunned?,敌人是否被沉重眩晕?
+Is the enemy Critically Weak,敌人是否有暴击弱点?
+Critically weakness stacks:,暴击弱点层数:
+Does enemy have Open Weakness?,敌人是否有暴露弱点(亚马逊)？
+Enemy Open Weakness Presence?,存在范围内是否有带有暴露弱点(亚马逊)的敌人?
+# of Bleeds on enemy (if not average):,敌人身上的流血层数:
+# of incision Stacks:,敌人身上的切割层数:
+# of Poisons on enemy (if not average):,敌人身上的中毒层数:
+Quest Rewards,剧情章节奖励
+Endgame (-60%),终局(-60%)

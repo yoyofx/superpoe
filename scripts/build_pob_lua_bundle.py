@@ -8,8 +8,9 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SOURCE = ROOT / "sources" / "src"
-DEFAULT_RUNTIME = ROOT / "sources" / "runtime" / "lua"
+LOCK_PATH = ROOT / "pob-runtime.lock.json"
+DEFAULT_SOURCE = ROOT / "upstreams" / "PathOfBuilding-PoE2" / "src"
+DEFAULT_RUNTIME = ROOT / "upstreams" / "PathOfBuilding-PoE2" / "runtime" / "lua"
 DEFAULT_OUT = ROOT / "public" / "pob-lua"
 
 INCLUDE_DIRS = [
@@ -25,6 +26,23 @@ INCLUDE_FILES = [
     "HeadlessWrapper.lua",
     "Launch.lua",
 ]
+
+BROWSER_SOURCE_PATCHES = {
+    "Classes/TradeHelpers.lua": [
+        (
+            ':gsub("{.-} to {.-}", string.format("(%s to %s)", numberPattern, numberPattern))',
+            ':gsub("{.-} to {.-}", function()\n'
+            '\t\t\t\treturn string.format("(%s to %s)", numberPattern, numberPattern)\n'
+            '\t\t\tend)',
+        ),
+        (
+            '"%%%+%?(%%%-%?" .. numberPattern .. ")")',
+            'function()\n'
+            '\t\t\t\t\treturn "%%%+%?(%%%-%?" .. numberPattern .. ")"\n'
+            '\t\t\t\tend)',
+        ),
+    ],
+}
 
 
 def sha256(path: Path) -> str:
@@ -60,12 +78,27 @@ def copy_bundle(source: Path, runtime: Path, out: Path) -> dict:
         raise SystemExit(f"Missing source directory: {source}")
     out.mkdir(parents=True, exist_ok=True)
 
-    entries = []
+    lock = json.loads(LOCK_PATH.read_text(encoding="utf-8"))
+    runtime_manifest = out / "manifest.xml"
+    runtime_manifest.write_text(
+        f'<PoBVersion><Version number="{lock["pob"]["version"]}"/></PoBVersion>\n',
+        encoding="utf-8",
+        newline="\n",
+    )
+    entries = [{
+        "path": "manifest.xml",
+        "hash": sha256(runtime_manifest),
+        "size": runtime_manifest.stat().st_size,
+    }]
     for src in iter_lua_files(source):
         rel = src.relative_to(source).as_posix()
         dst = out / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
+        if not dst.exists() or sha256(src) != sha256(dst):
+            try:
+                shutil.copy2(src, dst)
+            except OSError as error:
+                raise SystemExit(f"Failed to copy Lua source {rel}: {error}") from error
         entries.append({
             "path": rel,
             "hash": sha256(dst),
@@ -75,17 +108,39 @@ def copy_bundle(source: Path, runtime: Path, out: Path) -> dict:
         rel = src.relative_to(runtime).as_posix()
         dst = out / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
+        if not dst.exists() or sha256(src) != sha256(dst):
+            try:
+                shutil.copy2(src, dst)
+            except OSError as error:
+                raise SystemExit(f"Failed to copy Lua runtime {rel}: {error}") from error
         entries.append({
             "path": rel,
             "hash": sha256(dst),
             "size": dst.stat().st_size,
         })
 
+    from verify_pob_runtime import source_tree_hash
+
+    source_count, actual_source_hash = source_tree_hash(source)
+    expected_source_hash = lock["pob"]["sourceTreeHash"]
+    if actual_source_hash != expected_source_hash:
+        raise SystemExit(
+            "PoB source does not match the pinned commit: "
+            f"expected {expected_source_hash}, got {actual_source_hash}"
+        )
+
     manifest = {
         "version": "0_5",
-        "source": "sources/src",
-        "runtime": "sources/runtime/lua",
+        "pob": {
+            "repository": lock["pob"]["repository"],
+            "commit": lock["pob"]["commit"],
+            "version": lock["pob"]["version"],
+            "sourceTreeHash": actual_source_hash,
+            "sourceFileCount": source_count,
+        },
+        "source": "upstreams/PathOfBuilding-PoE2/src",
+        "runtime": "upstreams/PathOfBuilding-PoE2/runtime/lua",
+        "browserPatches": sorted(BROWSER_SOURCE_PATCHES),
         "fileCount": len(entries),
         "totalBytes": sum(entry["size"] for entry in entries),
         "files": sorted(entries, key=lambda entry: entry["path"].lower()),

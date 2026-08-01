@@ -1,28 +1,135 @@
 {
-  "name": "pob2-web-tree",
+  "name": "superpoe2",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.5.1",
+  "superpoe": {
+    "gameVersion": "0.5.0",
+    "revision": 2
+  },
   "type": "module",
+  "main": "dist-electron/electron/main.js",
   "scripts": {
-    "dev": "vite",
+    "dev": "npm run dev:electron",
+    "dev:renderer": "vite",
     "dev:server": "tsx server/index.ts",
+    "build:electron:main": "tsc -p tsconfig.electron.json && esbuild electron/marketPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/electron/marketPreload.cjs && esbuild electron/opportunityPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/electron/opportunityPreload.cjs",
+    "dev:electron:main": "npm run build:electron:main && wait-on http://127.0.0.1:3000 && electron .",
+    "dev:electron": "concurrently -k \"npm run dev:renderer\" \"cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:3000 npm run dev:electron:main\"",
+    "build:electron": "cross-env ELECTRON_BUILD=true npm run build && npm run build:electron:main",
+    "dist:electron": "npm run prepare:native:lua && npm run build:electron && electron-builder",
+    "icons:build": "python scripts/build_app_icons.py",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test:server": "vitest run",
     "test:client-calc": "vitest run --config vitest.client.config.ts",
+    "test:ci": "vitest run --config vitest.client.config.ts --exclude src/engine/pobLuaRuntime.test.ts",
     "test:lua": "cd scripts/spec && busted .",
     "pipeline:tree": "python scripts/gen_tree_data.py 0_4",
+    "pipeline:planner": "python scripts/sync_build_planner_passives.py",
     "pipeline:orbit": "python scripts/copy_orbit_png.py",
     "pipeline:ui": "python scripts/copy_ui_assets.py",
+    "pipeline:workbench-ui": "python scripts/sync_wegame_ui_assets.py",
     "pipeline:connectors": "python scripts/dds_to_webp.py --connectors-only",
     "pipeline:dds": "python scripts/dds_to_webp.py",
     "pipeline:check": "python scripts/check_pipeline_deps.py",
     "pipeline:lua": "python scripts/build_pob_lua_bundle.py",
+    "verify:lua": "python scripts/verify_pob_runtime.py",
+    "verify:lua:upstream": "python scripts/verify_pob_runtime.py --verify-upstream",
+    "native:lua": "node scripts/build_luajit_sidecar.mjs",
+    "prepare:native:lua": "node scripts/ensure_luajit_sidecar.mjs && npm run test:native:lua",
+    "test:native:lua": "node scripts/test_luajit_sidecar.mjs",
+    "pipeline:translations": "python scripts/sync_poecharm_translations.py",
+    "pipeline:items": "python scripts/sync_poe2db_item_icons.py",
+    "pipeline:skills": "python scripts/sync_poe2db_item_icons.py --skills-only",
+    "pipeline:skill-catalog": "python scripts/build_skill_catalog.py && node scripts/build_support_effects.mjs",
+    "pipeline:support-effects": "node scripts/build_support_effects.mjs",
+    "pipeline:manifest": "python scripts/build_resource_manifest.py",
+    "pipeline:rune-details": "python scripts/build_rune_details.py",
+    "pipeline:item-bases": "python scripts/build_item_base_data.py",
     "pipeline:all": "node scripts/run_pipeline_all.mjs"
+  },
+  "build": {
+    "appId": "com.yoyofx.superpoe",
+    "productName": "SuperPoE2",
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "extraResources": [
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
+      },
+      {
+        "from": "public/pob-lua",
+        "to": "pob-lua"
+      },
+      {
+        "from": "native/pob-lua-runner.lua",
+        "to": "pob-lua-sidecar/pob-lua-runner.lua"
+      }
+    ],
+    "win": {
+      "icon": "icon.ico",
+      "extraResources": [
+        {
+          "from": "build/icon.ico",
+          "to": "icon.ico"
+        },
+        {
+          "from": "native/bin/win32-x64",
+          "to": "pob-lua-runtime/win32-x64"
+        }
+      ],
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "mac": {
+      "icon": "icon.png",
+      "extraResources": [
+        {
+          "from": "native/bin/darwin-arm64",
+          "to": "pob-lua-runtime/darwin-arm64"
+        }
+      ],
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "category": "public.app-category.games",
+      "identity": null
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    }
   },
   "dependencies": {
     "fast-xml-parser": "^5.8.0",
     "fastify": "^5.8.5",
+    "koffi": "^2.15.1",
+    "lucide-react": "^0.468.0",
     "pako": "^2.1.0",
     "pixi.js": "^8.18.1",
     "react": "^18.3.1",
@@ -36,11 +143,16 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.4",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^10.0.3",
+    "cross-env": "^10.1.0",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
     "postcss": "^8.4.49",
     "tailwindcss": "^3.4.16",
     "tsx": "^4.22.3",
     "typescript": "~5.6.3",
     "vite": "^6.0.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.7",
+    "wait-on": "^9.0.10"
   }
 }

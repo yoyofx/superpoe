@@ -4,7 +4,7 @@
 
 PoB2 does NOT use a 3D engine (no DirectX 3D, OpenGL 3D, Vulkan, or Unity/Unreal).
 The rendering is handled by **SimpleGraphic.dll** ¡ª a **custom 2D graphics host** written in C++,
-described in `sources/docs/rundown.md` as a compiled library alongside lua51, lcurl, and lzip.
+described in `upstreams/PathOfBuilding-PoE2/docs/rundown.md` as a compiled library alongside lua51, lcurl, and lzip.
 
 SimpleGraphic provides a minimal **2D sprite renderer** with exactly these capabilities:
 - Texture loading (PNG/TGA/DDS) via `NewImageHandle()` ¡ú `Load()`

@@ -11,7 +11,7 @@ const __dirname = dirname(__filename)
 const LUAJIT =
   process.env.LUAJIT_PATH ||
   'C:\\Users\\yoyofx\\AppData\\Local\\Programs\\LuaJIT\\bin\\luajit.exe'
-const SRC_DIR = join(__dirname, '..', 'sources', 'src')
+const SRC_DIR = join(__dirname, '..', 'upstreams', 'PathOfBuilding-PoE2', 'src')
 const CALC_SCRIPT = join(__dirname, '..', 'scripts', 'headless_calcs.lua')
 const LUA_PATH = '../runtime/lua/?.lua;../runtime/lua/?/init.lua;;'
 const LUA_CPATH = '../runtime/?.dll;../runtime/lua/?.dll;;'

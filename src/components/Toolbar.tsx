@@ -1,297 +1,285 @@
-import { useCallback, useEffect, useState } from 'react'
-import { DEFAULT_ZOOM, FALLBACK_TREE_VERSIONS, loadTreeVersions, MAX_ZOOM, MIN_ZOOM, useTreeStore } from '@/store/treeStore'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import {
+  CircleHelp,
+  BellRing,
+  Download,
+  ArrowLeft,
+  LockKeyhole,
+  MoreVertical,
+  Redo2,
+  Save,
+  Search,
+  Settings,
+  Sparkles,
+  Store,
+  Swords,
+  Undo2,
+  Upload,
+  Workflow,
+  ZoomIn,
+  ZoomOut,
+} from 'lucide-react'
 import { ExportPanel } from '@/components/ExportPanel'
-import { ImportPanel } from '@/components/ImportPanel'
-import { SaveLoadPanel } from '@/components/SaveLoadPanel'
+import { FallbackImage } from '@/components/FallbackImage'
+import { getBuildCharacterLevel } from '@/engine/buildCode'
+import { getTreeAssetUrl, loadTreeAssetIndex } from '@/engine/treeAssetIndex'
+import type { SpriteIndex } from '@/engine/spriteLoader'
+import { translateGameText } from '@/i18n/translationLoader'
+import { useTranslation } from '@/i18n/useTranslation'
+import { buildRealmLabel } from '@/engine/buildRealm'
+import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
+import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
+import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketMonitoringSnapshot } from '@/types/market'
+import {
+  DEFAULT_ZOOM,
+  MAX_ZOOM,
+  MIN_ZOOM,
+  useTreeStore,
+} from '@/store/treeStore'
 
-type ToolbarMenu = 'export' | 'import' | 'builds' | null
+export type WorkspaceView = 'passive' | 'equipment' | 'skills'
+type ToolbarMenu = 'export' | null
 
-/**
- * Toolbar - top toolbar with search and zoom controls
- */
-export function Toolbar() {
-  const zoom = useTreeStore((s) => s.zoom)
-  const treeVersion = useTreeStore((s) => s.treeVersion)
-  const selectedClassId = useTreeStore((s) => s.selectedClassId)
-  const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
-  const searchQuery = useTreeStore((s) => s.searchQuery)
-  const searchMatchIds = useTreeStore((s) => s.searchMatchIds)
-  const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
-  const calcLoading = useTreeStore((s) => s.calcLoading)
-  const setZoom = useTreeStore((s) => s.setZoom)
-  const selectClass = useTreeStore((s) => s.selectClass)
-  const selectAscendancy = useTreeStore((s) => s.selectAscendancy)
-  const weaponSetMode = useTreeStore((s) => s.weaponSetMode)
-  const treeEditMode = useTreeStore((s) => s.treeEditMode)
-  const setTreeEditMode = useTreeStore((s) => s.setTreeEditMode)
-  const setWeaponSetMode = useTreeStore((s) => s.setWeaponSetMode)
-  const setSearchQuery = useTreeStore((s) => s.setSearchQuery)
-  const setTreeVersion = useTreeStore((s) => s.setTreeVersion)
-  const runCalculation = useTreeStore((s) => s.runCalculation)
-  const treeData = useTreeStore((s) => s.treeData)
+interface ToolbarProps {
+  activeView: WorkspaceView
+  onViewChange: (view: WorkspaceView) => void
+  onTradeCenter: () => void
+  monitoring?: MarketMonitoringSnapshot | null
+  buildName: string
+  buildSourceUrl?: string | null
+  onBuildNameChange: (name: string) => void
+  saveStatus: 'saved' | 'dirty' | 'saving' | 'error'
+  onHome: () => void
+  onImport: () => void
+  onSave: () => void
+  onSettings: () => void
+}
 
-  const [versions, setVersions] = useState<string[]>(FALLBACK_TREE_VERSIONS)
+const VIEW_ICONS = {
+  equipment: Swords,
+  passive: Workflow,
+  skills: Sparkles,
+}
+
+const VIEW_ORDER: WorkspaceView[] = ['equipment', 'skills', 'passive']
+
+export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onImport, onSave, onSettings }: ToolbarProps) {
+  const { t, lang } = useTranslation()
+  const zoom = useTreeStore((state) => state.zoom)
+  const treeVersion = useTreeStore((state) => state.treeVersion)
+  const selectedClassId = useTreeStore((state) => state.selectedClassId)
+  const selectedAscendancyId = useTreeStore((state) => state.selectedAscendancyId)
+  const searchQuery = useTreeStore((state) => state.searchQuery)
+  const searchMatchCount = useTreeStore((state) => state.searchMatchCount)
+  const allocatedNodes = useTreeStore((state) => state.allocatedNodes)
+  const treeEditMode = useTreeStore((state) => state.treeEditMode)
+  const weaponSetMode = useTreeStore((state) => state.weaponSetMode)
+  const undoStack = useTreeStore((state) => state.undoStack)
+  const redoStack = useTreeStore((state) => state.redoStack)
+  const treeData = useTreeStore((state) => state.treeData)
+  const buildRealm = useTreeStore((state) => state.buildRealm)
+  const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
+  const setZoom = useTreeStore((state) => state.setZoom)
+  const setBuildRealm = useTreeStore((state) => state.setBuildRealm)
+  const selectClass = useTreeStore((state) => state.selectClass)
+  const selectAscendancy = useTreeStore((state) => state.selectAscendancy)
+  const setTreeEditMode = useTreeStore((state) => state.setTreeEditMode)
+  const setWeaponSetMode = useTreeStore((state) => state.setWeaponSetMode)
+  const setSearchQuery = useTreeStore((state) => state.setSearchQuery)
+  const performSearch = useTreeStore((state) => state.performSearch)
+  const undo = useTreeStore((state) => state.undo)
+  const redo = useTreeStore((state) => state.redo)
+
   const [activeMenu, setActiveMenu] = useState<ToolbarMenu>(null)
 
+  const [assetIndex, setAssetIndex] = useState<SpriteIndex>({})
+
   useEffect(() => {
-    loadTreeVersions().then(setVersions).catch(() => setVersions(FALLBACK_TREE_VERSIONS))
-  }, [])
+    let active = true
+    setAssetIndex({})
+    void loadTreeAssetIndex(treeVersion).then((index) => {
+      if (active) setAssetIndex(index)
+    })
+    return () => { active = false }
+  }, [treeVersion])
 
-  const classes = treeData?.constants?.classes
-  const classEntries = classes ? Object.entries(classes) : []
-  const currentClass = classes?.[selectedClassId]
+  useEffect(() => {
+    const timer = window.setTimeout(() => performSearch(searchQuery), 180)
+    return () => window.clearTimeout(timer)
+  }, [performSearch, searchQuery])
+
+  const classEntries = Object.entries(treeData?.constants?.classes || {})
+  const currentClass = treeData?.constants?.classes?.[selectedClassId]
   const ascendancies = currentClass?.ascendancies || []
-
-  const handleZoomIn = useCallback(() => {
-    setZoom(Math.min(MAX_ZOOM, zoom * 1.3))
-  }, [zoom, setZoom])
-
-  const handleZoomOut = useCallback(() => {
-    setZoom(Math.max(MIN_ZOOM, zoom / 1.3))
-  }, [zoom, setZoom])
-
-  const handleZoomReset = useCallback(() => {
-    if (!treeData) return
-    const c = treeData.constants
-    const cx = (c.min_x + c.max_x) / 2
-    const cy = (c.min_y + c.max_y) / 2
-    useTreeStore.setState({ zoom: DEFAULT_ZOOM, offsetX: -cx, offsetY: -cy })
-  }, [treeData])
+  const currentAscendancy = ascendancies.find((asc) => (asc.id || asc.name) === selectedAscendancyId)
+  const className = currentClass ? translateGameText(currentClass.displayName || currentClass.name, lang) : 'Character'
+  const ascendancyName = currentAscendancy
+    ? translateGameText(currentAscendancy.displayName || currentAscendancy.name, lang)
+    : ''
+  const characterImageUrl = getTreeAssetUrl(
+    assetIndex,
+    currentAscendancy?.background?.image || currentClass?.background?.image,
+  )
+  const characterLevel = useMemo(() => {
+    if (!importedBuildCode) return '1'
+    return String(getBuildCharacterLevel(importedBuildCode) || '--')
+  }, [importedBuildCode])
+  const viewLabels = useMemo(() => lang === 'zh-rCN'
+    ? { passive: '天赋', equipment: '装备', skills: '技能' }
+    : { passive: 'Passive', equipment: 'Equipment', skills: 'Skills' }, [lang])
+  const saveLabels = lang === 'zh-rCN'
+    ? { saved: '已保存', dirty: '有未保存修改', saving: '正在保存', error: '保存失败' }
+    : { saved: 'Saved', dirty: 'Unsaved changes', saving: 'Saving', error: 'Save failed' }
 
   const handleZoomFit = useCallback(() => {
     if (!treeData) return
-    const c = treeData.constants
-    const treeW = c.max_x - c.min_x
-    const treeH = c.max_y - c.min_y
-    const viewportW = window.innerWidth
-    const viewportH = window.innerHeight
-    const fitZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(viewportW / treeW, viewportH / treeH) * 0.94))
+    const constants = treeData.constants
+    const treeWidth = constants.max_x - constants.min_x
+    const treeHeight = constants.max_y - constants.min_y
+    const viewportWidth = Math.max(1, window.innerWidth - 520)
+    const viewportHeight = Math.max(1, window.innerHeight - 94)
+    const fitZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.min(viewportWidth / treeWidth, viewportHeight / treeHeight) * 0.94))
     useTreeStore.setState({
       zoom: fitZoom,
-      offsetX: -(c.min_x + c.max_x) / 2,
-      offsetY: -(c.min_y + c.max_y) / 2,
+      offsetX: -(constants.min_x + constants.max_x) / 2,
+      offsetY: -(constants.min_y + constants.max_y) / 2,
     })
   }, [treeData])
 
-  const zoomPct = Math.round(zoom * 100)
-  const toggleMenu = useCallback((menu: Exclude<ToolbarMenu, null>) => {
-    setActiveMenu((current) => current === menu ? null : menu)
-  }, [])
+  const resetZoom = useCallback(() => {
+    if (!treeData) return
+    const constants = treeData.constants
+    useTreeStore.setState({
+      zoom: DEFAULT_ZOOM,
+      offsetX: -(constants.min_x + constants.max_x) / 2,
+      offsetY: -(constants.min_y + constants.max_y) / 2,
+    })
+  }, [treeData])
 
-  const menuButtonClass = (menu: Exclude<ToolbarMenu, null>) => (
-    `px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors ${
-      activeMenu === menu
-        ? 'bg-blue-700 text-white border-blue-500'
-        : 'bg-gray-800 hover:bg-gray-700 text-gray-300 border-gray-600'
-    }`
-  )
+  const toggleMenu = (menu: Exclude<ToolbarMenu, null>) => {
+    setActiveMenu((current) => current === menu ? null : menu)
+  }
+  const armedCount = monitoring?.purchaseTargets.filter((target) => target.status === 'armed').length || 0
+  const pendingCount = monitoring?.targets.reduce((total, target) => total + target.pendingOpportunityCount, 0) || 0
+  const isActivelyMonitoring = armedCount > 0 && !monitoring?.globalPaused
 
   return (
-    <div className="absolute top-3 left-1/2 -translate-x-1/2 z-40">
-      <div className="flex items-center gap-2 bg-gray-900/90 border border-gray-700
-                      rounded-lg px-3 py-2 shadow-lg">
-      {/* Search */}
-      <div className="relative">
-        <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-gray-500"
-             fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-        </svg>
-        <input
-          type="text"
-          placeholder="Search nodes..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-40 bg-gray-800 text-sm text-white rounded-md pl-8 pr-3 py-1.5
-                     border border-gray-600 focus:border-blue-500 focus:outline-none
-                     placeholder-gray-500"
-        />
-        {searchQuery && (
-          <span className="absolute right-2 top-1/2 -translate-y-1/2 text-[10px] text-gray-500">
-            {searchMatchIds.length}
-          </span>
-        )}
-      </div>
-
-      {/* Divider */}
-      <div className="w-px h-5 bg-gray-700" />
-
-      {/* Version selector */}
-      <select
-        value={treeVersion}
-        onChange={(e) => setTreeVersion(e.target.value)}
-        className="bg-gray-800 text-xs text-gray-300 rounded-md px-2 py-1.5
-                   border border-gray-600 focus:border-blue-500 focus:outline-none
-                   cursor-pointer"
-        title="Tree version"
-      >
-        {versions.map((v) => (
-          <option key={v} value={v}>{v.replace('_', '.')}</option>
-        ))}
-      </select>
-
-      {/* Class selector */}
-      <select
-        value={selectedClassId}
-        onChange={(e) => selectClass(e.target.value)}
-        className="bg-gray-800 text-xs text-gray-300 rounded-md px-2 py-1.5
-                   border border-gray-600 focus:border-blue-500 focus:outline-none
-                   cursor-pointer"
-        title="Select class"
-      >
-        {classEntries.map(([id, cls]) => (
-          <option key={id} value={id}>{cls.name}</option>
-        ))}
-      </select>
-
-      {/* Ascendancy selector */}
-      {ascendancies.length > 0 && (
-        <select
-          value={selectedAscendancyId}
-          onChange={(e) => selectAscendancy(e.target.value)}
-          className="bg-gray-800 text-xs text-gray-300 rounded-md px-2 py-1.5
-                     border border-gray-600 focus:border-blue-500 focus:outline-none
-                     cursor-pointer"
-          title="Select ascendancy"
-        >
-          {ascendancies.map((asc: {id?: string, name: string}) => (
-            <option key={asc.id || asc.name} value={asc.id || asc.name}>{asc.name}</option>
-          ))}
-        </select>
-      )}
-
-      {/* Tree edit and weapon set mode */}
-      <div className={`flex items-center gap-0.5 rounded-md border overflow-hidden ${
-        treeEditMode ? 'bg-gray-800 border-amber-500/70' : 'bg-gray-900 border-gray-600'
-      }`} title="Passive tree edit mode and weapon set">
-        <button onClick={() => setTreeEditMode(!treeEditMode)}
-          className={`px-2 py-1 text-[10px] font-semibold transition-colors ${
-            treeEditMode ? 'bg-amber-600 text-white' : 'bg-gray-800 text-gray-400 hover:text-gray-200'
-          }`}>Edit</button>
-        <button onClick={() => setWeaponSetMode(0)}
-          disabled={!treeEditMode}
-          className={`px-2 py-1 text-[10px] font-medium transition-colors ${
-            weaponSetMode===0 && treeEditMode ? 'bg-amber-700 text-white' : 'text-gray-400 hover:text-gray-200 disabled:text-gray-600 disabled:hover:text-gray-600'
-          }`}>Both</button>
-        <button onClick={() => setWeaponSetMode(1)}
-          disabled={!treeEditMode}
-          className={`px-2 py-1 text-[10px] font-medium transition-colors ${
-            weaponSetMode===1 && treeEditMode ? 'bg-red-700 text-white' : 'text-gray-400 hover:text-gray-200 disabled:text-gray-600 disabled:hover:text-gray-600'
-          }`}>Set1</button>
-        <button onClick={() => setWeaponSetMode(2)}
-          disabled={!treeEditMode}
-          className={`px-2 py-1 text-[10px] font-medium transition-colors ${
-            weaponSetMode===2 && treeEditMode ? 'bg-green-700 text-white' : 'text-gray-400 hover:text-gray-200 disabled:text-gray-600 disabled:hover:text-gray-600'
-          }`}>Set2</button>
-      </div>
-
-      {/* Divider */}
-      <div className="w-px h-5 bg-gray-700" />
-
-      {/* Menus */}
-      <button
-        onClick={() => toggleMenu('export')}
-        className={menuButtonClass('export')}
-        title="Export PoB2 build code"
-      >
-        Export
-      </button>
-      <button
-        onClick={() => toggleMenu('import')}
-        className={menuButtonClass('import')}
-        title="Import PoB2 build code"
-      >
-        Import
-      </button>
-      <button
-        onClick={() => toggleMenu('builds')}
-        className={menuButtonClass('builds')}
-        title="Save and load builds"
-      >
-        Builds
-      </button>
-
-      {/* Divider */}
-      <div className="w-px h-5 bg-gray-700" />
-
-      {/* Calculate button */}
-      <button
-        onClick={runCalculation}
-        disabled={allocatedNodes.size === 0 || calcLoading}
-        className={`flex items-center gap-1 px-2.5 py-1.5 rounded-md text-xs font-medium
-                    border transition-colors
-                    ${allocatedNodes.size === 0
-                      ? 'bg-gray-800 text-gray-600 border-gray-700 cursor-not-allowed'
-                      : 'bg-amber-700 hover:bg-amber-600 text-amber-100 border-amber-600'
-                    }`}
-        title={allocatedNodes.size === 0 ? 'Allocate nodes to calculate' : 'Calculate build stats'}
-      >
-        {calcLoading ? (
-          <svg className="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        ) : (
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                  d="M13 10V3L4 14h7v7l9-11h-7z" />
-          </svg>
-        )}
-        Calc
-      </button>
-
-      {/* Divider */}
-      <div className="w-px h-5 bg-gray-700" />
-
-      {/* Zoom controls */}
-      <button
-        onClick={handleZoomOut}
-        className="w-7 h-7 flex items-center justify-center rounded-md
-                   bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-bold
-                   border border-gray-600 transition-colors"
-        title="Zoom out"
-      >
-        -
-      </button>
-
-      <button
-        onClick={handleZoomReset}
-        className="text-xs text-gray-400 min-w-[42px] text-center
-                   hover:text-white transition-colors font-mono"
-        title="Reset zoom"
-      >
-        {zoomPct}%
-      </button>
-
-      <button
-        onClick={handleZoomFit}
-        className="px-2 h-7 flex items-center justify-center rounded-md
-                   bg-gray-800 hover:bg-gray-700 text-gray-300 text-[10px] font-semibold
-                   border border-gray-600 transition-colors"
-        title="Fit whole passive tree"
-      >
-        Fit
-      </button>
-
-      <button
-        onClick={handleZoomIn}
-        className="w-7 h-7 flex items-center justify-center rounded-md
-                   bg-gray-800 hover:bg-gray-700 text-gray-300 text-sm font-bold
-                   border border-gray-600 transition-colors"
-        title="Zoom in"
-      >
-        +
-      </button>
-      </div>
-
-      {activeMenu && (
-        <div className="absolute top-full left-1/2 -translate-x-1/2 mt-2">
-          {activeMenu === 'export' && <ExportPanel embedded />}
-          {activeMenu === 'import' && <ImportPanel embedded />}
-          {activeMenu === 'builds' && <SaveLoadPanel embedded />}
+    <header className="workbench-header">
+      <div className="app-command-bar">
+        <div className="app-brand" aria-label={SUPERPOE_NAME}>
+          <img className="app-brand-logo" src="/assets/ui/superpoe2-logo.png" alt="" />
+          <span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span>
         </div>
-      )}
-    </div>
+
+        <div className="current-build">
+          <button className="icon-command compact back-command" onClick={onHome} title={lang === 'zh-rCN' ? '返回构筑中心' : 'Back to build center'} aria-label={lang === 'zh-rCN' ? '返回构筑中心' : 'Back to build center'}><ArrowLeft /></button>
+          <span className="current-build-profile">
+            <span className="class-emblem">
+              <FallbackImage src={characterImageUrl || undefined} alt="" decoding="async" fallback={className.slice(0, 1)} />
+            </span>
+            <span className="current-build-copy">
+              <input
+                className="current-build-name"
+                value={buildName}
+                maxLength={80}
+                onChange={(event) => onBuildNameChange(event.target.value)}
+                onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+                aria-label={lang === 'zh-rCN' ? '构筑名称' : 'Build name'}
+                title={lang === 'zh-rCN' ? '修改构筑名称' : 'Rename build'}
+              />
+              <small>Lv.{characterLevel} · {className}{ascendancyName ? ` · ${ascendancyName}` : ''}</small>
+            </span>
+            <span className="character-summary-tooltip" role="tooltip">
+              <strong>{lang === 'zh-rCN' ? '人物基本信息' : 'Character details'}</strong>
+              <span><i>{lang === 'zh-rCN' ? '等级' : 'Level'}</i><b>{characterLevel}</b></span>
+              <span><i>{lang === 'zh-rCN' ? '职业' : 'Class'}</i><b>{className}</b></span>
+              <span><i>{lang === 'zh-rCN' ? '升华' : 'Ascendancy'}</i><b>{ascendancyName || (lang === 'zh-rCN' ? '未选择' : 'Not selected')}</b></span>
+              <span><i>{lang === 'zh-rCN' ? '服务器' : 'Realm'}</i><b>{buildRealmLabel(buildRealm, lang === 'zh-rCN')}</b></span>
+              <span><i>{lang === 'zh-rCN' ? '天赋版本' : 'Tree version'}</i><b>{treeVersion.replace('_', '.')}</b></span>
+              <span><i>{lang === 'zh-rCN' ? '已分配天赋' : 'Allocated passives'}</i><b>{allocatedNodes.size}</b></span>
+            </span>
+          </span>
+          <select
+            className={`build-realm-select ${buildRealm}`}
+            value={buildRealm}
+            onChange={(event) => setBuildRealm(event.target.value as 'cn' | 'global')}
+            aria-label={lang === 'zh-rCN' ? '游戏服务器' : 'Game realm'}
+            title={lang === 'zh-rCN' ? '修改当前构筑的游戏服务器' : 'Change this build realm'}
+          >
+            <option value="cn">{lang === 'zh-rCN' ? '腾讯服' : 'Tencent CN'}</option>
+            <option value="global">{lang === 'zh-rCN' ? '国际服' : 'Global'}</option>
+          </select>
+          <span className={`save-state ${saveStatus}`}><i />{saveLabels[saveStatus]}</span>
+        </div>
+
+        <div className="command-actions">
+          <span className="version-indicator" title={lang === 'zh-rCN' ? '构筑版本已确定' : 'Build version is fixed'} aria-label={`${t('toolbar.version')} ${treeVersion.replace('_', '.')}`}>
+            <LockKeyhole />
+            <span>{treeVersion.replace('_', '.')}</span>
+          </span>
+          <button className="icon-command" onClick={onImport} title={t('toolbar.importTitle')} aria-label={t('toolbar.importTitle')}><Upload /></button>
+          <button className="icon-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')} aria-label={t('toolbar.exportTitle')}><Download /></button>
+          <button className="primary-command" onClick={onSave}><Save />{lang === 'zh-rCN' ? '保存' : 'Save'}</button>
+          <GameRuntimeIndicator />
+          <button className="icon-command" onClick={onSettings} title={lang === 'zh-rCN' ? '全局设置' : 'Global settings'} aria-label={lang === 'zh-rCN' ? '全局设置' : 'Global settings'}><Settings /></button>
+          <button className="icon-command" title={lang === 'zh-rCN' ? '更多操作' : 'More'} aria-label={lang === 'zh-rCN' ? '更多操作' : 'More'}><MoreVertical /></button>
+        </div>
+      </div>
+
+      <div className="workspace-tabs-bar">
+        <nav className="workspace-tabs" aria-label={lang === 'zh-rCN' ? '构筑编辑页面' : 'Build workspace'}>
+          {VIEW_ORDER.map((view) => {
+            const Icon = VIEW_ICONS[view]
+            const count = view === 'passive' ? allocatedNodes.size : null
+            return (
+              <button key={view} className={activeView === view ? 'active' : ''} onClick={() => onViewChange(view)} aria-label={viewLabels[view]} title={viewLabels[view]}>
+                <Icon /> <span>{viewLabels[view]}</span>{count != null && <small>{count}</small>}
+              </button>
+            )
+          })}
+          <i className="workspace-tabs-divider" aria-hidden="true" />
+          <button className={`workspace-global-entry monitoring-entry${isActivelyMonitoring ? ' is-monitoring' : ''}`} onClick={onTradeCenter} aria-label={lang === 'zh-rCN' ? '交易中心' : 'Trade Center'} title={lang === 'zh-rCN' ? '打开全局交易中心' : 'Open global Trade Center'}>
+            <Store /><span>{lang === 'zh-rCN' ? '交易中心' : 'Trade Center'}</span>{isActivelyMonitoring && <span className="monitoring-tab-icon" aria-hidden="true"><BellRing /></span>}{monitoring && <small className="monitoring-tab-count">{armedCount}/{MAX_ACTIVE_PURCHASE_TARGETS}</small>}{pendingCount > 0 && <small className="monitoring-tab-alert">{pendingCount}</small>}
+          </button>
+        </nav>
+
+        <div className="context-tools">
+          {activeView === 'passive' && <>
+            <label className="node-search">
+              <Search />
+              <input value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} onKeyDown={(event) => event.key === 'Enter' && performSearch(searchQuery)} placeholder={t('toolbar.search')} />
+              {searchQuery && <span>{searchMatchCount}</span>}
+            </label>
+            <select className="context-select" value={selectedClassId} onChange={(event) => selectClass(event.target.value)} aria-label={t('toolbar.class')}>
+              {classEntries.map(([id, cls]) => <option key={id} value={id}>{translateGameText(cls.displayName || cls.name, lang)}</option>)}
+            </select>
+            {ascendancies.length > 0 && <select className="context-select" value={selectedAscendancyId} onChange={(event) => selectAscendancy(event.target.value)} aria-label={t('toolbar.ascendancy')}>
+              {ascendancies.map((asc) => <option key={asc.id || asc.name} value={asc.id || asc.name}>{translateGameText(asc.displayName || asc.name, lang)}</option>)}
+            </select>}
+            <div className="mode-control" aria-label={t('toolbar.weaponSet')}>
+              <button className={treeEditMode ? 'active edit' : ''} onClick={() => setTreeEditMode(!treeEditMode)}>{t('toolbar.edit')}</button>
+              <button disabled={!treeEditMode} className={treeEditMode && weaponSetMode === 0 ? 'active' : ''} onClick={() => setWeaponSetMode(0)}>{t('toolbar.both')}</button>
+              <button disabled={!treeEditMode} className={treeEditMode && weaponSetMode === 1 ? 'active weapon-one' : ''} onClick={() => setWeaponSetMode(1)}>I</button>
+              <button disabled={!treeEditMode} className={treeEditMode && weaponSetMode === 2 ? 'active weapon-two' : ''} onClick={() => setWeaponSetMode(2)}>II</button>
+            </div>
+            <button className="icon-command compact" disabled={!undoStack.length} onClick={undo} title="Undo" aria-label="Undo"><Undo2 /></button>
+            <button className="icon-command compact" disabled={!redoStack.length} onClick={redo} title="Redo" aria-label="Redo"><Redo2 /></button>
+            <div className="zoom-control">
+              <button onClick={() => setZoom(Math.max(MIN_ZOOM, zoom / 1.3))} title={t('toolbar.zoomOut')} aria-label={t('toolbar.zoomOut')}><ZoomOut /></button>
+              <button onClick={resetZoom} title={t('toolbar.zoomReset')}>{Math.round(zoom * 100)}%</button>
+              <button onClick={handleZoomFit} title={t('toolbar.zoomFit')}>{t('toolbar.fit')}</button>
+              <button onClick={() => setZoom(Math.min(MAX_ZOOM, zoom * 1.3))} title={t('toolbar.zoomIn')} aria-label={t('toolbar.zoomIn')}><ZoomIn /></button>
+            </div>
+          </>}
+
+          <span className="toolbar-spacer" />
+          <button className="icon-command compact" title={lang === 'zh-rCN' ? '帮助' : 'Help'} aria-label={lang === 'zh-rCN' ? '帮助' : 'Help'}><CircleHelp /></button>
+        </div>
+      </div>
+
+      {activeMenu && <div className="command-popover">
+        {activeMenu === 'export' && <ExportPanel embedded buildName={buildName} sourceUrl={buildSourceUrl} />}
+      </div>}
+    </header>
   )
 }

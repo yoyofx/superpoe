@@ -40,20 +40,23 @@ Critical Hits ignore Enemy Monster Elemental Resistances
 Carnage Heart
 Amber Amulet
 Variant: Pre 0.4.0
+Variant: Pre 0.5.0
 Variant: Current
 Implicits: 1
 {tags:attribute}+(10-15) to Strength
 {tags:life}20% reduced maximum Life
 {tags:attribute}+(10-20) to all Attributes
 {tags:fire,cold,lightning}+(10-20)% to all Elemental Resistances
-{variant:1}100% increased amount of Life Leeched
-{variant:2}(100-200)% increased amount of Life Leeched
+{variant:1}{tags:life}100% increased amount of Life Leeched
+{variant:2,3}{tags:life}(100-200)% increased amount of Life Leeched
+{variant:3}(25-50)% increased Damage while Leeching
 ]],[[
 Choir of the Storm
 Jade Amulet
 Source: Drops from unique{Xesht, We That Are One} in normal{Twisted Domain}
 Variant: Pre 0.4.0
 Variant: Current
+Requires Level 55
 Implicits: 2
 Grants Skill: Level (1-20) Lightning Bolt
 {tags:attribute}+(10-15) to Dexterity
@@ -91,6 +94,18 @@ Implicits: 1
 {variant:1}{tags:defences}Gain (20-30)% of maximum Mana as Extra maximum Energy Shield
 {variant:2}{tags:defences}Gain (4-6)% of maximum Mana as Extra maximum Energy Shield
 ]],[[
+Eventide Petals
+Veridical Chain
+League: Runes of Aldur
+Requires Level 55
+Implicits: 2
+Grants Skill: Level (1-20) Midnight Zenith
++(30-40) to maximum Runic Ward
+(30-50)% increased Critical Hit Chance
+{tags:attribute}+(25-35) to Intelligence
+(30-50)% increased Light Radius
+Ice Crystals have (-3-3)% reduced maximum Life per 5% Cold Resistance you have
+]],[[
 Eye of Chayula
 Gold Amulet
 Variant: Pre 0.2.0
@@ -111,9 +126,9 @@ Implicits: 1
 +(10-15) to Spirit
 {variant:1}(10-20)% increased Rarity of Items found
 {variant:2}(10-15)% increased Rarity of Items found
+{tags:fire}+(1-4) to Level of all Fire Skills
 {tags:mana}(30-40)% increased Mana Regeneration Rate
 {tags:fire}Take 100 Fire Damage when you Ignite an Enemy
-{tags:fire}+(1-4) to Level of all Fire Skills
 ]],[[
 Fixation of Yix
 Stellar Amulet
@@ -128,8 +143,8 @@ Allies in your Presence have (30-50)% increased Critical Damage Bonus
 ]],[[
 Hinekora's Sight
 Stellar Amulet
-Requires Level 44
 League: Rise of the Abyssal
+Requires Level 44
 Implicits: 2
 Grants Skill: Level (1-20) Future-Past
 {tags:attribute}+(5-7) to all Attributes
@@ -155,6 +170,18 @@ Implicits: 1
 25% reduced Light Radius
 Life Recovery from Regeneration is not applied
 Every 4 seconds, Recover 1 Life for every 0.2 Life Recovery per second from Regeneration
+]],[[
+Immaculate Adherence
+Solar Amulet
+League: Runes of Aldur
+Implicits: 1
++(10-15) to Spirit
+{tags:life,mana}100% of Damage is taken from Mana before Life
+{tags:defences}Cannot have Energy Shield
+{tags:defences}Convert 100% of maximum Energy Shield to maximum Divinity
+(0-100)% increased maximum Divinity
+20% reduced maximum Divinity per Corrupted Item Equipped
+{tags:life,mana}Skills Cost Divinity instead of Mana or Life
 ]],[[
 Ligurium Talisman
 Lapis Amulet
@@ -227,6 +254,7 @@ Strugglescream
 Stellar Amulet
 Variant: Pre 0.4.0
 Variant: Current
+Requires Level 52
 Implicits: 1
 {tags:attribute}+(5-7) to all Attributes
 {variant:1}Can have 2 additional Instilled Modifiers
@@ -244,7 +272,7 @@ Implicits: 1
 {variant:1}100% increased Critical Hit Chance
 {variant:2}(100-200)% increased Critical Hit Chance
 +(60-100) to Stun Threshold
-Your Critical Hits do not deal extra Damage
+You have no Critical Damage Bonus
 ]],[[
 Xoph's Blood
 Amber Amulet
@@ -252,6 +280,7 @@ Variant: Pre 0.3.0
 Variant: Pre 0.4.0
 Variant: Current
 Source: Drops from unique{Xesht, We That Are One} in normal{Twisted Domain}
+Requires Level 52
 Implicits: 1
 {tags:attribute}+(10-15) to Strength
 {tags:life}(10-20)% increased maximum Life
@@ -269,12 +298,12 @@ Variant: Current
 Implicits: 1
 {tags:life}+(30-40) to maximum Life
 {tags:fire,cold,lightning}+(10-15)% to all Elemental Resistances
-(15-30)% increased Elemental Damage
+{tags:fire,cold,lightning}(15-30)% increased Elemental Damage
 {variant:1}Enemies take (5-10)% increased Damage for each Elemental Ailment type among
 {variant:1}your Ailments on them
 {variant:2}Enemies take (15-20)% increased Damage for each Elemental Ailment type among
 {variant:2}your Ailments on them
-{variant:1}(20-30)% reduced Duration of Ignite, Shock and Chill on Enemies
-{variant:2}(30-40)% reduced Duration of Ignite, Shock and Chill on Enemies
+{variant:1}{tags:fire,cold,lightning}(20-30)% reduced Duration of Ignite, Shock and Chill on Enemies
+{variant:2}{tags:fire,cold,lightning}(30-40)% reduced Duration of Ignite, Shock and Chill on Enemies
 ]],
 }

@@ -10,6 +10,7 @@ local m_max = math.max
 local s_format = string.format
 local t_insert = table.insert
 local tradeHelpers = LoadModule("Classes/TradeHelpers")
+local utils = LoadModule("Modules/Utils")
 
 -- string are an any type while tables require all fields to be matched with type and subType require both to be matched exactly. [1] type, [2] subType, subType is optional and must be nil if not present.
 local tradeCategoryNames = {
@@ -91,7 +92,9 @@ local function getStatEntries(modType)
 		["Corrupted"] = "enchant",
 		["AllocatesXEnchant"] = "enchant",
 		-- note that in the json the label is augment while the id is rune
-		["Rune"] = "rune"
+		["Rune"] = "rune",
+		["HeartOfTheWell"] = "explicit",
+		["AgainstTheDarkness"] = "explicit",
 	}
 	if tradeStatCategoryIndices[modType] then
 		for i, cat in ipairs(tradeStats) do
@@ -155,12 +158,13 @@ end
 
 function TradeQueryGeneratorClass.WeightedRatioOutputs(baseOutput, newOutput, statWeights)
 	local meanStatDiff = 0
+
 	local function ratioModSums(...)
 		local baseModSum = 0
 		local newModSum = 0
 		for _, mod in ipairs({ ... }) do
-			baseModSum = baseModSum + (baseOutput[mod] or 0)
-			newModSum = newModSum + (newOutput[mod] or 0)
+			baseModSum = baseModSum + data.powerStatList.GetFromOutput(baseOutput, mod, true)
+			newModSum = newModSum + data.powerStatList.GetFromOutput(newOutput, mod, true)
 		end
 
 		if baseModSum == math.huge then
@@ -174,10 +178,12 @@ function TradeQueryGeneratorClass.WeightedRatioOutputs(baseOutput, newOutput, st
 		end
 	end
 	for _, statTable in ipairs(statWeights) do
+		local modSumRatio
 		if statTable.stat == "FullDPS" and not (baseOutput["FullDPS"] and newOutput["FullDPS"]) then
-			meanStatDiff = meanStatDiff + ratioModSums("TotalDPS", "TotalDotDPS", "CombinedDPS") * statTable.weightMult
+			modSumRatio = ratioModSums({ stat = "TotalDPS" }, { stat = "TotalDotDPS" }, { stat = "CombinedDPS" })
+		else
+			modSumRatio = ratioModSums(statTable)
 		end
-		local modSumRatio = ratioModSums(statTable.stat)
 		-- some weights, such as damage taken from hit need to be negated as lower is better for them
 		if statTable.transform then
 			modSumRatio = statTable.transform(modSumRatio)
@@ -211,6 +217,11 @@ function TradeQueryGeneratorClass:ProcessMod(mod, itemCategoriesMask, itemCatego
 		end
 
 		local modType = (mod.type == "Prefix" or mod.type == "Suffix") and "Explicit" or mod.type == "SpecialCorrupted" and "Corrupted" or mod.type
+
+		if not modType then
+			ConPrintf("Unable to match mod due to missing mod type: %s", modLine)
+			goto continue
+		end
 
 		-- Special cases
 		local specialCaseData = { }
@@ -385,25 +396,17 @@ function TradeQueryGeneratorClass:InitMods()
 		error("Error received from api/trade2/data/stats: "..body.error.message)
 	end
 
-	local f = io.open("./Data/TradeSiteStats.lua", "w")
-	if not f then
-		error("Could not open file for writing trade stat data")
-	end
-
 	for catIdx, _ in ipairs(body.result) do
 		table.sort(body.result[catIdx].entries, function(a, b)
+			if a.text == b.text then
+				return a.id < b.id
+			end
 			return a.text < b.text
 		end)
 	end
 
-	local template = [[-- This file is automatically downloaded, do not edit!
--- Trade site stat data (c) Grinding Gear Games
--- https://www.pathofexile.com/api/trade2/data/stats
--- spell-checker: disable
-return %s
--- spell-checker: enable]]
-	f:write(s_format(template, stringify(body.result)))
-	f:close()
+	local description = "This file contains the trade site data from https://www.pathofexile.com/api/trade2/data/stats"
+	utils.saveTableToFile("./Data/TradeSiteStats.lua", body.result, description)
 
 	self.modData = {
 		["Explicit"] = { },
@@ -412,6 +415,8 @@ return %s
 		["Enchant"] = { },
 		["AllocatesXEnchant"] = { },
 		["Rune"] = { },
+		["HeartOfTheWell"] = { },
+		["AgainstTheDarkness"] = { },
 	}
 
 	-- create mask for regular mods
@@ -421,10 +426,42 @@ return %s
 	end
 
 	self:GenerateModData(data.itemMods.Item, regularItemMask)
+	self:GenerateModData(data.itemMods.Desecrated, regularItemMask)
 	self:GenerateModData(data.itemMods.Corruption, regularItemMask)
 	self:GenerateModData(data.itemMods.Jewel, { ["BaseJewel"] = true, ["AnyJewel"] = true, ["RadiusJewel"] = true })
 	self:GenerateModData(data.itemMods.Flask, { ["LifeFlask"] = true, ["ManaFlask"] = true })
 	self:GenerateModData(data.itemMods.Charm, { ["Charm"] = true })
+
+	-- add breach mods which lack proper weights. these mods spawn for either belts or rings, but
+	-- have weights of zero for ones they cannot spawn on
+	for name, mod in pairs(data.itemMods.Item) do
+		local treeMod = false
+		local slots = {Ring = true, Belt = true}
+		for i, v in ipairs(mod.weightKey) do
+			if v == "genesis_tree_minion" or v == "genesis_tree_caster" then
+				treeMod = true
+			end
+			if (v == "belt") and mod.weightVal[i] == 0 then
+				slots.Belt = nil
+			end
+			if (v == "ring") and mod.weightVal[i] == 0 then
+				slots.Ring = nil
+			end
+		end
+		if treeMod then
+			self:ProcessMod(mod, regularItemMask, slots)
+			goto continueBreach
+		end
+
+		-- there are also crafted mods which can be identified based on the name
+		if name:match("^GenesisTreeRing") then
+			self:ProcessMod(mod, regularItemMask, {Ring = true})
+		end
+		if name:match("^GenesisTreeBelt") then
+			self:ProcessMod(mod, regularItemMask, {Belt = true})
+		end
+		::continueBreach::
+	end
 
 	-- essences, because in item mod data they don't have equipment tags
 	for name, essence in pairs(data.essences) do
@@ -450,6 +487,30 @@ return %s
 			self.modData.AllocatesXEnchant[nodeId] = { tradeMod = entry, specialCaseData = { } }
 		end
 	end
+
+	-- heart of the well mods
+	local heartMods = {}
+	for name, mod in pairsSortByKey(data.itemMods.Desecrated) do
+		if name:match("^UniqueHeart") then
+			local modCopy = copyTable(mod)
+			modCopy.type = "HeartOfTheWell"
+			t_insert(heartMods, modCopy)
+		end
+	end
+	self:GenerateModData(heartMods, { ["BaseJewel"] = true, ["AnyJewel"] = true }, { ["AnyJewel"] = "AnyJewel" })
+
+	-- against the darkness mods
+	local darknessMods = {}
+	for name, mod in pairsSortByKey(data.itemMods.Exclusive) do
+		-- this name prefix is not very unique and already matches some mods that don't exist on the
+		-- jewel. this might cause problems later
+		if name:match("^UniqueJewelRadius") then
+			local modCopy = copyTable(mod)
+			modCopy.type = "AgainstTheDarkness"
+			t_insert(darknessMods, modCopy)
+		end
+	end
+	self:GenerateModData(darknessMods, { ["RadiusJewel"] = true, ["AnyJewel"] = true }, { ["AnyJewel"] = "AnyJewel" })
 
 	-- implicit mods
 	for baseName, entry in pairsSortByKey(data.itemBases) do
@@ -531,26 +592,46 @@ return %s
 					if next(matchedCategories) then
 						self:ProcessMod(mod, regularItemMask, matchedCategories)
 					else
-						ConPrintf("TradeQuery: Unmatched category for modifier. Slot type: %s Modifier: %s", mods.slotType, mods.name)
+						ConPrintf("TradeQuery: Unmatched category for modifier. Slot type: %s Modifier: %s Mod line: %s", mods.slotType, mods.name, modLine)
 					end
 				end
 			end
 		end
 	end
 
-	local queryModsFile = io.open(queryModFilePath, 'w')
-	queryModsFile:write([[-- This file is automatically generated, do not edit!
--- Stat data (c) Grinding Gear Games
+	-- 0.5 rune influence mods. e.g. can roll chronomancy modifiers
 
--- This file contains categories of stats, mapped from trade hash to details
--- relevant for generating search weights Note that the trade site requires a
--- prefix of e.g. explicit.stat_{hash}. See
--- https://www.pathofexile.com/api/trade2/data/stats for a list of all trade
--- site stats.
+	-- a map of slot to weight key which is on the mods
+	local runeInfluences = { Boots = { "chronomancy" }, Gloves = { "marksman", "decay" }, Helmets = { "berserking" }, Weapon = { "destruction" }, ["Body Armour"] = { "soul" } }
+	local function hasSpawnTag(mod, tag)
+		local idx = 1
+		while mod.weightKey[idx] do
+			if (mod.weightKey[idx] == tag) and (mod.weightVal[idx] > 0) then
+				return true
+			end
+			idx = idx + 1
+		end
+		return false
+	end
+	for slot, tags in pairsSortByKey(runeInfluences) do
+		for _, tag in ipairs(tags) do
+			local mods = {}
+			for _, mod in pairsSortByKey(data.itemMods.Item) do
+				if hasSpawnTag(mod, tag) then
+					t_insert(mods, mod)
+				end
+			end
+			local itemCategories = (slot == "Weapon") and ({ ["1HWeapon"] = true, ["2HWeapon"] = true, ["1HMace"] = true, ["Claw"] = true, ["Quarterstaff"] = true, ["Bow"] = true, ["2HMace"] = true, ["Crossbow"] = true, ["Spear"] = true, ["Flail"] = true, ["Talisman"] = true }) or { [slot] = true }
+			self:GenerateModData(mods, regularItemMask, itemCategories)
+		end
+	end
 
-]])
-	queryModsFile:write("return " .. stringify(self.modData))
-	queryModsFile:close()
+	local qmDescription = [[This file contains categories of stats, mapped from trade hash to details
+relevant for generating search weights Note that the trade site requires a
+prefix of e.g. explicit.stat_{hash}. See
+TradeSiteStats.lua for a list of all trade
+site stats.]]
+	utils.saveTableToFile(queryModFilePath, self.modData, qmDescription)
 end
 
 function TradeQueryGeneratorClass:GenerateModWeights(modsToTest)
@@ -713,6 +794,30 @@ function TradeQueryGeneratorClass:StartQuery(slot, options)
 				calcNodesInsteadOfMods = true,
 			}
 		end
+		if options.special.itemName == "Heart of the Well" then
+			special = {
+				queryFilters = {},
+				queryExtra = {
+					name = options.special.itemName,
+					type = "Diamond"
+				},
+				HeartOfTheWell = true
+			}
+			itemCategory = "AnyJewel"
+			itemCategoryQueryStr = "jewel"
+		end
+		if options.special.itemName == "Against the Darkness" then
+			special = {
+				queryFilters = {},
+				queryExtra = {
+					name = options.special.itemName,
+					type = "Time-Lost Diamond"
+				},
+				AgainstTheDarkness = true
+			}
+			itemCategory = "AnyJewel"
+			itemCategoryQueryStr = "jewel"
+		end
 	else
 		itemCategoryQueryStr, itemCategory = tradeHelpers.getTradeCategory(slot.slotName, existingItem)
 		if not itemCategory then
@@ -726,7 +831,7 @@ function TradeQueryGeneratorClass:StartQuery(slot, options)
 
 	-- Create a temp item for the slot with no mods
 	local itemRawStr = "Rarity: RARE\nStat Tester\n" .. testItemType
-	if options.jewelType == "Radius" then
+	if options.jewelType == "Radius" or (options.special and options.special.itemName) then
 		itemRawStr = [[Rarity: RARE
 Stat Tester
 Time-Lost Sapphire
@@ -755,6 +860,7 @@ Implicits: 0]]
 		calcFunc = calcFunc,
 		options = options,
 		slot = slot,
+		requiredMods = options.requiredMods,
 	}
 
 	-- OnFrame will pick this up and begin the work
@@ -769,6 +875,20 @@ end
 function TradeQueryGeneratorClass:ExecuteQuery()
 	if self.calcContext.special.calcNodesInsteadOfMods then
 		self:GeneratePassiveNodeWeights(self.modData.AllocatesXEnchant)
+		return
+	end
+	if self.calcContext.special.HeartOfTheWell then
+		self:GenerateModWeights(self.modData.HeartOfTheWell)
+		if self.calcContext.options.includeCorrupted then
+			self:GenerateModWeights(self.modData["Corrupted"])
+		end
+		return
+	end
+	if self.calcContext.special.AgainstTheDarkness then
+		self:GenerateModWeights(self.modData.AgainstTheDarkness)
+		if self.calcContext.options.includeCorrupted then
+			self:GenerateModWeights(self.modData["Corrupted"])
+		end
 		return
 	end
 
@@ -841,6 +961,7 @@ function TradeQueryGeneratorClass:FinishQuery()
 	local selectedTradeType = self.tradeTypes[self.tradeTypeIndex]
 	-- Generate trade query str and open in browser
 	local filters = 0
+	local requiredMods = self.calcContext.requiredMods or {}
 	local queryTable = {
 		query = {
 			filters = self.calcContext.special.queryFilters or {
@@ -857,6 +978,10 @@ function TradeQueryGeneratorClass:FinishQuery()
 					type = "weight",
 					value = { min = minWeight },
 					filters = { }
+				},
+				requiredMods and {
+					type = "and",
+					filters = {}
 				}
 			}
 		},
@@ -883,6 +1008,7 @@ function TradeQueryGeneratorClass:FinishQuery()
 	if options.sockets and options.sockets > 0 then
 		num_extra = num_extra + 1
 	end
+	num_extra = num_extra + #requiredMods
 
 	local effective_max = MAX_FILTERS - num_extra
 
@@ -907,6 +1033,10 @@ function TradeQueryGeneratorClass:FinishQuery()
 		if filters == effective_max then
 			break
 		end
+	end
+	for _, entry in ipairs(requiredMods) do
+		local filters = queryTable.query.stats[2].filters
+		t_insert(filters, { id = entry.tradeId, value = { min = entry.value } })
 	end
 	if not options.includeMirrored then
 		queryTable.query.filters.misc_filters = {
@@ -969,7 +1099,8 @@ function TradeQueryGeneratorClass:RequestQuery(slot, context, statWeights, callb
 
 	local controls = { }
 	local options = { }
-	local popupHeight = 110
+	local popupHeight = 80
+	local popupWidth = 400
 
 	local isJewelSlot = slot and slot.slotName:find("Jewel") ~= nil
 
@@ -1032,14 +1163,42 @@ Remove: anoints are completely ignored, and removed from items.]]
 		options.special = { itemName = context.slotTbl.slotName }
 	end
 
-
-	if isJewelSlot then
-		controls.jewelType = new("DropDownControl", {"TOPLEFT",lastItemAnchor,"BOTTOMLEFT"}, {0, 5, 100, 18}, { "Base", "Radius" }, function(index, value) end)
+	if context.slotTbl.slotName == "Megalomaniac" or context.slotTbl.slotName == "Heart of the Well" or context.slotTbl.slotName == "Against the Darkness" then
+		local activeSocketList = { }
+		for nodeId, jewelSlot in pairs(self.itemsTab.sockets) do
+			if not jewelSlot.inactive and not self.itemsTab.build.spec.nodes[nodeId].containJewelSocket then
+				t_insert(activeSocketList, jewelSlot)
+			end
+		end
+		table.sort(activeSocketList, function(a, b)
+			return a.label < b.label
+		end)
+		controls.jewelSlot = new("DropDownControl", {"TOPLEFT", lastItemAnchor, "BOTTOMLEFT"}, {0, 5, 100, 18}, activeSocketList, function(idx, value) end)
+		controls.jewelSlotLabel = new("LabelControl", {"RIGHT",controls.jewelSlot,"LEFT"}, {-5, 0, 0, 16}, "Jewel Slot:")
+		for index, jewelSlot in ipairs(activeSocketList) do
+			if jewelSlot.nodeId == context.slotTbl.selectedJewelNodeId then
+				controls.jewelSlot.selIndex = index
+				break
+			end
+		end
+		updateLastAnchor(controls.jewelSlot)
+	end
+	-- forward declarations for functions interacting with mod filter selectors
+	---@type fun(): table
+	local getModList
+	---@type fun(controls: any, modList: any)
+	local setModSelectors
+	-- jewel type selector
+	if isJewelSlot and not context.slotTbl.unique then
+		controls.jewelType = new("DropDownControl", { "TOPLEFT", lastItemAnchor, "BOTTOMLEFT" }, { 0, 5, 100, 18 }, { "Base", "Radius" }, function(index, value)
+			-- update mod list for selectors
+			local mods = getModList()
+			setModSelectors(controls, mods)
+		end)
 		controls.jewelType.selIndex = self.lastJewelType or 1
-		controls.jewelTypeLabel = new("LabelControl", {"RIGHT",controls.jewelType,"LEFT"}, {-5, 0, 0, 16}, "Jewel Type:")
+		controls.jewelTypeLabel = new("LabelControl", { "RIGHT", controls.jewelType, "LEFT" }, { -5, 0, 0, 16 }, "Jewel Type:")
 		updateLastAnchor(controls.jewelType)
 	end
-
 	-- Add max price limit selection dropbox
 	local currencyDropdownNames = { }
 	for _, currency in ipairs(currencyTable) do
@@ -1088,7 +1247,12 @@ Remove: anoints are completely ignored, and removed from items.]]
 	end
 	popupHeight = popupHeight + 4
 
+	local selectedMods = {}
 	controls.generateQuery = new("ButtonControl", { "BOTTOM", nil, "BOTTOM" }, {-45, -10, 80, 20}, "Execute", function()
+		local selectedJewelSlot = controls.jewelSlot and controls.jewelSlot:GetSelValue()
+		if controls.jewelSlot and not selectedJewelSlot then
+			return
+		end
 		main:ClosePopup()
 
 		self.tradeTypeIndex = context.controls.tradeTypeSelection.selIndex
@@ -1117,6 +1281,10 @@ Remove: anoints are completely ignored, and removed from items.]]
 			self.lastJewelType = controls.jewelType.selIndex
 			options.jewelType = controls.jewelType:GetSelValue()
 		end
+		if controls.jewelSlot then
+			slot = selectedJewelSlot
+			context.slotTbl.selectedJewelNodeId = slot.nodeId
+		end
 		if controls.maxPrice.buf then
 			options.maxPrice = tonumber(controls.maxPrice.buf)
 			self.lastMaxPrice = options.maxPrice
@@ -1131,12 +1299,136 @@ Remove: anoints are completely ignored, and removed from items.]]
 			options.sockets = tonumber(controls.sockets.buf)
 			self.lastSockets = options.sockets
 		end
+		if #selectedMods > 0 then
+			options.requiredMods = copyTable(selectedMods)
+		end
 		options.statWeights = statWeights
 
 		self:StartQuery(slot, options)
 	end)
+	controls.generateQuery.enabled = function()
+		return not controls.jewelSlot or controls.jewelSlot:GetSelValue() ~= nil
+	end
+	controls.generateQuery.tooltipText = controls.jewelSlot and "Requires an active Jewel Socket." or nil
 	controls.cancel = new("ButtonControl", { "BOTTOM", nil, "BOTTOM" }, {45, -10, 80, 20}, "Cancel", function()
 		main:ClosePopup()
 	end)
-	main:OpenPopup(400, popupHeight, "Query Options", controls)
+
+	if context.slotTbl.unique then
+		main:OpenPopup(popupWidth, popupHeight, "Query Options", controls)
+		return
+	end
+
+	local _, headerYPos = lastItemAnchor:GetPos()
+	-- intended width of the whole row, including dropdown and aux controls
+	local totalWidth = 340
+	-- size of min value input
+	local fieldWidth = 60
+	-- size of clear button
+	local buttonSize = 20
+	-- gap between controls
+	local xSpacing = 4
+	local auxControlWidth = buttonSize + fieldWidth + 2 * xSpacing
+
+	local _, lastItemY = lastItemAnchor:GetPos()
+	local _, lastItemH = lastItemAnchor:GetSize()
+	controls.modSelectorHeaderAnchor = new("Control", { "TOPLEFT", nil, "TOPLEFT" },
+		-- position right below last item, centered horizontally
+		{ (popupWidth - totalWidth) / 2, lastItemH + lastItemY, 0, 0 },
+		"")
+	updateLastAnchor(controls.modSelectorHeaderAnchor)
+	-- get mod selector list
+	getModList = function()
+		_, itemCategory = tradeHelpers.getTradeCategory(slot.slotName, slot and self.itemsTab.items[slot.selItemId])
+		-- add radius/base as they have different mods
+		if controls.jewelType then
+			itemCategory = controls.jewelType:GetSelValue() .. itemCategory
+		end
+		local mods = { { label = "^7+ Add Required Stat" } }
+		for _, modType in ipairs({ "Explicit", "Implicit", "Corrupted" }) do
+			for idStr, modData in pairs(self.modData[modType]) do
+				if modData[itemCategory] ~= nil then
+					local text = "^7" .. modData.tradeMod.text:gsub("(%a+) Passive Skills in Radius also grant ", "%1: ")
+					if modType ~= "Explicit" then
+						-- dim-ish red or the greenish yellow trade site uses for implicits slightly brightened
+						local colour = modType == "Corrupted" and "^x9E3E38" or "^x989654"
+						text = text .. string.format(" %s(%s)", colour, modType)
+					end
+					t_insert(mods, { label = text, tradeId = modData.tradeMod.id })
+				end
+			end
+		end
+		return mods
+	end
+	-- amount of mod selectors: technically we could have 40, but the more we have the fewer
+	-- stats fit in the weighted sum, and this means a static popup size is ok
+	local maxSelectors = 3
+	-- set mod selector dropdown labels, adjust width, and possibly change the mod list
+	setModSelectors = function(controls, modList)
+		-- reset selections
+		if modList then
+			selectedMods = {}
+		end
+		for i = 1, maxSelectors do
+			local mod = selectedMods[i]
+			local selector = controls["modSelector" .. i]
+			local minimumBox = controls["modSelectorMin" .. i]
+			if modList then
+				selector:SetList(modList)
+			end
+			if mod then
+				selector:SelByValue(mod.label, "label")
+				selector.width = totalWidth - auxControlWidth
+				minimumBox.buf = mod.value and tostring(mod.value) or ""
+			else
+				selector.selIndex = 1
+				selector.width = totalWidth
+			end
+			selector:CheckDroppedWidth(true)
+		end
+	end
+	-- mod filter dropdown and aux controls
+	for i = 1, maxSelectors do
+		-- dropdown which lists all mods that fit
+		local dropdown = new("DropDownControl", { "TOPLEFT", lastItemAnchor, "BOTTOMLEFT" },
+			{ 0, 4, totalWidth, 20 }, nil,
+			function(idx, val)
+				if idx == 1 then
+					table.remove(selectedMods, i)
+				else
+					selectedMods[i] = copyTable(val)
+				end
+				setModSelectors(controls)
+			end)
+		dropdown.shown = function()
+			return not not selectedMods[i - 1] or i == 1
+		end
+		updateLastAnchor(dropdown)
+		dropdown:SetList(mods)
+		controls["modSelector" .. i] = dropdown
+
+		-- box that sets minimum value for filter
+		local minimumBox = tradeHelpers.newPlainNumericEdit({ "LEFT", lastItemAnchor, "RIGHT" },
+			{ xSpacing, 0, fieldWidth, buttonSize }, "", "Min", 6, false, function(val)
+				selectedMods[i].value = tonumber(val)
+			end)
+		minimumBox.shown = function()
+			return not not selectedMods[i]
+		end
+		controls["modSelectorMin" .. i] = minimumBox
+
+		-- button which removes the mod row
+		local clearButton = new("ButtonControl", { "LEFT", minimumBox, "RIGHT" }, { xSpacing, 0, buttonSize, buttonSize },
+			"x", function()
+				table.remove(selectedMods, i)
+				setModSelectors(controls)
+			end)
+		clearButton.shown = function()
+			return not not selectedMods[i]
+		end
+		controls["modSelectorClear" .. i] = clearButton
+	end
+	setModSelectors(controls, getModList())
+
+	main:OpenPopup(popupWidth, popupHeight, "Query Options", controls)
 end

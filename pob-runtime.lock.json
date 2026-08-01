@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "pob": {
+    "repository": "https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2.git",
+    "commit": "99bc6e107fd36ae541b349fc36a44281cb371313",
+    "version": "0.23.0",
+    "sourceTreeHash": "4ea0780988efc5ce4e327ba742d727b6694f500db505b5d24b950ca67ad6b2d2"
+  },
+  "luajit": {
+    "repository": "https://github.com/LuaJIT/LuaJIT.git",
+    "commit": "a471ab78c7b670b4f92dae111fc3c96fb824c768",
+    "binaries": [
+      {
+        "platform": "win32",
+        "arch": "x64",
+        "path": "native/bin/win32-x64/luajit.exe",
+        "size": 27348,
+        "sha256": "ff1991045c7ce18c9657e1b02af5f0c10fc9424b9cd8cb55836ec19c749811b0"
+      },
+      {
+        "platform": "win32",
+        "arch": "x64",
+        "path": "native/bin/win32-x64/lua51.dll",
+        "size": 593581,
+        "sha256": "5a30571b91fdc149ed7ec8e7d2d2f08648aa08f0eef923d7af7d8fcbcd1ad8c3"
+      },
+      {
+        "platform": "darwin",
+        "arch": "arm64",
+        "path": "native/bin/darwin-arm64/luajit",
+        "size": 626104,
+        "sha256": "c652ce3d533f2897e0cac1e3670d03fae5757ab067ba1e27d90c27c47439588f"
+      }
+    ]
+  },
+  "protocolVersion": 1
+}

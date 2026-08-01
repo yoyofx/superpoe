@@ -23,7 +23,7 @@ npm run pipeline:dds         # Full DDS ¡ú WebP (icons + frames + effects)
 
 ### `gen_tree_data.py`
 
-Converts `sources/src/TreeData/{version}/tree.json` into `public/data/tree-web-{version}.json`.
+Converts `upstreams/PathOfBuilding-PoE2/src/TreeData/{version}/tree.json` into `public/data/tree-web-{version}.json`.
 
 **What it does:**
 - Computes Cartesian (x,y) coordinates from polar group+orbit system
@@ -42,7 +42,7 @@ python scripts/gen_tree_data.py 0_5          # new game version
 
 ### `copy_orbit_png.py`
 
-Copies orbit sprite PNGs from `sources/src/TreeData/{version}/` to `public/assets/orbit/{version}/`.
+Copies orbit sprite PNGs from `upstreams/PathOfBuilding-PoE2/src/TreeData/{version}/` to `public/assets/orbit/{version}/`.
 
 Orbit sprites are pre-rendered ring textures used as decorative backgrounds behind
 Notable/Keystone nodes.
@@ -55,7 +55,7 @@ python scripts/copy_orbit_png.py 0_5         # new version
 
 ### `copy_ui_assets.py`
 
-Copies UI-related PNGs from `sources/src/Assets/` to `public/assets/ui/`.
+Copies UI-related PNGs from `upstreams/PathOfBuilding-PoE2/src/Assets/` to `public/assets/ui/`.
 
 Includes ring.png, small_ring.png, ShadedOuterRing.png, etc.
 
@@ -88,7 +88,7 @@ python scripts/dds_to_webp.py --connectors-only  # Connector textures only
 
 ### `parse_ddscoords.py`
 
-Parses `sources/src/TreeData/{version}/tree.lua` to extract DDS sprite coordinates.
+Parses `upstreams/PathOfBuilding-PoE2/src/TreeData/{version}/tree.lua` to extract DDS sprite coordinates.
 
 **Usage:**
 ```bash
@@ -108,9 +108,9 @@ python scripts/extract_game_assets.py --game-dir <path_to_poe2>
 
 When GGG releases a new patch with updated tree data:
 
-1. Pull the latest `sources/` from the PoB2 community repo:
+1. Pull the latest `upstreams/PathOfBuilding-PoE2/` from the PoB2 community repo:
    ```bash
-   cd ../sources && git pull
+   git -C upstreams/PathOfBuilding-PoE2 pull
    ```
 
 2. Run the full pipeline for the new version:

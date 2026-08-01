@@ -112,6 +112,7 @@ Helmet,头部
 Quiver,箭袋
 Amulet,项链
 Belt,腰带
+Charm,护符
 Gem,技能宝石
 "Abyss Jewel",深渊珠宝
 Jewel,珠宝
@@ -163,6 +164,7 @@ Dagger,匕首
 "One Handed Sword",单手剑
 Sceptre,短杖
 Staff,长杖
+Spear,长矛
 "Thrusting One Handed Sword",细剑
 Wand,法杖
 "No league",非联盟
@@ -218,6 +220,7 @@ Boots:,鞋子:
 Amulet:,项链:
 Belt:,腰带:
 "Ring {0}","戒指 {0}"
+"Charm {0}",护符 {0}
 "Flask {0}","药剂 {0}"
 "Socket {0}","插槽 {0}"
 "{0} Dex","{0} 敏捷"
@@ -345,9 +348,3 @@ Phantasmal,魅影
 "Corruptor Eedaiak",腐化者艾达尔克
 "Sumter the Twisted",桑特
 "Ancient Architect",古代建筑师
-
-
-
-
-
-

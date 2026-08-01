@@ -1,0 +1,15 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "outDir": "dist-electron",
+    "rootDir": ".",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "types": ["node", "electron"]
+  },
+  "include": ["electron/**/*.ts", "src/types/market.ts", "src/types/currencyMarket.ts", "src/engine/currencyMarketAdapters.ts"],
+  "exclude": ["**/*.test.ts"]
+}

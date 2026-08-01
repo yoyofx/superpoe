@@ -680,7 +680,7 @@ class DDSPipeline:
 if __name__ == '__main__':
     import argparse
     ap = argparse.ArgumentParser(description='DDS to WebP Pipeline')
-    ap.add_argument('--tree-data', default='sources/src/TreeData/0_4',
+    ap.add_argument('--tree-data', default='upstreams/PathOfBuilding-PoE2/src/TreeData/0_4',
                     help='Path to TreeData directory (contains tree.lua + .dds.zst files)')
     ap.add_argument('--output', default='public/assets/dds',
                     help='Output directory for generated sprites')

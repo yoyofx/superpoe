@@ -8,7 +8,7 @@ const __dirname = dirname(__filename)
 
 // LuaJITÂ·¾¶ (À´×Ô headless-wrapper-validation.md)
 const LUAJIT = process.env.LUAJIT_PATH || 'C:\\Users\\yoyofx\\AppData\\Local\\Programs\\LuaJIT\\bin\\luajit.exe'
-const SRC_DIR = join(__dirname, '..', 'sources', 'src')
+const SRC_DIR = join(__dirname, '..', 'upstreams', 'PathOfBuilding-PoE2', 'src')
 const SCRIPT = join(__dirname, '..', 'scripts', 'validate_spec.lua')
 const LUA_PATH = '../runtime/lua/?.lua;../runtime/lua/?/init.lua;;'
 const LUA_CPATH = '../runtime/?.dll;../runtime/lua/?.dll;;'

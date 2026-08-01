@@ -5,10 +5,10 @@
 "Citrine Amulet",黄晶护身符
 "Ruby Amulet",血色护身符
 "Coral Amulet",珊瑚护身符
-"Amber Amulet",琥珀护身符
-"Jade Amulet",翠玉护身符
-"Lapis Amulet",海玉护身符
-"Gold Amulet",帝金护身符
+"Amber Amulet",琥珀项链
+"Jade Amulet",翠玉项链
+"Lapis Amulet",海玉项链
+"Gold Amulet",帝金项链
 "Onyx Amulet",黑曜护身符
 "Turquoise Amulet",青玉护身符
 "Agate Amulet",玛瑙护身符
@@ -347,17 +347,17 @@ Soulbound,灵魂绑定
 "Grattus Signet",盖拉图斯印戒
 "Nevalius Inheritance",涅瓦里乌斯的传承
 "The Tides of Time",时光浪潮
-"Crimson Amulet",赤红护身符
-"Azure Amulet",碧蓝护身符
-"Lunar Amulet",月影护身符
-"Bloodstone Amulet",血岩护身符
-"Stellar Amulet",星辉护身符
-"Solar Amulet",日曜护身符
+"Crimson Amulet",赤红项链
+"Azure Amulet",碧蓝项链
+"Lunar Amulet",月影项链
+"Bloodstone Amulet",血岩项链
+"Stellar Amulet",星辉项链
+"Solar Amulet",日曜项链
 "Pearlescent Amulet",珠光项链
-"Dusk Amulet",暮色护身符
-"Gloam Amulet",薄暮护身符
-"Penumbra Amulet",半影护身符
-"Tenebrous Amulet",暗黑护身符
+"Dusk Amulet",暮色项链
+"Gloam Amulet",薄暮项链
+"Penumbra Amulet",半影项链
+"Tenebrous Amulet",暗黑项链
 "Distorted Amulet",扭曲项链
 "Lazuli Ring",青金戒指
 "Emerald Ring",翡翠戒指
@@ -448,3 +448,36 @@ Bonemeld,骨融
 "Lost Unity",失落归一
 Woespike,灾厄棘刺
 "The Unseen Hue",未现之彩
+"Cord Belt",细线腰带
+"Khatal's Weeping",卡哈塔之哭
+"Khatal's Geyser",卡哈塔之泉
+"The Bandit Lord's Band",匪首之环
+"Replica Gifts from Above",神赐【仿品】
+"Saresh's Darkness",萨瑞斯的黑暗
+"Solerai's Radiance",索瑞的辉光
+"Screams of the Desiccated",枯萎尖叫
+"Veridical Chain",真相之链
+"Runemastered Veridical Chain",符文师匠真相之链
+"Lament Amulet",哀悼项链
+"Portent Amulet",预兆项链
+"Absent Amulet",失神项链
+"Corona Amulet",日冕项链
+"Twisted Amulet",畸变项链
+"Biostatic Ring",生息戒指
+"Vitalic Ring",活力戒指
+"Mnemonic Ring",记忆戒指
+"Kinetic Ring",动能戒指
+"Oneiric Ring",幻梦戒指
+"Grasping Ring",贪婪戒指
+"Refined Breach Ring",精炼裂隙戒指
+"Runemastered Heavy Belt",符文师匠重革腰带
+"Stalking Belt",追踪腰带
+"Invoking Belt",祈求腰带
+"Sinew Belt",肌力腰带
+"Forking Belt",分叉腰带
+"Immaculate Adherence",完美信条
+"Eventide Petals",黄昏花瓣
+Veilpiercer,破幕者
+"Safrin's Resolve",萨芙琳的决心
+"Eshtera's Path",埃斯特拉的道路
+"Zaida's Longevity",寨达的长寿

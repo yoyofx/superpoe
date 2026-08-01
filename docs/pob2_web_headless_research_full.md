@@ -1,4 +1,6 @@
-# PoB2 Web 化与 Headless 计算调研方案
+# PoB2 Web 化与 Headless 计算调研方案（历史研究）
+
+> 文档性质：历史研究记录，不代表当前实现。早期方案以 Fastify + LuaJIT 或浏览器 WASM 为主；当前 Electron 桌面版优先使用 LuaJIT sidecar，失败时回退 Wasmoon。请以 [`docs/pob-lua-runtime.md`](./pob-lua-runtime.md) 和 [`docs/ROADMAP.md`](./ROADMAP.md) 为准。
 
 ## 1. 背景
 
@@ -773,7 +775,7 @@ SimpleGraphic 的能力包括：纹理加载、纹理四边形绘制、自由四
 
 当前代码已按此方向调整：`gen_tree_data.py` 预计算 `connectors[]` 和 `targetSize`，并从 `public/assets/connectors/{version}/` 的 PNG 头读取 connector 贴图尺寸；`TreeCanvas.tsx` 优先使用连接线贴图 quad，移除了手画主连接线、orbit guide 和猜测式 group 背景；`connectorSprites.ts` 修正了预加载缓存 key、状态映射和原生 Orbit 到 PNG 后缀的非线性映射。
 
-`public/data/tree-web-0_4.json` 是 Web 端生成产物，不是原生游戏文件。原生输入仍然是 `sources/src/TreeData/0_4/tree.json` / `tree.lua` 和连接线 PNG；游戏更新后应重新跑 `python scripts/gen_tree_data.py 0_4`，不要手改生成后的 JSON。
+`public/data/tree-web-0_4.json` 是 Web 端生成产物，不是原生游戏文件。原生输入仍然是 `upstreams/PathOfBuilding-PoE2/src/TreeData/0_4/tree.json` / `tree.lua` 和连接线 PNG；游戏更新后应重新跑 `python scripts/gen_tree_data.py 0_4`，不要手改生成后的 JSON。
 
 当前升华显示采用运行时投影：外圈默认显示所有职业的升华背景图，当前选中的职业升华背景、节点和内部 connector 会投影到职业中心区域，投影半径受职业起始节点距离约束，避免中心升华盘越过职业起点。这个处理只影响 Canvas 绘制和 hover/click 命中，不改 `tree-web-0_4.json` 中的原始节点坐标，也不会复制节点数据。
 
@@ -783,7 +785,7 @@ SimpleGraphic 的能力包括：纹理加载、纹理四边形绘制、自由四
 
 天赋盘交互需要参考原版 `PassiveSpec.lua` 和 `PassiveTreeView.lua`，不能只做单节点 toggle。当前 Web 版按原版 allocMode 思路处理：职业起点和当前升华起点作为运行时隐式根参与寻路但不导出；点击未分配节点会补齐到根的最短有效路径；点击已分配节点会移除该节点并剪掉不再连到根的依赖分支。武器 1/2 使用 `nodeWeaponSets` 保存节点分配模式，并在连接线、节点 overlay、hover path preview 中使用原版 `NEGATIVE` / `POSITIVE` 色系。
 
-Tooltip 继续使用 React div 浮层，而不是 Canvas 文本绘制。视觉资源改为引用 `sources/src/Assets` 中的原版 passive header 三段图，`copy_ui_assets.py` 会复制 `normal/notable/keystone/ascendancy/jewel/oracle*passiveheader` 的 `left/middle/right` 文件到 `public/assets/ui`，再由 `NodeTooltip.tsx` 用三段背景拼出原版风格标题栏。
+Tooltip 继续使用 React div 浮层，而不是 Canvas 文本绘制。视觉资源改为引用 `upstreams/PathOfBuilding-PoE2/src/Assets` 中的原版 passive header 三段图，`copy_ui_assets.py` 会复制 `normal/notable/keystone/ascendancy/jewel/oracle*passiveheader` 的 `left/middle/right` 文件到 `public/assets/ui`，再由 `NodeTooltip.tsx` 用三段背景拼出原版风格标题栏。
 
 缩小时卡顿主要来自可见元素数量暴增和常驻 RAF 重绘。当前前端已改为按需单帧渲染：状态变化、资源加载和 resize 才调度 `scheduleRender()`；connector 绘制前做 viewport 裁剪；低 zoom 下 connector 使用简化线，节点跳过 frame/effect 等昂贵细节。交互命中仍基于完整 tree data，不因视觉降级丢失数据。
 
