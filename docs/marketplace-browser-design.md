@@ -1,12 +1,12 @@
 # SuperPoE2 集市浏览、页面增强与统一装备仓库设计
 
-> 状态：M0 应用侧与搜索收藏 O0 已实现；实时购买目标监控待实施，整体待真实站点 smoke test
-> 更新日期：2026-07-31
+> 状态：M0 应用侧、搜索收藏 O0 和实时购买目标监控 O0-O4 已实现；整体待真实站点 smoke test
+> 更新日期：2026-08-01
 > 适用项目：`D:\sources\superpoe`
 > 关联设计：[price-check-design.md](./price-check-design.md)
 > 订阅设计：[market-subscription-design.md](./market-subscription-design.md)
 
-> 实现说明：双区服 `WebContentsView`、隔离 market preload、官方 Fetch 校验、统一多来源仓库、侧栏/独立仓库界面、仓库官方搜索和搜索收藏 O0 已接入。公开会话无法越过腾讯登录与 Cloudflare，因此新版 listing DOM Adapter、官方搜索请求快照捕获和收藏恢复仍需在用户 Electron 登录分区中验收。
+> 实现说明：双区服 `WebContentsView`、隔离 market preload、官方 Fetch 校验、统一多来源仓库、侧栏/独立仓库界面、仓库官方搜索、搜索收藏和购买目标监控已接入。公开会话无法越过腾讯登录与 Cloudflare，因此新版 listing DOM Adapter、官方搜索请求快照、Live 重连和收藏恢复仍需在用户 Electron 登录分区中验收。
 
 ## 1. 结论
 

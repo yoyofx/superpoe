@@ -1,14 +1,18 @@
-# WASM Front-End PoB Migration Plan
+# WASM Front-End PoB Migration Plan (Historical Record)
+
+> 文档性质：历史迁移方案。本文记录早期“纯前端 WASM”方向的分析、决策和阶段计划，不代表当前产品架构或完成状态。
+> 当前桌面运行时：Electron 优先使用常驻 LuaJIT sidecar；原生运行时不可用时，renderer 回退到 Web Worker + Wasmoon。当前运行时契约见 [`pob-lua-runtime.md`](./pob-lua-runtime.md)。
 
 ## Summary
 
-This document tracks the plan to migrate PoB functionality to a pure front-end runtime.
+This document records the earlier plan to migrate PoB functionality to a pure front-end runtime.
 The target architecture is React + Web Worker + wasmoon Lua 5.4 WASM running the
 generated `public/pob-lua/` bundle, with no Fastify API dependency in product paths.
 
-The document is intentionally a living plan. It records the current implementation
-shape, locked decisions, phased migration work, validation strategy, and open
-decisions to refine before implementation tasks are split out.
+The document is retained as an architecture history and migration reference. Its
+implementation snapshot and phase statuses are historical; update the runtime
+contract and product status in `docs/pob-lua-runtime.md`, `docs/ROADMAP.md`, and
+`docs/TASKS.md` instead of treating this file as an active backlog.
 
 ## Current Implementation Analysis
 

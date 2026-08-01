@@ -1,11 +1,20 @@
 # SuperPoE2
 
-产品功能、当前完成度和后续里程碑见 [`docs/ROADMAP.md`](./docs/ROADMAP.md)。工程任务历史见 [`docs/TASKS.md`](./docs/TASKS.md)。
+SuperPoE2 是面向 Path of Exile 2 的 Electron 桌面构筑规划工具。它以 PoB2 数据和计算语义为基础，把天赋、装备、技能、配置和交易工作流集中到一个可离线使用的工作台中。
+
+当前主流程包括：
+
+- 导入、保存和导出 PoB2 Build Code，编辑天赋、武器组和属性节点，并保留原始 XML 信息。
+- 使用 PixiJS 渲染天赋树，支持缩放、搜索、路径分配、武器组和升华交互。
+- 展示装备基底面板、词缀来源、角色攻防汇总、武器 DPS，以及技能/辅助宝石的 DPS 和计算详情。
+- 使用本地 PoB2 Lua 运行时计算；桌面版优先使用常驻 LuaJIT sidecar，失败时回退到 Web Worker + Wasmoon。
+- 在交易中心内浏览官方集市、管理统一装备仓库、保存搜索、监控 Live 挂单并显示机会提醒。
+
+产品完成度和后续里程碑见 [`docs/ROADMAP.md`](./docs/ROADMAP.md)，当前任务看板见 [`docs/TASKS.md`](./docs/TASKS.md)。
 
 ## Electron 桌面版
 
-桌面版保留现有 React、PixiJS、Web Worker 和 WASM Lua 计算路径，不启动本地 HTTP API。
-Electron main process 仅负责受限的系统能力；当前包含 WeGame 分享导入：renderer 通过 preload IPC 请求 main process，main process 调用 PoE2DB 并返回完整 PoB code。
+桌面版是唯一产品入口，保留 React、PixiJS、Web Worker 和 Lua 计算路径，不依赖本地 HTTP API。Electron main process 负责窗口、文件、官方集市会话、游戏窗口识别和受限 IPC；WeGame 分享导入通过主进程请求 PoE2DB 后返回完整 PoB code。装备与技能编辑仍属于后续迭代，不应与当前只读分析能力混淆。
 
 开发运行：
 
@@ -38,15 +47,13 @@ electron-builder 默认把安装包写到仓库内 `release/`。可用 `package.
 
 首次安装依赖时，Electron 会下载与当前平台对应的 Chromium runtime。若下载被网络策略阻断，需要配置可访问 Electron 发布包的网络或镜像后重新执行 `npm install`。
 
-应用入口统一为 Electron 桌面窗口。Vite 仅作为开发期间的 renderer 服务，不再自动打开浏览器，也不提供独立浏览器产品入口。
+应用入口统一为 Electron 桌面窗口。Vite 仅作为开发期间的 renderer 服务，不会自动打开浏览器，也不提供独立浏览器产品入口。
 
 ## 渲染层
 
 前端天赋盘主渲染层已迁移到 PixiJS 8。PixiJS 是 WebGL/WebGPU 2D renderer，不是 Three.js 这类 3D 场景引擎；本项目仍按 PoB2 原生 2D 天赋盘数据绘制背景、节点、orbit 和 connector quad。
 
 当前实现保留 React、Zustand、tooltip、导入导出和资源生成管线，只替换原来的 Canvas 2D 绘制层。旧 `TreeCanvas` 组件暂时保留为 fallback/对照实现，默认入口使用 `TreePixiCanvas`。
-
-SuperPoE2 是一个基于 React + PixiJS/WebGL 2D 的 PoE2 离线构筑规划工具。项目使用 Path of Building 2 的天赋树数据，生成 Web 端可直接使用的数据和贴图资源，并提供天赋盘渲染、缩放/平移、节点交互、构筑导入导出和计算入口。
 
 导入/导出 PoB2 build code 已在前端完成，不需要 Fastify 后端。Electron 桌面端优先通过主进程启动仓库内预编译的原生 LuaJIT sidecar，并使用 JSON Lines 协议执行构筑计算和技能排名；Windows x64 与 macOS Apple Silicon runtime 均随应用打包。`public/pob-lua/` 是从 `upstreams/PathOfBuilding-PoE2/src` 生成并锁定的 Lua 文件包，同时供原生 sidecar 和浏览器兼容层使用。原生 runtime 缺失、启动失败或崩溃时，renderer 会回退到 Web Worker + wasmoon；装备语义检查目前仍使用 wasmoon。
 

@@ -3,7 +3,7 @@
 > 状态：PriceCheck 独立模块设计已定稿；共享 M0 交易基础可复用；M6 游戏内查价待开发
 > 更新日期：2026-08-01
 > 适用项目：`D:\sources\superpoe`
-> 目标平台：Electron 桌面端，首要支持 Windows
+> 目标平台：Electron 桌面端，支持 Windows 与 macOS Apple Silicon
 > 关联路线图：`docs/ROADMAP.md` 中 M0“集市、统一装备仓库与共享交易基础”和 M6“游戏内查价器与构筑提升浮层”
 > 配套设计：[marketplace-browser-design.md](./marketplace-browser-design.md)
 

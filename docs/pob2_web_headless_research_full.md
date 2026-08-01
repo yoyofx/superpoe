@@ -1,4 +1,6 @@
-# PoB2 Web 化与 Headless 计算调研方案
+# PoB2 Web 化与 Headless 计算调研方案（历史研究）
+
+> 文档性质：历史研究记录，不代表当前实现。早期方案以 Fastify + LuaJIT 或浏览器 WASM 为主；当前 Electron 桌面版优先使用 LuaJIT sidecar，失败时回退 Wasmoon。请以 [`docs/pob-lua-runtime.md`](./pob-lua-runtime.md) 和 [`docs/ROADMAP.md`](./ROADMAP.md) 为准。
 
 ## 1. 背景
 
