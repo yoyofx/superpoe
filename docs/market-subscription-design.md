@@ -567,7 +567,7 @@ Windows 原生适配器：
 app.userData/market/opportunities.v1.json
 ```
 
-默认保留最近 500 条或 24 小时，以先达到者为准。保留目标、listing、检测/校验/尝试时间和安全装备摘要；不保存 Cookie、私聊、账号名、完整 Live payload 或完整 Fetch response。
+默认保留最近 30 条或 24 小时，以先达到者为准。保留目标、listing、检测/校验/尝试时间和安全装备摘要；不保存 Cookie、私聊、账号名、完整 Live payload 或完整 Fetch response。
 
 机会不会自动进入装备仓库。用户显式收藏时，继续以 `market-favorite` 来源进入统一 `EquipmentLibraryRepository`。
 

@@ -16,6 +16,7 @@ import type {
   PurchaseTarget,
   PurchaseTargetStatus,
   SavedMarketSearch,
+  MarketSoundId,
 } from '../src/types/market.js'
 import { EquipmentLibraryRepository } from './equipmentLibraryRepository.js'
 import { normalizeMarketListing } from './marketListing.js'
@@ -41,9 +42,12 @@ const DEFAULT_SETTINGS: MarketMonitorSettings = {
   overlayEnabled: true,
   soundEnabled: true,
   soundVolume: 0.7,
+  soundId: 'chime-rise',
   doNotDisturb: false,
   overlayCorner: 'top-right',
 }
+const MAX_OPPORTUNITIES = 30
+const SOUND_IDS: readonly MarketSoundId[] = ['chime-rise', 'double-beep', 'bell', 'digital', 'alert', 'soft', 'triple', 'low-pulse', 'bright', 'warble']
 const LIVE_ID = /^[A-Za-z0-9_-]{1,128}$/
 const CONNECTION_STATUSES: MonitorConnectionStatus[] = ['disabled', 'connecting', 'connected', 'reconnecting', 'auth-required', 'invalid-search', 'error']
 const PRIORITY_SCORE: Record<MonitorTaskPriority, number> = { high: 3, normal: 2, low: 1 }
@@ -121,7 +125,7 @@ export class MarketMonitoringCoordinator {
         pendingOpportunityCount: pendingCounts.get(target.id) || 0,
       })),
       batches: this.batches,
-      opportunities: this.sortedOpportunities().slice(0, 500),
+      opportunities: this.sortedOpportunities().slice(0, MAX_OPPORTUNITIES),
       game: this.game,
       settings: this.settings,
       globalPaused: this.globalPaused,
@@ -225,6 +229,7 @@ export class MarketMonitoringCoordinator {
     if (typeof patch.soundEnabled === 'boolean') this.settings.soundEnabled = patch.soundEnabled
     if (typeof patch.doNotDisturb === 'boolean') this.settings.doNotDisturb = patch.doNotDisturb
     if (typeof patch.soundVolume === 'number' && Number.isFinite(patch.soundVolume)) this.settings.soundVolume = Math.max(0, Math.min(1, patch.soundVolume))
+    if (typeof patch.soundId === 'string' && SOUND_IDS.includes(patch.soundId as MarketSoundId)) this.settings.soundId = patch.soundId as MarketSoundId
     if (patch.overlayCorner && ['top-right', 'top-left', 'bottom-right', 'bottom-left'].includes(patch.overlayCorner)) this.settings.overlayCorner = patch.overlayCorner
     this.scheduleSave()
     this.emitChanged()
@@ -500,7 +505,7 @@ export class MarketMonitoringCoordinator {
 
   private trimHistory(): void {
     const cutoff = Date.now() - 86_400_000
-    this.opportunities = this.sortedOpportunities().filter((opportunity) => Date.parse(opportunity.detectedAt) >= cutoff).slice(0, 500)
+    this.opportunities = this.sortedOpportunities().filter((opportunity) => Date.parse(opportunity.detectedAt) >= cutoff).slice(0, MAX_OPPORTUNITIES)
     const retained = new Set(this.opportunities.map((opportunity) => opportunity.id))
     this.batches = this.batches.map((batch) => ({ ...batch, opportunityIds: batch.opportunityIds.filter((id) => retained.has(id)) }))
       .filter((batch) => batch.opportunityIds.length).slice(-200)
@@ -522,10 +527,12 @@ export class MarketMonitoringCoordinator {
         if (parsed.schemaVersion !== 1 && parsed.schemaVersion !== 2) return false
         this.purchaseTargets = Array.isArray(parsed.purchaseTargets) ? parsed.purchaseTargets : []
         this.batches = Array.isArray(parsed.batches) ? parsed.batches : []
-        this.opportunities = Array.isArray(parsed.opportunities) ? parsed.opportunities.filter(isOpportunity).slice(0, 500) : []
+        this.opportunities = Array.isArray(parsed.opportunities) ? parsed.opportunities.filter(isOpportunity).slice(0, MAX_OPPORTUNITIES) : []
         this.settings = { ...DEFAULT_SETTINGS, ...(parsed.settings && typeof parsed.settings === 'object' ? parsed.settings : {}) }
+        if (!SOUND_IDS.includes(this.settings.soundId)) this.settings.soundId = DEFAULT_SETTINGS.soundId
         this.globalPaused = parsed.globalPaused === true
         this.trimHistory()
+        this.scheduleSave()
         return true
       } catch { return false }
     }

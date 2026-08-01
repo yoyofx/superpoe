@@ -348,10 +348,13 @@ export type GameRuntimeState =
       elevated?: boolean
     }
 
+export type MarketSoundId = 'chime-rise' | 'double-beep' | 'bell' | 'digital' | 'alert' | 'soft' | 'triple' | 'low-pulse' | 'bright' | 'warble'
+
 export interface MarketMonitorSettings {
   overlayEnabled: boolean
   soundEnabled: boolean
   soundVolume: number
+  soundId: MarketSoundId
   doNotDisturb: boolean
   overlayCorner: 'top-right' | 'top-left' | 'bottom-right' | 'bottom-left'
 }

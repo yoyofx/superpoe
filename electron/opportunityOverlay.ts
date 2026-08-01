@@ -1,7 +1,7 @@
 import { BrowserWindow, screen, type Rectangle, type WebContents } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import type { MarketMonitoringSnapshot, MarketOpportunity, MarketOpportunityAttemptResult, OpportunityOverlayState } from '../src/types/market.js'
+import type { MarketMonitorSettings, MarketMonitoringSnapshot, MarketOpportunity, MarketOpportunityAttemptResult, OpportunityOverlayState } from '../src/types/market.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'opportunityPreload.cjs')
@@ -39,9 +39,11 @@ export class OpportunityOverlayController {
     this.candidates = this.candidates.flatMap((candidate) => active.get(candidate.id) || [])
     if (this.currentIndex >= this.displayedCandidates().length) this.currentIndex = 0
     if (this.window?.isVisible()) {
-      if (snapshot.game.status !== 'foreground' || !snapshot.settings.overlayEnabled || snapshot.settings.doNotDisturb) this.window.hide()
+      const overlayFocused = this.window.isFocused()
+      const gameRunning = snapshot.game.status === 'foreground' || snapshot.game.status === 'background'
+      if ((!gameRunning && !overlayFocused) || !snapshot.settings.overlayEnabled || snapshot.settings.doNotDisturb) this.window.hide()
       else {
-        this.position(snapshot.game.bounds)
+        this.position('bounds' in snapshot.game ? snapshot.game.bounds : undefined)
         this.publish()
       }
     }
@@ -60,16 +62,16 @@ export class OpportunityOverlayController {
       added += 1
     }
     if (!added) return
-    if (!this.snapshot || this.snapshot.game.status !== 'foreground' || !this.snapshot.settings.overlayEnabled || this.snapshot.settings.doNotDisturb || this.dismissedSession) return
+    if (!this.snapshot || !['foreground', 'background'].includes(this.snapshot.game.status) || !this.snapshot.settings.overlayEnabled || this.snapshot.settings.doNotDisturb || this.dismissedSession) return
     this.ensureWindow()
     const reveal = () => {
       this.revealPending = false
-      if (!this.window || !this.snapshot || this.snapshot.game.status !== 'foreground') return
-      this.position(this.snapshot.game.bounds)
+      if (!this.window || !this.snapshot || !['foreground', 'background'].includes(this.snapshot.game.status)) return
+      this.position('bounds' in this.snapshot.game ? this.snapshot.game.bounds : undefined)
       this.publish()
       const wasVisible = this.window.isVisible()
       this.window.showInactive()
-      if (!wasVisible && this.snapshot.settings.soundEnabled) this.playSound(this.snapshot.settings.soundVolume)
+      if (!wasVisible && this.snapshot.settings.soundEnabled) this.playSound(this.snapshot.settings.soundVolume, this.snapshot.settings.soundId)
     }
     if (this.window!.webContents.isLoading()) {
       if (!this.revealPending) {
@@ -112,6 +114,8 @@ export class OpportunityOverlayController {
     const displayed = this.displayedCandidates()
     const current = displayed[this.currentIndex]
     const searchName = current ? this.actions.searchName(current.targetId) : undefined
+    const overlayFocused = this.window.isFocused()
+    const clientRealm = 'clientRealm' in this.snapshot.game ? this.snapshot.game.clientRealm : 'unknown'
     const matchedTargetCount = current ? new Set(this.candidates
       .filter((candidate) => candidate.realm === current.realm && candidate.listingId === current.listingId)
       .map((candidate) => candidate.targetId)).size : 0
@@ -121,7 +125,7 @@ export class OpportunityOverlayController {
       actionableCount: this.candidates.filter((candidate) => candidate.status === 'actionable').length,
       current,
       alternatives: displayed,
-      canVisitHideout: Boolean(current && this.snapshot.game.status === 'foreground' && (this.snapshot.game.clientRealm === 'unknown' || this.snapshot.game.clientRealm === current.realm)),
+      canVisitHideout: Boolean(current && !current.id.startsWith('overlay-test-') && (this.snapshot.game.status === 'foreground' || overlayFocused) && (clientRealm === 'unknown' || clientRealm === current.realm)),
       ...(matchedTargetCount > 1 ? { matchedTargetCount } : {}),
       ...(this.statusMessage ? { statusMessage: this.statusMessage } : {}),
     }
@@ -171,6 +175,7 @@ export class OpportunityOverlayController {
       if (this.mainWindow.isMinimized()) this.mainWindow.restore()
       this.mainWindow.show()
       this.mainWindow.focus()
+      this.mainWindow.webContents.send('market:open-monitoring')
       this.window?.hide()
     }
   }
@@ -179,15 +184,69 @@ export class OpportunityOverlayController {
     return Boolean(this.window && !this.window.isDestroyed() && this.window.webContents === contents)
   }
 
-  previewSound(volume: number): void {
+  previewSound(volume: number, soundId: MarketMonitorSettings['soundId']): void {
     this.ensureWindow()
-    const play = () => this.playSound(volume)
+    const play = () => this.playSound(volume, soundId)
     if (this.window!.webContents.isLoading()) this.window!.webContents.once('did-finish-load', play)
     else play()
   }
 
-  private playSound(volume: number): void {
-    if (this.window && !this.window.isDestroyed()) this.window.webContents.send('market-opportunity:sound', Math.max(0, Math.min(1, volume)))
+  previewWindow(): void {
+    const actual = new Map<string, MarketOpportunity>()
+    for (const candidate of this.candidates) if (!candidate.id.startsWith('overlay-test-')) actual.set(candidate.id, candidate)
+    for (const opportunity of this.snapshot?.opportunities || []) {
+      if (['actionable', 'attempting', 'error'].includes(opportunity.status) && !opportunity.id.startsWith('overlay-test-')) actual.set(opportunity.id, opportunity)
+    }
+    if (this.hasActiveMonitoring()) {
+      this.candidates = [...actual.values()]
+      this.statusMessage = undefined
+    } else {
+      const now = new Date().toISOString()
+      const target = this.snapshot?.purchaseTargets[0]
+      const testOpportunity: MarketOpportunity = {
+        id: `overlay-test-${Date.now()}`,
+        targetId: target?.id || 'overlay-test-target',
+        batchId: 'overlay-test-batch',
+        searchId: target?.id || 'overlay-test-search',
+        realm: target?.search.realm || 'global',
+        leagueId: target?.search.leagueId || '测试赛季',
+        searchCode: target?.search.searchCode || 'overlay-test',
+        listingId: 'overlay-test-listing',
+        status: 'actionable',
+        detectedAt: now,
+        fetchedAt: now,
+        item: {
+          name: '置顶窗口测试装备',
+          baseType: '测试基底 · 不会进入仓库',
+          price: '测试价格 1 Exalted Orb',
+          itemLevel: 81,
+          quality: 20,
+          sockets: 'S S S',
+          modifiers: [],
+        },
+      }
+      this.candidates = [testOpportunity]
+      this.statusMessage = '当前没有启用的实时监控，以下为窗口预览'
+    }
+    this.currentIndex = 0
+    this.ensureWindow()
+    const reveal = () => {
+      if (!this.window || this.window.isDestroyed()) return
+      const gameBounds = this.snapshot && 'bounds' in this.snapshot.game ? this.snapshot.game.bounds : undefined
+      this.position(gameBounds)
+      this.publish()
+      this.window.showInactive()
+    }
+    if (this.window!.webContents.isLoading()) this.window!.webContents.once('did-finish-load', reveal)
+    else reveal()
+  }
+
+  private playSound(volume: number, soundId: MarketMonitorSettings['soundId']): void {
+    if (this.window && !this.window.isDestroyed()) this.window.webContents.send('market-opportunity:sound', { volume: Math.max(0, Math.min(1, volume)), soundId })
+  }
+
+  private hasActiveMonitoring(): boolean {
+    return Boolean(this.snapshot && !this.snapshot.globalPaused && this.snapshot.purchaseTargets.some((target) => target.status === 'armed'))
   }
 
   private displayedCandidates(): MarketOpportunity[] {

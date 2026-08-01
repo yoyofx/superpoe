@@ -79,11 +79,13 @@ declare global {
       setMonitoringPaused(paused: boolean): Promise<import('@/types/market').MarketMonitoringSnapshot>
       updateMonitorSettings(patch: Partial<import('@/types/market').MarketMonitorSettings>): Promise<import('@/types/market').MarketMonitoringSnapshot>
       previewMonitorSound(): Promise<void>
+      previewOpportunityOverlay(): Promise<void>
       attemptMonitorOpportunity(id: string): Promise<import('@/types/market').MarketOpportunityAttemptResult>
       onStateChanged(callback: (state: import('@/types/market').MarketViewState) => void): () => void
       onLibraryChanged(callback: () => void): () => void
       onSidebarRequest(callback: (scope: import('@/types/market').LibraryTreeScope) => void): () => void
       onMonitoringChanged(callback: (snapshot: import('@/types/market').MarketMonitoringSnapshot) => void): () => void
+      onOpenMonitoring(callback: () => void): () => void
     }
     pob2Updater?: {
       check(channel?: 'release' | 'dev'): Promise<UpdateCheckResult>

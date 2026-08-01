@@ -455,7 +455,13 @@ app.whenReady().then(() => {
   ipcMain.handle('market:preview-monitor-sound', (event) => {
     requireMainWindowSender(event)
     if (!marketMonitoring || !opportunityOverlay) throw new Error('Market monitoring is unavailable')
-    opportunityOverlay.previewSound(marketMonitoring.snapshot().settings.soundVolume)
+    const settings = marketMonitoring.snapshot().settings
+    opportunityOverlay.previewSound(settings.soundVolume, settings.soundId)
+  })
+  ipcMain.handle('market:preview-opportunity-overlay', (event) => {
+    requireMainWindowSender(event)
+    if (!marketMonitoring || !opportunityOverlay) throw new Error('Market monitoring is unavailable')
+    opportunityOverlay.previewWindow()
   })
   ipcMain.handle('market:attempt-opportunity', (event, value: unknown) => {
     requireMainWindowSender(event)

@@ -1,9 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { ArrowLeft, BellRing, Settings, Store } from 'lucide-react'
 import { MarketPanel } from '@/components/market/MarketPanel'
 import { MonitoringWorkspace } from '@/components/market/MonitoringWorkspace'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { useTranslation } from '@/i18n/useTranslation'
+import type { MarketMonitoringSnapshot } from '@/types/market'
 import type { BuildRealm } from '@/types/tree'
 import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
 
@@ -17,6 +18,21 @@ export function MarketShell({ realm, suspended, onBack, onSettings }: MarketShel
   const { lang } = useTranslation()
   const zh = lang === 'zh-rCN'
   const [view, setView] = useState<'market' | 'monitoring'>('market')
+  const [monitoring, setMonitoring] = useState<MarketMonitoringSnapshot | null>(null)
+  const marketBridge = window.pob2Market
+
+  useEffect(() => {
+    if (!marketBridge) return
+    let active = true
+    void marketBridge.getMonitoring().then((snapshot) => { if (active) setMonitoring(snapshot) }).catch(() => {})
+    const unsubscribe = marketBridge.onMonitoringChanged((snapshot) => { if (active) setMonitoring(snapshot) })
+    const unsubscribeOpenMonitoring = marketBridge.onOpenMonitoring(() => { if (active) setView('monitoring') })
+    return () => { active = false; unsubscribe(); unsubscribeOpenMonitoring() }
+  }, [marketBridge])
+
+  const armedCount = monitoring?.targets.filter((target) => target.connectionStatus !== 'disabled').length || 0
+  const connectedCount = monitoring?.targets.filter((target) => target.connectionStatus === 'connected').length || 0
+  const pendingCount = monitoring?.targets.reduce((total, target) => total + target.pendingOpportunityCount, 0) || 0
   return <>
     <header className="workbench-header market-shell-header">
       <div className="app-command-bar">
@@ -36,7 +52,7 @@ export function MarketShell({ realm, suspended, onBack, onSettings }: MarketShel
       <div className="workspace-tabs-bar">
         <nav className="workspace-tabs" aria-label={zh ? '应用工作区' : 'Application workspace'}>
           <button className={view === 'market' ? 'active' : ''} aria-current={view === 'market' ? 'page' : undefined} onClick={() => setView('market')}><Store /><span>{zh ? '集市与仓库' : 'Market & Library'}</span></button>
-          <button className={view === 'monitoring' ? 'active' : ''} aria-current={view === 'monitoring' ? 'page' : undefined} onClick={() => setView('monitoring')}><BellRing /><span>{zh ? '实时监控' : 'Live Monitoring'}</span></button>
+          <button className={view === 'monitoring' ? 'active' : ''} aria-current={view === 'monitoring' ? 'page' : undefined} onClick={() => setView('monitoring')}><BellRing /><span>{zh ? '实时监控' : 'Live Monitoring'}</span>{monitoring && <small className="monitoring-tab-count" title={zh ? `已连接 ${connectedCount}/${armedCount}，待处理 ${pendingCount}` : `${connectedCount}/${armedCount} connected, ${pendingCount} pending`}>{connectedCount}/{armedCount} · {pendingCount}</small>}</button>
         </nav>
       </div>
     </header>

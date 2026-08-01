@@ -49,6 +49,7 @@ contextBridge.exposeInMainWorld('pob2Market', {
   setMonitoringPaused: (paused: boolean) => ipcRenderer.invoke('market:set-monitor-paused', paused) as Promise<import('../src/types/market.js').MarketMonitoringSnapshot>,
   updateMonitorSettings: (patch: Partial<import('../src/types/market.js').MarketMonitorSettings>) => ipcRenderer.invoke('market:update-monitor-settings', patch) as Promise<import('../src/types/market.js').MarketMonitoringSnapshot>,
   previewMonitorSound: () => ipcRenderer.invoke('market:preview-monitor-sound') as Promise<void>,
+  previewOpportunityOverlay: () => ipcRenderer.invoke('market:preview-opportunity-overlay') as Promise<void>,
   attemptMonitorOpportunity: (id: string) => ipcRenderer.invoke('market:attempt-opportunity', id) as Promise<import('../src/types/market.js').MarketOpportunityAttemptResult>,
   onStateChanged: (callback: (state: import('../src/types/market.js').MarketViewState) => void) => {
     const handler = (_event: unknown, state: import('../src/types/market.js').MarketViewState) => callback(state)
@@ -69,6 +70,11 @@ contextBridge.exposeInMainWorld('pob2Market', {
     const handler = (_event: unknown, snapshot: import('../src/types/market.js').MarketMonitoringSnapshot) => callback(snapshot)
     ipcRenderer.on('market:monitoring-changed', handler)
     return () => { ipcRenderer.removeListener('market:monitoring-changed', handler) }
+  },
+  onOpenMonitoring: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('market:open-monitoring', handler)
+    return () => { ipcRenderer.removeListener('market:open-monitoring', handler) }
   },
 })
 

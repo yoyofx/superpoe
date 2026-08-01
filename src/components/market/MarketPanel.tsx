@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
-import { Archive, ArrowLeft, ArrowRight, ChevronLeft, ExternalLink, Globe2, Home, Library, LoaderCircle, LogIn, Pause, Play, RefreshCw, Square, Store } from 'lucide-react'
+import { Archive, ArrowLeft, ArrowRight, ChevronLeft, ExternalLink, Globe2, Home, Library, LoaderCircle, LogIn, RefreshCw, Square, Store } from 'lucide-react'
 import type { BuildRealm } from '@/types/tree'
 import type { LibraryTreeScope, MarketBounds, MarketMonitoringSnapshot, MarketNavigationCommand, MarketViewState } from '@/types/market'
 import { useTranslation } from '@/i18n/useTranslation'
@@ -163,9 +163,6 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
     if (state.sessionStatus === 'anonymous') return zh ? '未登录' : 'Signed out'
     return zh ? '检查登录状态' : 'Checking session'
   }, [state.sessionStatus, zh])
-  const armedCount = monitoring?.targets.filter((target) => target.connectionStatus !== 'disabled').length || 0
-  const connectedCount = monitoring?.targets.filter((target) => target.connectionStatus === 'connected').length || 0
-  const pendingCount = monitoring?.targets.reduce((total, target) => total + target.pendingOpportunityCount, 0) || 0
 
   return <section className="market-workspace">
     <header className="market-toolbar">
@@ -176,8 +173,6 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
         <button className="icon-command compact" disabled={!bridge} onClick={() => navigate('home')} title={zh ? '集市首页' : 'Market home'} aria-label={zh ? '集市首页' : 'Market home'}><Home /></button>
       </div>
 
-      <span className="market-monitor-count" title={zh ? `监控 ${connectedCount}/${armedCount}，待处理 ${pendingCount}` : `${connectedCount}/${armedCount} monitoring, ${pendingCount} pending`}>{connectedCount}/{armedCount} · {pendingCount}</span>
-      <button className="icon-command compact" disabled={!bridge || !monitoring} onClick={() => void bridge?.setMonitoringPaused(!monitoring?.globalPaused)} title={monitoring?.globalPaused ? (zh ? '恢复全部监控' : 'Resume all monitoring') : (zh ? '暂停全部监控' : 'Pause all monitoring')}>{monitoring?.globalPaused ? <Play /> : <Pause />}</button>
 
       <div className="market-location" title={state.title || state.url || officialHost}>
         {state.loading ? <LoaderCircle className="market-loading-icon" /> : <Globe2 />}

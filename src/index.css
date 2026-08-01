@@ -86,6 +86,7 @@ svg { flex: 0 0 auto; }
 .workspace-tabs button { position: relative; min-width: 100px; padding: 0 14px; display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-left: 1px solid transparent; border-right: 1px solid transparent; background: transparent; color: #898478; font-size: 12px; cursor: pointer; }
 .workspace-tabs button svg { width: 14px; height: 14px; }
 .workspace-tabs button small { min-width: 20px; padding: 1px 4px; border: 1px solid #3e3b33; color: #746f65; font-size: 9px; }
+.workspace-tabs button .monitoring-tab-count { margin-left: 1px; border-color: #5b503a; color: #c5a96f; font-variant-numeric: tabular-nums; }
 .workspace-tabs button:hover { color: #d3c9b3; background: rgba(255, 255, 255, .02); }
 .workspace-tabs button.active { color: #e0c98e; border-color: #423d31; background: #151612; }
 .workspace-tabs button.active::after { content: ""; position: absolute; left: 16px; right: 16px; bottom: 0; height: 2px; background: #b89a5f; }
@@ -372,10 +373,9 @@ svg { flex: 0 0 auto; }
   .trade-helper-affixes > div > span:last-child { grid-column: 1 / -1; }
 }
 .trade-helper-search { min-width: 0; margin: 0; padding: 6px; border: 1px solid #38352f; border-radius: 3px; background: rgba(17, 17, 17, .94); }
-.trade-helper-search > span { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 3px 7px; }
+.trade-helper-search > span { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 3px 7px; }
 .trade-helper-search strong, .trade-helper-search small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trade-helper-search strong { color: #d4b483; font-size: 10px; }
-.trade-helper-search small { grid-column: 1; color: #777; font: 9px Arial, sans-serif; }
 .trade-helper-search em { grid-column: 2; grid-row: 1; color: #6da; font: normal 8px Arial, sans-serif; }
 .trade-helper-search > footer { margin: 5px -6px -6px; }
 .trade-helper-monitor-controls { min-height: 31px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding: 4px 7px; border-bottom: 1px solid #292929; background: #11120f; }
@@ -468,15 +468,30 @@ svg { flex: 0 0 auto; }
 
 .monitoring-workspace { height: 100%; min-width: 0; display: grid; grid-template-rows: 42px minmax(0, 1fr); overflow: hidden; background: #0b0d0c; color: #aaa398; }
 .monitoring-workspace.loading { place-items: center; align-content: center; gap: 8px; color: #8e8168; }
-.monitoring-toolbar { min-width: 0; display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid #494033; background: #141612; }
+.monitoring-toolbar { min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid #494033; background: #141612; }
+.monitoring-toolbar-controls { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.monitoring-toolbar-sound { min-width: 0; display: flex; align-items: center; gap: 6px; padding-left: 10px; border-left: 1px solid #494033; }
+.monitoring-toolbar-sound > span { color: #777168; font-size: 9px; white-space: nowrap; }
+.monitoring-toolbar-sound select { height: 25px; max-width: 108px; padding: 0 18px 0 6px; border: 1px solid #4a453a; background: #171914; color: #bdb4a4; font-size: 9px; }
+.monitoring-toolbar-sound select:focus-visible { outline: 1px solid #d1b676; outline-offset: 1px; }
+.monitoring-toolbar-preview { min-width: 0; display: flex; align-items: center; gap: 8px; margin-left: auto; padding-left: 10px; border-left: 1px solid #494033; }
+.monitoring-toolbar-preview > span { color: #777168; font-size: 9px; white-space: nowrap; }
 .monitoring-toolbar button { height: 28px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; border: 1px solid #413e37; background: #1a1c18; color: #918b80; cursor: pointer; font-size: 10px; }
 .monitoring-toolbar button.active { border-color: #816f4e; background: #29241b; color: #d9bf88; }
+.monitoring-toolbar button.monitoring-toggle { gap: 6px; }
+.monitoring-toggle > i { position: relative; width: 24px; height: 13px; flex: none; border: 1px solid #5b574d; border-radius: 7px; background: #11130f; }
+.monitoring-toggle > i > b { position: absolute; top: 2px; left: 2px; width: 7px; height: 7px; border-radius: 50%; background: #777168; transition: transform .15s ease, background-color .15s ease; }
+.monitoring-toggle.active > i { border-color: #9b814d; background: #3a301e; }
+.monitoring-toggle.active > i > b { background: #e0c27d; transform: translateX(11px); }
+.monitoring-toggle:focus-visible { outline: 1px solid #d1b676; outline-offset: 1px; }
+.monitoring-toolbar button.monitoring-overlay-preview { border-color: #8a7040; background: #2b2417; color: #e0c27d; font-weight: 600; }
+.monitoring-toolbar button.monitoring-overlay-preview:hover { border-color: #c09a55; background: #3a2e1c; color: #f1d69a; }
+.monitoring-toolbar button.monitoring-overlay-preview:focus-visible { outline: 1px solid #d1b676; outline-offset: 1px; }
 .monitoring-toolbar button svg { width: 13px; height: 13px; }
 .monitoring-toolbar input[type="range"] { width: 76px; accent-color: #a58c5e; }
 .monitor-game { display: inline-flex; align-items: center; gap: 6px; margin-right: 4px; color: #8a8479; font-size: 10px; }
 .monitor-game i, .target-row i { width: 7px; height: 7px; border-radius: 50%; background: #625f58; }
 .monitor-game.game-foreground i, .target-row i.connection-connected { background: #58ad70; box-shadow: 0 0 6px rgba(88, 173, 112, .55); }
-.monitoring-message { min-width: 0; margin-left: auto; overflow: hidden; color: #c5ab74; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
 .monitoring-layout { min-height: 0; display: grid; grid-template-columns: 252px minmax(0, 1fr); }
 .target-pane { min-height: 0; overflow-y: auto; border-right: 2px solid #67583e; background: #10120f; }
 .target-pane > header, .opportunity-center > header { height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 11px; border-bottom: 1px solid #39362f; background: #171814; }
@@ -507,7 +522,7 @@ svg { flex: 0 0 auto; }
 .opportunity-properties { min-height: 35px; display: flex; flex-wrap: wrap; align-items: center; gap: 5px 12px; border-bottom: 1px solid #302e29; color: #898279; font-size: 9px; }.opportunity-properties .corrupted { color: #d96f6f; }
 .opportunity-modifiers { min-height: 0; overflow-y: auto; padding: 6px 3px 6px 0; }.opportunity-modifiers > div { display: grid; grid-template-columns: 45px minmax(0, 1fr) auto; gap: 7px; padding: 6px 4px; border-bottom: 1px solid #292923; }.opportunity-modifiers em { color: #766f65; font: normal 8px Arial; }.opportunity-modifiers span { color: #b9b2a8; font-size: 10px; line-height: 1.35; }.opportunity-modifiers b { color: #bb9558; font: 500 9px Arial; }.opportunity-modifiers .modifier-implicit span { color: #8eb0ca; }.opportunity-modifiers .modifier-enchant span,.opportunity-modifiers .modifier-rune span { color: #b8a0d1; }
 .opportunity-detail > footer { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 8px; border-top: 1px solid #403b31; }.opportunity-detail > footer span { color: #746f67; font-size: 8px; }.opportunity-detail > footer button { height: 28px; display: inline-flex; align-items: center; gap: 5px; padding: 0 8px; border: 1px solid #4b463c; background: #1b1c18; color: #8e897f; font-size: 9px; }.opportunity-detail > footer button svg { width: 12px; }
-@media (max-width: 900px) { .monitoring-layout { grid-template-columns: 210px minmax(0, 1fr); }.opportunity-layout { grid-template-columns: 220px minmax(280px, 1fr); }.monitoring-toolbar button { padding-inline: 6px; }.monitoring-toolbar button:not(.active) span { display: none; } }
+@media (max-width: 900px) { .monitoring-layout { grid-template-columns: 210px minmax(0, 1fr); }.opportunity-layout { grid-template-columns: 220px minmax(280px, 1fr); }.monitoring-toolbar { gap: 6px; }.monitoring-toolbar button { padding-inline: 6px; }.monitoring-toolbar-sound { padding-left: 6px; }.monitoring-toolbar-sound > span, .monitoring-toolbar-preview > span { display: none; }.monitoring-toggle-label { display: none; } }
 
 .passive-workspace { position: absolute; inset: 0; overflow: hidden; background: #080b0e; }
 .passive-workspace::before { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 12; box-shadow: inset 0 0 50px rgba(0, 0, 0, .55); }

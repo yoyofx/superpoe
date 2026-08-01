@@ -1,17 +1,29 @@
 import { useEffect, useMemo, useState } from 'react'
-import { BellRing, CheckCircle2, CirclePause, CirclePlay, Clock3, ExternalLink, Moon, Pause, Play, RefreshCw, Trash2, Volume2 } from 'lucide-react'
-import type { MarketMonitoringSnapshot, MarketOpportunity, PurchaseTarget } from '@/types/market'
+import { BellRing, CheckCircle2, CirclePause, CirclePlay, Clock3, ExternalLink, Moon, PanelTop, Play, RefreshCw, Trash2, Volume2 } from 'lucide-react'
+import type { MarketMonitoringSnapshot, MarketOpportunity, MarketSoundId, PurchaseTarget } from '@/types/market'
 
 interface MonitoringWorkspaceProps { zh: boolean }
 
 const pendingStatuses = new Set(['detected', 'fetching', 'actionable', 'error'])
+const soundOptions: Array<{ id: MarketSoundId; zh: string; en: string }> = [
+  { id: 'chime-rise', zh: '升调铃声', en: 'Rising chime' },
+  { id: 'double-beep', zh: '双音提示', en: 'Double beep' },
+  { id: 'bell', zh: '清脆钟声', en: 'Bright bell' },
+  { id: 'digital', zh: '数字提示', en: 'Digital' },
+  { id: 'alert', zh: '警示提示', en: 'Alert' },
+  { id: 'soft', zh: '柔和提示', en: 'Soft' },
+  { id: 'triple', zh: '三连提示', en: 'Triple tone' },
+  { id: 'low-pulse', zh: '低沉脉冲', en: 'Low pulse' },
+  { id: 'bright', zh: '高音提示', en: 'Bright tone' },
+  { id: 'warble', zh: '起伏提示', en: 'Warble' },
+]
 
 export function MonitoringWorkspace({ zh }: MonitoringWorkspaceProps) {
   const bridge = window.pob2Market
   const [snapshot, setSnapshot] = useState<MarketMonitoringSnapshot | null>(null)
   const [selectedTargetId, setSelectedTargetId] = useState<string>('all')
   const [selectedOpportunityId, setSelectedOpportunityId] = useState<string>()
-  const [message, setMessage] = useState<string>()
+  const [, setMessage] = useState<string>()
 
   useEffect(() => {
     let active = true
@@ -25,19 +37,33 @@ export function MonitoringWorkspace({ zh }: MonitoringWorkspaceProps) {
   const run = async (work: () => Promise<unknown>, success: string) => {
     try { await work(); setMessage(success) } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
   }
+  const previewOverlay = async () => {
+    setMessage(undefined)
+    try { await bridge!.previewOpportunityOverlay() } catch (error) { setMessage(error instanceof Error ? error.message : String(error)) }
+  }
   if (!snapshot) return <section className="monitoring-workspace loading"><BellRing /><span>{zh ? '正在读取实时监控' : 'Loading monitoring'}</span></section>
 
   const runtime = new Map(snapshot.targets.map((item) => [item.targetId, item]))
 
   return <section className="monitoring-workspace">
     <header className="monitoring-toolbar">
-      <button onClick={() => void bridge?.setMonitoringPaused(!snapshot.globalPaused)}>{snapshot.globalPaused ? <Play /> : <Pause />}{snapshot.globalPaused ? (zh ? '恢复全部' : 'Resume all') : (zh ? '暂停全部' : 'Pause all')}</button>
-      <button className={snapshot.settings.overlayEnabled ? 'active' : ''} onClick={() => void bridge?.updateMonitorSettings({ overlayEnabled: !snapshot.settings.overlayEnabled })}><BellRing />{zh ? '游戏窗口' : 'Overlay'}</button>
-      <button className={snapshot.settings.soundEnabled ? 'active' : ''} onClick={() => void bridge?.updateMonitorSettings({ soundEnabled: !snapshot.settings.soundEnabled })}><Volume2 />{zh ? '提示音' : 'Sound'}</button>
-      <button onClick={() => void bridge?.previewMonitorSound()} title={zh ? '试听提示音' : 'Preview sound'}><Play /></button>
-      <input aria-label={zh ? '提示音量' : 'Sound volume'} type="range" min="0" max="1" step="0.05" value={snapshot.settings.soundVolume} onChange={(event) => void bridge?.updateMonitorSettings({ soundVolume: Number(event.target.value) })} />
-      <button className={snapshot.settings.doNotDisturb ? 'active' : ''} onClick={() => void bridge?.updateMonitorSettings({ doNotDisturb: !snapshot.settings.doNotDisturb })}><Moon />{zh ? '勿扰' : 'DND'}</button>
-      {message && <span className="monitoring-message">{message}</span>}
+      <div className="monitoring-toolbar-controls">
+        <button className={`monitoring-toggle${snapshot.settings.overlayEnabled ? ' active' : ''}`} aria-pressed={snapshot.settings.overlayEnabled} onClick={() => void bridge?.updateMonitorSettings({ overlayEnabled: !snapshot.settings.overlayEnabled })}><BellRing /><span className="monitoring-toggle-label">{zh ? '游戏窗口' : 'Overlay'}</span><i aria-hidden="true"><b /></i></button>
+        <button className={`monitoring-toggle${snapshot.settings.doNotDisturb ? ' active' : ''}`} aria-pressed={snapshot.settings.doNotDisturb} onClick={() => void bridge?.updateMonitorSettings({ doNotDisturb: !snapshot.settings.doNotDisturb })}><Moon /><span className="monitoring-toggle-label">{zh ? '勿扰' : 'DND'}</span><i aria-hidden="true"><b /></i></button>
+      </div>
+      <div className="monitoring-toolbar-sound">
+        <span>{zh ? '提示音' : 'Sound'}</span>
+        <select value={snapshot.settings.soundId} onChange={(event) => void bridge?.updateMonitorSettings({ soundId: event.target.value as MarketSoundId })} aria-label={zh ? '选择提示音' : 'Select sound'} title={zh ? '选择提示音音色' : 'Choose notification sound'}>
+          {soundOptions.map((option) => <option key={option.id} value={option.id}>{zh ? option.zh : option.en}</option>)}
+        </select>
+        <button className={`monitoring-toggle${snapshot.settings.soundEnabled ? ' active' : ''}`} aria-pressed={snapshot.settings.soundEnabled} aria-label={snapshot.settings.soundEnabled ? (zh ? '关闭提示音' : 'Disable sound') : (zh ? '开启提示音' : 'Enable sound')} onClick={() => void bridge?.updateMonitorSettings({ soundEnabled: !snapshot.settings.soundEnabled })}><Volume2 /><i aria-hidden="true"><b /></i></button>
+        <button onClick={() => void bridge?.previewMonitorSound()} title={zh ? '试听提示音' : 'Preview sound'} aria-label={zh ? '试听提示音' : 'Preview sound'}><Play /></button>
+        <input aria-label={zh ? '提示音量' : 'Sound volume'} type="range" min="0" max="1" step="0.05" value={snapshot.settings.soundVolume} onChange={(event) => void bridge?.updateMonitorSettings({ soundVolume: Number(event.target.value) })} />
+      </div>
+      <div className="monitoring-toolbar-preview">
+        <span>{zh ? '窗口预览' : 'Window preview'}</span>
+        <button className="monitoring-overlay-preview" onClick={() => void previewOverlay()} title={zh ? '查看当前实时监控置顶提醒；没有启用监控时显示测试装备' : 'Show current monitoring overlay; use a test item only when monitoring is inactive'} aria-label={zh ? '查看置顶提醒' : 'View overlay'}><PanelTop />{zh ? '查看置顶提醒' : 'View overlay'}</button>
+      </div>
     </header>
     <div className="monitoring-layout">
       <aside className="target-pane">

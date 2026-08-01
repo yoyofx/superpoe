@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type DragEvent as ReactDragEvent, type ReactNode } from 'react'
 import {
-  BellRing, Bookmark, Check, ChevronDown, ChevronRight, ExternalLink, Folder, FolderInput, FolderPlus, FolderTree, Home,
+  BellOff, BellRing, Bookmark, Check, ChevronDown, ChevronRight, ExternalLink, Folder, FolderInput, FolderPlus, FolderTree, Home,
   ListChecks, PanelLeftClose, PanelLeftOpen, Pencil, Save, Search, Square,
-  RefreshCw, Replace, ShieldCheck, SquareCheckBig, Tags, Trash2, TriangleAlert, X,
+  RefreshCw, Replace, SquareCheckBig, Tags, Trash2, X,
 } from 'lucide-react'
 import type {
   EquipmentLibraryEntry, EquipmentLibraryFolder, EquipmentLibrarySidebarSnapshot, LibraryTreeScope,
@@ -428,14 +428,14 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
     onDrop={(event) => dropSearchBefore(event, search)}
     key={search.id}
   >
-    <span><strong>{search.name}</strong><small>{search.note || `${search.leagueId} · ${search.captureSource === 'code-only' ? (zh ? '仅搜索码' : 'Code only') : (zh ? '可恢复' : 'Recoverable')}`}</small><em>{search.realm === 'cn' ? '腾讯服' : 'Global'}</em></span>
-    <div className={`trade-helper-search-state ${search.validity}`}>
-      {search.validity === 'valid' ? <ShieldCheck /> : <TriangleAlert />}
-      <span>{search.validity === 'valid' ? (zh ? '搜索有效' : 'Valid search') : search.validity === 'needs-refresh' ? (zh ? '需要刷新' : 'Refresh required') : (zh ? '搜索无效' : 'Invalid search')}</span>
-      <small>{search.leagueId || (zh ? '未知赛季' : 'Unknown league')}</small>
-    </div>
+    <span><strong>{search.name}</strong><em>{search.realm === 'cn' ? '腾讯服' : 'Global'}</em></span>
     <footer>
-      <button className="primary-action" disabled={search.validity === 'invalid' || monitoring?.purchaseTargets.some((target) => target.sourceSearchId === search.id && target.status !== 'completed')} onClick={() => void run(`target:${search.id}`, () => bridge!.createMonitorTarget(search.id), zh ? '已创建购买目标，请到实时监控中管理' : 'Purchase target created')} title={zh ? '创建独立的购买目标' : 'Create purchase target'}><BellRing /><span>{monitoring?.purchaseTargets.some((target) => target.sourceSearchId === search.id && target.status !== 'completed') ? (zh ? '已有目标' : 'Target exists') : (zh ? '创建购买目标' : 'Create target')}</span></button>
+      {(() => {
+        const target = monitoring?.purchaseTargets.find((candidate) => candidate.sourceSearchId === search.id && candidate.status !== 'completed')
+        return <button className="primary-action" disabled={!target && search.validity === 'invalid'} onClick={() => void run(`target:${search.id}`, () => target
+          ? bridge!.setMonitorTarget(target.id, 'completed')
+          : bridge!.createMonitorTarget(search.id), target ? (zh ? '已取消监控' : 'Monitoring cancelled') : (zh ? '已开始监控' : 'Monitoring started'))} title={target ? (zh ? '取消监控' : 'Cancel monitoring') : (zh ? '开始监控' : 'Start monitoring')} aria-label={target ? (zh ? '取消监控' : 'Cancel monitoring') : (zh ? '开始监控' : 'Start monitoring')}>{target ? <BellOff /> : <BellRing />}</button>
+      })()}
       <button disabled={search.validity === 'invalid'} onClick={() => void bridge?.openSearch(search.id)} title={zh ? '跳转到搜索' : 'Open search'}><ExternalLink /></button>
       <button onClick={() => setSearchEditor({ mode: 'edit', id: search.id, name: search.name, note: search.note || '', folderId: search.folderId || '' })} title={zh ? '编辑搜索' : 'Edit search'}><Pencil /></button>
       {search.querySnapshot && <button onClick={() => void run(`recover:${search.id}`, () => bridge!.recoverSearch(search.id), zh ? '搜索码已重新生成' : 'Search code regenerated')} title={zh ? '重新生成搜索码' : 'Regenerate search code'}><RefreshCw /></button>}
