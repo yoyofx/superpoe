@@ -18,7 +18,7 @@ import { GlobalSettingsDialog } from '@/components/GlobalSettingsDialog'
 import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/appSettings'
 import { UpdateDialog } from '@/components/UpdateDialog'
 import { initPobLuaEngine } from '@/engine/pobLuaClient'
-import { MarketShell } from '@/components/market/MarketShell'
+import { MarketShell, type MarketWorkspaceView } from '@/components/market/MarketShell'
 import type { MarketMonitoringSnapshot } from '@/types/market'
 
 export default function App() {
@@ -27,7 +27,7 @@ export default function App() {
   const cleanSignatureRef = useRef('')
   const [screen, setScreen] = useState<'center' | 'editor' | 'trade'>('center')
   const [activeView, setActiveView] = useState<WorkspaceView>('equipment')
-  const [marketWorkspace, setMarketWorkspace] = useState<'market' | 'monitoring'>('market')
+  const [marketWorkspace, setMarketWorkspace] = useState<MarketWorkspaceView>('market')
   const [tradeReturnScreen, setTradeReturnScreen] = useState<'center' | 'editor'>('center')
   const [monitoring, setMonitoring] = useState<MarketMonitoringSnapshot | null>(null)
   const [buildName, setBuildName] = useState(lang === 'zh-rCN' ? '未命名构筑' : 'Untitled build')

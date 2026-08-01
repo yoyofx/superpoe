@@ -87,6 +87,10 @@ declare global {
       onMonitoringChanged(callback: (snapshot: import('@/types/market').MarketMonitoringSnapshot) => void): () => void
       onOpenMonitoring(callback: () => void): () => void
     }
+    pob2CurrencyMarket?: {
+      get(forceRefresh?: boolean): Promise<import('@/types/currencyMarket').CurrencyMarketState>
+      onChanged(callback: (state: import('@/types/currencyMarket').CurrencyMarketState) => void): () => void
+    }
     pob2Updater?: {
       check(channel?: 'release' | 'dev'): Promise<UpdateCheckResult>
       download(info: UpdateInfo): Promise<void>

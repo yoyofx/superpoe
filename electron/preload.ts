@@ -78,6 +78,15 @@ contextBridge.exposeInMainWorld('pob2Market', {
   },
 })
 
+contextBridge.exposeInMainWorld('pob2CurrencyMarket', {
+  get: (forceRefresh = false) => ipcRenderer.invoke('currency-market:get', forceRefresh) as Promise<import('../src/types/currencyMarket.js').CurrencyMarketState>,
+  onChanged: (callback: (state: import('../src/types/currencyMarket.js').CurrencyMarketState) => void) => {
+    const handler = (_event: unknown, state: import('../src/types/currencyMarket.js').CurrencyMarketState) => callback(state)
+    ipcRenderer.on('currency-market:changed', handler)
+    return () => { ipcRenderer.removeListener('currency-market:changed', handler) }
+  },
+})
+
 contextBridge.exposeInMainWorld('pob2Updater', {
   check: (channel?: string) => ipcRenderer.invoke('updater:check', channel),
   download: (info: unknown) => ipcRenderer.invoke('updater:download', info),

@@ -1,4 +1,4 @@
-import { ArrowLeft, BellRing, Settings, Store } from 'lucide-react'
+import { ArrowLeft, BellRing, Coins, Settings, Store } from 'lucide-react'
 import { MarketPanel } from '@/components/market/MarketPanel'
 import { MonitoringWorkspace } from '@/components/market/MonitoringWorkspace'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
@@ -6,12 +6,15 @@ import { useTranslation } from '@/i18n/useTranslation'
 import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketMonitoringSnapshot } from '@/types/market'
 import type { BuildRealm } from '@/types/tree'
 import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
+import { CurrencyMarketWorkspace } from '@/components/market/currency/CurrencyMarketWorkspace'
+
+export type MarketWorkspaceView = 'market' | 'currency' | 'monitoring'
 
 interface MarketShellProps {
   realm: BuildRealm
   suspended?: boolean
-  view: 'market' | 'monitoring'
-  onViewChange: (view: 'market' | 'monitoring') => void
+  view: MarketWorkspaceView
+  onViewChange: (view: MarketWorkspaceView) => void
   monitoring: MarketMonitoringSnapshot | null
   backTarget: 'center' | 'editor'
   buildName?: string
@@ -37,7 +40,7 @@ export function MarketShell({ realm, suspended, view, onViewChange, monitoring, 
         </div>
         <div className="market-shell-title">
           <button className="icon-command compact" onClick={onBack} title={backLabel} aria-label={backLabel}><ArrowLeft /></button>
-          <span><strong>{zh ? '交易中心' : 'Trade Center'}</strong><small>{zh ? '集市、装备仓库与实时监控' : 'Market, equipment library, and live monitoring'}</small></span>
+          <span><strong>{zh ? '交易中心' : 'Trade Center'}</strong><small>{zh ? '集市、装备仓库、通货行情与实时监控' : 'Market, library, currency prices, and live monitoring'}</small></span>
         </div>
         <div className="command-actions">
           <GameRuntimeIndicator />
@@ -48,9 +51,10 @@ export function MarketShell({ realm, suspended, view, onViewChange, monitoring, 
         <nav className="workspace-tabs" aria-label={zh ? '交易中心页面' : 'Trade Center workspace'}>
           <button className={view === 'market' ? 'active' : ''} aria-current={view === 'market' ? 'page' : undefined} onClick={() => onViewChange('market')}><Store /><span>{zh ? '集市与仓库' : 'Market & Library'}</span></button>
           <button className={[view === 'monitoring' ? 'active' : '', 'monitoring-entry', isActivelyMonitoring ? 'is-monitoring' : ''].filter(Boolean).join(' ')} aria-current={view === 'monitoring' ? 'page' : undefined} onClick={() => onViewChange('monitoring')}><span className="monitoring-tab-icon" aria-hidden="true"><BellRing /></span><span>{zh ? '实时监控' : 'Live Monitoring'}</span>{monitoring && <small className="monitoring-tab-count" title={zh ? `监控中 ${armedCount}/${MAX_ACTIVE_PURCHASE_TARGETS}，Live 已连接 ${connectedCount}` : `${armedCount}/${MAX_ACTIVE_PURCHASE_TARGETS} monitoring, ${connectedCount} connected`}>{zh ? '监控 ' : ''}{armedCount}/{MAX_ACTIVE_PURCHASE_TARGETS}</small>}{pendingCount > 0 && <small className="monitoring-tab-alert" title={zh ? `${pendingCount} 个待处理机会` : `${pendingCount} pending opportunities`}>{pendingCount}</small>}</button>
+          <button className={view === 'currency' ? 'active' : ''} aria-current={view === 'currency' ? 'page' : undefined} onClick={() => onViewChange('currency')}><Coins /><span>{zh ? '通货行情' : 'Currency Market'}</span></button>
         </nav>
       </div>
     </header>
-    <main className="workspace-view">{view === 'market' ? <MarketPanel realm={realm} suspended={suspended} /> : <MonitoringWorkspace zh={zh} />}</main>
+    <main className="workspace-view">{view === 'market' ? <MarketPanel realm={realm} suspended={suspended} /> : view === 'currency' ? <CurrencyMarketWorkspace realm={realm} zh={zh} /> : <MonitoringWorkspace zh={zh} />}</main>
   </>
 }

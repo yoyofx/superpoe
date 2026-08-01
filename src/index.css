@@ -230,6 +230,128 @@ svg { flex: 0 0 auto; }
 .market-shell-title small { display: block; margin-top: 2px; overflow: hidden; color: #777168; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 @keyframes market-spin { to { transform: rotate(360deg); } }
 
+/* Read-only currency market workspace. */
+.currency-market-workspace { position: absolute; inset: 0; min-width: 0; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; background: #0b0d0c; color: #aaa398; }
+.currency-market-toolbar { min-height: 48px; display: flex; align-items: center; gap: 7px; padding: 7px 10px; border-bottom: 1px solid #443f35; background: #11130f; }
+.currency-market-search { width: min(300px, 24vw); height: 30px; min-width: 170px; display: grid; grid-template-columns: 15px minmax(0, 1fr) 20px; align-items: center; gap: 6px; padding: 0 6px 0 8px; border: 1px solid #454139; background: #0b0d0b; }
+.currency-market-search > svg { width: 14px; color: #817658; }
+.currency-market-search input { min-width: 0; border: 0; outline: 0; background: transparent; color: #d0c8b9; font-size: 11px; }
+.currency-market-search input::placeholder { color: #69655d; }
+.currency-market-search button, .currency-market-refresh { width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 0; background: transparent; color: #777168; cursor: pointer; }
+.currency-market-search button:hover, .currency-market-refresh:hover:not(:disabled) { color: #e0c98e; background: #1b1c18; }
+.currency-market-search button svg, .currency-market-refresh svg { width: 14px; height: 14px; }
+.currency-market-toolbar > select { height: 30px; min-width: 150px; max-width: 210px; border: 1px solid #454139; background: #151713; color: #aaa294; padding: 0 8px; font-size: 10px; }
+.currency-quote-control { height: 30px; flex: 0 0 auto; display: flex; border: 1px solid #454139; background: #0d0f0d; }
+.currency-quote-control button { min-width: 62px; padding: 0 9px; border: 0; border-right: 1px solid #35332d; background: transparent; color: #817b70; font-size: 10px; cursor: pointer; }
+.currency-quote-control button:last-child { border-right: 0; }
+.currency-quote-control button.active { background: #3a3020; color: #ead7a0; }
+.currency-quote-control button:disabled { color: #46443f; cursor: default; }
+.currency-market-realm { height: 24px; flex: 0 0 auto; display: inline-flex; align-items: center; padding: 0 8px; border: 1px solid #4d665e; background: #13201c; color: #7eb39e; font-size: 9px; }
+.currency-market-realm.cn { border-color: #71443e; background: #241412; color: #d47a70; }
+.currency-market-source { min-width: 110px; flex: 1 1 auto; display: flex; flex-direction: column; align-items: flex-end; overflow: hidden; }
+.currency-market-source strong, .currency-market-source small { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.currency-market-source strong { color: #aaa189; font-size: 10px; font-weight: 500; }
+.currency-market-source small { margin-top: 2px; color: #6f6b62; font-size: 9px; }
+.currency-market-freshness { min-width: 92px; flex: 0 0 auto; display: flex; flex-direction: column; align-items: flex-end; font-variant-numeric: tabular-nums; }
+.currency-market-freshness span { color: #7d927d; font-size: 9px; }
+.currency-market-freshness.stale span { color: #c09a62; }
+.currency-market-freshness small { margin-top: 2px; color: #66635d; font-size: 9px; }
+.currency-market-refresh { flex: 0 0 auto; border: 1px solid #454139; }
+.currency-market-refresh:disabled { opacity: .55; cursor: default; }
+.currency-market-refresh .spinning { animation: market-spin .8s linear infinite; }
+.currency-market-error { min-height: 32px; display: flex; align-items: center; gap: 7px; padding: 5px 10px; border-bottom: 1px solid #70453f; background: #281816; color: #d08c81; font-size: 10px; }
+.currency-market-error svg { width: 14px; height: 14px; flex: 0 0 auto; }
+.currency-market-error span { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.currency-market-error button { min-height: 23px; padding: 0 9px; border: 1px solid #845149; background: #311b18; color: #dda097; cursor: pointer; font-size: 9px; }
+.currency-market-layout { min-width: 0; min-height: 0; display: grid; grid-template-columns: minmax(620px, 1fr) 330px; overflow: hidden; }
+.currency-market-table-wrap { min-width: 0; min-height: 0; overflow: auto; background: #0d0f0e; }
+.currency-market-table { width: 100%; min-width: 790px; table-layout: fixed; border-collapse: collapse; font-size: 10px; font-variant-numeric: tabular-nums; }
+.currency-market-table th { position: sticky; z-index: 2; top: 0; height: 34px; padding: 0 10px; border-bottom: 1px solid #484238; background: #171914; color: #777269; font-weight: 500; text-align: left; }
+.currency-market-table th:nth-child(1) { width: 32%; }
+.currency-market-table th:nth-child(2) { width: 16%; }
+.currency-market-table th:nth-child(3), .currency-market-table th:nth-child(4) { width: 14%; text-align: right; }
+.currency-market-table th:nth-child(5) { width: 12%; }
+.currency-market-table th:nth-child(6) { width: 12%; }
+.currency-market-table th button { width: 100%; height: 100%; display: flex; align-items: center; gap: 4px; padding: 0; border: 0; background: transparent; color: inherit; cursor: pointer; font: inherit; text-align: left; }
+.currency-market-table th:nth-child(3) button { justify-content: flex-end; }
+.currency-market-table th button:hover { color: #cfc4ad; }
+.currency-market-table th button svg { width: 11px; height: 11px; color: #b89a5f; }
+.currency-market-table td { height: 47px; padding: 5px 10px; border-bottom: 1px solid #292b27; color: #918b80; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.currency-market-table tbody tr { outline: 0; cursor: pointer; }
+.currency-market-table tbody tr:hover td { background: #151713; }
+.currency-market-table tbody tr.selected td { background: #1c1d18; box-shadow: inset 0 1px rgba(184, 154, 95, .08), inset 0 -1px rgba(184, 154, 95, .08); }
+.currency-market-table tbody tr.selected td:first-child { box-shadow: inset 2px 0 #b89a5f, inset 0 1px rgba(184, 154, 95, .08), inset 0 -1px rgba(184, 154, 95, .08); }
+.currency-market-table tbody tr:focus-visible td { background: #202118; }
+.currency-market-name { min-width: 0; display: grid; grid-template-columns: 34px minmax(0, 1fr); align-items: center; gap: 8px; }
+.currency-market-name img, .currency-market-name > i, .currency-market-details header > img, .currency-market-details header > i { width: 32px; height: 32px; object-fit: contain; }
+.currency-market-name > i, .currency-market-details header > i { display: grid; place-items: center; color: #75694e; }
+.currency-market-name > i svg, .currency-market-details header > i svg { width: 20px; height: 20px; }
+.currency-market-name span { min-width: 0; }
+.currency-market-name strong, .currency-market-name small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.currency-market-name strong { color: #d2c7af; font-size: 11px; font-weight: 600; }
+.currency-market-name small { margin-top: 2px; color: #6d6961; font-size: 9px; }
+.currency-market-price, .currency-market-conversion { text-align: right; }
+.currency-market-price { color: #ded1ab !important; font-size: 11px; font-weight: 600; }
+.currency-market-price small, .currency-market-conversion small { color: #8b784f; font-size: 9px; font-weight: 500; }
+.currency-market-conversion { color: #77746e !important; }
+.currency-market-updated { color: #6f6b63 !important; }
+.currency-quality { display: inline-flex; align-items: center; min-height: 20px; padding: 0 6px; border: 1px solid #3b4338; background: #131914; color: #79937a; font-size: 9px; }
+.currency-quality.thin { border-color: #67563a; background: #211b11; color: #c29b5e; }
+.currency-quality.anomalous { border-color: #71443e; background: #241412; color: #d47a70; }
+.currency-quality.missing { border-color: #48443d; background: #151513; color: #777168; }
+.currency-market-skeleton td { height: 47px; cursor: default; }
+.currency-market-skeleton i { display: block; width: 72%; height: 12px; background: linear-gradient(90deg, #171914 20%, #24251f 45%, #171914 70%); background-size: 220% 100%; animation: currency-skeleton 1.4s linear infinite; }
+@keyframes currency-skeleton { to { background-position: -220% 0; } }
+.currency-market-empty { min-height: 260px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; color: #706b62; }
+.currency-market-empty svg { width: 34px; height: 34px; color: #7f704f; }
+.currency-market-empty strong { color: #aaa18f; font-size: 12px; font-weight: 500; }
+.currency-market-empty small { font-size: 10px; }
+.currency-market-details { min-width: 0; min-height: 0; overflow: auto; border-left: 1px solid #494237; background: #121410; }
+.currency-market-details.empty { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: #746e64; font-size: 10px; }
+.currency-market-details.empty > svg { width: 32px; height: 32px; color: #7f704f; }
+.currency-market-details > header { min-height: 58px; display: grid; grid-template-columns: 38px minmax(0, 1fr); align-items: center; gap: 9px; padding: 8px 12px; border-bottom: 1px solid #3b382f; background: #171915; }
+.currency-market-details > header span { min-width: 0; }
+.currency-market-details > header strong, .currency-market-details > header small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.currency-market-details > header strong { color: #d4c8ae; font-size: 12px; font-weight: 600; }
+.currency-market-details > header small { margin-top: 3px; color: #777168; font-size: 9px; }
+.currency-detail-price { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 3px 8px; padding: 12px; border-bottom: 1px solid #302e29; }
+.currency-detail-price > strong { color: #e2d3a9; font-size: 20px; font-weight: 500; }
+.currency-detail-price > strong small { color: #9b8150; font-size: 11px; }
+.currency-detail-price > span { grid-column: 1; color: #79746b; font-size: 9px; }
+.currency-detail-price .currency-quality { grid-column: 2; grid-row: 1 / span 2; }
+.currency-detail-group { padding: 9px 12px; border-bottom: 1px solid #2f2e29; }
+.currency-detail-group h3 { margin: 0 0 7px; color: #9f9277; font-size: 9px; font-weight: 600; }
+.currency-detail-group div { min-height: 22px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(90px, auto); align-items: center; gap: 10px; }
+.currency-detail-group div span { color: #777168; font-size: 9px; }
+.currency-detail-group div strong { overflow: hidden; color: #b4ab9a; font-size: 9px; font-weight: 500; text-align: right; text-overflow: ellipsis; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.currency-detail-warning { display: flex; align-items: flex-start; gap: 7px; margin: 9px 12px; padding: 8px; border: 1px solid #70453f; background: #281816; color: #d08c81; font-size: 9px; line-height: 1.4; }
+.currency-detail-warning svg { width: 13px; height: 13px; flex: 0 0 auto; }
+
+@media (max-width: 1120px) {
+  .currency-market-toolbar { flex-wrap: wrap; }
+  .currency-market-source { margin-left: auto; }
+  .currency-market-layout { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(330px, 1fr) auto; overflow: auto; }
+  .currency-market-table-wrap { min-height: 330px; }
+  .currency-market-details { max-height: none; overflow: visible; border-top: 1px solid #665a44; border-left: 0; }
+}
+
+@media (max-width: 760px) {
+  .currency-market-search { width: 100%; }
+  .currency-market-toolbar > select { flex: 1; }
+  .currency-market-source, .currency-market-freshness { display: none; }
+  .currency-market-table { min-width: 520px; }
+  .currency-market-table th:nth-child(1) { width: 48%; }
+  .currency-market-table th:nth-child(3) { width: 25%; }
+  .currency-market-table th:nth-child(5) { width: 27%; }
+  .currency-market-table th:nth-child(2), .currency-market-table td:nth-child(2),
+  .currency-market-table th:nth-child(4), .currency-market-table td:nth-child(4),
+  .currency-market-table th:nth-child(6), .currency-market-table td:nth-child(6) { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .currency-market-refresh .spinning, .currency-market-skeleton i { animation: none; }
+}
+
 /* PoE 2 Trade Helper replica. The native market view stays in the first grid track. */
 .market-content.library-collapsed { grid-template-columns: minmax(0, 1fr) 52px; }
 .trade-helper-sidebar { position: relative; grid-template-rows: 46px 38px minmax(0, 1fr); border-left: 1px solid #8f7b58; background: linear-gradient(180deg, #151515, #090909); box-shadow: -4px 0 14px rgba(0, 0, 0, .72); color: #c8c8c8; font-family: Georgia, "Microsoft YaHei", serif; }

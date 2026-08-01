@@ -20,6 +20,7 @@ import { OfficialTradeProvider, TradeReferenceDataCache } from './tradeService.j
 import { GameWindowService } from './gameWindowService.js'
 import { MarketMonitoringCoordinator } from './marketMonitoring.js'
 import { OpportunityOverlayController } from './opportunityOverlay.js'
+import { CurrencyMarketService } from './currencyMarket/currencyMarketService.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
@@ -151,6 +152,7 @@ let tradeProvider: OfficialTradeProvider | null = null
 let gameWindowService: GameWindowService | null = null
 let marketMonitoring: MarketMonitoringCoordinator | null = null
 let opportunityOverlay: OpportunityOverlayController | null = null
+let currencyMarketService: CurrencyMarketService | null = null
 let defaultRealm: MarketRealm = 'global'
 const tradeCredentialStore = new TradeCredentialStore(path.join(userDataPath, 'trade', 'credentials.v1.json'))
 const equipmentLibrary = new EquipmentLibraryRepository(path.join(userDataPath, 'library', 'equipment-library.v1.json'))
@@ -283,6 +285,11 @@ function createWindow(): BrowserWindow {
     if (!window.isDestroyed()) window.webContents.send('market:state-changed', state)
   }, tradeCredentialStore)
   tradeProvider = new OfficialTradeProvider(marketViewManager, new TradeReferenceDataCache(path.join(userDataPath, 'trade', 'reference')))
+  currencyMarketService = new CurrencyMarketService(
+    path.join(userDataPath, 'currency-market'),
+    (input, init) => net.fetch(input, init),
+    (state) => { if (!window.isDestroyed()) window.webContents.send('currency-market:changed', state) },
+  )
   opportunityOverlay = new OpportunityOverlayController(window, {
     skip: (id) => marketMonitoring?.skipOpportunity(id),
     pause: (targetId) => { marketMonitoring?.setTarget(targetId, 'paused') },
@@ -318,6 +325,7 @@ function createWindow(): BrowserWindow {
     marketViewManager?.dispose()
     marketViewManager = null
     tradeProvider = null
+    currencyMarketService = null
     if (mainWindow === window) mainWindow = null
   })
   return window
@@ -392,6 +400,12 @@ app.whenReady().then(() => {
     requireMainWindowSender(event)
     if (!marketViewManager) throw new Error('Market browser is unavailable')
     return marketViewManager.getState()
+  })
+  ipcMain.handle('currency-market:get', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (value != null && typeof value !== 'boolean') throw new Error('Invalid currency market refresh flag')
+    if (!currencyMarketService) throw new Error('通货行情服务不可用')
+    return currencyMarketService.get(defaultRealm, value === true)
   })
 
   ipcMain.on('market-monitor:ready', (event) => {
