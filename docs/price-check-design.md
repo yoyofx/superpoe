@@ -1,7 +1,7 @@
 # SuperPoE2 统一交易、装备仓库与国服/国际服查价详细设计
 
-> 状态：共享 M0 交易领域已实现；M6 游戏内浮层待开发
-> 更新日期：2026-07-29
+> 状态：PriceCheck 独立模块设计已定稿；共享 M0 交易基础可复用；M6 游戏内查价待开发
+> 更新日期：2026-08-01
 > 适用项目：`D:\sources\superpoe`
 > 目标平台：Electron 桌面端，首要支持 Windows
 > 关联路线图：`docs/ROADMAP.md` 中 M0“集市、统一装备仓库与共享交易基础”和 M6“游戏内查价器与构筑提升浮层”
@@ -30,6 +30,7 @@
 11. 仓库和查价器共用唯一 `TradeStatResolver`。Stat ID 是带 realm、catalog hash 和解析证据的可重算快照，不是装备或词缀的永久主键。
 12. 市场 listing 经官方 Fetch 取得可信数据后才能入库；DOM 注入只发送 `realm + queryId + listingId + sourceUrl`。
 13. 现有构筑 `EquipmentItem` 与仓库 `LibraryItemSnapshot` 通过 Adapter 转换，上游 Trade DTO 不直接进入构筑模型。
+14. PriceCheck 始终是独立业务模块和独立目录，不属于 Market。PriceCheck 只依赖共享的 `trade`、`library` 基础设施；Market 与 PriceCheck 禁止互相导入组件、状态、IPC 或业务协调器。
 
 ## 3. 产品目标与非目标
 
@@ -185,6 +186,18 @@ interface TradeProvider {
 
 第一版实现为主进程 `OfficialTradeProvider`，内部根据已同步的 `defaultRealm` 选择静态 profile。普通 renderer 方法不接受 realm 或 Base URL；来自隔离 market preload 的 listing 引用必须由主进程依据 sender webContents 与 partition 推导 realm。PriceCheckCoordinator 负责热键/generation/窗口，MarketEnhancementCoordinator 负责页面按钮与 listing 引用，两者都不能复制 Provider、resolver 或仓库逻辑。
 
+这里的“共享”只表示依赖同一套无 UI 的交易基础设施，不表示模块合并。依赖方向固定为：
+
+```text
+Market --------> shared trade/library
+PriceCheck ----> shared trade/library
+
+Market -X-> PriceCheck
+PriceCheck -X-> Market
+```
+
+`electron/main.ts` 只负责组合和生命周期，不承载 PriceCheck 业务实现。PriceCheck 的窗口、热键、剪贴板、parser、状态机、preload、IPC、UI、样式和测试必须全部收口到 `electron/priceCheck/` 与 `src/priceCheck/`。
+
 ### 5.3 统一装备仓库契约
 
 所有装备来源进入同一个 `EquipmentLibraryRepository`：
@@ -254,13 +267,9 @@ src/
   trade/
     types.ts
     runtimeValidation.ts
-    itemTextProfiles.ts
-    itemTextParser.ts
-    itemClassifier.ts
     statTemplate.ts
     tradeStatResolver.ts
     tradeQueryBuilder.ts
-    priceSummary.ts
     *.test.ts
 
   library/
@@ -269,22 +278,35 @@ src/
     equipmentAdapter.ts
     *.test.ts
 
-  components/priceCheck/
+  priceCheck/
     PriceCheckApp.tsx
-    PriceCheckHeader.tsx
-    PriceCheckFilters.tsx
-    PriceCheckModifierRow.tsx
-    PriceCheckResults.tsx
-    PriceCheckListing.tsx
-    PriceCheckLoginState.tsx
-
-  styles/
+    domain/
+      types.ts
+      itemTextProfiles.ts
+      itemTextParser.ts
+      itemClassifier.ts
+      priceSummary.ts
+      *.test.ts
+    state/
+      priceCheckReducer.ts
+      priceCheckViewModel.ts
+      *.test.ts
+    components/
+      PriceCheckHeader.tsx
+      PriceCheckFilters.tsx
+      PriceCheckModifierRow.tsx
+      PriceCheckResults.tsx
+      PriceCheckListing.tsx
+      PriceCheckLoginState.tsx
+    __fixtures__/
     priceCheck.css
 ```
 
 Electron 当前 `tsconfig.electron.json` 仅包含 `electron/*.ts`。如果采用子目录，需要把 include 扩展为 `electron/**/*.ts`。
 
-共享领域模块会同时被 Vite 和 `tsc -p tsconfig.electron.json` 引用。`src/trade/` 与 `src/library/` 内供主进程使用的文件必须保持纯 TypeScript、使用相对导入且不得依赖 DOM、React、Zustand 或 `@/` 路径别名；当前 Electron `NodeNext` 配置不能解析 renderer 的 `@/` 别名。TypeScript 会像现有 `src/types/calc.ts` 一样把被 Electron 引用的共享文件输出到 `dist-electron/src/`。
+共享领域模块会同时被 Vite 和 `tsc -p tsconfig.electron.json` 引用。`src/trade/` 与 `src/library/` 内供主进程使用的文件必须保持纯 TypeScript、使用相对导入且不得依赖 DOM、React、Zustand、`@/` 路径别名或 `src/priceCheck/`；当前 Electron `NodeNext` 配置不能解析 renderer 的 `@/` 别名。TypeScript 会像现有 `src/types/calc.ts` 一样把被 Electron 引用的共享文件输出到 `dist-electron/src/`。
+
+PriceCheck 内部代码不得放入 `src/components/market/`、`electron/market*.ts` 或 Market store。即使某个组件当前只被一个页面使用，也必须先归属 `src/priceCheck/`；只有在出现真实的跨模块复用后，才能把无业务归属的纯能力下沉到共享目录。
 
 ## 7. 区服配置
 
@@ -1242,7 +1264,7 @@ interface PriceCheckSettings {
 - `Esc` 关闭。
 - 不使用透明窗口作为第一版基础，降低 Windows 合成和点击问题。
 
-窗口使用同一 Vite 构建产物的独立入口，不为查价器再启动 HTTP 服务。当前项目没有 React Router，最小接入方式是在 `src/main.tsx` 先读取 `?surface=price-check`，再动态 `import('./components/priceCheck/PriceCheckApp')` 或 `import('./App')`。必须在导入和挂载 `<App />` 前分流，否则查价窗口不仅会初始化天赋树、PoB Lua 和构筑数据，还会下载当前约 789 KB 的主应用 JS chunk。静态 import 两个 App 后再条件渲染不满足隔离要求；Vite 多 HTML entry 也可接受，但不是第一选择。
+窗口使用同一 Vite 构建产物的独立入口，不为查价器再启动 HTTP 服务。当前项目没有 React Router，最小接入方式是在 `src/main.tsx` 先读取 `?surface=price-check`，再动态 `import('./priceCheck/PriceCheckApp')` 或 `import('./App')`。必须在导入和挂载 `<App />` 前分流，否则查价窗口不仅会初始化天赋树、PoB Lua 和构筑数据，还会下载当前约 789 KB 的主应用 JS chunk。静态 import 两个 App 后再条件渲染不满足隔离要求；Vite 多 HTML entry 也可接受，但不是第一选择。
 
 开发环境加载 `${rendererUrl}?surface=price-check`，打包环境加载 `app://localhost/index.html?surface=price-check`。现有 custom `app://` protocol 可以承载该 query route。
 

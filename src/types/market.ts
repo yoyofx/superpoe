@@ -27,6 +27,7 @@ export type SavedSearchCaptureSource = 'official-page' | 'superpoe-query' | 'cod
 export type SavedSearchValidity = 'unknown' | 'valid' | 'needs-refresh' | 'invalid'
 export type MonitorTaskStatus = 'saved' | 'armed' | 'paused' | 'completed'
 export type MonitorTaskPriority = 'high' | 'normal' | 'low'
+export const MAX_ACTIVE_PURCHASE_TARGETS = 5
 
 export interface SavedSearchQuerySnapshot {
   source: Exclude<SavedSearchCaptureSource, 'code-only'>

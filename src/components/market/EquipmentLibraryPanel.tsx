@@ -8,6 +8,7 @@ import type {
   EquipmentLibraryEntry, EquipmentLibraryFolder, EquipmentLibrarySidebarSnapshot, LibraryTreeScope,
   EquipmentLibrarySourceKind, MarketFavoriteSource, MarketMonitoringSnapshot, MarketRealm, MarketSearchReference, SavedMarketSearch, TradeLeague,
 } from '@/types/market'
+import { MAX_ACTIVE_PURCHASE_TARGETS } from '@/types/market'
 
 interface EquipmentLibraryPanelProps {
   realm: MarketRealm
@@ -432,9 +433,10 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
     <footer>
       {(() => {
         const target = monitoring?.purchaseTargets.find((candidate) => candidate.sourceSearchId === search.id && candidate.status !== 'completed')
-        return <button className="primary-action" disabled={!target && search.validity === 'invalid'} onClick={() => void run(`target:${search.id}`, () => target
+        const limitReached = (monitoring?.purchaseTargets.filter((candidate) => candidate.status === 'armed').length || 0) >= MAX_ACTIVE_PURCHASE_TARGETS
+        return <button className="primary-action" disabled={!target && (search.validity === 'invalid' || limitReached)} onClick={() => void run(`target:${search.id}`, () => target
           ? bridge!.setMonitorTarget(target.id, 'completed')
-          : bridge!.createMonitorTarget(search.id), target ? (zh ? '已取消监控' : 'Monitoring cancelled') : (zh ? '已开始监控' : 'Monitoring started'))} title={target ? (zh ? '取消监控' : 'Cancel monitoring') : (zh ? '开始监控' : 'Start monitoring')} aria-label={target ? (zh ? '取消监控' : 'Cancel monitoring') : (zh ? '开始监控' : 'Start monitoring')}>{target ? <BellOff /> : <BellRing />}</button>
+          : bridge!.createMonitorTarget(search.id), target ? (zh ? '已取消监控' : 'Monitoring cancelled') : (zh ? '已开始监控' : 'Monitoring started'))} title={target ? (zh ? '取消监控' : 'Cancel monitoring') : limitReached ? (zh ? `最多同时监控 ${MAX_ACTIVE_PURCHASE_TARGETS} 条搜索` : `Up to ${MAX_ACTIVE_PURCHASE_TARGETS} searches can be monitored`) : (zh ? '开始监控' : 'Start monitoring')} aria-label={target ? (zh ? '取消监控' : 'Cancel monitoring') : (zh ? '开始监控' : 'Start monitoring')}>{target ? <BellOff /> : <BellRing />}</button>
       })()}
       <button disabled={search.validity === 'invalid'} onClick={() => void bridge?.openSearch(search.id)} title={zh ? '跳转到搜索' : 'Open search'}><ExternalLink /></button>
       <button onClick={() => setSearchEditor({ mode: 'edit', id: search.id, name: search.name, note: search.note || '', folderId: search.folderId || '' })} title={zh ? '编辑搜索' : 'Edit search'}><Pencil /></button>

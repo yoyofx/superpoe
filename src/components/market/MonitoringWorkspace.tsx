@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { BellRing, CheckCircle2, CirclePause, CirclePlay, Clock3, ExternalLink, Moon, PanelTop, Play, RefreshCw, Trash2, Volume2 } from 'lucide-react'
-import type { MarketMonitoringSnapshot, MarketOpportunity, MarketSoundId, PurchaseTarget } from '@/types/market'
+import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketMonitoringSnapshot, type MarketOpportunity, type MarketSoundId, type PurchaseTarget } from '@/types/market'
 
 interface MonitoringWorkspaceProps { zh: boolean }
 
@@ -67,7 +67,7 @@ export function MonitoringWorkspace({ zh }: MonitoringWorkspaceProps) {
     </header>
     <div className="monitoring-layout">
       <aside className="target-pane">
-        <header><strong>{zh ? '购买目标' : 'Purchase targets'}</strong><small>{snapshot.purchaseTargets.filter((target) => target.status === 'armed').length}/{snapshot.purchaseTargets.length}</small></header>
+        <header><strong>{zh ? '购买目标' : 'Purchase targets'}</strong><small>{zh ? '监控 ' : ''}{snapshot.purchaseTargets.filter((target) => target.status === 'armed').length}/{MAX_ACTIVE_PURCHASE_TARGETS}</small></header>
         <button className={selectedTargetId === 'all' ? 'selected' : ''} onClick={() => setSelectedTargetId('all')}><BellRing /><span><strong>{zh ? '全部机会' : 'All opportunities'}</strong><small>{opportunities.filter((item) => pendingStatuses.has(item.status)).length}{zh ? ' 待处理' : ' pending'}</small></span></button>
         {snapshot.purchaseTargets.map((target) => <TargetRow key={target.id} target={target} connection={runtime.get(target.id)?.connectionStatus || 'disabled'} pending={runtime.get(target.id)?.pendingOpportunityCount || 0} selected={selectedTargetId === target.id} zh={zh} onSelect={() => setSelectedTargetId(target.id)} onRun={run} />)}
         {!snapshot.purchaseTargets.length && <p>{zh ? '从“保存的搜索”创建购买目标后，会在这里连接官方 Live。' : 'Create a purchase target from Saved searches.'}</p>}

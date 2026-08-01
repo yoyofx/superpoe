@@ -41,6 +41,7 @@ SuperPoE2 的目标不是只展示天赋树，而是形成一套可以长期维�
 | 自适应工作台 | 已完成 | 布局按实际窗口连续调整，不要求固定分辨率；窄窗口会重排装备与面板区域 |
 | 内嵌官方集市 | 可用，待完善 | 已接入 Electron `WebContentsView`、双区服会话、隔离页面收藏注入、官方 Fetch 校验、统一装备仓库、PoB/装备来源和共享查价领域层；发布前仍需在真实登录会话中验证新版 listing DOM Adapter 与官方搜索 |
 | 搜索收藏与购买目标 | 可用，待完善 | 已实现严格搜索页识别、查询快照和搜索码恢复；收藏可启用为官方 Live 购买目标，包含突发合并、有限 Fetch、去重、公平排序、机会历史、游戏进程识别、置顶机会面板、提示音及暂停/完成/尝试前往闭环；待双区服真实登录、断网限流、DPI 和多显示器长时 smoke test |
+| 通货行情 | 规划中 | 交易中心只读批量行情页；国服接入 poecurrency.top，国际服接入 poe2scout，跟随全局默认服务器并自动发现国际服当前赛季 |
 
 ### 3.2 天赋树
 
@@ -136,7 +137,7 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 
 目标：优先形成可实际使用的国服/国际服集市工作流，并为页面收藏、PoB 导入、装备界面收藏和游戏内查价建立唯一的数据与查询基础。
 
-详细方案见 [`marketplace-browser-design.md`](./marketplace-browser-design.md)、[`market-subscription-design.md`](./market-subscription-design.md) 与 [`price-check-design.md`](./price-check-design.md)。三份文档共享同一领域模型，不允许分别实现 session、Stat matcher、查询构建、订阅状态或收藏存储。
+详细方案见 [`marketplace-browser-design.md`](./marketplace-browser-design.md)、[`market-subscription-design.md`](./market-subscription-design.md)、[`currency-market-design.md`](./currency-market-design.md) 与 [`price-check-design.md`](./price-check-design.md)。官方集市、实时监控和查价共享交易基础；第三方通货行情保持独立只读 Adapter 与缓存，只向其他模块提供经过归一化的汇率快照。
 
 **当前实现状态（2026-08-01）**：M0 应用侧能力已接入，包括双区服内嵌浏览器、隔离 preload 收藏按钮、官方 Fetch 校验、统一多来源装备仓库、搜索保存与恢复、官方 Live WebSocket、突发机会处理、游戏窗口识别、提示音和置顶机会窗口。保存的搜索、购买目标和机会中心已拆分为独立领域与 UI；旧监控状态会迁移为独立目标，Live Fetch 的完整装备快照、批次和词缀直接落盘。仍需在用户实际 Electron 登录分区中完成双区服、断网/限流、DPI、多显示器和长时运行 smoke test。
 
@@ -156,6 +157,7 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 - 实现有界 Opportunity Engine：合并瞬时大量 listing、有限批量 Fetch、校验有效性、按目标优先级/新鲜度/公平性选择少量重点候选，不把原始结果洪泛到游戏窗口。
 - 复用查价器的 `GameWindowService` 识别游戏窗口和客户端 realm；游戏前台时使用单一机会面板帮助用户判断并主动“尝试前往”，不承诺 listing 仍有效或交易成功。游戏未运行/后台时只记录，不使用系统通知。
 - 不后台监控价格，不自动私聊、购买、翻页或绕过验证。
+- 在交易中心增加只读“通货行情”Tab：国服批量读取 poecurrency.top，国际服批量读取 poe2scout；使用稳定主表和来源特有详情区，展示来源、赛季、更新时间、缓存与数据质量，不提供收藏、监控或交易动作。
 
 **完成标准**：双区服官方集市可以稳定浏览；新版 listing 卡片可以收藏到统一装备仓库；PoB 导入和装备面板收藏可写入同一仓库并保留多来源；仓库或剪贴板装备通过同一 resolver 和 Provider 生成可信查询；搜索收藏能够去重、更新、恢复并可靠驱动购买目标；购买目标可以稳定消费官方 Live 接口，大量瞬时命中不会造成请求/声音/窗口洪泛，游戏前台时用户能看到经过基础校验和排序的少量机会并主动尝试藏身处；页面 Adapter 或机会面板失效不会影响官网、仓库和查价 API。
 

@@ -78,6 +78,10 @@
       "icon": "icon.ico",
       "extraResources": [
         {
+          "from": "build/icon.ico",
+          "to": "icon.ico"
+        },
+        {
           "from": "native/bin/win32-x64",
           "to": "pob-lua-runtime/win32-x64"
         }

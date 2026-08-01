@@ -1,38 +1,33 @@
-import { useEffect, useState } from 'react'
 import { ArrowLeft, BellRing, Settings, Store } from 'lucide-react'
 import { MarketPanel } from '@/components/market/MarketPanel'
 import { MonitoringWorkspace } from '@/components/market/MonitoringWorkspace'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { useTranslation } from '@/i18n/useTranslation'
-import type { MarketMonitoringSnapshot } from '@/types/market'
+import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketMonitoringSnapshot } from '@/types/market'
 import type { BuildRealm } from '@/types/tree'
 import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
 
 interface MarketShellProps {
   realm: BuildRealm
   suspended?: boolean
+  view: 'market' | 'monitoring'
+  onViewChange: (view: 'market' | 'monitoring') => void
+  monitoring: MarketMonitoringSnapshot | null
+  backTarget: 'center' | 'editor'
+  buildName?: string
   onBack: () => void
   onSettings: () => void
 }
-export function MarketShell({ realm, suspended, onBack, onSettings }: MarketShellProps) {
+export function MarketShell({ realm, suspended, view, onViewChange, monitoring, backTarget, buildName, onBack, onSettings }: MarketShellProps) {
   const { lang } = useTranslation()
   const zh = lang === 'zh-rCN'
-  const [view, setView] = useState<'market' | 'monitoring'>('market')
-  const [monitoring, setMonitoring] = useState<MarketMonitoringSnapshot | null>(null)
-  const marketBridge = window.pob2Market
-
-  useEffect(() => {
-    if (!marketBridge) return
-    let active = true
-    void marketBridge.getMonitoring().then((snapshot) => { if (active) setMonitoring(snapshot) }).catch(() => {})
-    const unsubscribe = marketBridge.onMonitoringChanged((snapshot) => { if (active) setMonitoring(snapshot) })
-    const unsubscribeOpenMonitoring = marketBridge.onOpenMonitoring(() => { if (active) setView('monitoring') })
-    return () => { active = false; unsubscribe(); unsubscribeOpenMonitoring() }
-  }, [marketBridge])
-
-  const armedCount = monitoring?.targets.filter((target) => target.connectionStatus !== 'disabled').length || 0
+  const armedCount = monitoring?.purchaseTargets.filter((target) => target.status === 'armed').length || 0
   const connectedCount = monitoring?.targets.filter((target) => target.connectionStatus === 'connected').length || 0
   const pendingCount = monitoring?.targets.reduce((total, target) => total + target.pendingOpportunityCount, 0) || 0
+  const isActivelyMonitoring = armedCount > 0 && !monitoring?.globalPaused
+  const backLabel = backTarget === 'editor'
+    ? (zh ? `返回构筑：${buildName || '未命名构筑'}` : `Back to build: ${buildName || 'Untitled build'}`)
+    : (zh ? '返回构筑中心' : 'Back to build center')
   return <>
     <header className="workbench-header market-shell-header">
       <div className="app-command-bar">
@@ -41,18 +36,18 @@ export function MarketShell({ realm, suspended, onBack, onSettings }: MarketShel
           <span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span>
         </div>
         <div className="market-shell-title">
-          <button className="icon-command compact" onClick={onBack} title={zh ? '返回构筑中心' : 'Back to build center'} aria-label={zh ? '返回构筑中心' : 'Back to build center'}><ArrowLeft /></button>
-          <span><strong>{zh ? '官方集市' : 'Official Market'}</strong><small>{zh ? '浏览和收藏官方交易装备' : 'Browse official trade listings'}</small></span>
-          <GameRuntimeIndicator />
+          <button className="icon-command compact" onClick={onBack} title={backLabel} aria-label={backLabel}><ArrowLeft /></button>
+          <span><strong>{zh ? '交易中心' : 'Trade Center'}</strong><small>{zh ? '集市、装备仓库与实时监控' : 'Market, equipment library, and live monitoring'}</small></span>
         </div>
         <div className="command-actions">
+          <GameRuntimeIndicator />
           <button className="icon-command" onClick={onSettings} title={zh ? '全局设置' : 'Global settings'} aria-label={zh ? '全局设置' : 'Global settings'}><Settings /></button>
         </div>
       </div>
       <div className="workspace-tabs-bar">
-        <nav className="workspace-tabs" aria-label={zh ? '应用工作区' : 'Application workspace'}>
-          <button className={view === 'market' ? 'active' : ''} aria-current={view === 'market' ? 'page' : undefined} onClick={() => setView('market')}><Store /><span>{zh ? '集市与仓库' : 'Market & Library'}</span></button>
-          <button className={view === 'monitoring' ? 'active' : ''} aria-current={view === 'monitoring' ? 'page' : undefined} onClick={() => setView('monitoring')}><BellRing /><span>{zh ? '实时监控' : 'Live Monitoring'}</span>{monitoring && <small className="monitoring-tab-count" title={zh ? `已连接 ${connectedCount}/${armedCount}，待处理 ${pendingCount}` : `${connectedCount}/${armedCount} connected, ${pendingCount} pending`}>{connectedCount}/{armedCount} · {pendingCount}</small>}</button>
+        <nav className="workspace-tabs" aria-label={zh ? '交易中心页面' : 'Trade Center workspace'}>
+          <button className={view === 'market' ? 'active' : ''} aria-current={view === 'market' ? 'page' : undefined} onClick={() => onViewChange('market')}><Store /><span>{zh ? '集市与仓库' : 'Market & Library'}</span></button>
+          <button className={[view === 'monitoring' ? 'active' : '', 'monitoring-entry', isActivelyMonitoring ? 'is-monitoring' : ''].filter(Boolean).join(' ')} aria-current={view === 'monitoring' ? 'page' : undefined} onClick={() => onViewChange('monitoring')}><span className="monitoring-tab-icon" aria-hidden="true"><BellRing /></span><span>{zh ? '实时监控' : 'Live Monitoring'}</span>{monitoring && <small className="monitoring-tab-count" title={zh ? `监控中 ${armedCount}/${MAX_ACTIVE_PURCHASE_TARGETS}，Live 已连接 ${connectedCount}` : `${armedCount}/${MAX_ACTIVE_PURCHASE_TARGETS} monitoring, ${connectedCount} connected`}>{zh ? '监控 ' : ''}{armedCount}/{MAX_ACTIVE_PURCHASE_TARGETS}</small>}{pendingCount > 0 && <small className="monitoring-tab-alert" title={zh ? `${pendingCount} 个待处理机会` : `${pendingCount} pending opportunities`}>{pendingCount}</small>}</button>
         </nav>
       </div>
     </header>

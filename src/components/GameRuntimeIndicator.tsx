@@ -14,14 +14,13 @@ export function GameRuntimeIndicator() {
   const label = running
     ? (zh ? '游戏运行中' : 'Game running')
     : game.status === 'stopped'
-      ? (zh ? '游戏已停止' : 'Game stopped')
-      : (zh ? '正在检测游戏' : 'Checking game')
+      ? (zh ? '游戏未运行' : 'Game not running')
+      : (zh ? '正在检测游戏运行状态' : 'Checking game status')
   const detail = running
     ? `${label} · ${game.status === 'foreground' ? (zh ? '前台' : 'Foreground') : (zh ? '后台' : 'Background')}`
     : label
 
-  return <div className={`global-game-status ${running ? 'running' : game.status}`} role="status" aria-live="polite" title={detail}>
+  return <div className={`global-game-status ${running ? 'running' : game.status}`} role="status" aria-live="polite" aria-label={detail} data-tooltip={detail} tabIndex={0}>
     <span className="global-game-status-icon">{running || game.status === 'unknown' ? <Activity /> : <CircleStop />}<i /></span>
-    <strong>{label}</strong>
   </div>
 }

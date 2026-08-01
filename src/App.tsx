@@ -18,15 +18,18 @@ import { GlobalSettingsDialog } from '@/components/GlobalSettingsDialog'
 import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/appSettings'
 import { UpdateDialog } from '@/components/UpdateDialog'
 import { initPobLuaEngine } from '@/engine/pobLuaClient'
-import { MarketPanel } from '@/components/market/MarketPanel'
 import { MarketShell } from '@/components/market/MarketShell'
+import type { MarketMonitoringSnapshot } from '@/types/market'
 
 export default function App() {
   const { t, lang } = useTranslation()
   const hashLoadedRef = useRef(false)
   const cleanSignatureRef = useRef('')
-  const [screen, setScreen] = useState<'center' | 'editor' | 'market'>('center')
+  const [screen, setScreen] = useState<'center' | 'editor' | 'trade'>('center')
   const [activeView, setActiveView] = useState<WorkspaceView>('equipment')
+  const [marketWorkspace, setMarketWorkspace] = useState<'market' | 'monitoring'>('market')
+  const [tradeReturnScreen, setTradeReturnScreen] = useState<'center' | 'editor'>('center')
+  const [monitoring, setMonitoring] = useState<MarketMonitoringSnapshot | null>(null)
   const [buildName, setBuildName] = useState(lang === 'zh-rCN' ? '未命名构筑' : 'Untitled build')
   const [activeBuildId, setActiveBuildId] = useState<string | null>(null)
   const [buildSource, setBuildSource] = useState<SavedBuild['source']>('local')
@@ -100,6 +103,25 @@ export default function App() {
   useEffect(() => {
     void window.pob2Desktop?.setAppContext({ defaultRealm: appSettings.defaultRealm })
   }, [appSettings.defaultRealm])
+
+  useEffect(() => {
+    const bridge = window.pob2Market
+    if (!bridge) return
+    let active = true
+    void bridge.getMonitoring().then((snapshot) => { if (active) setMonitoring(snapshot) }).catch(() => {})
+    const offChanged = bridge.onMonitoringChanged((snapshot) => { if (active) setMonitoring(snapshot) })
+    return () => { active = false; offChanged() }
+  }, [])
+
+  useEffect(() => {
+    const bridge = window.pob2Market
+    if (!bridge) return
+    return bridge.onOpenMonitoring(() => {
+      if (screen !== 'trade') setTradeReturnScreen(screen === 'editor' ? 'editor' : 'center')
+      setMarketWorkspace('monitoring')
+      setScreen('trade')
+    })
+  }, [screen])
 
   useEffect(() => {
     const openEquipment = () => setActiveView('equipment')
@@ -270,16 +292,16 @@ export default function App() {
 
   if (!treeData) return null
 
-  const marketSuspended = settingsOpen || importOpen || newBuildOpen || leaveConfirmOpen
+  const tradeSuspended = settingsOpen || importOpen || newBuildOpen || leaveConfirmOpen
 
   return (
     <div className="superpoe-app">
       {screen === 'center'
-        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onMarket={() => setScreen('market')} onSettings={() => setSettingsOpen(true)} />
-        : screen === 'market'
-          ? <MarketShell realm={appSettings.defaultRealm} suspended={marketSuspended} onBack={() => setScreen('center')} onSettings={() => setSettingsOpen(true)} />
+        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} />
+        : screen === 'trade'
+          ? <MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onSettings={() => setSettingsOpen(true)} />
           : <>
-      <Toolbar activeView={activeView} onViewChange={setActiveView} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} onSettings={() => setSettingsOpen(true)} />
+      <Toolbar activeView={activeView} onViewChange={setActiveView} onTradeCenter={() => { setTradeReturnScreen('editor'); setScreen('trade') }} monitoring={monitoring} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} onSettings={() => setSettingsOpen(true)} />
       <main className="workspace-view">
         {activeView === 'passive' && (
           <section className="passive-workspace">
@@ -289,7 +311,6 @@ export default function App() {
         )}
         {activeView === 'equipment' && <EquipmentPanel buildId={activeBuildId} />}
         {activeView === 'skills' && <SkillsWorkspace />}
-        {activeView === 'market' && <MarketPanel realm={appSettings.defaultRealm} suspended={marketSuspended} />}
       </main>
       </>}
       <NewBuildDialog open={newBuildOpen} defaultRealm={appSettings.defaultRealm} onClose={() => setNewBuildOpen(false)} onCreate={(input) => void handleCreateBuild(input)} />

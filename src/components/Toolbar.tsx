@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   CircleHelp,
+  BellRing,
   Download,
   ArrowLeft,
   LockKeyhole,
@@ -28,6 +29,7 @@ import { useTranslation } from '@/i18n/useTranslation'
 import { buildRealmLabel } from '@/engine/buildRealm'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
+import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketMonitoringSnapshot } from '@/types/market'
 import {
   DEFAULT_ZOOM,
   MAX_ZOOM,
@@ -35,12 +37,14 @@ import {
   useTreeStore,
 } from '@/store/treeStore'
 
-export type WorkspaceView = 'passive' | 'equipment' | 'skills' | 'market'
+export type WorkspaceView = 'passive' | 'equipment' | 'skills'
 type ToolbarMenu = 'export' | null
 
 interface ToolbarProps {
   activeView: WorkspaceView
   onViewChange: (view: WorkspaceView) => void
+  onTradeCenter: () => void
+  monitoring?: MarketMonitoringSnapshot | null
   buildName: string
   buildSourceUrl?: string | null
   onBuildNameChange: (name: string) => void
@@ -55,12 +59,11 @@ const VIEW_ICONS = {
   equipment: Swords,
   passive: Workflow,
   skills: Sparkles,
-  market: Store,
 }
 
-const VIEW_ORDER: WorkspaceView[] = ['equipment', 'skills', 'passive', 'market']
+const VIEW_ORDER: WorkspaceView[] = ['equipment', 'skills', 'passive']
 
-export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onImport, onSave, onSettings }: ToolbarProps) {
+export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onImport, onSave, onSettings }: ToolbarProps) {
   const { t, lang } = useTranslation()
   const zoom = useTreeStore((state) => state.zoom)
   const treeVersion = useTreeStore((state) => state.treeVersion)
@@ -89,9 +92,6 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
 
   const [activeMenu, setActiveMenu] = useState<ToolbarMenu>(null)
 
-  useEffect(() => {
-    if (activeView === 'market') setActiveMenu(null)
-  }, [activeView])
   const [assetIndex, setAssetIndex] = useState<SpriteIndex>({})
 
   useEffect(() => {
@@ -125,8 +125,8 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
     return String(getBuildCharacterLevel(importedBuildCode) || '--')
   }, [importedBuildCode])
   const viewLabels = useMemo(() => lang === 'zh-rCN'
-    ? { passive: '天赋', equipment: '装备', skills: '技能', market: '集市' }
-    : { passive: 'Passive', equipment: 'Equipment', skills: 'Skills', market: 'Market' }, [lang])
+    ? { passive: '天赋', equipment: '装备', skills: '技能' }
+    : { passive: 'Passive', equipment: 'Equipment', skills: 'Skills' }, [lang])
   const saveLabels = lang === 'zh-rCN'
     ? { saved: '已保存', dirty: '有未保存修改', saving: '正在保存', error: '保存失败' }
     : { saved: 'Saved', dirty: 'Unsaved changes', saving: 'Saving', error: 'Save failed' }
@@ -159,6 +159,9 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
   const toggleMenu = (menu: Exclude<ToolbarMenu, null>) => {
     setActiveMenu((current) => current === menu ? null : menu)
   }
+  const armedCount = monitoring?.purchaseTargets.filter((target) => target.status === 'armed').length || 0
+  const pendingCount = monitoring?.targets.reduce((total, target) => total + target.pendingOpportunityCount, 0) || 0
+  const isActivelyMonitoring = armedCount > 0 && !monitoring?.globalPaused
 
   return (
     <header className="workbench-header">
@@ -207,11 +210,9 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
             <option value="global">{lang === 'zh-rCN' ? '国际服' : 'Global'}</option>
           </select>
           <span className={`save-state ${saveStatus}`}><i />{saveLabels[saveStatus]}</span>
-          <GameRuntimeIndicator />
         </div>
 
         <div className="command-actions">
-          {activeView !== 'market' && <>
           <span className="version-indicator" title={lang === 'zh-rCN' ? '构筑版本已确定' : 'Build version is fixed'} aria-label={`${t('toolbar.version')} ${treeVersion.replace('_', '.')}`}>
             <LockKeyhole />
             <span>{treeVersion.replace('_', '.')}</span>
@@ -219,7 +220,7 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
           <button className="icon-command" onClick={onImport} title={t('toolbar.importTitle')} aria-label={t('toolbar.importTitle')}><Upload /></button>
           <button className="icon-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')} aria-label={t('toolbar.exportTitle')}><Download /></button>
           <button className="primary-command" onClick={onSave}><Save />{lang === 'zh-rCN' ? '保存' : 'Save'}</button>
-          </>}
+          <GameRuntimeIndicator />
           <button className="icon-command" onClick={onSettings} title={lang === 'zh-rCN' ? '全局设置' : 'Global settings'} aria-label={lang === 'zh-rCN' ? '全局设置' : 'Global settings'}><Settings /></button>
           <button className="icon-command" title={lang === 'zh-rCN' ? '更多操作' : 'More'} aria-label={lang === 'zh-rCN' ? '更多操作' : 'More'}><MoreVertical /></button>
         </div>
@@ -236,6 +237,10 @@ export function Toolbar({ activeView, onViewChange, buildName, buildSourceUrl, o
               </button>
             )
           })}
+          <i className="workspace-tabs-divider" aria-hidden="true" />
+          <button className={`workspace-global-entry monitoring-entry${isActivelyMonitoring ? ' is-monitoring' : ''}`} onClick={onTradeCenter} aria-label={lang === 'zh-rCN' ? '交易中心' : 'Trade Center'} title={lang === 'zh-rCN' ? '打开全局交易中心' : 'Open global Trade Center'}>
+            <Store /><span>{lang === 'zh-rCN' ? '交易中心' : 'Trade Center'}</span>{isActivelyMonitoring && <span className="monitoring-tab-icon" aria-hidden="true"><BellRing /></span>}{monitoring && <small className="monitoring-tab-count">{armedCount}/{MAX_ACTIVE_PURCHASE_TARGETS}</small>}{pendingCount > 0 && <small className="monitoring-tab-alert">{pendingCount}</small>}
+          </button>
         </nav>
 
         <div className="context-tools">

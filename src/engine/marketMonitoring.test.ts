@@ -150,4 +150,19 @@ describe('MarketMonitoringCoordinator', () => {
     expect(coordinator.snapshot().purchaseTargets).toEqual([])
     coordinator.dispose()
   })
+
+  it('limits active purchase targets to five', () => {
+    const { coordinator, search, library } = setup()
+    coordinator.createTarget(search.id)
+    for (let index = 2; index <= 6; index += 1) {
+      const saved = library.saveSearch({
+        realm: 'global', leagueId: 'Test', searchCode: `query-${index}`, captureSource: 'code-only',
+        canonicalUrl: `https://www.pathofexile.com/trade2/search/poe2/Test/query-${index}`, name: `Target ${index}`,
+      })
+      if (index <= 5) coordinator.createTarget(saved.id)
+      else expect(() => coordinator.createTarget(saved.id)).toThrow('At most 5 purchase targets')
+    }
+    expect(coordinator.snapshot().purchaseTargets.filter((target) => target.status === 'armed')).toHaveLength(5)
+    coordinator.dispose()
+  })
 })

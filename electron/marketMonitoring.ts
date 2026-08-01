@@ -18,6 +18,7 @@ import type {
   SavedMarketSearch,
   MarketSoundId,
 } from '../src/types/market.js'
+import { MAX_ACTIVE_PURCHASE_TARGETS } from '../src/types/market.js'
 import { EquipmentLibraryRepository } from './equipmentLibraryRepository.js'
 import { normalizeMarketListing } from './marketListing.js'
 import type { MarketViewManager } from './marketView.js'
@@ -91,6 +92,7 @@ export class MarketMonitoringCoordinator {
   ) {
     this.load()
     this.migrateLegacyTargets()
+    this.enforceActiveTargetLimit()
   }
 
   start(): void {
@@ -147,6 +149,7 @@ export class MarketMonitoringCoordinator {
     if (!search || search.validity === 'invalid' || !search.leagueId || !search.searchCode) throw new Error('Invalid searches cannot be monitored')
     const existing = this.purchaseTargets.find((target) => target.sourceSearchId === searchId && target.status !== 'completed')
     if (existing) return this.setTarget(existing.id, 'armed', priority)
+    this.assertActiveTargetCapacity()
     const now = new Date().toISOString()
     const targetId = this.purchaseTargets.some((target) => target.id === searchId) ? randomUUID() : searchId
     const target: PurchaseTarget = {
@@ -169,6 +172,7 @@ export class MarketMonitoringCoordinator {
       return status === 'saved' ? this.createTarget(search.id, priority) : this.createTarget(search.id, priority || search.monitorPriority)
     }
     const nextStatus: PurchaseTargetStatus = status === 'saved' ? 'paused' : status
+    if (nextStatus === 'armed' && target.status !== 'armed') this.assertActiveTargetCapacity()
     const now = new Date().toISOString()
     if (target.status !== nextStatus) target.statusChangedAt = now
     target.status = nextStatus
@@ -328,7 +332,7 @@ export class MarketMonitoringCoordinator {
   private syncRealm(realm: MarketRealm): void {
     const configs = this.globalPaused ? [] : this.purchaseTargets
       .filter((target) => target.search.realm === realm && target.status === 'armed')
-      .slice(0, 20)
+      .slice(0, MAX_ACTIVE_PURCHASE_TARGETS)
       .map((target) => ({ searchId: target.id, realm, liveUrl: liveUrl(target) }))
     if (configs.length) this.manager.ensureMonitoringView(realm)
     this.manager.sendMonitorSync(realm, configs)
@@ -603,6 +607,25 @@ export class MarketMonitoringCoordinator {
     for (const target of this.purchaseTargets) {
       const source = target.sourceSearchId ? bySearch.get(target.sourceSearchId) : undefined
       if (!target.sourceSearchUpdatedAt && source) target.sourceSearchUpdatedAt = source.updatedAt
+    }
+    this.scheduleSave()
+  }
+
+  private assertActiveTargetCapacity(): void {
+    if (this.purchaseTargets.filter((target) => target.status === 'armed').length >= MAX_ACTIVE_PURCHASE_TARGETS) {
+      throw new Error(`At most ${MAX_ACTIVE_PURCHASE_TARGETS} purchase targets can be monitored at once`)
+    }
+  }
+
+  private enforceActiveTargetLimit(): void {
+    const armed = this.purchaseTargets.filter((target) => target.status === 'armed')
+      .sort((left, right) => PRIORITY_SCORE[right.priority] - PRIORITY_SCORE[left.priority] || left.createdAt.localeCompare(right.createdAt))
+    if (armed.length <= MAX_ACTIVE_PURCHASE_TARGETS) return
+    const now = new Date().toISOString()
+    for (const target of armed.slice(MAX_ACTIVE_PURCHASE_TARGETS)) {
+      target.status = 'paused'
+      target.statusChangedAt = now
+      target.updatedAt = now
     }
     this.scheduleSave()
   }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, ListFilter, MoreVertical, Plus, Search, Settings, Store, Trash2 } from 'lucide-react'
+import { BellRing, ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, ListFilter, MoreVertical, Plus, Search, Settings, Store, Trash2 } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
@@ -12,12 +12,14 @@ import { getTreeAssetUrl, loadTreeAssetIndex } from '@/engine/treeAssetIndex'
 import type { SpriteIndex } from '@/engine/spriteLoader'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
+import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketMonitoringSnapshot } from '@/types/market'
 
 interface BuildCenterProps {
   onCreate: () => void
   onImport: () => void
   onOpen: (build: SavedBuild) => void
-  onMarket: () => void
+  onTradeCenter: () => void
+  monitoring?: MarketMonitoringSnapshot | null
   onSettings: () => void
 }
 
@@ -43,7 +45,7 @@ function formatUpdatedAt(value: string, lang: Language): string {
   }).format(date)
 }
 
-export function BuildCenter({ onCreate, onImport, onOpen, onMarket, onSettings }: BuildCenterProps) {
+export function BuildCenter({ onCreate, onImport, onOpen, onTradeCenter, monitoring, onSettings }: BuildCenterProps) {
   const { lang } = useTranslation()
   const treeData = useTreeStore((state) => state.treeData)
   const savedBuilds = useTreeStore((state) => state.savedBuilds)
@@ -155,16 +157,21 @@ export function BuildCenter({ onCreate, onImport, onOpen, onMarket, onSettings }
     return zh ? '本地' : 'Local'
   }
 
+  const armedCount = monitoring?.purchaseTargets.filter((target) => target.status === 'armed').length || 0
+  const pendingCount = monitoring?.targets.reduce((total, target) => total + target.pendingOpportunityCount, 0) || 0
+  const isActivelyMonitoring = armedCount > 0 && !monitoring?.globalPaused
+
   return (
     <div className="build-center">
       <header className="center-app-bar">
         <div className="app-brand center-brand"><img className="app-brand-logo" src="/assets/ui/superpoe2-logo.png" alt="" /><span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span></div>
         <div className="center-actions">
+          <GameRuntimeIndicator />
           <button className="icon-command" onClick={onSettings} title={zh ? '全局设置' : 'Global settings'} aria-label={zh ? '全局设置' : 'Global settings'}><Settings /></button>
           <button className="icon-command" title={zh ? '帮助' : 'Help'} aria-label={zh ? '帮助' : 'Help'}><CircleHelp /></button>
         </div>
         <div className="center-command-row">
-          <div className="center-game-entry"><button className="secondary-command" onClick={onMarket}><Store />{zh ? '打开集市' : 'Open market'}</button><GameRuntimeIndicator /></div>
+          <div className="center-game-entry"><button className={`secondary-command monitoring-entry${isActivelyMonitoring ? ' is-monitoring' : ''}`} onClick={onTradeCenter}><Store />{zh ? '交易中心' : 'Trade Center'}{isActivelyMonitoring && <span className="monitoring-tab-icon" aria-hidden="true"><BellRing /></span>}{monitoring && <small className="monitoring-tab-count">{armedCount}/{MAX_ACTIVE_PURCHASE_TARGETS}</small>}{pendingCount > 0 && <small className="monitoring-tab-alert">{pendingCount}</small>}</button></div>
           <div><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button></div>
         </div>
       </header>
@@ -174,7 +181,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onMarket, onSettings }
           <section className="center-empty-state">
             <span className="empty-build-mark">S</span>
             <h2>{zh ? '还没有本地构筑' : 'No local builds yet'}</h2>
-            <div><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button><button className="secondary-command" onClick={onMarket}><Store />{zh ? '打开集市' : 'Open market'}</button></div>
+            <div><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button><button className="secondary-command" onClick={onTradeCenter}><Store />{zh ? '交易中心' : 'Trade Center'}</button></div>
           </section>
         ) : <>
           <section className="recent-builds-section">

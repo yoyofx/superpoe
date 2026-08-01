@@ -1,5 +1,6 @@
 import { ipcRenderer } from 'electron'
 import { parseLiveResult } from './marketLive.js'
+import { MAX_ACTIVE_PURCHASE_TARGETS } from '../src/types/market.js'
 
 interface MonitorConfig {
   searchId: string
@@ -127,7 +128,7 @@ ipcRenderer.on('market-monitor:sync', (_event, value: unknown) => {
     if (!entry || typeof entry !== 'object') return false
     const config = entry as Partial<MonitorConfig>
     return typeof config.searchId === 'string' && (config.realm === 'cn' || config.realm === 'global') && typeof config.liveUrl === 'string'
-  }).slice(0, 20) : []
+  }).slice(0, MAX_ACTIVE_PURCHASE_TARGETS) : []
   const wanted = new Set(configs.map((config) => config.searchId))
   for (const [searchId, connection] of liveConnections) {
     if (!wanted.has(searchId)) {

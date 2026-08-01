@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, powerMonitor, protocol, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu, net, powerMonitor, protocol, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
@@ -26,9 +26,10 @@ const preloadPath = path.join(currentDir, 'preload.js')
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
 const packageMetadata = JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')) as {
   name?: string
-  build?: { productName?: string }
+  build?: { productName?: string; appId?: string }
 }
 const productName = packageMetadata.build?.productName || packageMetadata.name
+const appUserModelId = packageMetadata.build?.appId || 'com.yoyofx.superpoe'
 
 if (!productName) throw new Error('package.json must define build.productName or name')
 
@@ -75,6 +76,7 @@ const userDataPath = rendererUrl && process.env.SUPERPOE_USER_DATA
   : path.join(appDataPath, productName)
 app.setPath('userData', userDataPath)
 app.setName(productName)
+if (process.platform === 'win32') app.setAppUserModelId(appUserModelId)
 
 // Register before app ready so absolute paths like `/data/...` resolve under the
 // packaged renderer root instead of the filesystem drive root (file:///D:/data/...).
@@ -96,9 +98,10 @@ function getRendererRoot(): string {
 }
 
 function getAppIconPath(): string {
+  const iconName = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
   return rendererUrl
-    ? path.join(app.getAppPath(), 'build', 'icon.png')
-    : path.join(process.resourcesPath, 'icon.png')
+    ? path.join(app.getAppPath(), 'build', iconName)
+    : path.join(process.resourcesPath, iconName)
 }
 
 /**
@@ -218,15 +221,42 @@ function validateMarketBounds(event: IpcMainInvokeEvent, value: unknown): Rectan
   return bounds
 }
 
+function getMainWindowSize(): { width: number; height: number; minWidth: number; minHeight: number } {
+  const workArea = screen.getPrimaryDisplay().workAreaSize
+  const availableWidth = Math.max(1024, workArea.width - 48)
+  const availableHeight = Math.max(680, workArea.height - 48)
+  const minWidth = Math.min(1180, availableWidth)
+  const minHeight = Math.min(760, availableHeight)
+
+  // Work-area dimensions are DPI-aware. Classifying them instead of raw
+  // physical pixels gives high-DPI displays the same usable visual density.
+  const profile = workArea.width >= 3000
+    ? { width: 2200, height: 1300 }
+    : workArea.width >= 2200
+      ? { width: 1850, height: 1100 }
+      : { width: 1600, height: 900 }
+
+  return {
+    // Keep the profile inside the work area so it never opens behind the
+    // taskbar or gets clipped on a smaller display.
+    width: Math.max(minWidth, Math.min(profile.width, availableWidth)),
+    height: Math.max(minHeight, Math.min(profile.height, availableHeight)),
+    minWidth,
+    minHeight,
+  }
+}
+
 function createWindow(): BrowserWindow {
+  const windowSize = getMainWindowSize()
   const window = new BrowserWindow({
     title: productName,
     icon: getAppIconPath(),
     autoHideMenuBar: true,
-    width: 1440,
-    height: 960,
-    minWidth: 1024,
-    minHeight: 720,
+    width: windowSize.width,
+    height: windowSize.height,
+    minWidth: windowSize.minWidth,
+    minHeight: windowSize.minHeight,
+    center: true,
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
