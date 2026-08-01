@@ -4,9 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SuperPoE2</title>
+    <style>
+      html, body, #root { width: 100%; height: 100%; margin: 0; background: #090b0c; color: #d8d1c3; }
+      .boot-screen { height: 100%; display: grid; place-items: center; font: 12px "Segoe UI", "Microsoft YaHei UI", sans-serif; }
+      .boot-screen > div { display: flex; align-items: center; gap: 12px; color: #8c877d; }
+      .boot-mark { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid #88764f; background: #151714; color: #c4a663; font-size: 18px; }
+    </style>
   </head>
   <body class="bg-gray-950 text-white overflow-hidden">
-    <div id="root"></div>
+    <div id="root"><div class="boot-screen"><div><span class="boot-mark">S</span><span>SuperPoE2</span></div></div></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

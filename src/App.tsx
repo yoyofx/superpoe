@@ -1,28 +1,37 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, CheckCircle2, XCircle } from 'lucide-react'
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, CheckCircle2, LoaderCircle, XCircle } from 'lucide-react'
 import { useTreeStore } from '@/store/treeStore'
-import { TreePixiCanvas } from '@/components/TreePixiCanvas'
 import { Toolbar } from '@/components/Toolbar'
 import type { WorkspaceView } from '@/components/Toolbar'
-import { NodeTooltip } from '@/components/NodeTooltip'
 import { useTranslation } from '@/i18n/useTranslation'
-import { EquipmentPanel } from '@/components/EquipmentPanel'
 import { writePersistedImportedBuild } from '@/engine/buildPersistence'
 import { BuildCenter } from '@/components/BuildCenter'
 import { NewBuildDialog, type NewBuildInput } from '@/components/NewBuildDialog'
 import { UnifiedImportDialog, type ImportConfirmation } from '@/components/UnifiedImportDialog'
 import { importPobBuildCode } from '@/engine/importPobBuildCode'
 import type { SavedBuild } from '@/types/tree'
-import { SkillsWorkspace } from '@/components/SkillsWorkspace'
 import { GlobalSettingsDialog } from '@/components/GlobalSettingsDialog'
 import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/appSettings'
 import { UpdateDialog } from '@/components/UpdateDialog'
-import { initPobLuaEngine } from '@/engine/pobLuaClient'
-import { MarketShell, type MarketWorkspaceView } from '@/components/market/MarketShell'
+import type { MarketWorkspaceView } from '@/components/market/MarketShell'
 import type { MarketMonitoringSnapshot } from '@/types/market'
 
+const TreePixiCanvas = lazy(() => import('@/components/TreePixiCanvas').then((module) => ({ default: module.TreePixiCanvas })))
+const NodeTooltip = lazy(() => import('@/components/NodeTooltip').then((module) => ({ default: module.NodeTooltip })))
+const EquipmentPanel = lazy(() => import('@/components/EquipmentPanel').then((module) => ({ default: module.EquipmentPanel })))
+const SkillsWorkspace = lazy(() => import('@/components/SkillsWorkspace').then((module) => ({ default: module.SkillsWorkspace })))
+const MarketShell = lazy(() => import('@/components/market/MarketShell').then((module) => ({ default: module.MarketShell })))
+
+function WorkspaceLoading({ zh, error }: { zh: boolean; error?: string | null }) {
+  return <section className={`workspace-loading${error ? ' error' : ''}`} role="status">
+    {error ? <AlertTriangle /> : <LoaderCircle />}
+    <strong>{error ? (zh ? '天赋树数据加载失败' : 'Passive tree data failed to load') : (zh ? '正在准备构筑编辑器' : 'Preparing build editor')}</strong>
+    {error && <small>{error}</small>}
+  </section>
+}
+
 export default function App() {
-  const { t, lang } = useTranslation()
+  const { lang } = useTranslation()
   const hashLoadedRef = useRef(false)
   const cleanSignatureRef = useRef('')
   const [screen, setScreen] = useState<'center' | 'editor' | 'trade'>('center')
@@ -41,7 +50,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [appSettings, setAppSettings] = useState(loadAppSettings)
-  const { treeData, loading, error, loadTreeData, loadSavedBuilds } = useTreeStore()
+  const { treeData, error, loadTreeData, loadSavedBuilds } = useTreeStore()
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
   const nodeWeaponSets = useTreeStore((s) => s.nodeWeaponSets)
   const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
@@ -77,11 +86,23 @@ export default function App() {
   }), [allocatedNodes, nodeWeaponSets, nodeAttributeSelections, treeVersion, selectedClassId, selectedAscendancyId, buildRealm, calculationProfiles, activeCalculationProfileId])
 
   useEffect(() => {
-    loadTreeData()
     loadSavedBuilds()
-    void initPobLuaEngine().catch(() => {
-      // Calculation surfaces report runtime errors when the user needs them.
-    })
+    let active = true
+    const initializeHeavyData = () => {
+      if (!active) return
+      void loadTreeData()
+      void import('@/engine/pobLuaClient').then(({ initPobLuaEngine }) => initPobLuaEngine()).catch(() => {
+        // Calculation surfaces report runtime errors when the user needs them.
+      })
+    }
+    const idleId = window.requestIdleCallback
+      ? window.requestIdleCallback(initializeHeavyData, { timeout: 600 })
+      : window.setTimeout(initializeHeavyData, 32)
+    return () => {
+      active = false
+      if (window.cancelIdleCallback && typeof idleId === 'number') window.cancelIdleCallback(idleId)
+      else window.clearTimeout(idleId)
+    }
   }, [loadTreeData, loadSavedBuilds])
 
   useEffect(() => {
@@ -274,35 +295,19 @@ export default function App() {
     else setScreen('center')
   }, [appSettings.confirmUnsavedExit, saveStatus])
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-lg text-gray-400">{t('loading')}</p>
-      </div>
-    )
-  }
-
-  if (error) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-lg text-red-400">{t('error.prefix')}: {error}</p>
-      </div>
-    )
-  }
-
-  if (!treeData) return null
-
   const tradeSuspended = settingsOpen || importOpen || newBuildOpen || leaveConfirmOpen
+  const zh = lang === 'zh-rCN'
 
   return (
     <div className="superpoe-app">
       {screen === 'center'
         ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} />
         : screen === 'trade'
-          ? <MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onSettings={() => setSettingsOpen(true)} />
+          ? <Suspense fallback={<WorkspaceLoading zh={zh} />}><MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onSettings={() => setSettingsOpen(true)} /></Suspense>
           : <>
       <Toolbar activeView={activeView} onViewChange={setActiveView} onTradeCenter={() => { setTradeReturnScreen('editor'); setScreen('trade') }} monitoring={monitoring} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} onSettings={() => setSettingsOpen(true)} />
       <main className="workspace-view">
+        {!treeData ? <WorkspaceLoading zh={zh} error={error} /> : <Suspense fallback={<WorkspaceLoading zh={zh} />}>
         {activeView === 'passive' && (
           <section className="passive-workspace">
             <TreePixiCanvas />
@@ -311,6 +316,7 @@ export default function App() {
         )}
         {activeView === 'equipment' && <EquipmentPanel buildId={activeBuildId} />}
         {activeView === 'skills' && <SkillsWorkspace />}
+        </Suspense>}
       </main>
       </>}
       <NewBuildDialog open={newBuildOpen} defaultRealm={appSettings.defaultRealm} onClose={() => setNewBuildOpen(false)} onCreate={(input) => void handleCreateBuild(input)} />

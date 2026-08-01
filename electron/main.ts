@@ -259,6 +259,7 @@ function createWindow(): BrowserWindow {
     minWidth: windowSize.minWidth,
     minHeight: windowSize.minHeight,
     center: true,
+    backgroundColor: '#090b0c',
     webPreferences: {
       preload: preloadPath,
       contextIsolation: true,
@@ -409,12 +410,14 @@ app.whenReady().then(() => {
   })
 
   ipcMain.on('market-monitor:ready', (event) => {
-    const realm = requireMarketSender(event)
+    const realm = marketViewManager?.getRealmForSender(event.sender)
+    if (!realm) return
     if (rendererUrl) console.info(`[Market monitor] preload ready realm=${realm}`)
     marketMonitoring?.handlePreloadReady(realm)
   })
   ipcMain.on('market-monitor:state', (event, value: unknown) => {
-    const realm = requireMarketSender(event)
+    const realm = marketViewManager?.getRealmForSender(event.sender)
+    if (!realm) return
     if (rendererUrl && value && typeof value === 'object') {
       const state = value as { searchId?: unknown; connectionStatus?: unknown; retryAttempt?: unknown; lastErrorCode?: unknown }
       console.info(`[Market monitor] state realm=${realm} search=${String(state.searchId || '')} status=${String(state.connectionStatus || '')} retry=${String(state.retryAttempt || 0)} error=${String(state.lastErrorCode || '')}`)
@@ -422,7 +425,8 @@ app.whenReady().then(() => {
     marketMonitoring?.handleRuntime(realm, value)
   })
   ipcMain.on('market-monitor:result', (event, value: unknown) => {
-    const realm = requireMarketSender(event)
+    const realm = marketViewManager?.getRealmForSender(event.sender)
+    if (!realm) return
     if (rendererUrl && value && typeof value === 'object') {
       const result = value as { searchId?: unknown; listingIds?: unknown; resultTokens?: unknown }
       console.info(`[Market monitor] result realm=${realm} search=${String(result.searchId || '')} listings=${Array.isArray(result.listingIds) ? result.listingIds.length : 0} tokens=${Array.isArray(result.resultTokens) ? result.resultTokens.length : 0}`)
@@ -430,7 +434,8 @@ app.whenReady().then(() => {
     marketMonitoring?.handleLiveResult(realm, value)
   })
   ipcMain.on('market-monitor:frame', (event, value: unknown) => {
-    const realm = requireMarketSender(event)
+    const realm = marketViewManager?.getRealmForSender(event.sender)
+    if (!realm) return
     if (!rendererUrl || !value || typeof value !== 'object') return
     const frame = value as { searchId?: unknown; keys?: unknown; auth?: unknown; count?: unknown; resultCount?: unknown; resultType?: unknown; resultLength?: unknown; resultKeys?: unknown; invalidCharacters?: unknown }
     const keys = Array.isArray(frame.keys) ? frame.keys.filter((key): key is string => typeof key === 'string').slice(0, 12).join(',') : ''

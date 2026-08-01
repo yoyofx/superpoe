@@ -82,6 +82,7 @@ export class MarketViewManager {
   private activeView: WebContentsView | null = null
   private activeRealm: MarketRealm = 'global'
   private attached = false
+  private disposed = false
   private bounds: Rectangle = { x: 0, y: 0, width: 1, height: 1 }
   private readonly sessionStates = new Map<MarketRealm, { status: MarketViewState['sessionStatus']; checkedAt: number }>()
   private readonly sessionChecks = new Map<MarketRealm, Promise<MarketViewState['sessionStatus']>>()
@@ -281,6 +282,8 @@ export class MarketViewManager {
   }
 
   dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
     this.detach()
     for (const view of this.views.values()) {
       if (!view.webContents.isDestroyed()) view.webContents.close()
@@ -401,6 +404,7 @@ export class MarketViewManager {
   }
 
   private attach(view: WebContentsView): void {
+    if (this.disposed || this.window.isDestroyed() || view.webContents.isDestroyed()) return
     if (!this.attached) {
       this.window.contentView.addChildView(view)
       this.attached = true
@@ -409,10 +413,11 @@ export class MarketViewManager {
   }
 
   private detach(): void {
-    if (this.activeView && this.attached) {
-      this.window.contentView.removeChildView(this.activeView)
-      this.attached = false
-    }
+    if (!this.activeView || !this.attached) return
+    const view = this.activeView
+    this.attached = false
+    if (this.window.isDestroyed() || view.webContents.isDestroyed()) return
+    this.window.contentView.removeChildView(view)
   }
 
   private async publishStateFor(contents: WebContents, realm: MarketRealm, error?: string): Promise<void> {

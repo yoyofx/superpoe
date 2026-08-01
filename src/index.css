@@ -30,6 +30,11 @@ canvas { display: block; }
 svg { flex: 0 0 auto; }
 
 .superpoe-app { width: 100vw; height: 100vh; display: grid; grid-template-rows: 94px minmax(0, 1fr); background: var(--app-bg); }
+.workspace-loading { width: 100%; height: 100%; min-height: 180px; display: grid; place-content: center; justify-items: center; gap: 8px; background: var(--app-bg); color: #8c877d; }
+.workspace-loading svg { width: 20px; height: 20px; color: #b89a5f; animation: market-spin .9s linear infinite; }
+.workspace-loading strong { color: #bdb5a6; font-size: 12px; font-weight: 500; }
+.workspace-loading small { max-width: 560px; color: #b86961; }
+.workspace-loading.error svg { color: #c66c62; animation: none; }
 .workbench-header { position: relative; z-index: 60; min-width: 0; border-bottom: 1px solid #5a503b; background: rgba(9, 11, 11, .98); box-shadow: 0 8px 24px rgba(0, 0, 0, .38); }
 .app-command-bar { height: 52px; display: grid; grid-template-columns: 210px minmax(250px, 1fr) auto; border-bottom: 1px solid #302f2a; }
 
