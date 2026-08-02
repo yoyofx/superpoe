@@ -19,8 +19,20 @@ interface BuildCenterProps {
   onImport: () => void
   onOpen: (build: SavedBuild) => void
   onTradeCenter: () => void
+  onUtilities: () => void
+  onAbout: () => void
   monitoring?: MarketMonitoringSnapshot | null
   onSettings: () => void
+}
+
+export type BuildCenterNavPage = 'center' | 'utilities' | 'about'
+
+interface BuildCenterNavProps {
+  active: BuildCenterNavPage
+  onCenter: () => void
+  onTradeCenter: () => void
+  onUtilities: () => void
+  onAbout: () => void
 }
 
 const BUILDS_PER_PAGE = 5
@@ -31,6 +43,25 @@ interface RowMenuState {
   buildId: string
   left: number
   top: number
+}
+
+export function BuildCenterNav({ active, onCenter, onTradeCenter, onUtilities, onAbout }: BuildCenterNavProps) {
+  const { lang } = useTranslation()
+  const zh = lang === 'zh-rCN'
+  return (
+    <aside className="build-center-nav" aria-label={zh ? '构筑中心导航' : 'Build center navigation'}>
+      <div className="build-center-nav-brand">
+        <img src="/assets/ui/superpoe2-logo.png" alt="" />
+        <span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span>
+      </div>
+      <nav className="build-center-nav-list">
+        <button className={active === 'center' ? 'active' : ''} aria-current={active === 'center' ? 'page' : undefined} onClick={onCenter}>{zh ? '构筑中心' : 'Build center'}</button>
+        <button onClick={onTradeCenter}>{zh ? '交易中心' : 'Trade center'}</button>
+        <button className={active === 'utilities' ? 'active' : ''} aria-current={active === 'utilities' ? 'page' : undefined} onClick={onUtilities}>{zh ? '实用工具' : 'Utilities'}</button>
+        <button className={active === 'about' ? 'active' : ''} aria-current={active === 'about' ? 'page' : undefined} onClick={onAbout}>{zh ? '关于' : 'About'}</button>
+      </nav>
+    </aside>
+  )
 }
 
 function formatUpdatedAt(value: string, lang: Language): string {
@@ -45,7 +76,7 @@ function formatUpdatedAt(value: string, lang: Language): string {
   }).format(date)
 }
 
-export function BuildCenter({ onCreate, onImport, onOpen, onTradeCenter, monitoring, onSettings }: BuildCenterProps) {
+export function BuildCenter({ onCreate, onImport, onOpen, onTradeCenter, onUtilities, onAbout, monitoring, onSettings }: BuildCenterProps) {
   const { lang } = useTranslation()
   const treeData = useTreeStore((state) => state.treeData)
   const savedBuilds = useTreeStore((state) => state.savedBuilds)
@@ -163,8 +194,8 @@ export function BuildCenter({ onCreate, onImport, onOpen, onTradeCenter, monitor
 
   return (
     <div className="build-center">
+      <BuildCenterNav active="center" onCenter={() => {}} onTradeCenter={onTradeCenter} onUtilities={onUtilities} onAbout={onAbout} />
       <header className="center-app-bar">
-        <div className="app-brand center-brand"><img className="app-brand-logo" src="/assets/ui/superpoe2-logo.png" alt="" /><span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span></div>
         <div className="center-actions">
           <GameRuntimeIndicator />
           <button className="icon-command" onClick={onSettings} title={zh ? '全局设置' : 'Global settings'} aria-label={zh ? '全局设置' : 'Global settings'}><Settings /></button>
@@ -184,7 +215,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onTradeCenter, monitor
             <div><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button><button className="secondary-command" onClick={onTradeCenter}><Store />{zh ? '交易中心' : 'Trade Center'}</button></div>
           </section>
         ) : <>
-          <section className="recent-builds-section">
+          <section className="recent-builds-section" id="recent-builds-section">
             <div className="center-section-title"><h2>{zh ? '最近打开' : 'Recently opened'}</h2><span>{recentBuilds.length}</span></div>
             <div className="recent-builds">
               {recentBuilds.map((build) => {
@@ -198,7 +229,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onTradeCenter, monitor
             </div>
           </section>
 
-          <section className="build-table-section">
+          <section className="build-table-section" id="build-table-section">
             <div className="center-section-title"><h2>{zh ? '我的构筑' : 'My builds'}</h2><span>{filteredBuilds.length}</span><label className="build-list-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={zh ? '搜索构筑、职业或升华' : 'Search builds, classes, or ascendancies'} /></label><label className="build-version-filter"><ListFilter /><select value={versionFilter} onChange={(event) => setVersionFilter(event.target.value)} aria-label={zh ? '按版本筛选构筑' : 'Filter builds by version'}><option value="all">{zh ? '全部版本' : 'All versions'}</option>{buildVersions.map((version) => <option key={version} value={version}>{version.replace('_', '.')}</option>)}</select></label></div>
             <div className="build-table-wrap">
               <div className="build-table-viewport">

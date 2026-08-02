@@ -6,6 +6,8 @@ import type { WorkspaceView } from '@/components/Toolbar'
 import { useTranslation } from '@/i18n/useTranslation'
 import { writePersistedImportedBuild } from '@/engine/buildPersistence'
 import { BuildCenter } from '@/components/BuildCenter'
+import { UtilityCenter } from '@/components/UtilityCenter'
+import { AboutPage } from '@/components/AboutPage'
 import { NewBuildDialog, type NewBuildInput } from '@/components/NewBuildDialog'
 import { UnifiedImportDialog, type ImportConfirmation } from '@/components/UnifiedImportDialog'
 import { importPobBuildCode } from '@/engine/importPobBuildCode'
@@ -34,7 +36,7 @@ export default function App() {
   const { lang } = useTranslation()
   const hashLoadedRef = useRef(false)
   const cleanSignatureRef = useRef('')
-  const [screen, setScreen] = useState<'center' | 'editor' | 'trade'>('center')
+  const [screen, setScreen] = useState<'center' | 'utilities' | 'about' | 'editor' | 'trade'>('center')
   const [activeView, setActiveView] = useState<WorkspaceView>('equipment')
   const [marketWorkspace, setMarketWorkspace] = useState<MarketWorkspaceView>('market')
   const [tradeReturnScreen, setTradeReturnScreen] = useState<'center' | 'editor'>('center')
@@ -307,7 +309,11 @@ export default function App() {
   return (
     <div className="superpoe-app">
       {screen === 'center'
-        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} />
+        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onUtilities={() => setScreen('utilities')} onAbout={() => setScreen('about')} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} />
+        : screen === 'utilities'
+          ? <UtilityCenter onCenter={() => setScreen('center')} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onAbout={() => setScreen('about')} onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} />
+          : screen === 'about'
+            ? <AboutPage onCenter={() => setScreen('center')} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onUtilities={() => setScreen('utilities')} />
         : screen === 'trade'
           ? <Suspense fallback={<WorkspaceLoading zh={zh} />}><MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onSettings={() => setSettingsOpen(true)} /></Suspense>
           : <>
