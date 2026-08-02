@@ -1,4 +1,5 @@
 import type { BuildRealm } from '@/types/tree'
+import { mapSystemRealm } from '@/engine/systemLocale'
 
 export type UpdateChannel = 'release' | 'dev'
 
@@ -20,13 +21,15 @@ export interface AppSettings {
   proxyDomains: string[]
 }
 
-const DEFAULT_APP_SETTINGS: AppSettings = {
-  defaultRealm: 'global',
-  confirmUnsavedExit: true,
-  uiScalePercent: DEFAULT_UI_SCALE_PERCENT,
-  updateChannel: 'release',
-  updateCheckIntervalMinutes: 60,
-  proxyDomains: [],
+function getDefaultAppSettings(): AppSettings {
+  return {
+    defaultRealm: mapSystemRealm(),
+    confirmUnsavedExit: true,
+    uiScalePercent: DEFAULT_UI_SCALE_PERCENT,
+    updateChannel: 'release',
+    updateCheckIntervalMinutes: 60,
+    proxyDomains: [],
+  }
 }
 
 interface SettingsStorage {
@@ -41,7 +44,7 @@ export function normalizeUiScalePercent(value: unknown): number {
 }
 
 export function loadAppSettings(storage: SettingsStorage | undefined = typeof localStorage === 'undefined' ? undefined : localStorage): AppSettings {
-  if (!storage) return DEFAULT_APP_SETTINGS
+  if (!storage) return getDefaultAppSettings()
   try {
     const parsed = JSON.parse(storage.getItem(APP_SETTINGS_STORAGE_KEY) || '{}') as Partial<AppSettings>
     return {
@@ -55,7 +58,7 @@ export function loadAppSettings(storage: SettingsStorage | undefined = typeof lo
         : [],
     }
   } catch {
-    return DEFAULT_APP_SETTINGS
+    return getDefaultAppSettings()
   }
 }
 

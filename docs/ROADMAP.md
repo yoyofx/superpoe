@@ -1,6 +1,6 @@
 # SuperPoE2 产品路线图
 
-> 更新日期：2026-08-01
+> 更新日期：2026-08-02
 > 产品方向：面向 Windows 与 macOS Apple Silicon 桌面端的 PoE2 离线构筑规划工具。Electron 是唯一应用入口，renderer 使用 React、PixiJS 与 Web Worker；桌面计算优先使用 LuaJIT sidecar，WASM Lua 作为 fallback。
 
 ## 1. 路线图目标
@@ -186,11 +186,13 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 
 目标：先把当前第一版界面打磨成稳定工作台，并确保用户编辑数小时的构筑不会因为清理缓存、升级应用或误操作而丢失。
 
+持久化、版本兼容、迁移、草稿和恢复的完整方案见 [`persistent-storage-design.md`](./persistent-storage-design.md)；M2-M4 的统一 BuildDocument、PoB XML 投影和可信计算实施顺序见 [`build-document-m2-m4-implementation-plan.md`](./build-document-m2-m4-implementation-plan.md)。开发版与正式版默认共享 `userData`；每个构筑使用独立 JSON，装备仓库整体使用一个 JSON；自动化测试使用隔离目录。
+
 - 按真实使用流程继续优化构筑中心、双层工具栏、天赋、装备、技能和计算页面。
 - 统一面板密度、空状态、加载状态、错误状态、菜单、确认框、tooltip 和操作反馈。
 - 保证常用桌面窗口尺寸连续自适应，不要求用户使用指定分辨率。
 - 将命名构筑从 `localStorage` 迁移到 Electron `userData/builds/`。
-- 推荐每个构筑一个 JSON 文件，另用轻量索引保存排序、来源和最近打开时间。
+- 每个构筑使用独立 JSON 文件；启动时扫描目录生成内存摘要，不保存永久构筑索引。
 - 首次启动自动迁移已有 `pob2-saved-builds`，迁移成功后保留一次回滚备份。
 - 实现自动草稿、显式保存、另存为、重命名、复制和删除确认。
 - 关闭窗口、替换当前构筑、切换版本时统一处理未保存修改。

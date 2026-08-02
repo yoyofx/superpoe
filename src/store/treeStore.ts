@@ -43,13 +43,13 @@ import type {
   SkillCalculationMode,
   SkillDpsRankEntry,
 } from '@/types/calc'
+import { mapSystemLanguage } from '@/engine/systemLocale'
 
 export const MIN_ZOOM = 0.01
 export const DEFAULT_ZOOM = 0.2
 export const MAX_ZOOM = 0.5
 export const FALLBACK_TREE_VERSIONS = ['0_5', '0_4']
 export const DEFAULT_TREE_VERSION = FALLBACK_TREE_VERSIONS[0]
-const DEFAULT_LANGUAGE: Language = 'en'
 const LANGUAGE_STORAGE_KEY = 'pob2-language'
 
 let treeVersionsPromise: Promise<string[]> | null = null
@@ -163,9 +163,10 @@ function defaultAttributeSelections(
 }
 
 function getInitialLanguage(): Language {
-  if (typeof localStorage === 'undefined') return DEFAULT_LANGUAGE
+  const systemLanguage = mapSystemLanguage()
+  if (typeof localStorage === 'undefined') return systemLanguage
   const saved = localStorage.getItem(LANGUAGE_STORAGE_KEY)
-  return LANGUAGE_OPTIONS.some((option) => option.value === saved) ? saved as Language : DEFAULT_LANGUAGE
+  return LANGUAGE_OPTIONS.some((option) => option.value === saved) ? saved as Language : systemLanguage
 }
 
 // ============================================================

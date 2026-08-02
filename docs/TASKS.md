@@ -48,7 +48,7 @@
 | 优先级 | 任务 | 状态 | 说明 |
 |--------|------|------|------|
 | P0 | 扩大 LuaJIT/PoB parity fixtures | [~] | 关键技能、装备和召唤物已有测试；仍需覆盖更多职业、Config、持续伤害和触发场景 |
-| P0 | 文件级构筑保存与自动草稿 | [ ] | 当前主流程仍以 localStorage 为主，需迁移到 Electron `userData` 并提供损坏恢复 |
+| P0 | 文件级构筑保存与自动草稿 | [ ] | 当前主流程仍以 localStorage 为主，需按 [`persistent-storage-design.md`](./persistent-storage-design.md) 迁移到 Electron `userData` 并提供版本保护、草稿与损坏恢复 |
 | P1 | 双区服交易长时验收 | [~] | 需要真实登录分区验证 DOM Adapter、Live 重连、限流、DPI、多显示器和断网回退 |
 | P1 | 通货行情真实数据源验收 | [~] | 需要验证国服/国际服当前赛季选择、缓存新鲜度和异常报价 |
 
