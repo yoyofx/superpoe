@@ -2819,3 +2819,252 @@ svg { flex: 0 0 auto; }
   background: transparent;
   box-shadow: none;
 }
+
+/* Pointer-following glass highlight for command surfaces. */
+.superpoe-app button:not(.paper-doll-slot):not(.paper-doll-weapon-set-control) { position: relative; }
+.superpoe-app button::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  inset: 1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(115px 72px at var(--button-pointer-x, 50%) var(--button-pointer-y, 50%), rgba(255, 232, 182, .2) 0%, rgba(255, 232, 182, .075) 27%, transparent 72%);
+  opacity: var(--button-glass-opacity, 0);
+  transition: opacity .18s ease;
+}
+.superpoe-app button:hover:not(:disabled)::before { opacity: var(--button-glass-opacity, 1); }
+.superpoe-app .build-center-nav-list button::before,
+.superpoe-app .target-pane > button::before,
+.superpoe-app .opportunity-list > button::before,
+.superpoe-app .library-workspace-directory-entry::before,
+.superpoe-app .library-workspace-root::before,
+.superpoe-app .library-workspace-folder-name::before,
+.superpoe-app .library-item-card-main::before,
+.superpoe-app .build-name-cell::before,
+.superpoe-app .paper-doll-slot::before,
+.superpoe-app .paper-doll-weapon-set-control::before,
+.superpoe-app .equipment-affix-row::before,
+.superpoe-app .equipment-affix-category-toggle::before,
+.superpoe-app .equipment-affix-sources button::before,
+.superpoe-app .skill-groups-panel button::before {
+  content: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .superpoe-app button::before { transition: none; }
+}
+
+/* Darker graphite variant: keep the gold accents, lower the neutral surfaces. */
+:root {
+  --app-bg: #070908;
+  --surface: #0e100f;
+  --surface-raised: #151715;
+  --control: #111311;
+}
+
+.workbench-header { background: rgba(7, 9, 8, .98); }
+.workspace-tabs-bar { background: rgba(6, 8, 7, .96); }
+.workspace-view,
+.market-workspace { background: #070908; }
+.currency-market-workspace,
+.monitoring-workspace { background: #080a09; }
+.passive-workspace { background: #070a0d; }
+.skills-workspace { background: #080a09; }
+.calculation-panel,
+.calculation-state { background: #0a0c0b; }
+.build-center { background-color: #080a0a; }
+.build-center::before { background: rgba(4, 7, 8, .87); }
+.equipment-workspace { background-color: #080a0a; }
+.equipment-workspace::before { background: rgba(3, 5, 6, .84); }
+
+/* Lower the neutral button body without changing the gold interaction states. */
+.superpoe-app button {
+  background: linear-gradient(180deg, #22231f 0%, #121412 100%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .035), inset 0 -1px rgba(0, 0, 0, .52), 0 1px rgba(0, 0, 0, .28);
+}
+.superpoe-app .icon-command,
+.superpoe-app .secondary-command {
+  background: linear-gradient(180deg, #22231f 0%, #121412 100%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .035), inset 0 -1px rgba(0, 0, 0, .52), 0 1px rgba(0, 0, 0, .28);
+}
+
+/* Content rows remain transparent after the broad button tone is applied. */
+.superpoe-app .build-center-nav-list button,
+.superpoe-app .target-pane > button,
+.superpoe-app .opportunity-list > button,
+.superpoe-app .library-workspace-directory-entry,
+.superpoe-app .library-workspace-root,
+.superpoe-app .library-workspace-folder-name,
+.superpoe-app .library-item-card-main,
+.superpoe-app .build-name-cell,
+.superpoe-app .paper-doll-slot,
+.superpoe-app .paper-doll-weapon-set-control,
+.superpoe-app .equipment-affix-row,
+.superpoe-app .equipment-affix-category-toggle,
+.superpoe-app .equipment-affix-sources button,
+.superpoe-app .skill-groups-panel button {
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Tabs keep their compact, line-based treatment instead of becoming filled cards. */
+.workspace-tabs button,
+.import-tabs button,
+.equipment-semantic-tabs button,
+.trade-helper-tabs button,
+.skill-inspector-tabs button,
+.skills-module-tabs button {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.workspace-tabs button:hover:not(:disabled),
+.import-tabs button:hover:not(:disabled),
+.equipment-semantic-tabs button:hover:not(:disabled),
+.trade-helper-tabs button:hover:not(:disabled),
+.skill-inspector-tabs button:hover:not(:disabled),
+.skills-module-tabs button:hover:not(:disabled) {
+  border-color: transparent;
+  background: rgba(190, 158, 87, .07);
+  box-shadow: none;
+}
+.workspace-tabs button.active,
+.import-tabs button.active,
+.equipment-semantic-tabs button.active,
+.trade-helper-tabs button.active,
+.skill-inspector-tabs button.active,
+.skills-module-tabs button.active {
+  border-color: transparent;
+  border-radius: 0;
+  background: linear-gradient(180deg, rgba(52, 42, 28, .48), rgba(24, 19, 13, .3));
+  box-shadow: inset 0 -2px #c39b4d;
+}
+
+/* Compact segmented controls use the darker body while retaining their geometry. */
+.mode-control button,
+.zoom-control button,
+.currency-quote-control button,
+.realm-selector button,
+.skill-weapon-set-control button,
+.skill-bucket-switch button,
+.skill-damage-type-switch button {
+  background: linear-gradient(180deg, #20221e 0%, #111311 100%);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .025), inset 0 -1px rgba(0, 0, 0, .42);
+}
+.mode-control button:hover:not(:disabled),
+.zoom-control button:hover:not(:disabled),
+.currency-quote-control button:hover:not(:disabled),
+.realm-selector button:hover:not(:disabled),
+.skill-weapon-set-control button:hover:not(:disabled),
+.skill-bucket-switch button:hover:not(:disabled),
+.skill-damage-type-switch button:hover:not(:disabled) {
+  background: linear-gradient(180deg, #393126 0%, #211b14 100%);
+}
+.mode-control button.active,
+.zoom-control button.active,
+.currency-quote-control button.active,
+.realm-selector button.active,
+.skill-weapon-set-control button.active,
+.skill-bucket-switch button.active,
+.skill-damage-type-switch button.active {
+  background: linear-gradient(180deg, #3b3020 0%, #201910 100%);
+  color: #ead7a0;
+}
+
+/* The build-center navigation is a text rail, so hover must not add a button fill. */
+.superpoe-app .build-center-nav-list button:hover:not(:disabled) {
+  background: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+
+/* The standalone equipment library has one command header, so remove the empty tab row. */
+.superpoe-app.library-screen {
+  grid-template-rows: 52px minmax(0, 1fr);
+}
+.library-screen .equipment-library-shell-header {
+  height: 52px;
+}
+.library-screen .equipment-library-shell-view > .equipment-library-workspace {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
+/* Navigation keeps its transparent rail while gaining a restrained point of light. */
+.superpoe-app .build-center-nav-list button::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  left: -18px;
+  top: 50%;
+  width: 190px;
+  height: 48px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 30% 50%, rgba(212, 180, 131, .2) 0%, rgba(184, 154, 95, .08) 35%, transparent 72%);
+  filter: blur(5px);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity .22s ease;
+}
+.superpoe-app .build-center-nav-list button:hover::before,
+.superpoe-app .build-center-nav-list button:focus-visible::before {
+  opacity: 1;
+}
+.superpoe-app .build-center-nav-list button.active::before {
+  opacity: .62;
+}
+.build-center-nav-tooltip {
+  position: absolute;
+  z-index: 20;
+  left: calc(100% + 10px);
+  top: 50%;
+  width: 220px;
+  padding: 8px 10px;
+  border: 1px solid rgba(143, 123, 88, .82);
+  border-radius: 3px;
+  background: rgba(8, 10, 9, .96);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .58), inset 0 1px rgba(255, 230, 177, .04);
+  color: #cbbd9c;
+  font-size: 10px;
+  font-weight: 400;
+  line-height: 1.45;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-4px, -50%);
+  transition: opacity .16s ease, transform .16s ease, visibility .16s ease;
+  visibility: hidden;
+}
+.build-center-nav-list button:hover .build-center-nav-tooltip,
+.build-center-nav-list button:focus-visible .build-center-nav-tooltip {
+  opacity: 1;
+  transform: translate(0, -50%);
+  visibility: visible;
+}
+@media (prefers-reduced-motion: reduce) {
+  .superpoe-app .build-center-nav-list button::before,
+  .build-center-nav-tooltip { transition: none; }
+}
+
+/* Keep navigation descriptions close to the rail without touching the label. */
+.build-center-nav-main {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+}
+.build-center-nav-tooltip {
+  left: calc(100% + 4px);
+  transform: translate(-2px, -50%);
+}
+.build-center-nav-list button:hover .build-center-nav-tooltip,
+.build-center-nav-list button:focus-visible .build-center-nav-tooltip {
+  transform: translate(0, -50%);
+}
+
+/* Balanced breathing room keeps the card close without touching the label. */
+.build-center-nav-tooltip {
+  left: calc(100% + 6px);
+}

@@ -1,9 +1,13 @@
-# SuperPoE2 M2-M4 BuildDocument 基础架构实施方案
+# [已作废] SuperPoE2 M2-M4 BuildDocument 基础架构实施方案
 
-> 状态：待实施
-> 更新日期：2026-08-02
+> 状态：已作废，禁止作为实现依据
+> 原始日期：2026-08-02
+> 作废日期：2026-08-03
+> 替代方案：[`pob-build-object-design.md`](./pob-build-object-design.md)
 > 实施范围：M2 文件持久化与构筑管理、M3 统一构筑模型与来源同步、M4A 可信计算基础
 > 关联文档：`persistent-storage-design.md`、`ROADMAP.md`、`TASKS.md`
+
+> **作废说明：** 本文提出的 `BuildDocument` 唯一权威、分领域 authority 切换以及 `BuildDocument -> PoB2 XML` 重建路线已经在实际实现中被否定。该实现导致技能显示、伤害计算和人物属性计算错误。本文以下所有接口、批次、门禁和实施建议仅保留为历史记录，不得继续实施或被其他文档引用为有效方案。后续以完整 PoB2 XML 对象为统一内存对象，详见替代方案。
 
 ## 1. 目标与完成边界
 

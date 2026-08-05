@@ -2,6 +2,15 @@ import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('pob2Desktop', {
   importWeGame: (url: string) => ipcRenderer.invoke('pob2:import-wegame', url),
+  importPoeNinja: (url: string) => ipcRenderer.invoke('pob2:import-poe-ninja', url),
+  openBuildFile: () => ipcRenderer.invoke('pob2:open-build-file'),
+  saveBuildFileCopy: (payload: { content: string; fileName: string }) => ipcRenderer.invoke('pob2:save-build-file-copy', payload),
+  registerBuildFileAssociation: () => ipcRenderer.invoke('pob2:register-build-file-association'),
+  onOpenBuildFile: (callback: (result: { canceled: boolean; filePath?: string; content?: string; error?: string }) => void) => {
+    const handler = (_event: unknown, result: { canceled: boolean; filePath?: string; content?: string; error?: string }) => callback(result)
+    ipcRenderer.on('pob2:open-build-file', handler)
+    return () => { ipcRenderer.removeListener('pob2:open-build-file', handler) }
+  },
   saveGameBuild: (payload: { content: string; fileName: string }) => ipcRenderer.invoke('pob2:save-game-build', payload),
   installGameBuild: (payload: { content: string; fileName: string }) => ipcRenderer.invoke('pob2:install-game-build', payload),
   setUiScale: (factor: number) => ipcRenderer.invoke('pob2:set-ui-scale', factor),
@@ -38,6 +47,7 @@ contextBridge.exposeInMainWorld('pob2Market', {
   removeLibrarySource: (sourceKey: string) => ipcRenderer.invoke('market:remove-library-source', sourceKey),
   openLibrarySource: (entryId: string, sourceKey: string) => ipcRenderer.invoke('market:open-library-source', { entryId, sourceKey }) as Promise<{ kind: import('../src/types/market.js').EquipmentLibrarySourceKind }>,
   saveEquipmentItem: (input: import('../src/types/market.js').EquipmentLibraryItemInput) => ipcRenderer.invoke('market:save-equipment-item', input) as Promise<import('../src/types/market.js').EquipmentLibraryEntry>,
+  searchEquipmentItem: (input: import('../src/types/market.js').EquipmentTradeSearchRequest) => ipcRenderer.invoke('market:search-equipment', input) as Promise<import('../src/types/market.js').TradeSearchResult>,
   searchLibrary: (input: import('../src/types/market.js').TradeSearchRequest) => ipcRenderer.invoke('market:search-library', input) as Promise<import('../src/types/market.js').TradeSearchResult>,
   listLeagues: (realm: import('../src/types/market.js').MarketRealm) => ipcRenderer.invoke('market:list-leagues', realm) as Promise<import('../src/types/market.js').TradeLeague[]>,
   getMonitoring: () => ipcRenderer.invoke('market:get-monitoring') as Promise<import('../src/types/market.js').MarketMonitoringSnapshot>,

@@ -784,11 +784,15 @@ interface TreeStore {
 
 
   // ---- Saved Builds (Phase 16.7) ----
-  saveBuild: (name: string, id?: string | null, source?: SavedBuild['source'], sourceUrl?: string | null) => string
+  saveBuild: (
+    name: string,
+    id?: string | null,
+    source?: SavedBuild['source'],
+    sourceUrl?: string | null,
+    metadata?: Partial<Pick<SavedBuild, 'description' | 'tags' | 'createdAt' | 'updatedAt' | 'lastOpenedAt' | 'nativeRevision'>>,
+  ) => string
   loadBuild: (id: string) => Promise<void>
   deleteBuild: (id: string) => void
-  exportBuildJSON: () => string
-  importBuildJSON: (json: string) => Promise<void>
 
 
 }
@@ -2492,18 +2496,22 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   setBuildRealm: (realm) => set({ buildRealm: realm }),
 
-  saveBuild: (name, id, source, sourceUrl) => {
+  saveBuild: (name, id, source, sourceUrl, metadata) => {
     const { allocatedNodes, treeVersion, selectedClassId, selectedAscendancyId,
             weaponSetMode, activeWeaponSet, nodeWeaponSets, nodeAttributeSelections, masterySelections, savedBuilds, treeData, importedBuildCode, buildRealm,
             calculationProfiles, activeCalculationProfileId } = get()
     const now = new Date().toISOString()
     const existing = id ? savedBuilds.find((item) => item.id === id) : undefined
-    const buildId = existing?.id || (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2))
+    const buildId = existing?.id || id || (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2))
     const build: SavedBuild = {
       id: buildId,
       name,
-      createdAt: existing?.createdAt || now,
-      updatedAt: now,
+      description: metadata?.description ?? existing?.description,
+      tags: [...(metadata?.tags ?? existing?.tags ?? [])],
+      createdAt: metadata?.createdAt || existing?.createdAt || now,
+      updatedAt: metadata?.updatedAt || now,
+      lastOpenedAt: metadata?.lastOpenedAt || now,
+      nativeRevision: metadata?.nativeRevision ?? ((existing?.nativeRevision || 0) + 1),
       treeVersion,
       selectedClassId,
       selectedAscendancyId,
@@ -2593,122 +2601,6 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     try { localStorage.setItem('pob2-saved-builds', JSON.stringify(updated)) } catch {}
   },
 
-  exportBuildJSON: () => {
-    const { allocatedNodes, treeVersion, selectedClassId, selectedAscendancyId,
-            weaponSetMode, activeWeaponSet, nodeWeaponSets, nodeAttributeSelections, masterySelections, treeData, importedBuildCode, buildRealm,
-            calculationProfiles, activeCalculationProfileId } = get()
-    return JSON.stringify({
-      name: 'PoB2 Build',
-      exportedAt: new Date().toISOString(),
-      treeVersion,
-      selectedClassId,
-      selectedAscendancyId,
-      realm: buildRealm,
-      importedBuildCode,
-      weaponSetMode,
-      activeWeaponSet,
-      nodeWeaponSets,
-      nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
-      masterySelections,
-      calculationProfiles,
-      activeCalculationProfileId,
-      allocatedNodes: [...allocatedNodes],
-    }, null, 2)
-  },
-
-  importBuildJSON: async (json: string) => {
-    const build = JSON.parse(json) as Record<string, unknown>
-    const nodes = build.allocatedNodes as string[]
-    if (!nodes || !Array.isArray(nodes)) {
-      throw new Error('Invalid build: missing allocatedNodes')
-    }
-
-    const importedBuildCode = (build.importedBuildCode as string | null) || null
-    let decoded: ReturnType<typeof decodeBuildCode> | null = null
-    if (importedBuildCode) decoded = decodeBuildCode(importedBuildCode)
-
-    const targetTreeVersion = typeof build.treeVersion === 'string' && build.treeVersion
-      ? build.treeVersion
-      : decoded?.treeVersion
-    if (!targetTreeVersion) throw new Error('The imported build does not specify a passive tree version')
-    if (targetTreeVersion && targetTreeVersion !== get().treeVersion) {
-      set({ treeVersion: targetTreeVersion })
-      await get().loadTreeData()
-    }
-
-    const { treeData } = get()
-    if (!treeData || treeData.version.version !== targetTreeVersion) {
-      throw new Error(`Passive tree data ${targetTreeVersion} is unavailable`)
-    }
-    const classIdentifiers = decoded || { classId: typeof build.selectedClassId === 'string' ? build.selectedClassId : '' }
-    const ascendancyIdentifiers = decoded || { ascendClassId: typeof build.selectedAscendancyId === 'string' ? build.selectedAscendancyId : '' }
-    const resolvedClass = resolveTreeClass(treeData, classIdentifiers)
-    if (!resolvedClass) throw new Error('The imported build class could not be resolved')
-    const selectedClassId = resolvedClass[0]
-    const selectedAscendancyId = resolveTreeAscendancy(resolvedClass[1], ascendancyIdentifiers)
-    const requestedAscendancy = decoded
-      ? decoded.ascendancyInternalId || decoded.ascendClassId
-      : ascendancyIdentifiers.ascendClassId
-    if (requestedAscendancy && !['0', 'nil'].includes(requestedAscendancy.toLowerCase()) && !selectedAscendancyId) {
-      throw new Error(`The imported ascendancy "${requestedAscendancy}" could not be resolved`)
-    }
-
-    const ctx = { treeData, selectedClassId, selectedAscendancyId }
-    const importedNodes = new Set<string>()
-    for (const id of nodes) {
-      const node = treeData.nodes[id]
-      if (node && node.type !== 'ClassStart' && node.type !== 'AscendClassStart') importedNodes.add(id)
-    }
-    const rebuilt = recomputeAllocationState(
-      ctx,
-      importedNodes,
-      (build.nodeWeaponSets as NodeWeaponSets) || {},
-    )
-    const nodeAttributeSelections = defaultAttributeSelections(
-      treeData || undefined,
-      rebuilt.allocatedNodes,
-      (build.nodeAttributeSelections as NodeAttributeSelections) || {},
-    )
-    const config = normalizeCalculationProfiles(
-      Array.isArray(build.calculationProfiles) ? build.calculationProfiles as LocalCalculationProfile[] : undefined,
-      typeof build.activeCalculationProfileId === 'string' ? build.activeCalculationProfileId : undefined,
-    )
-    set({
-      allocatedNodes: rebuilt.allocatedNodes,
-      availableNodes: rebuilt.availableNodes,
-      selectedClassId,
-      selectedAscendancyId,
-      buildRealm: build.realm === 'cn' ? 'cn' : 'global',
-      importedBuildCode,
-      treeEditMode: false,
-      weaponSetMode: (build.weaponSetMode as 0 | 1 | 2) || 0,
-      activeWeaponSet: build.activeWeaponSet === 2 ? 2 : build.activeWeaponSet === 1 ? 1 : getBuildActiveWeaponSet(importedBuildCode),
-      nodeWeaponSets: rebuilt.nodeWeaponSets,
-      nodeAttributeSelections,
-      masterySelections: (build.masterySelections as Record<string, string>) || {},
-      pendingMasteryNode: null,
-      specs: [{ id: 'default', title: 'Tree 1', nodes: [...rebuilt.allocatedNodes] }],
-      activeSpecId: 'default',
-      hoveredNodeId: null,
-      selectedNodeId: null,
-      searchQuery: '',
-      searchMatchIds: [],
-      searchMatchCount: 0,
-      zoom: DEFAULT_ZOOM,
-      offsetX: -(treeData.constants.min_x + treeData.constants.max_x) / 2,
-      offsetY: -(treeData.constants.min_y + treeData.constants.max_y) / 2,
-      undoStack: [],
-      redoStack: [],
-      calcResult: null,
-      calcLoading: false,
-      calcError: null,
-      calculationProfiles: config.profiles,
-      activeCalculationProfileId: config.activeId,
-      calculationConfig: null,
-    })
-  },
-
-
   selectClass: (classId) => {
 
 
@@ -2783,5 +2675,3 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 }))
-
-

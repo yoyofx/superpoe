@@ -410,6 +410,12 @@ export interface TradeSearchRequest {
   leagueId: string
 }
 
+export interface EquipmentTradeSearchRequest {
+  item: LibraryItemSnapshot
+  realm: MarketRealm
+  leagueId?: string
+}
+
 export interface TradeLeague {
   id: string
   text: string

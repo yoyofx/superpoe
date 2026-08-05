@@ -16,7 +16,7 @@ interface MarketShellProps {
   view: MarketWorkspaceView
   onViewChange: (view: MarketWorkspaceView) => void
   monitoring: MarketMonitoringSnapshot | null
-  backTarget: 'center' | 'editor'
+  backTarget: 'center' | 'editor' | 'library'
   buildName?: string
   onBack: () => void
   onSettings: () => void
@@ -30,6 +30,8 @@ export function MarketShell({ realm, suspended, view, onViewChange, monitoring, 
   const isActivelyMonitoring = armedCount > 0 && !monitoring?.globalPaused
   const backLabel = backTarget === 'editor'
     ? (zh ? `返回构筑：${buildName || '未命名构筑'}` : `Back to build: ${buildName || 'Untitled build'}`)
+    : backTarget === 'library'
+      ? (zh ? '返回装备仓库' : 'Back to equipment library')
     : (zh ? '返回构筑中心' : 'Back to build center')
   return <>
     <header className="workbench-header market-shell-header">

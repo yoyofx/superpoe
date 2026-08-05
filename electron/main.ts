@@ -1,9 +1,12 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, powerMonitor, protocol, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { execFile } from 'node:child_process'
 import path from 'node:path'
 import { randomUUID } from 'node:crypto'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { promisify } from 'node:util'
 import { parseWeGameShareCode, requestPoe2dbBuild } from './poe2dbClient.js'
+import { requestPoeNinjaBuild } from './poeNinjaClient.js'
 import { setupAutoUpdater } from './updater.js'
 import type { UpdateChannel } from './updater.js'
 import { PobLuaService } from './pobLuaService.js'
@@ -13,7 +16,7 @@ import { EquipmentLibraryRepository, equipmentSourceKey, pobSourceKey } from './
 import { normalizeMarketListing } from './marketListing.js'
 import type {
   EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
-  EquipmentLibraryMetadataPatch, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
+  EquipmentLibraryMetadataPatch, EquipmentTradeSearchRequest, LibraryItemSnapshot, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
   MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch,
 } from '../src/types/market.js'
 import { OfficialTradeProvider, TradeReferenceDataCache } from './tradeService.js'
@@ -31,12 +34,98 @@ const packageMetadata = JSON.parse(readFileSync(path.join(app.getAppPath(), 'pac
 }
 const productName = packageMetadata.build?.productName || packageMetadata.name
 const appUserModelId = packageMetadata.build?.appId || 'com.yoyofx.superpoe'
+const SUPERPOE_BUILD_EXTENSION = '.spoe'
+const SUPERPOE_BUILD_FILE_CLASS = 'SuperPoE Build'
+const MAX_SUPERPOE_BUILD_FILE_SIZE = 10_000_000
+const execFileAsync = promisify(execFile)
 
 if (!productName) throw new Error('package.json must define build.productName or name')
 
 interface GameBuildFilePayload {
   content: string
   fileName: string
+}
+
+interface NativeBuildFilePayload {
+  content: string
+  fileName: string
+}
+
+interface NativeBuildOpenResult {
+  canceled: boolean
+  filePath?: string
+  content?: string
+  error?: string
+}
+
+function validateNativeBuildFilePayload(value: unknown): NativeBuildFilePayload {
+  if (!value || typeof value !== 'object') throw new Error('Invalid SuperPoE build payload')
+  const payload = value as Partial<NativeBuildFilePayload>
+  if (typeof payload.content !== 'string' || !payload.content || Buffer.byteLength(payload.content, 'utf8') > MAX_SUPERPOE_BUILD_FILE_SIZE) {
+    throw new Error('Invalid SuperPoE build content')
+  }
+  const parsed = JSON.parse(payload.content) as { format?: unknown; schemaVersion?: unknown }
+  if (!parsed || parsed.format !== 'superpoe-build' || parsed.schemaVersion !== 1) {
+    throw new Error('Invalid SuperPoE build format')
+  }
+  const baseName = path.basename(typeof payload.fileName === 'string' ? payload.fileName : 'SuperPoE Build.spoe')
+  const safeName = baseName.replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ').trim() || 'SuperPoE Build.spoe'
+  return {
+    content: payload.content,
+    fileName: safeName.toLowerCase().endsWith(SUPERPOE_BUILD_EXTENSION) ? safeName : `${safeName}${SUPERPOE_BUILD_EXTENSION}`,
+  }
+}
+
+function readNativeBuildFile(filePath: string): NativeBuildOpenResult {
+  const resolvedPath = path.resolve(filePath)
+  if (path.extname(resolvedPath).toLowerCase() !== SUPERPOE_BUILD_EXTENSION) throw new Error('Only .spoe build files can be opened')
+  const content = readFileSync(resolvedPath, 'utf8')
+  if (!content || Buffer.byteLength(content, 'utf8') > MAX_SUPERPOE_BUILD_FILE_SIZE) throw new Error('Invalid SuperPoE build file size')
+  return { canceled: false, filePath: resolvedPath, content }
+}
+
+async function readWindowsRegistryValue(key: string, valueName: string): Promise<string | null> {
+  const regExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'reg.exe')
+  try {
+    const { stdout } = await execFileAsync(regExe, ['QUERY', key, '/v', valueName], { encoding: 'utf8', windowsHide: true })
+    const escapedName = valueName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    return stdout.match(new RegExp(`^\\s*${escapedName}\\s+REG_\\w+\\s+(.+?)\\s*$`, 'mi'))?.[1] ?? null
+  } catch {
+    return null
+  }
+}
+
+async function writeWindowsRegistryValue(key: string, valueName: string | null, data: string): Promise<void> {
+  const regExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'reg.exe')
+  const valueArgs = valueName === null ? ['/ve'] : ['/v', valueName]
+  await execFileAsync(regExe, ['ADD', key, ...valueArgs, '/t', 'REG_SZ', '/d', data, '/f'], { windowsHide: true })
+}
+
+async function registerWindowsBuildFileAssociation(): Promise<{ registered: true; isDefault: boolean; settingsOpened: boolean }> {
+  const classesRoot = 'HKCU\\Software\\Classes'
+  const executablePath = process.execPath
+  const launchArguments = app.isPackaged ? [] : [app.getAppPath()]
+  const openCommand = [executablePath, ...launchArguments, '%1'].map((value) => `"${value.replace(/"/g, '\\"')}"`).join(' ')
+  const fileClassKey = `${classesRoot}\\${SUPERPOE_BUILD_FILE_CLASS}`
+
+  const entries: Array<[string, string | null, string]> = [
+    [`${classesRoot}\\${SUPERPOE_BUILD_EXTENSION}`, null, SUPERPOE_BUILD_FILE_CLASS],
+    [`${classesRoot}\\${SUPERPOE_BUILD_EXTENSION}\\OpenWithProgids`, SUPERPOE_BUILD_FILE_CLASS, ''],
+    [fileClassKey, null, 'SuperPoE build file'],
+    [`${fileClassKey}\\DefaultIcon`, null, `"${executablePath}",0`],
+    [`${fileClassKey}\\shell`, null, 'open'],
+    [`${fileClassKey}\\shell\\open`, null, `Open with ${productName}`],
+    [`${fileClassKey}\\shell\\open\\command`, null, openCommand],
+  ]
+  for (const [key, valueName, data] of entries) await writeWindowsRegistryValue(key, valueName, data)
+
+  const userChoice = await readWindowsRegistryValue(
+    `HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\FileExts\\${SUPERPOE_BUILD_EXTENSION}\\UserChoice`,
+    'ProgId',
+  )
+  const isDefault = !userChoice || userChoice.toLowerCase() === SUPERPOE_BUILD_FILE_CLASS.toLowerCase()
+  if (!isDefault) await shell.openExternal('ms-settings:defaultapps')
+  return { registered: true, isDefault, settingsOpened: !isDefault }
 }
 
 function validateGameBuildPayload(value: unknown): GameBuildFilePayload {
@@ -154,9 +243,59 @@ let marketMonitoring: MarketMonitoringCoordinator | null = null
 let opportunityOverlay: OpportunityOverlayController | null = null
 let currencyMarketService: CurrencyMarketService | null = null
 let defaultRealm: MarketRealm = 'global'
+const pendingNativeBuildPaths: string[] = []
 const tradeCredentialStore = new TradeCredentialStore(path.join(userDataPath, 'trade', 'credentials.v1.json'))
 const equipmentLibrary = new EquipmentLibraryRepository(path.join(userDataPath, 'library', 'equipment-library.v1.json'))
 const favoriteOperations = new Map<string, Promise<void>>()
+
+function collectNativeBuildPaths(args: string[]): string[] {
+  return args.filter((value) => path.extname(value).toLowerCase() === SUPERPOE_BUILD_EXTENSION)
+}
+
+function sendNativeBuildFile(filePath: string): void {
+  if (!mainWindow || mainWindow.isDestroyed() || mainWindow.webContents.isLoading()) {
+    if (!pendingNativeBuildPaths.includes(filePath)) pendingNativeBuildPaths.push(filePath)
+    return
+  }
+  let result: NativeBuildOpenResult
+  try {
+    result = readNativeBuildFile(filePath)
+  } catch (reason) {
+    result = {
+      canceled: false,
+      filePath,
+      error: reason instanceof Error ? reason.message : String(reason),
+    }
+  }
+  mainWindow.webContents.send('pob2:open-build-file', result)
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
+}
+
+function flushPendingNativeBuildFiles(): void {
+  for (const filePath of pendingNativeBuildPaths.splice(0)) sendNativeBuildFile(filePath)
+}
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+if (!hasSingleInstanceLock) {
+  app.quit()
+} else {
+  for (const filePath of collectNativeBuildPaths(process.argv.slice(1))) pendingNativeBuildPaths.push(filePath)
+  app.on('second-instance', (_event, argv) => {
+    const files = collectNativeBuildPaths(argv)
+    if (files.length) files.forEach(sendNativeBuildFile)
+    else if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore()
+      mainWindow.show()
+      mainWindow.focus()
+    }
+  })
+  app.on('open-file', (event, filePath) => {
+    event.preventDefault()
+    sendNativeBuildFile(filePath)
+  })
+}
 
 function notifyLibraryChanged(): void {
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('market:library-changed')
@@ -280,6 +419,7 @@ function createWindow(): BrowserWindow {
     // Packaged: custom scheme so root-absolute asset URLs work.
     void window.loadURL('app://localhost/index.html')
   }
+  window.webContents.once('did-finish-load', flushPendingNativeBuildFiles)
   mainWindow = window
   marketViewManager?.dispose()
   marketViewManager = new MarketViewManager(window, (state) => {
@@ -336,7 +476,7 @@ let updateChannel: UpdateChannel = 'release'
 let updateCheckIntervalMinutes = 60
 const pobLuaService = new PobLuaService()
 
-app.whenReady().then(() => {
+if (hasSingleInstanceLock) void app.whenReady().then(() => {
   Menu.setApplicationMenu(null)
   powerMonitor.on('resume', () => marketMonitoring?.refreshTargets())
 
@@ -352,6 +492,38 @@ app.whenReady().then(() => {
   ipcMain.handle('pob2:import-wegame', async (_event, url: unknown) => {
     const shareCode = parseWeGameShareCode(url)
     return requestPoe2dbBuild(shareCode)
+  })
+  ipcMain.handle('pob2:import-poe-ninja', async (_event, url: unknown) => requestPoeNinjaBuild(url))
+  ipcMain.handle('pob2:open-build-file', async (event) => {
+    const window = requireMainWindowSender(event)
+    const result = await dialog.showOpenDialog(window, {
+      title: '打开 SuperPoE 构筑',
+      filters: [{ name: 'SuperPoE Build', extensions: ['spoe'] }],
+      properties: ['openFile'],
+    })
+    if (result.canceled || !result.filePaths[0]) return { canceled: true }
+    return readNativeBuildFile(result.filePaths[0])
+  })
+  ipcMain.handle('pob2:save-build-file-copy', async (event, value: unknown) => {
+    const window = requireMainWindowSender(event)
+    const payload = validateNativeBuildFilePayload(value)
+    const result = await dialog.showSaveDialog(window, {
+      title: '保存 SuperPoE 构筑副本',
+      defaultPath: path.join(app.getPath('documents'), payload.fileName),
+      filters: [{ name: 'SuperPoE Build', extensions: ['spoe'] }],
+      properties: ['createDirectory', 'showOverwriteConfirmation'],
+    })
+    if (result.canceled || !result.filePath) return { canceled: true }
+    const filePath = result.filePath.toLowerCase().endsWith(SUPERPOE_BUILD_EXTENSION)
+      ? result.filePath
+      : `${result.filePath}${SUPERPOE_BUILD_EXTENSION}`
+    writeFileSync(filePath, payload.content, 'utf8')
+    return { canceled: false, filePath }
+  })
+  ipcMain.handle('pob2:register-build-file-association', async (event) => {
+    requireMainWindowSender(event)
+    if (process.platform !== 'win32') return { registered: false, isDefault: false, settingsOpened: false, reason: 'unsupported-platform' }
+    return registerWindowsBuildFileAssociation()
   })
   ipcMain.handle('pob2:set-ui-scale', (event, value: unknown) => {
     if (typeof value !== 'number' || !Number.isFinite(value) || value < 0.8 || value > 1.5) {
@@ -798,6 +970,35 @@ app.whenReady().then(() => {
     notifyLibraryChanged()
     return entry
   })
+  ipcMain.handle('market:search-equipment', async (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object' || JSON.stringify(value).length > 500_000) {
+      throw new Error('Invalid equipment search request')
+    }
+    const input = value as Partial<EquipmentTradeSearchRequest>
+    if (input.realm !== 'cn' && input.realm !== 'global') throw new Error('Invalid market realm')
+    if (!input.item || typeof input.item !== 'object') throw new Error('Invalid equipment item')
+    const item = input.item as LibraryItemSnapshot
+    if (typeof item.rarity !== 'string' || typeof item.name !== 'string' || typeof item.baseType !== 'string'
+      || !Array.isArray(item.modifiers) || item.modifiers.length > 128) {
+      throw new Error('Invalid equipment item')
+    }
+    if (!tradeProvider || !marketViewManager) throw new Error('Trade provider is unavailable')
+    const requestedLeague = typeof input.leagueId === 'string' && input.leagueId.trim()
+      ? validateShortString(input.leagueId, 'trade league', 128)
+      : undefined
+    const leagueId = requestedLeague || (await tradeProvider.leagues(input.realm))[0]?.id
+    if (!leagueId) throw new Error('No active trade league is available')
+    try {
+      const result = await tradeProvider.search(input.realm, leagueId, item)
+      marketViewManager.openSource(input.realm, result.url)
+      const { resolvedItem: _resolvedItem, ...response } = result
+      return response
+    } catch (error) {
+      console.error(`[Market search] equipment failed realm=${input.realm} league=${leagueId}`, error)
+      throw error
+    }
+  })
   ipcMain.handle('market:search-library', async (event, value: unknown) => {
     requireMainWindowSender(event)
     if (!value || typeof value !== 'object') throw new Error('Invalid equipment library search request')
@@ -808,12 +1009,17 @@ app.whenReady().then(() => {
     if (!entry) throw new Error('Equipment library entry not found')
     const leagueId = validateShortString(input.leagueId, 'trade league', 128)
     if (!tradeProvider || !marketViewManager) throw new Error('Trade provider is unavailable')
-    const result = await tradeProvider.search(realm, leagueId, entry.item)
-    equipmentLibrary.updateItem(entry.id, result.resolvedItem, { touchUpdatedAt: false })
-    notifyLibraryChanged()
-    marketViewManager.openSource(realm, result.url)
-    const { resolvedItem: _resolvedItem, ...response } = result
-    return response
+    try {
+      const result = await tradeProvider.search(realm, leagueId, entry.item)
+      equipmentLibrary.updateItem(entry.id, result.resolvedItem, { touchUpdatedAt: false })
+      notifyLibraryChanged()
+      marketViewManager.openSource(realm, result.url)
+      const { resolvedItem: _resolvedItem, ...response } = result
+      return response
+    } catch (error) {
+      console.error(`[Market search] library failed realm=${realm} league=${leagueId} entry=${entry.id}`, error)
+      throw error
+    }
   })
   ipcMain.handle('market:list-leagues', async (event, value: unknown) => {
     requireMainWindowSender(event)

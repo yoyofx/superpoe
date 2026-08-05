@@ -225,9 +225,9 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
             setLibraryWidthPercent((current) => Math.min(75, Math.max(30, current + (event.key === 'ArrowLeft' ? 2 : -2))))
           }}
         />
-        <EquipmentLibraryPanel realm={realm} zh={zh} currentSearch={state.currentSearch} monitoring={monitoring} activeTab={libraryTab} onTabChange={setLibraryTab} onClose={() => setLibraryOpen(false)} />
+        <EquipmentLibraryPanel realm={realm} zh={zh} currentSearch={state.currentSearch} monitoring={monitoring} activeTab={libraryTab} onTabChange={setLibraryTab} onClose={() => setLibraryOpen(false)} headerTitle={zh ? '交易中心快捷栏' : 'Trade center shortcuts'} />
       </>
-      : <button className="trade-helper-rail" onClick={() => setLibraryOpen(true)} title={zh ? '打开装备仓库' : 'Open equipment library'} aria-label={zh ? '打开装备仓库' : 'Open equipment library'}><Archive /><strong>{zh ? '装备仓库' : 'Equipment Library'}</strong><ChevronLeft /></button>}
+      : <button className="trade-helper-rail" onClick={() => setLibraryOpen(true)} title={zh ? '打开交易中心快捷栏' : 'Open trade center shortcuts'} aria-label={zh ? '打开交易中心快捷栏' : 'Open trade center shortcuts'}><Archive /><strong>{zh ? '交易中心快捷栏' : 'Trade shortcuts'}</strong><ChevronLeft /></button>}
     </div>
   </section>
 }

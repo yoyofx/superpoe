@@ -18,6 +18,7 @@ interface EquipmentLibraryPanelProps {
   activeTab: LibraryTreeScope
   onTabChange: (tab: LibraryTreeScope) => void
   onClose: () => void
+  headerTitle?: string
 }
 
 const EMPTY_SIDEBAR: EquipmentLibrarySidebarSnapshot = { folders: [], searches: [] }
@@ -90,7 +91,7 @@ function isDescendant(folder: EquipmentLibraryFolder, ancestorId: string, folder
   return false
 }
 
-export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, activeTab, onTabChange, onClose }: EquipmentLibraryPanelProps) {
+export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, activeTab, onTabChange, onClose, headerTitle }: EquipmentLibraryPanelProps) {
   const bridge = window.pob2Market
   const [entries, setEntries] = useState<EquipmentLibraryEntry[]>([])
   const [sidebar, setSidebar] = useState<EquipmentLibrarySidebarSnapshot>(EMPTY_SIDEBAR)
@@ -404,7 +405,13 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
       {!bulkSelecting && <footer>
         {source && <button className="primary-action" disabled={busyId === entry.id} onClick={() => void run(entry.id, () => visitHideout(entry.id), zh ? '已发送前往藏身处请求' : 'Hideout travel request sent')} title={zh ? '前往藏身处' : 'Travel to hideout'}><Home /><span>{zh ? '藏身处' : 'Hideout'}</span></button>}
         {source && <button onClick={() => void bridge?.openLibrarySource(entry.id, source.sourceKey)} title={zh ? '打开来源' : 'Open source'}><ExternalLink /></button>}
-        <button className="primary-action" disabled={!similarLeagueId || busyId === entry.id} onClick={() => void run(entry.id, () => bridge!.searchLibrary({ entryId: entry.id, realm: source?.realm || realm, leagueId: similarLeagueId }), zh ? '已生成相似装备搜索' : 'Similar-item search created')} title={zh ? '找相似装备' : 'Find similar items'}><Search /><span>{zh ? '找相似' : 'Similar'}</span></button>
+        <button className="primary-action" disabled={!similarLeagueId || busyId === entry.id} onClick={() => void run(entry.id, async () => {
+          const result = await bridge!.searchLibrary({ entryId: entry.id, realm: source?.realm || realm, leagueId: similarLeagueId })
+          const total = result.resolvedModifierCount + result.unresolvedModifierCount
+          setNotice(zh
+            ? `已生成相似装备搜索，匹配 ${result.resolvedModifierCount}/${total} 条词条${result.unresolvedModifierCount ? `，${result.unresolvedModifierCount} 条未匹配` : ''}`
+            : `Similar-item search created: ${result.resolvedModifierCount}/${total} modifiers matched${result.unresolvedModifierCount ? `, ${result.unresolvedModifierCount} unmatched` : ''}`)
+        })} title={zh ? '找相似装备' : 'Find similar items'}><Search /><span>{zh ? '找相似' : 'Similar'}</span></button>
         <button onClick={() => setMovingId((current) => current === `item:${entry.id}` ? null : `item:${entry.id}`)} title={zh ? '移动到目录' : 'Move to folder'}><FolderInput /></button>
         <button className="danger" onClick={() => window.confirm(zh ? `删除“${entry.item.name}”？` : `Delete “${entry.item.name}”?`) && void run(entry.id, () => bridge!.deleteLibrary(entry.id))} title={zh ? '删除' : 'Delete'}><Trash2 /></button>
       </footer>}
@@ -503,10 +510,10 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
   }
 
   return <aside className="equipment-library-panel trade-helper-sidebar">
-    <header className="trade-helper-header"><Bookmark /><strong>{zh ? '装备仓库' : 'Equipment Library'}</strong><span className="trade-helper-header-actions"><button onClick={onClose} title={zh ? '收起仓库' : 'Collapse library'}><X /></button></span></header>
+    <header className="trade-helper-header"><Bookmark /><strong>{headerTitle || (zh ? '装备仓库' : 'Equipment Library')}</strong><span className="trade-helper-header-actions"><button onClick={onClose} title={zh ? '收起快捷栏' : 'Collapse shortcuts'}><X /></button></span></header>
     <nav className="trade-helper-tabs">
-      <button className={activeTab === 'items' ? 'active' : ''} onClick={() => onTabChange('items')}>{zh ? '物品收藏' : 'Items'}</button>
-      <button className={activeTab === 'searches' ? 'active' : ''} onClick={() => onTabChange('searches')}>{zh ? '保存的搜索' : 'Saved searches'}</button>
+      <button className={activeTab === 'items' ? 'active' : ''} onClick={() => onTabChange('items')}>{zh ? '装备收藏' : 'Equipment favorites'}</button>
+      <button className={activeTab === 'searches' ? 'active' : ''} onClick={() => onTabChange('searches')}>{zh ? '搜索收藏' : 'Search favorites'}</button>
     </nav>
     <div className={`trade-helper-workspace${directoryCompact ? ' directory-compact' : ''}`}>
       <section className="trade-helper-directory-pane">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Globe2, Info, Languages, MonitorCog, Plus, RefreshCw, ShieldAlert, Trash2, X } from 'lucide-react'
+import { FileCog, Globe2, Info, Languages, MonitorCog, Plus, RefreshCw, ShieldAlert, Trash2, X } from 'lucide-react'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { MAX_UI_SCALE_PERCENT, MIN_UI_SCALE_PERCENT, UI_SCALE_STEP_PERCENT, type AppSettings, type UpdateChannel } from '@/engine/appSettings'
 import { LANGUAGE_OPTIONS, type Language } from '@/i18n/translationLoader'
@@ -18,6 +18,8 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose }: Glob
   const zh = lang === 'zh-rCN'
   const [checking, setChecking] = useState(false)
   const [checkResult, setCheckResult] = useState<string | null>(null)
+  const [associationResult, setAssociationResult] = useState<string | null>(null)
+  const [registeringAssociation, setRegisteringAssociation] = useState(false)
   const [proxyDraft, setProxyDraft] = useState('')
 
   useEffect(() => {
@@ -85,6 +87,39 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose }: Glob
               <span>{zh ? '离开未保存构筑前确认' : 'Confirm before leaving an unsaved build'}</span>
               <input type="checkbox" checked={settings.confirmUnsavedExit} onChange={(event) => onChange({ ...settings, confirmUnsavedExit: event.target.checked })} />
             </label>
+          </section>
+
+          <section className="settings-section">
+            <header><FileCog /><h3>{zh ? '文件关联' : 'File associations'}</h3></header>
+            <div className="settings-row settings-file-association-row">
+              <span><strong>.spoe</strong>{zh ? ' 构筑文件' : ' build files'}</span>
+              <div className="settings-file-association-control">
+                <button type="button" className="secondary-command" disabled={registeringAssociation || !window.pob2Desktop} onClick={async () => {
+                  setRegisteringAssociation(true)
+                  setAssociationResult(null)
+                  try {
+                    const result = await window.pob2Desktop?.registerBuildFileAssociation()
+                    if (!result?.registered) {
+                      setAssociationResult(zh ? '当前系统暂不支持' : 'Not supported on this system')
+                    } else if (result.isDefault) {
+                      setAssociationResult(zh ? '已注册为默认打开程序' : 'Registered as the default app')
+                    } else {
+                      setAssociationResult(zh ? '已注册，请在系统设置中确认' : 'Registered; confirm it in system settings')
+                    }
+                  } catch {
+                    setAssociationResult(zh ? '注册失败' : 'Registration failed')
+                  } finally {
+                    setRegisteringAssociation(false)
+                  }
+                }}>
+                  {registeringAssociation
+                    ? (zh ? '正在注册...' : 'Registering...')
+                    : (zh ? '注册为默认程序' : 'Register as default')}
+                </button>
+                {!window.pob2Desktop && <small>{zh ? '仅桌面版' : 'Desktop app only'}</small>}
+                {associationResult && <small>{associationResult}</small>}
+              </div>
+            </div>
           </section>
 
           <section className="settings-section">

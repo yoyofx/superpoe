@@ -60,6 +60,14 @@
       "buildResources": "build",
       "output": "release"
     },
+    "fileAssociations": [
+      {
+        "ext": "spoe",
+        "name": "SuperPoE Build",
+        "description": "SuperPoE build file",
+        "role": "Editor"
+      }
+    ],
     "extraResources": [
       {
         "from": "build/icon.png",

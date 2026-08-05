@@ -5,16 +5,17 @@ import { useTranslation } from '@/i18n/useTranslation'
 
 interface AboutPageProps {
   onCenter: () => void
+  onLibrary: () => void
   onTradeCenter: () => void
   onUtilities: () => void
 }
 
-export function AboutPage({ onCenter, onTradeCenter, onUtilities }: AboutPageProps) {
+export function AboutPage({ onCenter, onLibrary, onTradeCenter, onUtilities }: AboutPageProps) {
   const { lang } = useTranslation()
   const zh = lang === 'zh-rCN'
   return (
     <div className="build-center about-page">
-      <BuildCenterNav active="about" onCenter={onCenter} onTradeCenter={onTradeCenter} onUtilities={onUtilities} onAbout={() => {}} />
+      <BuildCenterNav active="about" onCenter={onCenter} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onUtilities={onUtilities} onAbout={() => {}} />
       <header className="center-app-bar about-page-header">
         <div className="build-center-page-heading">
           <Info aria-hidden="true" />

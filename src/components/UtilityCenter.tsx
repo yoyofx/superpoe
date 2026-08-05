@@ -5,18 +5,19 @@ import { useTranslation } from '@/i18n/useTranslation'
 
 interface UtilityCenterProps {
   onCenter: () => void
+  onLibrary: () => void
   onTradeCenter: () => void
   onAbout: () => void
   onCreate: () => void
   onImport: () => void
 }
 
-export function UtilityCenter({ onCenter, onTradeCenter, onAbout, onCreate, onImport }: UtilityCenterProps) {
+export function UtilityCenter({ onCenter, onLibrary, onTradeCenter, onAbout, onCreate, onImport }: UtilityCenterProps) {
   const { lang } = useTranslation()
   const zh = lang === 'zh-rCN'
   return (
     <div className="build-center utility-center">
-      <BuildCenterNav active="utilities" onCenter={onCenter} onTradeCenter={onTradeCenter} onUtilities={() => {}} onAbout={onAbout} />
+      <BuildCenterNav active="utilities" onCenter={onCenter} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onUtilities={() => {}} onAbout={onAbout} />
       <header className="center-app-bar utility-center-header">
         <div className="build-center-page-heading">
           <Wrench aria-hidden="true" />
@@ -32,7 +33,7 @@ export function UtilityCenter({ onCenter, onTradeCenter, onAbout, onCreate, onIm
           </button>
           <button className="utility-command" onClick={onImport}>
             <span className="utility-command-icon"><FileInput /></span>
-            <span><strong>{zh ? '导入构筑' : 'Import build'}</strong><small>{zh ? '导入 PoB Code 或本地构筑数据' : 'Import PoB Code or local build data'}</small></span>
+            <span><strong>{zh ? '导入构筑' : 'Import build'}</strong><small>{zh ? '导入 PoB Code 或 WeGame 分享链接' : 'Import PoB Code or a WeGame share link'}</small></span>
           </button>
           <button className="utility-command" onClick={onTradeCenter}>
             <span className="utility-command-icon"><Store /></span>

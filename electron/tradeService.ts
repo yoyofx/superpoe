@@ -3,12 +3,15 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import type { LibraryItemSnapshot, LibraryModifier, MarketRealm, TradeLeague, TradeSearchResult, TradeStatResolutionSnapshot } from '../src/types/market.js'
 import type { MarketViewManager } from './marketView.js'
+import { OfficialTradeRequestError } from './officialTradeRequestError.js'
 
 interface CatalogOption { id: string; text: string }
 interface CatalogEntry { id: string; text: string; type?: string; option?: { options?: CatalogOption[] } }
 interface CatalogSnapshot { realm: MarketRealm; fetchedAt: string; payloadHash: string; entries: CatalogEntry[] }
 
 interface SearchResponse { id?: unknown; total?: unknown }
+
+type TradeStatMatch = { entry: CatalogEntry; queryStatId: string; option?: CatalogOption }
 
 const CATALOG_TTL = 24 * 60 * 60 * 1_000
 
@@ -22,7 +25,8 @@ function clean(value: unknown): string {
 
 function normalizeTemplate(value: string): string {
   return value
-    .replace(/[-+]?\d+(?:\.\d+)?/g, '#')
+    .replace(/[-+]?\d+(?:\.\d+)?/g, (number) => number.startsWith('-') ? '-#' : '#')
+    .replace(/\+(?=#)/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .toLocaleLowerCase()
@@ -30,6 +34,18 @@ function normalizeTemplate(value: string): string {
 
 function normalizeText(value: string): string {
   return value.replace(/\s+/g, ' ').trim().toLocaleLowerCase()
+}
+
+function statScope(queryStatId: string): string {
+  return queryStatId.split('.')[0] || ''
+}
+
+function preferredStatScopes(modifier: LibraryModifier): Set<string> {
+  const known = new Set(['explicit', 'implicit', 'enchant', 'rune', 'fractured', 'crafted', 'desecrated'])
+  const tagged = modifier.sourceTags.filter((tag) => known.has(tag))
+  if (tagged.length) return new Set(tagged)
+  if (modifier.group === 'implicit' || modifier.group === 'enchant' || modifier.group === 'rune') return new Set([modifier.group])
+  return new Set(['explicit'])
 }
 
 function parseEntries(payload: unknown): CatalogEntry[] {
@@ -99,6 +115,7 @@ export class TradeReferenceDataCache {
     mkdirSync(this.directory, { recursive: true })
     writeFileSync(this.filePath(snapshot.realm), JSON.stringify(snapshot), { encoding: 'utf8', mode: 0o600 })
   }
+
 }
 
 export class TradeStatResolver {
@@ -119,21 +136,25 @@ export class TradeStatResolver {
       ? modifier.localized?.['zh-CN']?.displayText || modifier.original.displayText
       : modifier.original.displayText
     const template = normalizeTemplate(sourceText)
-    const directMatches = catalog.entries
+    const directMatches: TradeStatMatch[] = catalog.entries
       .filter((entry) => normalizeTemplate(entry.text) === template)
       .map((entry) => ({ entry, queryStatId: entry.id }))
-    const optionMatches = catalog.entries.flatMap((entry) => (entry.option?.options || []).flatMap((option) => (
+    const optionMatches: TradeStatMatch[] = catalog.entries.flatMap((entry) => (entry.option?.options || []).flatMap((option) => (
       normalizeText(entry.text.replace('#', option.text)) === normalizeText(sourceText)
         ? [{ entry, option, queryStatId: `${entry.id}|${option.id}` }]
         : []
     )))
-    const matches = [...new Map([...optionMatches, ...directMatches].map((match) => [match.queryStatId, match])).values()]
+    const allMatches = [...new Map([...optionMatches, ...directMatches].map((match) => [match.queryStatId, match])).values()]
+    const scopes = preferredStatScopes(modifier)
+    const scopedMatches = allMatches.filter((match) => scopes.has(statScope(match.queryStatId)))
+    const matches = scopedMatches.length ? scopedMatches : allMatches
     const candidates = matches.map((match) => match.queryStatId).slice(0, 20)
     const match = matches.length === 1 ? matches[0] : undefined
+    const scopedResolution = scopedMatches.length > 0 && matches.length > 0
     const fixedOption = match ? (match as { option?: CatalogOption }).option : undefined
     const resolution: TradeStatResolutionSnapshot = {
       realm: catalog.realm,
-      queryStatId: match?.queryStatId,
+      queryStatId: scopedResolution || match ? matches[0]?.queryStatId : undefined,
       baseStatId: match?.entry.id,
       optionId: fixedOption?.id,
       candidateStatIds: candidates,
@@ -144,7 +165,7 @@ export class TradeStatResolver {
       resolvedBy: 'exact-text',
       catalogFetchedAt: catalog.fetchedAt,
       catalogPayloadHash: catalog.payloadHash,
-      status: matches.length === 1 ? 'resolved' : matches.length > 1 ? 'ambiguous' : 'unresolved',
+      status: matches.length === 0 ? 'unresolved' : (matches.length === 1 || scopedResolution) ? 'resolved' : 'ambiguous',
     }
     return {
       ...structuredClone(modifier),
@@ -153,27 +174,96 @@ export class TradeStatResolver {
   }
 }
 
+function localizedTradeBaseType(item: LibraryItemSnapshot): string | undefined {
+  const localized = clean(item.localized?.['zh-CN']?.baseType)
+  if (!localized) return undefined
+  if (!item.baseType || localized !== item.baseType || !/[A-Za-z]/.test(item.baseType)) return localized
+  return undefined
+}
+
+function queryItemType(item: LibraryItemSnapshot, realm: MarketRealm): string | undefined {
+  if (realm === 'cn') return localizedTradeBaseType(item) || (!/[A-Za-z]/.test(item.baseType) ? clean(item.baseType) : undefined)
+  return clean(item.baseType) || undefined
+}
+
 export function buildTradeQuery(item: LibraryItemSnapshot, realm: MarketRealm): { query: unknown; resolved: number; unresolved: number } {
-  const filters = item.modifiers.flatMap((modifier) => {
-    const resolution = modifier.tradeResolutions.find((candidate) => candidate.realm === realm && candidate.status === 'resolved' && candidate.queryStatId)
-    if (!resolution?.queryStatId) return []
+  const statGroups = item.modifiers.flatMap((modifier) => {
+    const resolution = modifier.tradeResolutions.find((candidate) => candidate.realm === realm && candidate.status === 'resolved' && (candidate.queryStatId || candidate.candidateStatIds.length))
+    const statIds = resolution
+      ? [...new Set((resolution.candidateStatIds.length ? resolution.candidateStatIds : [resolution.queryStatId]).filter((id): id is string => Boolean(id)))]
+      : []
+    if (!resolution || !statIds.length) return []
     const value = resolution.valueMode === 'numeric' && modifier.currentValues.length
       ? { min: modifier.currentValues[0] }
       : undefined
-    return [{ id: resolution.queryStatId, ...(value ? { value } : {}) }]
+    const filters = statIds.map((id) => ({ id, ...(value ? { value } : {}) }))
+    return [{
+      type: statIds.length > 1 ? 'count' : 'and',
+      ...(statIds.length > 1 ? { value: { min: 1 } } : {}),
+      filters,
+    }]
   })
   return {
     query: {
       query: {
         status: { option: realm === 'cn' ? 'securable' : 'online' },
-        type: (realm === 'cn' ? item.localized?.['zh-CN']?.baseType : undefined) || item.baseType || undefined,
-        stats: filters.length ? [{ type: 'and', filters }] : [],
+        ...(queryItemType(item, realm) ? { type: queryItemType(item, realm) } : {}),
+        stats: statGroups,
       },
       sort: { price: 'asc' },
     },
-    resolved: filters.length,
-    unresolved: item.modifiers.length - filters.length,
+    resolved: statGroups.length,
+    unresolved: item.modifiers.length - statGroups.length,
   }
+}
+
+function buildTypeOnlyQuery(item: LibraryItemSnapshot, realm: MarketRealm): unknown {
+  const type = queryItemType(item, realm)
+  return {
+    query: {
+      status: { option: realm === 'cn' ? 'securable' : 'online' },
+      ...(type ? { type } : {}),
+      stats: [],
+    },
+    sort: { price: 'asc' },
+  }
+}
+
+function logTradeQuery(
+  realm: MarketRealm,
+  leagueId: string,
+  phase: 'detailed' | 'type-only',
+  item: LibraryItemSnapshot,
+  query: unknown,
+  resolvedModifierCount: number,
+  unresolvedModifierCount: number,
+): void {
+  const summary = {
+    realm,
+    leagueId,
+    phase,
+    item: {
+      name: item.name,
+      baseType: item.baseType,
+      rarity: item.rarity,
+      modifiers: item.modifiers.map((modifier) => ({
+        group: modifier.group,
+        text: modifier.original.displayText.slice(0, 240),
+        values: modifier.currentValues,
+        resolutions: modifier.tradeResolutions
+          .filter((resolution) => resolution.realm === realm)
+          .map((resolution) => ({
+            status: resolution.status,
+            queryStatId: resolution.queryStatId,
+            candidateStatIds: resolution.candidateStatIds,
+          })),
+      })),
+    },
+    resolvedModifierCount,
+    unresolvedModifierCount,
+    query,
+  }
+  console.info(`[Market search] submit ${JSON.stringify(summary)}`)
 }
 
 export class OfficialTradeProvider {
@@ -201,17 +291,31 @@ export class OfficialTradeProvider {
     const catalog = await this.stats(realm)
     const resolvedItem = new TradeStatResolver().resolve(item, catalog)
     const built = buildTradeQuery(resolvedItem, realm)
-    const response = record(await this.limited(() => this.manager.search(realm, leagueId, built.query))) as SearchResponse
+    let query = built.query
+    let resolvedModifierCount = built.resolved
+    let unresolvedModifierCount = built.unresolved
+    let response: SearchResponse
+    try {
+      logTradeQuery(realm, leagueId, 'detailed', resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
+      response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
+    } catch (error) {
+      if (!(error instanceof OfficialTradeRequestError) || error.status !== 400 || built.resolved === 0 || !queryItemType(resolvedItem, realm)) throw error
+      query = buildTypeOnlyQuery(resolvedItem, realm)
+      resolvedModifierCount = 0
+      unresolvedModifierCount = resolvedItem.modifiers.length
+      logTradeQuery(realm, leagueId, 'type-only', resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
+      response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
+    }
     const searchId = clean(response.id)
     if (!searchId) throw new Error('Official trade search did not return a search ID')
-    this.manager.rememberGeneratedSearch(realm, leagueId, searchId, built.query)
+    this.manager.rememberGeneratedSearch(realm, leagueId, searchId, query)
     const origin = realm === 'cn' ? 'https://poe.game.qq.com' : 'https://www.pathofexile.com'
     return {
       searchId,
       url: `${origin}/trade2/search/poe2/${encodeURIComponent(leagueId)}/${encodeURIComponent(searchId)}`,
       total: typeof response.total === 'number' ? response.total : 0,
-      resolvedModifierCount: built.resolved,
-      unresolvedModifierCount: built.unresolved,
+      resolvedModifierCount,
+      unresolvedModifierCount,
       resolvedItem,
     }
   }

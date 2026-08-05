@@ -34,7 +34,7 @@
 | 属性节点 | [x] | 支持 Str/Dex/Int 属性节点选择、显示和导入导出 |
 | PoB code 导入 | [x] | 前端解码 PoB2 build code，恢复节点、职业、升华、武器组、属性覆盖 |
 | PoB code 导出 | [x] | 前端生成 PoB2 build XML 和 export code，可替换导入 build 的 Tree 段 |
-| 保存/读取 | [x] | localStorage 保存构筑，支持 JSON 导入/导出 |
+| 保存/读取 | [~] | 当前构筑库仍由 localStorage 保存；`.spoe` 原生文件的打开、保存副本、校验和系统文件关联已接入，后续迁移内部构筑库目录 |
 | URL 分享 | [x] | 支持 URL hash 分享当前天赋树状态 |
 | i18n 框架 | [x] | `useTranslation` 框架和基础 en/zh 文案已接入 |
 | 原生 PoB 计算 | [x] | Electron 优先使用常驻 LuaJIT sidecar，失败时回退到 Wasmoon worker |

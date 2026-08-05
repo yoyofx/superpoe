@@ -307,14 +307,18 @@ export type BuildRealm = 'cn' | 'global'
 export interface SavedBuild {
   id: string            // uuid
   name: string
+  description?: string
+  tags?: string[]
   createdAt: string     // ISO date
   updatedAt: string
+  lastOpenedAt?: string
+  nativeRevision?: number
   treeVersion: string
   selectedClassId: string
   selectedAscendancyId: string
   characterLevel?: number
   importedBuildCode?: string | null
-  source?: 'local' | 'pob' | 'wegame' | 'json'
+  source?: 'local' | 'pob' | 'wegame' | 'poe-ninja' | 'json'
   sourceUrl?: string | null
   realm: BuildRealm
   weaponSetMode: 0 | 1 | 2
@@ -326,4 +330,3 @@ export interface SavedBuild {
   calculationProfiles?: LocalCalculationProfile[]
   activeCalculationProfileId?: string
 }
-

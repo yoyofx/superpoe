@@ -1,8 +1,9 @@
 # 装备分析 Agent 语义与实现规范
 
-> 状态：设计草案  
-> 最后更新：2026-07-26  
+> 状态：设计草案
+> 最后更新：2026-08-03
 > 适用范围：装备详情、装备对比、市场候选评估、游戏内复制物品分析和后续 Agent 功能
+> 关联设计：[`pob-build-object-design.md`](./pob-build-object-design.md)
 
 ## 1. 目标
 
@@ -115,7 +116,7 @@ L1 不使用天赋、其他装备、技能、角色 Buff、敌人状态或 Confi
 
 ### 4.4 L3：完整构筑收益
 
-把候选物品临时代入当前 `BuildDocument`，使用 PoB Worker 在相同 Config 下重新计算：
+在当前 `PobBuildObject` 的不可变临时副本中替换候选物品，使用 PoB Worker 在相同 Config 下重新计算：
 
 - 主技能 DPS、Full DPS、单次命中、攻击/施法频率。
 - 生命、能量护盾、护甲、闪避、抗性、格挡、恢复和 EHP。
@@ -349,7 +350,7 @@ Agent 应复述会实质改变结果的选项，但不重复用户已经明确�
 以下接口是基础领域服务的远期调用形态。当前阶段先实现并验证其底层能力，不实现 Agent 编排：
 
 ```text
-parseBuildCode(code) -> BuildDocument
+parseBuildCode(code) -> PobBuildObject
 parseClipboardItem(text) -> ParsedItem
 resolveItemBase(item, dataVersion) -> ItemBase
 deriveIntrinsicItemStats(item, base, options) -> IntrinsicStats

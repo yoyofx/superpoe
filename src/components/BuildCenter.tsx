@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { BellRing, ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, ListFilter, MoreVertical, Plus, Search, Settings, Store, Trash2 } from 'lucide-react'
+import { AlertTriangle, Archive, BellRing, ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, FolderOpen, Info, LayoutDashboard, ListFilter, MoreVertical, Plus, RefreshCw, Search, Settings, Store, Trash2, Wrench } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
@@ -16,28 +16,33 @@ import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketMonitoringSnapshot } from '@/ty
 
 interface BuildCenterProps {
   onCreate: () => void
+  onOpenFile: () => void
   onImport: () => void
   onOpen: (build: SavedBuild) => void
+  onCheckForUpdate: (build: SavedBuild) => void
   onTradeCenter: () => void
+  onLibrary: () => void
   onUtilities: () => void
   onAbout: () => void
   monitoring?: MarketMonitoringSnapshot | null
   onSettings: () => void
 }
 
-export type BuildCenterNavPage = 'center' | 'utilities' | 'about'
+export type BuildCenterNavPage = 'center' | 'library' | 'utilities' | 'about'
 
 interface BuildCenterNavProps {
   active: BuildCenterNavPage
   onCenter: () => void
+  onLibrary: () => void
   onTradeCenter: () => void
   onUtilities: () => void
   onAbout: () => void
 }
 
 const BUILDS_PER_PAGE = 5
-const ROW_MENU_WIDTH = 108
+const ROW_MENU_WIDTH = 150
 const ROW_MENU_HEIGHT = 64
+const ROW_MENU_UPDATE_HEIGHT = 92
 
 interface RowMenuState {
   buildId: string
@@ -45,7 +50,7 @@ interface RowMenuState {
   top: number
 }
 
-export function BuildCenterNav({ active, onCenter, onTradeCenter, onUtilities, onAbout }: BuildCenterNavProps) {
+export function BuildCenterNav({ active, onCenter, onLibrary, onTradeCenter, onUtilities, onAbout }: BuildCenterNavProps) {
   const { lang } = useTranslation()
   const zh = lang === 'zh-rCN'
   return (
@@ -55,10 +60,21 @@ export function BuildCenterNav({ active, onCenter, onTradeCenter, onUtilities, o
         <span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span>
       </div>
       <nav className="build-center-nav-list">
-        <button className={active === 'center' ? 'active' : ''} aria-current={active === 'center' ? 'page' : undefined} onClick={onCenter}>{zh ? '构筑中心' : 'Build center'}</button>
-        <button onClick={onTradeCenter}>{zh ? '交易中心' : 'Trade center'}</button>
-        <button className={active === 'utilities' ? 'active' : ''} aria-current={active === 'utilities' ? 'page' : undefined} onClick={onUtilities}>{zh ? '实用工具' : 'Utilities'}</button>
-        <button className={active === 'about' ? 'active' : ''} aria-current={active === 'about' ? 'page' : undefined} onClick={onAbout}>{zh ? '关于' : 'About'}</button>
+        <button className={active === 'center' ? 'active' : ''} aria-current={active === 'center' ? 'page' : undefined} onClick={onCenter}>
+          <span className="build-center-nav-main"><LayoutDashboard aria-hidden="true" /><span>{zh ? '构筑中心' : 'Build center'}</span><span className="build-center-nav-tooltip" role="tooltip">{zh ? '管理构筑、打开最近构筑并进入构筑编辑工作区' : 'Manage builds, open recent builds, and enter the build workspace.'}</span></span>
+        </button>
+        <button className={active === 'library' ? 'active' : ''} aria-current={active === 'library' ? 'page' : undefined} onClick={onLibrary}>
+          <span className="build-center-nav-main"><Archive aria-hidden="true" /><span>{zh ? '装备仓库' : 'Equipment library'}</span><span className="build-center-nav-tooltip" role="tooltip">{zh ? '集中管理市场收藏、PoB 导入和自定义装备' : 'Organize market favorites, PoB imports, and custom items.'}</span></span>
+        </button>
+        <button onClick={onTradeCenter}>
+          <span className="build-center-nav-main"><Store aria-hidden="true" /><span>{zh ? '交易中心' : 'Trade center'}</span><span className="build-center-nav-tooltip" role="tooltip">{zh ? '搜索装备、收藏市场结果并查看实时行情' : 'Search equipment, save market results, and view live prices.'}</span></span>
+        </button>
+        <button className={active === 'utilities' ? 'active' : ''} aria-current={active === 'utilities' ? 'page' : undefined} onClick={onUtilities}>
+          <span className="build-center-nav-main"><Wrench aria-hidden="true" /><span>{zh ? '实用工具' : 'Utilities'}</span><span className="build-center-nav-tooltip" role="tooltip">{zh ? '访问通货行情、监控和其它辅助工具' : 'Access currency prices, monitoring, and utility tools.'}</span></span>
+        </button>
+        <button className={active === 'about' ? 'active' : ''} aria-current={active === 'about' ? 'page' : undefined} onClick={onAbout}>
+          <span className="build-center-nav-main"><Info aria-hidden="true" /><span>{zh ? '关于' : 'About'}</span><span className="build-center-nav-tooltip" role="tooltip">{zh ? '查看应用版本、数据来源和项目信息' : 'View app version, data sources, and project information.'}</span></span>
+        </button>
       </nav>
     </aside>
   )
@@ -76,13 +92,18 @@ function formatUpdatedAt(value: string, lang: Language): string {
   }).format(date)
 }
 
-export function BuildCenter({ onCreate, onImport, onOpen, onTradeCenter, onUtilities, onAbout, monitoring, onSettings }: BuildCenterProps) {
+function canRefreshBuild(build: SavedBuild): boolean {
+  return Boolean(build.sourceUrl && (build.source === 'wegame' || build.source === 'poe-ninja'))
+}
+
+export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckForUpdate, onTradeCenter, onLibrary, onUtilities, onAbout, monitoring, onSettings }: BuildCenterProps) {
   const { lang } = useTranslation()
   const treeData = useTreeStore((state) => state.treeData)
   const savedBuilds = useTreeStore((state) => state.savedBuilds)
   const deleteBuild = useTreeStore((state) => state.deleteBuild)
   const [query, setQuery] = useState('')
   const [rowMenu, setRowMenu] = useState<RowMenuState | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<SavedBuild | null>(null)
   const [page, setPage] = useState(1)
   const [versionFilter, setVersionFilter] = useState('all')
   const [assetIndexes, setAssetIndexes] = useState<Record<string, SpriteIndex>>({})
@@ -163,11 +184,13 @@ export function BuildCenter({ onCreate, onImport, onOpen, onTradeCenter, onUtili
       setRowMenu(null)
       return
     }
+    const build = savedBuilds.find((item) => item.id === buildId)
     const rect = button.getBoundingClientRect()
     const left = Math.max(8, Math.min(window.innerWidth - ROW_MENU_WIDTH - 8, rect.right - ROW_MENU_WIDTH))
-    const top = rect.bottom + ROW_MENU_HEIGHT + 8 <= window.innerHeight
+    const menuHeight = build && canRefreshBuild(build) ? ROW_MENU_UPDATE_HEIGHT : ROW_MENU_HEIGHT
+    const top = rect.bottom + menuHeight + 8 <= window.innerHeight
       ? rect.bottom + 4
-      : Math.max(8, rect.top - ROW_MENU_HEIGHT - 4)
+      : Math.max(8, rect.top - menuHeight - 4)
     setRowMenu({ buildId, left, top })
   }
 
@@ -183,6 +206,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onTradeCenter, onUtili
   const sourceLabel = (build: SavedBuild) => {
     const source = build.source || (build.importedBuildCode ? 'pob' : 'local')
     if (source === 'wegame') return 'WeGame'
+    if (source === 'poe-ninja') return 'poe.ninja'
     if (source === 'json') return 'JSON'
     if (source === 'pob') return 'PoB Code'
     return zh ? '本地' : 'Local'
@@ -194,7 +218,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onTradeCenter, onUtili
 
   return (
     <div className="build-center">
-      <BuildCenterNav active="center" onCenter={() => {}} onTradeCenter={onTradeCenter} onUtilities={onUtilities} onAbout={onAbout} />
+      <BuildCenterNav active="center" onCenter={() => {}} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onUtilities={onUtilities} onAbout={onAbout} />
       <header className="center-app-bar">
         <div className="center-actions">
           <GameRuntimeIndicator />
@@ -202,8 +226,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onTradeCenter, onUtili
           <button className="icon-command" title={zh ? '帮助' : 'Help'} aria-label={zh ? '帮助' : 'Help'}><CircleHelp /></button>
         </div>
         <div className="center-command-row">
-          <div className="center-game-entry"><button className={`secondary-command monitoring-entry${isActivelyMonitoring ? ' is-monitoring' : ''}`} onClick={onTradeCenter}><Store />{zh ? '交易中心' : 'Trade Center'}{isActivelyMonitoring && <span className="monitoring-tab-icon" aria-hidden="true"><BellRing /></span>}{monitoring && <small className="monitoring-tab-count">{armedCount}/{MAX_ACTIVE_PURCHASE_TARGETS}</small>}{pendingCount > 0 && <small className="monitoring-tab-alert">{pendingCount}</small>}</button></div>
-          <div><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button></div>
+          <div><button className="secondary-command" onClick={onOpenFile}><FolderOpen />{zh ? '打开构筑' : 'Open build'}</button><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button></div>
         </div>
       </header>
 
@@ -212,7 +235,7 @@ export function BuildCenter({ onCreate, onImport, onOpen, onTradeCenter, onUtili
           <section className="center-empty-state">
             <span className="empty-build-mark">S</span>
             <h2>{zh ? '还没有本地构筑' : 'No local builds yet'}</h2>
-            <div><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button><button className="secondary-command" onClick={onTradeCenter}><Store />{zh ? '交易中心' : 'Trade Center'}</button></div>
+            <div><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button><button className="secondary-command" onClick={onOpenFile}><FolderOpen />{zh ? '打开构筑' : 'Open build'}</button><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button><button className="secondary-command" onClick={onTradeCenter}><Store />{zh ? '交易中心' : 'Trade Center'}</button></div>
           </section>
         ) : <>
           <section className="recent-builds-section" id="recent-builds-section">
@@ -269,11 +292,26 @@ export function BuildCenter({ onCreate, onImport, onOpen, onTradeCenter, onUtili
         return createPortal(
           <div className="row-menu" style={{ left: rowMenu.left, top: rowMenu.top }} role="menu">
             <button role="menuitem" onClick={() => { setRowMenu(null); onOpen(build) }}>{zh ? '打开' : 'Open'}</button>
-            <button role="menuitem" className="danger" onClick={() => { deleteBuild(build.id); setRowMenu(null) }}><Trash2 />{zh ? '删除' : 'Delete'}</button>
+            {canRefreshBuild(build) && <button role="menuitem" onClick={() => { setRowMenu(null); onCheckForUpdate(build) }}><RefreshCw />{zh ? '\u68c0\u67e5\u66f4\u65b0' : 'Check for updates'}</button>}
+            <button role="menuitem" className="danger" onClick={() => { setRowMenu(null); setDeleteTarget(build) }}><Trash2 />{zh ? '删除' : 'Delete'}</button>
           </div>,
           document.body,
         )
       })()}
+      {deleteTarget && createPortal(
+        <div className="modal-backdrop" role="presentation">
+          <section className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-build-title">
+            <AlertTriangle />
+            <h2 id="delete-build-title">{zh ? '\u5220\u9664\u6784\u7b51\uff1f' : 'Delete build?'}</h2>
+            <p>{zh ? `\u786e\u5b9a\u8981\u5220\u9664\u201c${deleteTarget.name}\u201d\u5417\uff1f\u6b64\u64cd\u4f5c\u4e0d\u80fd\u64a4\u9500\u3002` : `Delete "${deleteTarget.name}"? This action cannot be undone.`}</p>
+            <footer>
+              <button className="secondary-command" onClick={() => setDeleteTarget(null)}>{zh ? '\u53d6\u6d88' : 'Cancel'}</button>
+              <button className="primary-command danger-command" onClick={() => { deleteBuild(deleteTarget.id); setDeleteTarget(null) }}><Trash2 />{zh ? '\u786e\u8ba4\u5220\u9664' : 'Delete'}</button>
+            </footer>
+          </section>
+        </div>,
+        document.body,
+      )}
     </div>
   )
 }

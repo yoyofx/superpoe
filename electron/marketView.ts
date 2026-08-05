@@ -516,8 +516,20 @@ export class MarketViewManager {
     if (view.webContents.isDestroyed()) throw new Error('Market session is unavailable')
     await this.ensureSessionRestored(view.webContents, MARKET_PROFILES[realm])
     const response = await view.webContents.session.fetch(url, init)
-    if (!response.ok) throw new OfficialTradeRequestError(response.status)
     const text = await response.text()
+    if (!response.ok) {
+      let detail: string | undefined
+      try {
+        const payload = JSON.parse(text) as { error?: unknown; message?: unknown }
+        const error = payload.error && typeof payload.error === 'object' ? payload.error as { message?: unknown } : undefined
+        const message = error?.message ?? payload.message ?? (typeof payload.error === 'string' ? payload.error : undefined)
+        if (typeof message === 'string') detail = message
+      } catch {
+        const compact = text.replace(/\s+/g, ' ').trim()
+        if (compact && !/^<!doctype html/i.test(compact)) detail = compact.slice(0, 240)
+      }
+      throw new OfficialTradeRequestError(response.status, detail)
+    }
     if (text.length > 5_000_000) throw new Error('Official trade response is too large')
     return JSON.parse(text) as unknown
   }

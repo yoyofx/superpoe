@@ -5,6 +5,7 @@ import {
   ArrowLeft,
   FileInput,
   FileOutput,
+  Files,
   LockKeyhole,
   MoreVertical,
   Redo2,
@@ -38,7 +39,7 @@ import {
 } from '@/store/treeStore'
 
 export type WorkspaceView = 'passive' | 'equipment' | 'skills'
-type ToolbarMenu = 'export' | null
+type ToolbarMenu = 'export' | 'more' | null
 
 interface ToolbarProps {
   activeView: WorkspaceView
@@ -52,6 +53,7 @@ interface ToolbarProps {
   onHome: () => void
   onImport: () => void
   onSave: () => void
+  onSaveCopy: () => void
   onSettings: () => void
 }
 
@@ -63,7 +65,7 @@ const VIEW_ICONS = {
 
 const VIEW_ORDER: WorkspaceView[] = ['equipment', 'skills', 'passive']
 
-export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onImport, onSave, onSettings }: ToolbarProps) {
+export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onImport, onSave, onSaveCopy, onSettings }: ToolbarProps) {
   const { t, lang } = useTranslation()
   const zoom = useTreeStore((state) => state.zoom)
   const treeVersion = useTreeStore((state) => state.treeVersion)
@@ -219,12 +221,12 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
             <LockKeyhole />
             <span>{treeVersion.replace('_', '.')}</span>
           </span>
-          <button className="secondary-command toolbar-text-command" onClick={onImport} title={t('toolbar.importTitle')}><FileInput /><span>{lang === 'zh-rCN' ? '导入' : 'Import'}</span></button>
+          <button className="secondary-command toolbar-text-command" onClick={() => { setActiveMenu(null); onImport() }} title={t('toolbar.importTitle')}><FileInput /><span>{lang === 'zh-rCN' ? '导入' : 'Import'}</span></button>
           <button className="secondary-command toolbar-text-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')}><FileOutput /><span>{lang === 'zh-rCN' ? '导出' : 'Export'}</span></button>
-          <button className="primary-command" onClick={onSave}><Save />{lang === 'zh-rCN' ? '保存' : 'Save'}</button>
+          <button className="primary-command" onClick={() => { setActiveMenu(null); onSave() }}><Save />{lang === 'zh-rCN' ? '保存' : 'Save'}</button>
           <GameRuntimeIndicator />
-          <button className="icon-command" onClick={onSettings} title={lang === 'zh-rCN' ? '全局设置' : 'Global settings'} aria-label={lang === 'zh-rCN' ? '全局设置' : 'Global settings'}><Settings /></button>
-          <button className="icon-command" title={lang === 'zh-rCN' ? '更多操作' : 'More'} aria-label={lang === 'zh-rCN' ? '更多操作' : 'More'}><MoreVertical /></button>
+          <button className="icon-command" onClick={() => { setActiveMenu(null); onSettings() }} title={lang === 'zh-rCN' ? '全局设置' : 'Global settings'} aria-label={lang === 'zh-rCN' ? '全局设置' : 'Global settings'}><Settings /></button>
+          <button className="icon-command" onClick={() => toggleMenu('more')} title={lang === 'zh-rCN' ? '更多操作' : 'More'} aria-label={lang === 'zh-rCN' ? '更多操作' : 'More'} aria-expanded={activeMenu === 'more'}><MoreVertical /></button>
         </div>
       </div>
 
@@ -281,6 +283,9 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
 
       {activeMenu && <div className="command-popover">
         {activeMenu === 'export' && <ExportPanel embedded buildName={buildName} sourceUrl={buildSourceUrl} />}
+        {activeMenu === 'more' && <div className="native-file-menu" role="menu">
+          <button role="menuitem" onClick={() => { setActiveMenu(null); onSaveCopy() }} disabled={saveStatus === 'saving'}><Files /><span><strong>{lang === 'zh-rCN' ? '保存构筑副本' : 'Save build copy'}</strong><small>{lang === 'zh-rCN' ? '创建可传输的 .spoe 原生文件' : 'Create a portable .spoe native file'}</small></span></button>
+        </div>}
       </div>}
     </header>
   )

@@ -28,6 +28,11 @@ declare global {
   interface Window {
     pob2Desktop?: {
       importWeGame(url: string): Promise<{ code: string; sourceUrl: string }>
+      importPoeNinja(url: string): Promise<{ code: string; sourceUrl: string; suggestedName: string }>
+      openBuildFile(): Promise<{ canceled: boolean; filePath?: string; content?: string }>
+      saveBuildFileCopy(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
+      registerBuildFileAssociation(): Promise<{ registered: boolean; isDefault: boolean; settingsOpened: boolean; reason?: 'unsupported-platform' }>
+      onOpenBuildFile(callback: (result: { canceled: boolean; filePath?: string; content?: string; error?: string }) => void): () => void
       saveGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
       installGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: false; filePath: string }>
       setUiScale(factor: number): Promise<number>
@@ -68,6 +73,7 @@ declare global {
       removeLibrarySource(sourceKey: string): Promise<{ removedEntryId?: string; entry?: import('@/types/market').EquipmentLibraryEntry }>
       openLibrarySource(entryId: string, sourceKey: string): Promise<{ kind: import('@/types/market').EquipmentLibrarySourceKind }>
       saveEquipmentItem(input: import('@/types/market').EquipmentLibraryItemInput): Promise<import('@/types/market').EquipmentLibraryEntry>
+      searchEquipmentItem(input: import('@/types/market').EquipmentTradeSearchRequest): Promise<import('@/types/market').TradeSearchResult>
       searchLibrary(input: import('@/types/market').TradeSearchRequest): Promise<import('@/types/market').TradeSearchResult>
       listLeagues(realm: import('@/types/market').MarketRealm): Promise<import('@/types/market').TradeLeague[]>
       getMonitoring(): Promise<import('@/types/market').MarketMonitoringSnapshot>

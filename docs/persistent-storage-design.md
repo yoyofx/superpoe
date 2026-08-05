@@ -1,8 +1,8 @@
 # SuperPoE2 本地持久化、版本兼容与恢复设计
 
-> 状态：方案已确认，待按 M2 实施  
-> 更新日期：2026-08-02  
-> 适用平台：Windows Electron 桌面端；保留 macOS Apple Silicon 兼容  
+> 状态：方案已确认，待按 M2 实施
+> 更新日期：2026-08-03
+> 适用平台：Windows Electron 桌面端；保留 macOS Apple Silicon 兼容
 > 关联路线图：[ROADMAP.md](./ROADMAP.md) M2“布局、工作流与构筑管理可靠化”
 
 ## 1. 文档目的
@@ -18,7 +18,7 @@
 5. 单个构筑损坏不影响其他构筑；仓库损坏可从滚动备份恢复。
 6. 登录凭据、Cookie 和缓存不进入构筑、仓库或普通备份。
 
-本文只定义持久化基础。M2-M4 的完整实施边界、BuildDocument 唯一权威、PoB XML 投影和计算门禁见 [`build-document-m2-m4-implementation-plan.md`](./build-document-m2-m4-implementation-plan.md)。装备和技能的完整编辑模型仍属于 M3，但 M2 的文件格式必须为 M3 留出无损演进空间。
+本文只定义持久化基础。构筑运行时状态、完整 PoB2 XML 对象、编辑边界和计算一致性门禁见 [`pob-build-object-design.md`](./pob-build-object-design.md)。旧 `BuildDocument` 唯一权威和重建 PoB XML 的方案已经作废。装备和技能编辑仍属于 M3，但持久化格式必须始终保留可独立恢复的完整 PoB 载荷。
 
 ## 2. 已确认决策
 
@@ -28,7 +28,7 @@
 2. Windows 当前实际目录为 `%APPDATA%\SuperPoE2`，即 `C:\Users\<用户>\AppData\Roaming\SuperPoE2`。
 3. 开发版与正式版不按 `-dev` 后缀分目录，默认共享数据。
 4. `SUPERPOE_USER_DATA` 只用于自动化测试、临时验证和明确的故障恢复，不作为普通用户设置。
-5. 每个命名构筑一个 `*.bd.json` 文件；`builds/` 目录是唯一事实来源，启动时扫描目录生成内存索引。
+5. 每个命名构筑一个 `*.spoe` 文件；`builds/` 目录是唯一事实来源，启动时扫描目录生成内存索引。
 6. 整个装备仓库继续使用一个 JSON 文件，不拆成单装备文件。
 7. 设置使用一个 JSON 文件；短期 UI 状态与业务数据分离。
 8. 登录状态继续使用 Electron persistent session；关键 `POESESSID` 只以 `safeStorage` 密文备份。
@@ -43,7 +43,7 @@
 
 | Key | 当前内容 | M2 目标 |
 | --- | --- | --- |
-| `pob2-saved-builds` | 全部命名构筑数组 | 迁移为 `builds/<id>.bd.json` |
+| `pob2-saved-builds` | 全部命名构筑数组 | 迁移为 `builds/<id>.spoe` |
 | `pob2-imported-build` | 当前 Hash 对应的临时 PoB Code | 迁移为当前会话草稿，不再长期依赖 |
 | `superpoe-global-settings` | 默认服务器、退出确认、UI 缩放、更新通道等 | 迁移为 `settings.json` |
 | `pob2-language` | 当前 UI 语言 | 合并进 `settings.json` |
@@ -74,12 +74,12 @@ URL Hash 仍可用于临时分享天赋状态，但不能作为可靠保存介�
 ├─ ui-state.json
 ├─ storage-state.json
 ├─ builds\
-│  ├─ <build-id-1>.bd.json
-│  ├─ <build-id-2>.bd.json
+│  ├─ <build-id-1>.spoe
+│  ├─ <build-id-2>.spoe
 │  ├─ 开荒\
-│  │  └─ <build-id-3>.bd.json
+│  │  └─ <build-id-3>.spoe
 │  └─ 终局\
-│     └─ <build-id-4>.bd.json
+│     └─ <build-id-4>.spoe
 ├─ drafts\
 │  └─ <build-id-or-session-id>.json
 ├─ backups\
@@ -144,141 +144,82 @@ interface StorageEnvelope<T> {
 本地文件路径为以下两种之一：
 
 ```text
-builds/<uuid>.bd.json                 # 默认目录
-builds/<folder-name>/<uuid>.bd.json   # 用户一级物理目录
+builds/<uuid>.spoe                 # 默认目录
+builds/<folder-name>/<uuid>.spoe   # 用户一级物理目录
 ```
 
-`.bd.json` 是 SuperPoE2 的原生构筑文件扩展名。文件本质仍是 UTF-8 JSON，可以直接复制、备份和传播。
+`.spoe` 是 SuperPoE2 的原生构筑文件扩展名。文件内部使用 UTF-8 JSON，但扩展名不暴露序列化实现，可以注册系统文件关联并直接复制、备份和传播。
 
-应用内部保存时，文件名只允许应用生成的 UUID，不使用用户输入的构筑名称，避免非法字符、重名和路径穿越。用户通过导出功能得到文件时可以使用经过清理的构筑名称，例如 `冰法开荒.bd.json`；重新导入后由应用生成新的本地 UUID 文件名。
+应用内部保存时，文件名只允许应用生成的 UUID，不使用用户输入的构筑名称，避免非法字符、重名和路径穿越。用户通过“另存为”或复制得到原生文件时可以使用经过清理的构筑名称，例如 `冰法开荒.spoe`；从外部打开并加入构筑库时由应用生成新的本地 UUID 文件名。
 
-构筑文件必须自包含：只复制该文件到另一台兼容版本的 SuperPoE2，也能恢复构筑、重新计算并导出。构筑可以记录仓库装备 ID，但不能只保存仓库引用，必须同时保存构筑内装备快照。
+构筑文件必须自包含：只复制该文件到另一台兼容版本的 SuperPoE2，也能恢复构筑、重新计算并导出。完整 PoB Code 已包含构筑装备；构筑可以额外记录仓库装备 ID，但不能用仓库引用替代 PoB 载荷中的装备内容。
 
-### 6.2 构筑主体
+### 6.2 构筑库记录
+
+构筑文件保存 SuperPoE2 自有元数据和一份完整 PoB Code。运行时打开构筑时，Code 解压并创建统一 `PobBuildObject`；文件结构本身不是运行时模型。
 
 ```ts
-interface BuildDocumentFile {
+interface BuildRecord {
   id: string
   metadata: {
     name: string
     description?: string
     tags: string[]
-    source: 'local' | 'pob' | 'wegame' | 'json'
+    realm: 'cn' | 'global'
+    source: 'local' | 'pob' | 'wegame'
     sourceUrl?: string
     createdAt: string
     updatedAt: string
     lastOpenedAt: string
   }
-  game: {
-    realm: 'cn' | 'global'
-    treeVersion: string
-    characterClassId: string
-    ascendancyId: string
-    characterLevel: number
-  }
-  authority: {
-    tree: 'structured'
-    items: 'pob-code' | 'structured'
-    skills: 'pob-code' | 'structured'
-    config: 'structured'
-  }
-  tree: BuildTreeDocument
-  items?: BuildItemsDocument
-  skills?: BuildSkillsDocument
-  config: BuildConfigDocument
-  notes: BuildNotesDocument
-  interop: BuildInteropDocument
-}
-```
-
-`authority` 用来避免同一数据存在两份权威来源：
-
-- M2 初期，天赋和 Config 使用结构化数据；未完成编辑模型的装备和技能仍以原始 PoB Code 为权威。
-- M3 完成装备或技能编辑后，对应 authority 切换为 `structured`。
-- 导出 PoB Code 时只从标记的权威来源生成，不能混合两份不一致数据。
-
-### 6.3 天赋数据
-
-```ts
-interface BuildTreeDocument {
-  allocatedNodes: string[]
-  weaponSetMode: 0 | 1 | 2
-  activeWeaponSet: 1 | 2
-  nodeWeaponSets: Record<string, 1 | 2>
-  nodeAttributeSelections: Record<string, 1 | 2 | 3>
-  masterySelections: Record<string, string>
-  activeSpecId?: string
-  specs?: BuildTreeSpec[]
-  jewels?: BuildJewelSnapshot[]
-}
-```
-
-M2 必须完整承接现有 `SavedBuild` 字段。多 Spec、Mastery 完整效果和珠宝计算可以晚于 M2 实现，但字段空间必须保留。
-
-### 6.4 装备数据
-
-M3 切换到结构化装备后，构筑文件保存：
-
-- 装备组和当前装备组。
-- 武器组和槽位分配。
-- 每件装备的完整快照，而非仓库外键。
-- 原始物品文本、名称、底材、稀有度、物品等级和需求。
-- implicit、explicit、crafted、fractured、desecrated 等有效词缀。
-- Rune、Soul Core、Idol 和孔位顺序。
-- 可选的 `libraryEntryId` 和来源说明，仅用于追踪。
-
-仓库装备被删除或修改后，已保存构筑不得随之改变。
-
-### 6.5 技能数据
-
-结构化技能至少包含：
-
-- 技能组和技能组顺序。
-- 主动技能、辅助宝石、等级、品质和变体。
-- 启用状态、主技能选择、武器组和触发关系。
-- PoB 未识别字段的透传数据。
-
-### 6.6 计算配置与备注
-
-```ts
-interface BuildConfigDocument {
-  activeProfileId: string
-  profiles: Array<{
-    id: string
-    name: string
-    values: Record<string, boolean | number | string>
-  }>
-}
-
-interface BuildNotesDocument {
-  summary?: string
-  sections?: Array<{ id: string; title: string; content: string }>
-}
-```
-
-敌人类型、距离、球数、怒火、技能阶段等会影响计算结果，因此必须随构筑保存，不能只放在全局设置中。
-
-### 6.7 PoB 互操作与未知字段
-
-```ts
-interface BuildInteropDocument {
-  pob?: {
-    originalCode?: string
-    originalFormatVersion?: string
-    importedAt?: string
-    passthrough?: unknown
+  pob: {
+    code: string
+    contentHash: string
   }
 }
 ```
 
-- M2 初期保留 `originalCode`，确保现有装备和技能仍可恢复。
-- M3 解析后保存未知 XML 字段或原始片段，重新导出时不得静默丢失。
-- 原始 PoB Code 可能较大，但属于构筑自包含能力，应允许保存。
-- 计算结果不作为构筑权威数据。需要缓存时另存带输入 hash、引擎版本和过期策略的派生结果。
+文件外层继续使用第 5 节定义的 `schemaVersion`、`revision`、`writtenAt`、`writtenBy` 和 payload hash。`pob.contentHash` 只覆盖 PoB Code 解码后的规范 XML 语义，用于检查载荷变化；应用名称、标签和目录不参与该 hash。
+
+原生构筑文件在通用信封外增加固定标识 `format: 'superpoe-build'`。扩展名只能用于筛选候选文件，打开时必须同时验证该标识、schema、payload hash 和 PoB XML content hash。
+
+### 6.3 权威数据与派生摘要
+
+- `pob.code` 是可独立恢复的完整构筑载荷，必须包含 Tree、Items、Skills、Config、Notes 以及 PoB2 保存的其他 section。
+- 打开后创建的 `PobBuildObject` 是当前会话唯一可编辑构筑实例；保存时从该对象生成新的 Code。
+- 天赋、装备、技能和 Config 不再作为并列的持久化权威字段保存，也不使用 `authority` 在两份数据之间切换。
+- 构筑中心需要的职业、升华、等级、树版本、装备数和技能数可以写入可重建摘要；摘要损坏或缺失时从完整载荷重建。
+- 计算结果、Lua build 实例和页面 selector 缓存均为可丢弃派生状态，不写回构筑记录。
+
+### 6.4 完整性与兼容
+
+- 类型化访问器必须基于同一完整 XML 对象，不能生成独立的 Tree、Items、Skills 或 Config 数据副本。
+- 未识别的元素、属性、文本、顺序和引用必须留在底层通用 XML 树中；编辑一个 section 不得重建或裁剪其他 section。
+- 字段语义和兼容规则以绑定版本的 PoB2 `xml.lua`、`Build.lua` 及各 Tab `Load()` / `Save()` 为准。
+- 保存后的 Code 必须能被对应版本的原版 PoB2 加载，并通过技能、伤害和人物属性 parity 门禁。
+- 原始 PoB Code 可能较大，但属于构筑自包含能力；默认大小限制必须容纳经过验证的真实大型构筑。
+
+### 6.5 应用自有数据
+
+名称、描述、标签、来源、来源 URL、目录和时间属于构筑库，不进入 PoB2 XML。用户在 SuperPoE2 中保存的额外计算方案如果不能无损映射到 PoB2 ConfigSet，应保存在独立的、以构筑 ID 关联的应用数据区域，不得伪装成 PoB XML 权威字段。
+
+仓库装备被删除或修改后，已经写入 `pob.code` 的构筑装备不得随之改变。仓库 ID 只能作为可选追踪信息，不能替代载荷中的 Item 内容。
+
+### 6.6 原生构筑文件
+
+`.spoe` 是 SuperPoE 原生构筑文件，JSON 只是当前内部序列化方式，不作为与 PoB Code、WeGame 并列的导入/导出格式。用户操作语义是打开、保存、另存为、复制和备份原生构筑文件。
+
+打开原生文件时验证外层 schema、元数据和完整 PoB Code，再由统一加载入口创建 `PobBuildObject`；不得把 JSON 字段直接注入页面状态，也不得绕过 PoB XML 对象建立第二套构筑模型。打开其他机器复制来的原生文件时，保留记录中的原始 `source/sourceUrl`，不能把来源改写成 `json`。
+
+旧 `SavedBuild.source === 'json'` 只作为 legacy migration 输入接受：如果旧记录无法恢复更早的真实来源，则迁移为 `local` 并保留迁移诊断；新记录不再产生 `json` 来源。
+
+### 6.7 计算与缓存
+
+计算请求使用当前 `PobBuildObject` revision 对应的 XML snapshot，并记录 revision、内容 hash 和引擎版本。结果返回时 revision 已变化则作为过期结果丢弃。需要持久化计算缓存时必须独立保存，且缓存永远不能成为构筑权威数据。
 
 ### 6.8 目录扫描与内存索引
 
-不保存永久 `builds/index.json`。应用启动时扫描 `builds/*.bd.json` 和 `builds/*/*.bd.json`，验证后生成仅存在于当前进程内的构筑摘要：
+不保存永久 `builds/index.json`。应用启动时扫描 `builds/*.spoe` 和 `builds/*/*.spoe`，验证后生成仅存在于当前进程内的构筑摘要：
 
 ```ts
 interface BuildSummary {
@@ -303,14 +244,14 @@ interface BuildSummary {
 
 扫描规则：
 
-1. 只匹配根目录和一级普通目录内扩展名为 `.bd.json` 的普通文件，不跟随符号链接、junction 或其他 reparse point，不递归更深目录。
+1. 只匹配根目录和一级普通目录内扩展名为 `.spoe` 的普通文件，不跟随符号链接、junction 或其他 reparse point，不递归更深目录。
 2. 使用有限并发读取和校验，例如同时最多 8 个文件。
 3. 根目录表示“默认”，一级物理目录名称直接作为用户目录；目录按名称排序，构筑按用户选择的名称、更新时间、版本或来源排序。
 4. 扫描遇到损坏构筑时将其放入恢复列表，不静默删除，也不影响其他构筑。
-5. 新建、保存、复制、导入和删除成功后直接更新内存摘要，不需要重新扫描整个目录。
+5. 新建、保存、另存为、复制、打开外部原生文件和删除成功后直接更新内存摘要，不需要重新扫描整个目录。
 6. 只有实测大量构筑导致启动扫描持续超过 300 ms 时，才考虑增加可随时删除的缓存索引；缓存永远不能成为事实来源。
 
-直接在 `builds/` 下创建一级目录，或把外部 `.bd.json` 放入根目录/一级目录时，启动扫描可以识别。若文件内 ID 与现有构筑冲突但内容不同，应用必须进入导入冲突流程，生成新 ID 或由用户确认覆盖，不能按扫描顺序静默覆盖。
+直接在 `builds/` 下创建一级目录，或把外部 `.spoe` 放入根目录/一级目录时，启动扫描可以识别。若文件内 ID 与现有构筑冲突但内容不同，应用必须进入原生文件 ID 冲突处理流程，生成新 ID 或由用户确认覆盖，不能按扫描顺序静默覆盖。
 
 目录名必须经过主进程验证，拒绝非法字符、保留设备名、路径穿越、绝对路径、尾随空格/点和超长路径。删除目录时先逐个把构筑移回根目录，全部成功且目录为空后再删除；中途退出时下次扫描仍必须发现两处的全部构筑。
 
@@ -324,7 +265,7 @@ interface BuildSummary {
 drafts/<build-id-or-session-id>.json
 ```
 
-草稿使用与构筑相同的 document schema，并增加：
+草稿使用与构筑相同的 `BuildRecord` schema，并增加：
 
 ```ts
 interface DraftMetadata {
@@ -470,7 +411,7 @@ trade/credentials.v1.json
 ### 11.2 安全规则
 
 - renderer、仓库、构筑、日志和诊断包不得读取 Cookie 原文。
-- 普通“导出全部数据”默认排除 `credentials.v1.json` 和整个 `Partitions/`。
+- 普通“全量业务备份”默认排除 `credentials.v1.json` 和整个 `Partitions/`。
 - 参考数据缓存和行情缓存不进入备份。
 - IPC 只暴露登录状态、登录动作和注销动作，不暴露凭据值。
 - 完整注销一个区服时，同时清理对应 persistent session Cookie 和加密凭据快照。
@@ -583,7 +524,7 @@ renderer 保存构筑时必须携带读取到的 `expectedRevision`：
 
 单实例锁解决进程级并发，revision 解决异步 IPC 和旧窗口状态覆盖。
 
-## 16. 备份、导出与恢复
+## 16. 备份、复制与恢复
 
 ### 16.1 自动备份
 
@@ -595,26 +536,26 @@ renderer 保存构筑时必须携带读取到的 `expectedRevision`：
 
 ### 16.2 用户备份
 
-提供两种导出：
+提供两种备份/复制方式：
 
-1. 单构筑 JSON：可导入另一台 SuperPoE2，并保留 schema 和 PoB 互操作信息。
+1. 单构筑原生文件：可由另一台 SuperPoE2 打开，并保留 schema、应用元数据和完整 PoB 载荷。
 2. 全量业务备份：一个带 manifest 的 JSON bundle，包含设置、全部构筑、仓库、保存搜索、购买目标和监控设置。
 
 全量备份默认不包含：
 
 - Cookie、`credentials.v1.json` 和 Session 分区。
 - 官方 Stat 缓存、通货行情缓存、GPU/Code Cache。
-- 机会历史中的临时运行状态；是否包含近期机会由导出选项明确说明。
+- 机会历史中的临时运行状态；是否包含近期机会由备份选项明确说明。
 
-### 16.3 导入恢复
+### 16.3 备份恢复
 
 恢复前必须显示预览：schema、构筑数、仓库装备数、目标区服和冲突数量。冲突策略由用户选择：
 
 - 跳过同 ID。
-- 作为副本导入并生成新 ID。
+- 作为副本恢复到构筑库并生成新 ID。
 - 覆盖现有记录；覆盖前再次备份。
 
-高于当前支持 schema 的备份只能检查和保留，不能强行降级导入。
+高于当前支持 schema 的备份只能检查和保留，不能强行降级恢复。
 
 ## 17. 损坏与错误处理
 
@@ -660,7 +601,7 @@ electron/storage/
 - `StorageCoordinator`：启动检查、单实例写保护、健康状态和 legacy migration。
 - `BuildRepository`：构筑 CRUD、目录扫描、内存摘要和 revision 冲突。
 - `DraftRepository`：debounce 草稿和启动恢复。
-- `BackupService`：用户导出、恢复预览和冲突处理。
+- `BackupService`：用户备份、复制、恢复预览和冲突处理。
 
 ### 18.2 preload API
 
@@ -691,7 +632,7 @@ IPC 主进程必须校验 sender、ID、字符串长度、数组上限、schema�
 
 ### P1：构筑 Repository 与首次迁移
 
-- 实现一构筑一个 `.bd.json` 文件、目录扫描和内存摘要。
+- 实现一构筑一个 `.spoe` 文件、目录扫描和内存摘要。
 - 迁移 `pob2-saved-builds`。
 - 保持现有 `SavedBuild` 能力完整，不在此阶段强行完成 M3。
 - 构筑中心改为异步读取主进程 Repository。
@@ -703,7 +644,7 @@ IPC 主进程必须校验 sender、ID、字符串长度、数组上限、schema�
 
 ### P3：备份恢复
 
-- 单构筑导出导入。
+- 单构筑原生文件的打开、另存为、复制和恢复。
 - 全量业务备份、恢复预览和冲突处理。
 - 损坏文件和索引重建 UI。
 
@@ -715,9 +656,9 @@ IPC 主进程必须校验 sender、ID、字符串长度、数组上限、schema�
 
 ### P5：M3 衔接
 
-- 引入统一 `BuildDocument`。
-- 将装备和技能 authority 从 `pob-code` 逐步迁移为 `structured`。
-- 保证未知 PoB 字段透传和无损导出。
+- 引入统一 `PobBuildObject`，完整映射 PoB2 XML 对象树。
+- 将装备页、技能页和 Config 页的临时解析收敛为统一对象访问器。
+- 将编辑和计算切换为同一对象 revision，保证未知 PoB 字段保留和无损导出。
 
 ## 20. 测试策略
 
@@ -735,7 +676,7 @@ IPC 主进程必须校验 sender、ID、字符串长度、数组上限、schema�
 - 正式文件被占用、无权限和磁盘空间不足模拟。
 - 写入中断后正式文件仍可读取。
 - 正式文件损坏后从滚动备份恢复。
-- 新增、删除、重命名和直接放入 `.bd.json` 后目录扫描结果正确。
+- 新增、删除、重命名和直接放入 `.spoe` 后目录扫描结果正确。
 - 物理目录新建、重命名、构筑移动和删除中断后不丢失构筑。
 - 路径穿越、非法目录名、符号链接和同名目标不会越界或覆盖文件。
 - 单构筑损坏不影响列表中其他构筑。
@@ -768,7 +709,7 @@ M2 持久化部分完成必须同时满足：
 
 1. 命名构筑、语言和全局设置不再以 `localStorage` 为事实来源。
 2. 旧构筑首次启动可自动迁移，原始数据有备份且迁移可重试。
-3. 每个构筑独立使用 `.bd.json`，不依赖永久索引，直接扫描目录可完整恢复构筑列表。
+3. 每个构筑独立使用 `.spoe`，不依赖永久索引，直接扫描目录可完整恢复构筑列表。
 4. 自动草稿可以从异常退出恢复，最多丢失一个草稿周期内的修改。
 5. 所有正式写入经过临时文件、读回校验、revision 和备份。
 6. 高 schema 数据在旧版本中只读，不能被空数据或旧格式覆盖。
