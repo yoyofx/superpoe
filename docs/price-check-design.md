@@ -1,15 +1,17 @@
 # SuperPoE2 统一交易、装备仓库与国服/国际服查价详细设计
 
 > 状态：PriceCheck 独立模块设计已定稿；共享 M0 交易基础可复用；M6 游戏内查价待开发
-> 更新日期：2026-08-01
+> 更新日期：2026-08-07
 > 适用项目：`D:\sources\superpoe`
 > 目标平台：Electron 桌面端，支持 Windows 与 macOS Apple Silicon
 > 关联路线图：`docs/ROADMAP.md` 中 M0“集市、统一装备仓库与共享交易基础”和 M6“游戏内查价器与构筑提升浮层”
 > 配套设计：[marketplace-browser-design.md](./marketplace-browser-design.md)
 
+> **统一装备模型修订（2026-08-07）：** 本文早期章节中的 `LibraryItemSnapshot`、持久化 `LibraryModifier.tradeResolutions` 和“完全不使用 PoB TradeSiteStats”的结论已被统一 PoB2 Item 方案替代。目标结构与持久化边界以 [`pob-build-object-design.md`](./pob-build-object-design.md#33-统一装备对象) 和 [`equipment-library-workbench-design.md`](./equipment-library-workbench-design.md) 为准；本文保留的旧接口仅描述当前实现和迁移输入，不得继续扩展为新权威模型。
+
 ## 1. 文档目的
 
-本文定义 SuperPoE2 统一交易领域和游戏内查价功能的产品边界、系统架构、数据模型、解析流程、国服与国际服适配、Electron IPC、安全策略、缓存、错误处理、测试和分阶段交付方案。内嵌集市、页面收藏、PoB 导入、装备界面收藏和游戏内查价共用会话、官方数据、Stat resolver、查询构建、listing validator 与装备仓库。
+本文定义 SuperPoE2 统一交易领域和游戏内查价功能的产品边界、系统架构、数据模型、解析流程、国服与国际服适配、Electron IPC、安全策略、缓存、错误处理、测试和分阶段交付方案。内嵌集市、页面收藏、PoB 导入、装备界面收藏和游戏内查价共用会话、官方数据、PoB2 Item Bridge、查询构建、listing validator 与装备仓库。
 
 本设计仅覆盖“复制游戏物品并查询官方交易市场挂单”。把市场候选装备代入当前构筑、计算 DPS/防御提升和购买收益排序属于后续能力，不进入第一阶段实现。
 
@@ -19,17 +21,17 @@
 
 1. 国服与国际服在同一版本内实现，使用统一领域模型和分区服适配器。
 2. 不依赖 Xiletrade 的代码、模型或数据文件。
-3. 不使用 PoB `TradeSiteStats.lua` 作为交易 Stat 数据兜底。
-4. Stat 数据唯一事实来源是对应区服官方 `/data/stats` 接口。
-5. `/data/stats` 响应允许保存到用户目录作为运行时缓存，但不提交到仓库，不作为人工维护的数据源。
+3. PoB2 `stat_descriptions.lua`、`HashStats()`、`TradeHelpers.lua` 和 `TradeSiteStats.lua` 负责 canonical Item 的英文词条与 Trade Hash 语义，不维护第二套手工映射。
+4. 对应区服官方 `/data/stats` 负责验证目标市场当前接受的 Stat/option；它是市场能力目录，不是装备语义或仓库词缀的事实来源。
+5. `/data/stats` 响应允许保存到用户目录作为可删除、可重建的运行时缓存，不进入 canonical item，也不持久化为逐词条 resolution。
 6. 国服搜索、Stats、赛季和 Fetch 必须全部走国服接口；国际服同理，禁止跨区服拼接数据。
-7. PoB Lua 继续负责构筑和计算语义，不承担中文游戏剪贴板解析职责。
+7. PoB Lua 负责 Item 解析、规范化、英文 stat descriptor 和 Trade Hash；中文 listing/剪贴板 adapter 负责提供官方 Stat ID、实际值和来源证据，不能建立另一套装备权威。
 8. 查价器不维护独立区服选项；国服或国际服统一由项目全局设置 `AppSettings.defaultRealm` 决定。
 9. 名称/基底和结构化过滤器同样只使用对应区服官方 `/data/items`、`/data/filters`；现有英文 PoB 基底数据不作为国服交易名称来源。
 10. 仓库装备是持久化主体；市场收藏、PoB 导入、装备界面收藏、手工录入和查价记录是可并存的来源，不建立独立收藏表。
-11. 仓库和查价器共用唯一 `TradeStatResolver`。Stat ID 是带 realm、catalog hash 和解析证据的可重算快照，不是装备或词缀的永久主键。
+11. 仓库、集市和查价器共用唯一 PoB2 Item Bridge。Stat ID 在市场导入阶段是本地化词条转英文 descriptor 的证据，查询阶段从 PoB `modLine` 动态生成，不随 canonical item 持久化。
 12. 市场 listing 经官方 Fetch 取得可信数据后才能入库；DOM 注入只发送 `realm + queryId + listingId + sourceUrl`。
-13. 现有构筑 `EquipmentItem` 与仓库 `LibraryItemSnapshot` 通过 Adapter 转换，上游 Trade DTO 不直接进入构筑模型。
+13. PoB 构筑、Global/CN listing、装备收藏和自定义文本都转换为规范化英文 PoB2 Item Raw；上游 Trade DTO 和旧 `LibraryItemSnapshot` 不能直接进入构筑模型。
 14. PriceCheck 始终是独立业务模块和独立目录，不属于 Market。PriceCheck 只依赖共享的 `trade`、`library` 基础设施；Market 与 PriceCheck 禁止互相导入组件、状态、IPC 或业务协调器。
 
 ## 3. 产品目标与非目标
@@ -80,7 +82,7 @@
 6. parser 输出结构化 `ParsedTradeItem`。
 7. renderer 在独立查价窗口显示物品和可搜索条件。
 8. 用户勾选词缀、调整范围并点击搜索。
-9. 主进程用官方 Stats catalog 将词缀解析为 Stat ID，生成查询并调用 Search API。
+9. 主进程通过 PoB2 Item Bridge 从英文 `modLine` 动态生成 Stat ID，并用目标 realm 官方 Stats catalog 校验后调用 Search API。
 10. 主进程 Fetch 第一页详情，将脱敏后的结果返回 renderer。
 11. 用户可翻页、返回修改条件、打开官方交易页或复制私聊文本。
 
@@ -104,7 +106,7 @@ Electron main process
   |- TradeSessionManager
   |- TradeReferenceDataCache
   |- TradeApiClient (CN / Global adapters)
-  |- TradeStatResolver
+  |- PobItemBridge
   |- OfficialTradeProvider (M0 / M6 shared application service)
   |- EquipmentLibraryRepository
   |- MarketViewManager + MarketEnhancementCoordinator
@@ -122,9 +124,9 @@ React price-check renderer
   |- listing results
   `- login/settings status
 
-Shared pure TypeScript domain
-  |- item text parser
-  |- shared TradeStatResolver
+Shared domain
+  |- listing/clipboard adapters
+  |- PoB2 Item/Hash bridge
   |- query builder
   |- equipment library types/fingerprint/source ingestion
   `- runtime validators
@@ -165,17 +167,17 @@ renderer 不应获得：
 
 #### 纯 TypeScript 领域层
 
-解析、规范化、Stat 匹配和查询构建应尽量保持为无 Electron 依赖的纯函数，以便 Vitest 覆盖。
+listing/剪贴板 adapter、查询构建和结果归一化应尽量保持为无 Electron 依赖的纯函数，以便 Vitest 覆盖；PoB2 Item 解析、规范化和 Hash 语义必须通过 Item Bridge 调用真实 Lua，不在 TypeScript 中复刻。
 
 ### 5.2 与路线图 M0/M6 的共享边界
 
-`TradeApiClient` 只负责 HTTP、session、限流和上游 DTO；内嵌集市、页面收藏、工作台查价（M0）与游戏内浮层（M6）共享 `TradeSessionManager`、`TradeStatResolver`、`EquipmentLibraryRepository` 和应用层 `TradeProvider`：
+`TradeApiClient` 只负责 HTTP、session、限流和上游 DTO；内嵌集市、页面收藏、工作台查价（M0）与游戏内浮层（M6）共享 `TradeSessionManager`、`PobItemBridge`、`EquipmentLibraryRepository` 和应用层 `TradeProvider`：
 
 ```ts
 interface TradeProvider {
   getReferenceState(): Promise<TradeReferenceState>
   parseAndResolve(rawText: string): Promise<ResolvedTradeItem>
-  resolveLibraryItem(item: LibraryItemSnapshot): Promise<ResolvedTradeItem>
+  resolveLibraryItem(item: CanonicalEquipmentItem): Promise<ResolvedTradeItem>
   search(form: TradeSearchForm): Promise<TradeSearchResult>
   fetchPage(searchContextId: string, page: number): Promise<TradeListingView[]>
   fetchListing(ref: MarketDomListingRef): Promise<TradeListingView>
@@ -184,7 +186,7 @@ interface TradeProvider {
 }
 ```
 
-第一版实现为主进程 `OfficialTradeProvider`，内部根据已同步的 `defaultRealm` 选择静态 profile。普通 renderer 方法不接受 realm 或 Base URL；来自隔离 market preload 的 listing 引用必须由主进程依据 sender webContents 与 partition 推导 realm。PriceCheckCoordinator 负责热键/generation/窗口，MarketEnhancementCoordinator 负责页面按钮与 listing 引用，两者都不能复制 Provider、resolver 或仓库逻辑。
+第一版实现为主进程 `OfficialTradeProvider`，内部根据已同步的 `defaultRealm` 选择静态 profile。普通 renderer 方法不接受 realm 或 Base URL；来自隔离 market preload 的 listing 引用必须由主进程依据 sender webContents 与 partition 推导 realm。PriceCheckCoordinator 负责热键/generation/窗口，MarketEnhancementCoordinator 负责页面按钮与 listing 引用，两者都不能复制 Provider、Item Bridge 或仓库逻辑。
 
 这里的“共享”只表示依赖同一套无 UI 的交易基础设施，不表示模块合并。依赖方向固定为：
 
@@ -205,19 +207,19 @@ PriceCheck -X-> Market
 ```text
 市场 listing 收藏 ----┐
 PoB item 导入 --------┤
-装备界面收藏 ---------+--> normalize --> fingerprint/upsert --> EquipmentLibraryEntry
+装备界面收藏 ---------+--> PobItemBridge --> canonical Raw --> fingerprint/upsert
 游戏内剪贴板查价 ----┤                                      |
-手工录入 -------------┘                                      `--> EquipmentItem Adapter / TradeSearchForm
+手工录入 -------------┘                                      `--> TradeSearchForm / 构筑 Item command
 ```
 
 仓库主体与来源必须分离：
 
 ```ts
 interface EquipmentLibraryEntry {
-  schemaVersion: 1
+  schemaVersion: 2
   id: string
   fingerprint: string
-  item: LibraryItemSnapshot
+  item: CanonicalEquipmentItem
   sources: EquipmentLibrarySource[]
   folderId?: string
   tags: string[]
@@ -553,14 +555,14 @@ interface TradeFilterCatalog {
 | 两区服共有 unique IDs | 7,420 | 7,420 |
 | realm only IDs | 34 | 736 |
 
-`explicit.stat_3299347043` 当前在两区服分别对应 `# 生命上限` 与 `# to maximum Life`，说明官方 ID 具有较强跨语言稳定性；但集合不完全相同，且同一区服中一个 ID 可以对应多个显示模板。因此：
+`explicit.stat_3299347043` 当前在两区服分别对应 `# 生命上限` 与 `# to maximum Life`。结合 PoB2 `HashStats()` 对 GGG 内部 stat code 的计算方式，可以确认两区服使用同一套底层 Stat ID/Hash 体系；集合差异表示目录版本和市场可用条目不同，不应派生出两套装备语义。因此：
 
 - catalog 索引必须是 `Map<string, TradeStatEntry[]>`，不能假设 ID 到模板是一对一。
-- resolution 必须记录 realm、完整 `queryStatId`、命中的 catalog template、catalog payload hash 和解析方法。
-- Stat ID 不参与装备 fingerprint，也不能作为跨 realm 的无条件永久语义 ID。
-- 同 realm 再查询时先验证 ID 仍存在且 source/valueMode/option 兼容；失败则从原始文本重算。
-- 跨 realm 相同 ID 只能作为强候选。目标 catalog 必须存在相同 source、兼容的值结构与固定选项；无法验证时进入 `ambiguous`，不得静默提交。
-- 市场 Fetch 如果提供官方 Stat/hash 关系，记为 `resolvedBy='official-listing'`；PoB、装备面板和剪贴板文本仍通过共享 resolver 匹配。
+- canonical item 和 fingerprint 都不保存或依赖 realm、Stat ID、catalog template 与 catalog payload hash。
+- Global/CN listing 都先转换为同一 PoB2 英文 Item；Global 可直接校验英文 description，CN 使用官方 Stat ID 反向定位 PoB2 descriptor。
+- 查询时从当前 PoB `modLine` 动态计算完整 `queryStatId`，固定选项保留 `|optionId`，再用目标 realm catalog 验证可用性。
+- 目标 catalog 缺失同一 ID、source 或兼容 option 时，本次 filter 标记 unavailable/ambiguous，不写回装备。
+- 市场 Fetch 的官方 Stat/hash 关系在 canonical 化完成前作为导入证据保留；完成后不进入 canonical item。
 - 旧扩展导出的静态 `trade2state.*.json` 不作为运行时 catalog 或 fallback；其条目数已经落后于当前官方响应。
 
 ## 10. 认证与会话
@@ -745,7 +747,7 @@ export type TradeModifierSourceTag =
   | 'corrupted'
 ```
 
-`resolution` 使用可持久化但可重新验证的快照：
+`resolution` 仅是一次解析/查询会话内的可丢弃结果，不再写入装备仓库：
 
 ```ts
 export interface TradeStatResolutionSnapshot {
@@ -766,9 +768,9 @@ export interface TradeStatResolutionSnapshot {
 }
 ```
 
-`ParsedTradeModifier.resolution` 与仓库 `LibraryModifier.tradeResolutions[]` 使用同一结构。parser 只产生原始证据和观察值，`TradeStatResolver` 负责 resolution；仓库、Market Fetch、装备面板和 PriceCheck 不得各自定义近似类型。
+`ParsedTradeModifier.resolution` 只服务当前查价表单或迁移诊断。canonical 仓库没有 `LibraryModifier.tradeResolutions[]`；仓库、Market Fetch、装备面板和 PriceCheck 都从 PoB2 Item Bridge 获取 mod line 与动态 Trade filter，不得各自定义 matcher。
 
-只有 `status='resolved'` 的 snapshot 必须且允许携带唯一 `queryStatId` 进入 Query Builder。`ambiguous` 只保存有限候选供用户确认，`unresolved` 可以没有候选；两者都不能提交搜索。
+只有当前会话中 `status='resolved'` 的结果允许携带唯一 `queryStatId` 进入 Query Builder。`ambiguous`/`unresolved` 都不能提交搜索，也不能污染 canonical Item；关闭会话或目标 catalog 版本变化后可以直接丢弃并重算。
 
 ### 12.2 语言 profile
 
@@ -1097,7 +1099,7 @@ export interface TradeSearchForm {
 - 默认只查询 `sale_type=priced`。
 - modifiers 默认 `and`。
 - unresolved/ambiguous modifier 不得进入请求。
-- 仓库中保存的 resolution 只是缓存；Query Builder 前必须由 `TradeStatResolver` 使用当前 realm catalog 复核，`stale` 不得进入请求。
+- Query Builder 从 canonical PoB Item 动态生成 Stat ID，并在提交前用当前 realm catalog 复核；本次 unavailable/ambiguous 结果不得进入请求或写回装备。
 - 市场收藏、PoB 导入、装备界面收藏和剪贴板查价生成的 `TradeModifierFilter` 必须完全相同，不能按入口分叉查询语义。
 - Min/Max 为空时只要求存在该 Stat，不自动用物品当前值做精确匹配。
 - 用户显式填写 Min/Max 后才提交数值范围。
@@ -1447,12 +1449,12 @@ CI 不依赖实时官方接口，使用脱敏响应 fixture 和 mock fetch。发
 - realm profiles。
 - stats/items/filters/static/league client、validator 与缓存。
 - item parser。
-- 共享 `TradeStatResolver` 与可持久化 resolution snapshot。
+- 共享 `PobItemBridge`、Stat 反向索引和仅会话内存在的 resolution result。
 - query builder。
 - `EquipmentLibraryEntry`、来源联合类型、fingerprint 和 Repository validator。
 - 全量纯函数测试。
 
-完成标准：市场 Fetch、PoB item、装备面板与剪贴板 fixtures 经过同一 resolver 生成可验证 resolution 和双区服查询 JSON；同一装备多来源入库保持幂等。
+完成标准：市场 Fetch、PoB item、装备面板与剪贴板 fixtures 经过同一 Item Bridge 生成语义一致的英文 PoB Item Raw 和双区服查询 JSON；同一装备多来源入库保持幂等。
 
 ### Phase 2：Electron 系统能力
 
@@ -1545,27 +1547,27 @@ CI 不依赖实时官方接口，使用脱敏响应 fixture 和 mock fetch。发
 
 内嵌集市、页面 listing 收藏和统一装备仓库不再是查价器完成后的可选扩展，而是路线图 M0 的共享基础。详细边界见 `marketplace-browser-design.md`。M0/M6 必须共同交付以下稳定契约：
 
-- `TradeSessionManager`、`TradeReferenceDataCache`、`TradeStatResolver`、`OfficialTradeProvider` 和 `EquipmentLibraryRepository` 各只有一个实现。
+- `TradeSessionManager`、`TradeReferenceDataCache`、`PobItemBridge`、`OfficialTradeProvider` 和 `EquipmentLibraryRepository` 各只有一个实现。
 - 市场收藏、PoB 导入、装备界面收藏和查价保存都写入统一仓库并保留来源。
 - 页面注入按钮只传 listing 引用；官方 Fetch、校验、解析和写盘都在主进程完成。
-- 仓库词缀保留原始证据、观察值和带 catalog hash 的 resolution snapshot。
+- 仓库装备只保存 canonical PoB2 Item Raw；listing Stat/hash 作为导入证据留在来源边界，resolution snapshot 不随装备持久化。
 
 在这些共享契约之上继续扩展：
 
-- 把候选装备转换为 SuperPoE2/PoB Item。
+- 把 canonical 候选装备写入目标构筑的 ItemSet/Slot。
 - 代入当前构筑计算 DPS、防御和资源变化。
 - 按提升率、价格和单位收益排序。
 - 保存历史查询与价格快照。
 - 当前装备与市场候选并排比较。
 - 游戏内直接显示“价格 + 构筑提升”组合提示。
 
-这些扩展必须复用第一阶段稳定的 `LibraryItemSnapshot`、`ParsedTradeItem`、`TradeSearchForm` 和 `TradeListingView`，不得让上游 API DTO 直接进入构筑领域模型。
+这些扩展必须复用 `CanonicalEquipmentItem`、`PobItemBridge`、`TradeSearchForm` 和 `TradeListingView`，不得让上游 API DTO 或旧 `LibraryItemSnapshot` 直接进入构筑领域模型。
 
 ## 26. 当前项目落地审计（2026-07-29）
 
 ### 26.1 结论
 
-`D:\sources\superpoe` 的 Electron + React/Vite 技术栈可以承载本设计，不需要更换框架或引入本地服务。当前工作树已经具备集市入口、`WebContentsView`、基础导航、realm partition 和登录状态检查，但尚无共享 Trade Provider、reference-data cache、`TradeStatResolver`、listing validator、统一装备仓库或游戏内热键查价闭环。PriceCheck 应接入统一交易领域，不能扩写 PoB Lua 装备解析来承担中文交易文本，也不能与 Market 分别实现 parser/API client。
+`D:\sources\superpoe` 的 Electron + React/Vite 技术栈可以承载本设计，不需要更换框架或引入本地服务。当前工作树已经具备集市入口、`WebContentsView`、realm partition、官方 Fetch、reference-data cache 和 schema v1 装备仓库；仍缺少 canonical PoB2 Item Bridge、schema v2 迁移和游戏内热键查价闭环。PriceCheck 应接入统一交易领域：中文 listing/剪贴板 adapter 提供 Stat ID、实际值和来源证据，PoB Lua 负责 Item/Hash 语义，Market 与 PriceCheck 不能分别实现 matcher 或装备模型。
 
 审计时当前工作树基线验证通过：`npm run test:ci` 为 24 个测试文件、144 个测试全部通过，`npm run build:electron:main` 和完整 `npm run build` 均成功。完整构建存在 Vite 的现有大 chunk 警告，因此独立 PriceCheck 动态入口属于性能要求，不只是代码组织偏好。
 
@@ -1589,7 +1591,7 @@ CI 不依赖实时官方接口，使用脱敏响应 fixture 和 mock fetch。发
 | `parseEquipmentXml` | 解析英文 PoB XML item，不解析游戏复制区块、中文头部和 tier range | 保持原样，新增 `itemTextParser` |
 | `EquipmentModifierGroup` | 只有 enchant/rune/implicit/explicit，缺少 fractured/crafted/desecrated/复合状态 | PriceCheck 使用独立类型，不修改构筑领域模型 |
 | `public/data/item-bases.json` | 仅英文 PoB 基底键，国服名称缺失 | 交易名称以 realm `/data/items` 为准；现有数据只辅助国际服面板语义 |
-| `equipmentAffixes` 正则 | 面向英文构筑展示和汇总，不提供官方 Stat ID | 不用于 `TradeStatResolver` |
+| `equipmentAffixes` 正则 | 面向旧英文构筑展示和汇总，不提供官方 Stat ID | 不用于 `PobItemBridge` 或 Trade Hash |
 | updater/poe2db 网络代码 | 无 realm session、交易限流和上游 DTO validator | 在 `electron/trade/` 新建共享 `TradeApiClient`，只复用错误处理风格 |
 | 主窗口 preload | 暴露 PoB 计算和构筑文件能力 | overlay 使用独立窄 preload，login window 不使用 preload |
 

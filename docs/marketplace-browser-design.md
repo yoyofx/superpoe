@@ -1,7 +1,7 @@
 # SuperPoE2 集市浏览、页面增强与统一装备仓库设计
 
 > 状态：M0 应用侧、搜索收藏 O0 和实时购买目标监控 O0-O4 已实现；整体待真实站点 smoke test
-> 更新日期：2026-08-01
+> 更新日期：2026-08-07
 > 适用项目：`D:\sources\superpoe`
 > 关联设计：[price-check-design.md](./price-check-design.md)
 > 订阅设计：[market-subscription-design.md](./market-subscription-design.md)
@@ -20,7 +20,7 @@
 4. Cookie 日常使用仍由 Electron Chromium CookieStore 管理；为兼容官方会话 Cookie，主进程额外使用 `safeStorage` 保存按区服隔离的加密凭据快照，renderer 与日志不得读取原文。
 5. 页面增强使用隔离 preload + realm DOM Adapter，在 listing 卡片内注入轻量收藏按钮，但不向远程页面暴露 SuperPoE2 主窗口能力。
 6. 收藏不是独立数据表，而是装备进入统一仓库的一种来源；市场收藏、PoB 导入、装备界面收藏和游戏内查价共享同一个 `EquipmentLibraryRepository`。
-7. 仓库保存经过校验的装备快照、来源和可重新验证的 Stat resolution，不能只保存脆弱的网页 DOM 或某次 catalog 的 Stat ID。
+7. 仓库装备保存经过 PoB2 校验的规范化英文 Item Raw；市场来源保存 listing 引用、价格和导入证据。持久化 `LibraryItemSnapshot` 与逐词条 Stat resolution 的旧方案已经作废。
 
 可行性评估：
 
@@ -92,7 +92,7 @@
 - 远程 view 尚未加载专用 market preload，也没有 DOM Adapter、页面收藏按钮、listing 引用事件或按钮状态回传。
 - `tsconfig.electron.json` 仍只 include `electron/*.ts`，无法编译建议的 `electron/trade/`、`electron/market/`、`electron/library/` 和专属 preload。
 - 主窗口 `sandbox:false` 是现有技术债；远程网页已经使用更严格的 webPreferences，后续不能退回主窗口 preload 或扩大远程 IPC。
-- 当前没有共享 `TradeApiClient`、官方 reference-data cache、`TradeStatResolver`、可信 listing validator 或 `EquipmentLibraryRepository`。
+- 当前已有 `TradeApiClient`、官方 reference-data cache、listing validator 和 schema v1 `EquipmentLibraryRepository`；仍缺少 canonical `PobItemBridge` 与 schema v2 迁移。
 
 ### 3.3 入口层级
 
@@ -120,7 +120,7 @@ Electron main process
   |- MarketNavigationPolicy
   |- MarketEnhancementCoordinator
   |- EquipmentLibraryRepository
-  |- TradeStatResolver
+  |- PobItemBridge
   |- TradeApiClient
   `- OfficialTradeProvider (PriceCheck)
           |
@@ -141,7 +141,7 @@ Official remote page
        `- narrow events to main
 ```
 
-核心约束：`TradeSessionManager` 是会话唯一所有者，`EquipmentLibraryRepository` 是装备入库数据的唯一所有者，`TradeStatResolver` 是词缀到官方查询 Stat 的唯一解析路径。Market、认证窗口和 PriceCheck 不得分别创建 session、仓库或词缀匹配器。
+核心约束：`TradeSessionManager` 是会话唯一所有者，`EquipmentLibraryRepository` 是装备入库数据的唯一所有者，`PobItemBridge` 是 Item 规范化和词缀到官方查询 Stat 的唯一语义路径。Market、认证窗口和 PriceCheck 不得分别创建 session、仓库、装备模型或词缀 matcher。
 
 ## 5. 嵌入技术
 
@@ -342,8 +342,9 @@ interface MarketDomListingRef {
 
 1. 主进程校验 URL、query ID 和 listing ID。
 2. 使用相同 realm session 调用官方 Trade Fetch。
-3. runtime validator 将响应转换为共享 `TradeListingView`。
-4. 统一装备仓库只接受 `TradeListingView` 转换后的 `LibraryItemSnapshot`，或明确标记 `unresolved` 的最小网页书签来源。
+3. runtime validator 将响应转换为共享 `TradeListingView`，并保留 description、`extended.hashes`、option 和结构化 mod 数据。
+4. Market Item Adapter 将 listing 转换为英文 PoB Item Raw，并执行 `new("Item", raw) -> Item:BuildRaw()` 往返校验。
+5. 转换成功后写入统一装备仓库；失败时只保存明确标记的 unresolved source，不创建伪完整装备。
 
 不能直接信任 DOM 中的价格、卖家和词缀。页面变化时，最坏结果应是无法解析，而不是收藏错误装备。
 
@@ -355,10 +356,15 @@ interface MarketDomListingRef {
 
 ```ts
 interface EquipmentLibraryEntry {
-  schemaVersion: 1
+  schemaVersion: 2
   id: string
   fingerprint: string
-  item: LibraryItemSnapshot
+  item: {
+    format: 'pob2-item'
+    raw: string
+    pobVersion: string
+    gameVersion: string
+  }
   sources: EquipmentLibrarySource[]
   folderId?: string
   tags: string[]
@@ -386,62 +392,28 @@ type EquipmentLibrarySource =
 
 同一装备可以有多个来源。取消网页收藏只移除对应的 `market-favorite` 来源；取消装备界面收藏只移除对应的 `equipment-favorite` 来源。只要仍有其他来源、目录、标签或备注，就不能删除仓库主体。listing 下架后保留装备和价格快照，仅把来源标记为 `unavailable`。
 
-来源键用于幂等更新，装备 fingerprint 用于发现内容完全一致的重复项。不得使用价格、卖家、构筑 ID 或 Trade Stat ID 生成装备 fingerprint；跨语言或解析不完整时不得静默合并，只能提示用户确认。
+来源键用于幂等更新，装备 fingerprint 对 `Item:BuildRaw()` 的规范化内容计算。不得使用价格、卖家、构筑 ID、realm 或 Trade Stat ID 生成装备 fingerprint；跨语言来源必须先转换为同一英文 PoB Item，unresolved source 不参与内容去重。
 
-### 11.2 词缀保存与查价共享
+### 11.2 PoB Item 与 Stat ID 边界
 
-每条词缀同时保留原始证据、结构化观察值和可重新验证的查询解析：
+仓库不再逐词条保存 `LibraryModifier` 和 `TradeStatResolutionSnapshot`。展示、比较、找相似和查价统一从 canonical PoB2 Item 派生 mod lines；PoB2 `TradeHelpers.findTradeHash()`、`HashStats()`、`stat_descriptions.lua` 和 `TradeSiteStats.lua` 是共享语义实现。
 
-```ts
-interface LibraryModifier {
-  id: string
-  displayOrder: number
-  group: 'enchant' | 'rune' | 'implicit' | 'explicit'
-  sourceTags: TradeModifierSourceTag[]
-  affixKind?: 'prefix' | 'suffix'
-  original: {
-    locale: 'zh-CN' | 'zh-TW' | 'en' | 'unknown'
-    lines: string[]
-    displayText: string
-  }
-  valueMode: 'numeric' | 'presence' | 'fixed-option'
-  currentValues: number[]
-  tierRanges: Array<{ min: number; max: number }>
-  tradeResolutions: TradeStatResolutionSnapshot[]
-}
+Global 与 CN 的底层 Stat ID/Hash 体系相同，不建立两套装备或 matcher。realm 只决定 API 域名、会话、联赛、价格、本地化显示和目标市场 Stats 可用性校验。Global listing 的英文 description 可以在 hash 校验后直接构建 Raw；CN listing 使用官方 Stat ID 反向定位 PoB2 英文 descriptor。复合、多行、option、负值和区间词条必须通过 fixture 与 `Item.lua` 往返验证，不能靠中文模糊匹配猜测。
 
-interface TradeStatResolutionSnapshot {
-  realm: 'cn' | 'global'
-  queryStatId?: string
-  baseStatId?: string
-  optionId?: string
-  candidateStatIds: string[]
-  source: TradeStatSource
-  catalogTemplate: string
-  valueTransform: 'identity' | 'negate'
-  resolvedBy: 'official-listing' | 'exact-text' | 'multi-line' | 'cross-realm-id' | 'user-confirmed'
-  catalogFetchedAt: string
-  catalogPayloadHash: string
-  status: 'resolved' | 'ambiguous' | 'unresolved' | 'stale'
-}
-```
-
-`status='resolved'` 时必须存在唯一 `queryStatId` 与 `baseStatId`；固定选项的 `queryStatId` 必须保留后缀，例如 `enchant.stat_2954116742|56666`，同时拆出 `optionId`。`ambiguous` 保存有限候选 ID，`unresolved` 的候选可为空。Stat ID 是 realm 限定的解析快照，不是仓库词缀或装备的永久主键。提交查价前必须用当前目标 realm catalog 重新验证；缺失、结构不兼容或 catalog 变化时从原始文本重算，`ambiguous`/`unresolved` 不得进入查询。
-
-市场收藏优先使用官方 Fetch listing 提供的 Stat/hash 关系；PoB 导入、装备收藏和剪贴板查价统一调用共享 `TradeStatResolver`。不得为仓库、集市和 PriceCheck 各维护一套 matcher。
+listing 的 `extended.hashes` 是导入证据，在 canonical 化完成前必须保留；完成后不进入 canonical item。realm 官方 Stats payload 和运行时 hash 结果是可删除、可重建的缓存，不是仓库业务数据。
 
 ### 11.3 存储与视图
 
 存储策略：
 
-- `app.userData/library/equipment-library.v1.json`，并保留最近有效备份。
+- schema v2 迁移期间沿用仓库文件位置并保留最近有效备份；完成迁移后文件名与内部 schema 必须一致。
 - 主进程读写，renderer 只调用类型化 CRUD/查询 IPC。
 - 临时文件 + flush + 原子替换，保存前做 schema 校验，损坏文件隔离后从备份恢复。
 - 来源、目录、备注、标签和单条原始文本均设置大小上限。
 - 不保存 Cookie、密码、私聊、完整 HTML、DOM 节点或网页脚本状态。
 - 第一版不引入 SQLite；数据量和价格历史需要索引时在 Repository 内部迁移，IPC 与 UI 模型保持不变。
 
-第一版支持按来源、realm、赛季、装备槽、目录和标签过滤，支持备注、归档、打开来源页和用户主动刷新。第一版不做后台轮询或价格变化监控；后续的购买目标监控只消费官方 Live 新 listing 事件，并在用户尝试行动前重新校验 listing，不轮询价格。现有 `EquipmentItem` 继续作为构筑模型，仓库通过显式 Adapter 转换，市场 DTO 不得直接进入构筑模型。
+第一版支持按来源、realm、赛季、装备槽、目录和标签过滤，支持备注、归档、打开来源页和用户主动刷新。第一版不做后台轮询或价格变化监控；后续的购买目标监控只消费官方 Live 新 listing 事件，并在用户尝试行动前重新校验 listing，不轮询价格。市场 DTO 不得直接进入构筑模型；所有来源先转换为 canonical PoB2 Item，构筑写入再由统一对象 command 分配 PoB Item ID 和更新槽位引用。
 
 ## 12. IPC 边界
 
@@ -619,7 +591,7 @@ src/types/
 - equipment-library schema、来源幂等、迁移、原子保存和损坏恢复。
 - 同一装备来自市场收藏、PoB 导入和装备界面收藏时保留多来源且不重复创建。
 - 移除一个来源不误删其他来源、目录、标签和备注。
-- Stat resolution 的 catalog hash 校验、stale 重算、固定 option ID 和跨 realm 降级。
+- Global/CN listing 到同一 canonical Raw、固定 option、复合/多行/负值/区间词条和目标 realm catalog 校验。
 - 双区服 adapter fixtures。
 - listing reference 到 `TradeListingView` 的 validator。
 

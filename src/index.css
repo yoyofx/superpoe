@@ -998,6 +998,19 @@ svg { flex: 0 0 auto; }
 .native-build-source-url { margin-top: 12px; overflow-wrap: anywhere; color: #777269; font-size: 10px; }
 .inline-warning { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; padding: 9px 10px; border: 1px solid #6e5930; background: #211b10; color: #c6ab69; font-size: 10px; line-height: 1.5; }
 .inline-warning svg { width: 15px; height: 15px; flex: 0 0 auto; }
+.build-update-overview { margin-top: 12px; }
+.build-update-overview > header { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid #6e5930; background: #211b10; color: #c6ab69; }
+.build-update-overview > header > svg { width: 17px; height: 17px; flex: 0 0 auto; color: #c7a85d; }
+.build-update-overview > header span, .build-update-summary-row span { min-width: 0; }
+.build-update-overview > header strong, .build-update-overview > header small, .build-update-summary-row strong, .build-update-summary-row small { display: block; }
+.build-update-overview > header strong { color: #e0c986; font-size: 12px; font-weight: 600; }
+.build-update-overview > header small { margin-top: 4px; color: #92805c; font-size: 10px; }
+.build-update-summary-list { display: grid; gap: 6px; margin-top: 9px; }
+.build-update-summary-row { min-height: 48px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 11px; border: 1px solid #353229; background: #151713; }
+.build-update-summary-row strong { color: #cfc3a9; font-size: 11px; font-weight: 500; }
+.build-update-summary-row small { margin-top: 4px; color: #817b70; font-size: 9px; }
+.build-update-summary-row b { min-width: 27px; color: #d4b76f; font-size: 14px; font-weight: 500; text-align: right; }
+.build-update-overview > p { margin: 11px 2px 0; color: #777269; font-size: 10px; line-height: 1.5; }
 .native-build-footer { flex-wrap: wrap; }
 .dialog-header h2 { margin-top: 3px; color: #d0c29f; font: 500 17px Georgia, "Microsoft YaHei", serif; }
 .dialog-steps { height: 45px; display: grid; grid-template-columns: repeat(3, 1fr); border-bottom: 1px solid #39362e; list-style: none; }

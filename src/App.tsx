@@ -24,6 +24,7 @@ import {
   type ParsedSuperPoeBuildFile,
 } from '@/engine/superPoeBuildFile'
 import { encodeBuildCode, getEncodeClassPayload } from '@/engine/buildCode'
+import { compareBuildCodes, type BuildUpdateDiff } from '@/engine/buildDiff'
 import { SUPERPOE_PACKAGE_VERSION } from '@/engine/appVersion'
 import { GlobalSettingsDialog } from '@/components/GlobalSettingsDialog'
 import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/appSettings'
@@ -67,6 +68,7 @@ export default function App() {
   const [nativeBuildError, setNativeBuildError] = useState<string | null>(null)
   const [buildUpdateTarget, setBuildUpdateTarget] = useState<SavedBuild | null>(null)
   const [buildUpdateCode, setBuildUpdateCode] = useState<string | null>(null)
+  const [buildUpdateDiff, setBuildUpdateDiff] = useState<BuildUpdateDiff | null>(null)
   const [buildUpdateChecking, setBuildUpdateChecking] = useState(false)
   const [buildUpdateBusy, setBuildUpdateBusy] = useState(false)
   const [buildUpdateError, setBuildUpdateError] = useState<string | null>(null)
@@ -324,6 +326,7 @@ export default function App() {
     const requestId = ++buildUpdateRequestRef.current
     setBuildUpdateTarget(build)
     setBuildUpdateCode(null)
+    setBuildUpdateDiff(null)
     setBuildUpdateError(null)
     setBuildUpdateChecking(true)
     try {
@@ -331,15 +334,18 @@ export default function App() {
         ? await requestPoeNinjaImport(build.sourceUrl)
         : await requestPoe2dbImport(build.sourceUrl)
       if (requestId !== buildUpdateRequestRef.current) return
-      if (result.code.trim() === (build.importedBuildCode || '').trim()) {
+      const diff = compareBuildCodes(build.importedBuildCode || '', result.code)
+      if (!diff.hasChanges) {
         setBuildUpdateTarget(null)
         setSaveNotice({ type: 'success', message: lang === 'zh-rCN' ? '\u6784\u7b51\u5df2\u662f\u6700\u65b0\u7248\u672c' : 'Build is already up to date' })
         return
       }
       setBuildUpdateCode(result.code)
+      setBuildUpdateDiff(diff)
     } catch (reason) {
       if (requestId !== buildUpdateRequestRef.current) return
       setBuildUpdateTarget(null)
+      setBuildUpdateDiff(null)
       setSaveNotice({ type: 'error', message: reason instanceof Error ? reason.message : String(reason) })
     } finally {
       if (requestId === buildUpdateRequestRef.current) setBuildUpdateChecking(false)
@@ -351,6 +357,7 @@ export default function App() {
     buildUpdateRequestRef.current += 1
     setBuildUpdateTarget(null)
     setBuildUpdateCode(null)
+    setBuildUpdateDiff(null)
     setBuildUpdateError(null)
     setBuildUpdateChecking(false)
   }, [buildUpdateBusy])
@@ -377,6 +384,7 @@ export default function App() {
       setBuildSourceUrl(target.sourceUrl || null)
       setBuildUpdateTarget(null)
       setBuildUpdateCode(null)
+      setBuildUpdateDiff(null)
       setActiveView('equipment')
       setScreen('editor')
       window.setTimeout(markClean, 0)
@@ -647,6 +655,7 @@ export default function App() {
         checking={buildUpdateChecking}
         busy={buildUpdateBusy}
         error={buildUpdateError}
+        diff={buildUpdateDiff}
         onCancel={cancelBuildUpdate}
         onConfirm={() => void handleConfirmBuildUpdate()}
       />}

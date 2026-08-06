@@ -1,7 +1,7 @@
 # SuperPoE2 统一 PoB 构筑内存对象设计
 
 > 状态：方案已确认，作为后续构筑状态收敛的实现基线
-> 更新日期：2026-08-03
+> 更新日期：2026-08-07
 > 替代方案：[`build-document-m2-m4-implementation-plan.md`](./build-document-m2-m4-implementation-plan.md)（已作废）
 
 ## 1. 结论
@@ -77,6 +77,43 @@ PoB2 没有集中在单个 XSD 中的声明式 Schema，但仓库内的 Lua 源�
 
 实现 TypeScript 映射时以对应 PoB2 版本的这些代码为准，不凭样例 XML 猜测字段。PoB Lua 中的 `buildMode` 是从 XML 加载出的计算运行时，可以丢弃并从当前对象 revision 重建。
 
+### 3.3 统一装备对象
+
+构筑内装备和独立装备仓库使用同一种 PoB2 Item 语义，不再维护 `EquipmentItem`、`LibraryItemSnapshot` 或市场词缀快照作为第二份装备权威。运行时装备是 PoB2 `Item`；脱离构筑单独持久化时，保存能够无损重建该对象的规范化英文 Item Raw。
+
+```ts
+interface CanonicalEquipmentItem {
+  format: 'pob2-item'
+  raw: string
+  pobVersion: string
+  gameVersion: string
+}
+```
+
+```text
+PoB 构筑 Item Raw -----------+
+自定义 PoB Item Raw ---------+--> new("Item", raw) --> PoB2 Item
+Global listing --------------+          |
+CN listing + 官方 Stat ID ---+          +--> Item:BuildRaw() --> 规范化英文 Item Raw
+```
+
+约束如下：
+
+- `raw` 是装备内容的唯一持久化权威；名称、底材、词条分组、数值、面板属性和 Trade filter 都是 PoB2 Item 的派生视图。
+- 国服与国际服共用 GGG stat code、`HashStats`、`stat_descriptions` 和 PoB2 Item Raw 格式，不建立 realm 专属装备模型。
+- `realm`、league、listing ID、来源 URL、价格、卖家和可用状态属于市场来源，不进入 `CanonicalEquipmentItem`。
+- 市场 Fetch 的 `extended.hashes`、option ID 和结构化 mod 数据是导入证据。它们用于把本地化 listing 转换为 PoB 英文 Item Raw，但不是装备或词缀的永久主键。
+- `TradeStatResolutionSnapshot` 不随 canonical item 持久化。查价和找相似从当前 PoB `modLine` 动态计算 Stat ID；官方 Stats 目录和运行时解析结果只能作为可删除、可重建的缓存。
+- 仓库 Entry ID 与构筑内 PoB Item ID 始终分离。装备写入构筑时分配新的 PoB Item ID，并通过 `PobBuildObject` command 更新 `<Items>` 与 ItemSet/Slot 引用。
+
+市场导入统一经过同一 adapter。Global listing 可以直接使用通过 PoB2 校验的英文 description；CN listing 优先使用与 Global 同源的官方 Stat ID 反向定位 PoB2 stat descriptor，再结合 listing 实际值生成英文词条。任何来源只有在 `new("Item", raw)` 成功且 `Item:BuildRaw()` 往返语义稳定后，才能成为 canonical item；失败记录保留为 unresolved source，不得猜测英文 Raw。
+
+### 3.4 PoB Lua 集成边界
+
+统一装备方案复用 PoB2 已有的 `Item.lua`、`TradeHelpers.lua`、`stat_descriptions.lua`、`TradeSiteStats.lua` 和 `HashStats()`，不要求修改 `upstreams/PathOfBuilding-PoE2/` 或生成目录 `public/pob-lua/` 中的上游源码。
+
+SuperPoE2 在自有 Item Bridge 中暴露 `parseItem`、`normalizeItem`、`validateItem`、受控编辑、Stat 反向索引和 Trade filter 生成能力。Bridge 可以是应用自有 Lua 模块或现有 Lua runtime 中的嵌入脚本，但不能形成 PoB2 Item 之外的第二权威模型。只有确认是 PoB2 本身无法解析真实英文游戏词条时，才向上游修复并通过资源管线同步，禁止长期维护生成文件私有补丁。
+
 ## 4. 生命周期与边界
 
 ### 4.1 单次加载
@@ -136,10 +173,11 @@ interface BuildRecord {
 ## 6. 收敛顺序
 
 1. 实现与 `xml.lua` 语义一致的 XML 对象、序列化器、revision 和 section 索引，不改变现有页面行为。
-2. 将技能、装备和 Config 的临时解析迁移为统一对象访问器，逐页删除重复解码。
-3. 将天赋编辑从字符串/双状态改为受控 XML 命令，保证 Tree 修改后其他 section 原样保留。
-4. 计算和技能排名统一消费当前对象的 XML snapshot，并用 revision 拒绝过期结果。
-5. 保存、草稿以及原生构筑文件打开/另存为切换为 `BuildRecord + 完整 PoB Code`，清理 `importedBuildCode` 作为页面运行时数据源的用法。
+2. 建立 SuperPoE2 Item Bridge，将构筑装备、市场收藏和自定义装备收敛为 PoB2 Item + 规范化英文 Item Raw。
+3. 将技能、装备和 Config 的临时解析迁移为统一对象访问器，逐页删除重复解码和 `LibraryItemSnapshot` 权威读取。
+4. 将天赋编辑从字符串/双状态改为受控 XML 命令，保证 Tree 修改后其他 section 原样保留。
+5. 计算和技能排名统一消费当前对象的 XML snapshot，并用 revision 拒绝过期结果。
+6. 保存、草稿以及原生构筑文件打开/另存为切换为 `BuildRecord + 完整 PoB Code`，清理 `importedBuildCode` 作为页面运行时数据源的用法。
 
 迁移期间允许旧 selector 适配统一对象，但禁止建立新的第二权威数据源。
 
@@ -151,4 +189,7 @@ interface BuildRecord {
 - 未识别节点、属性、文本和引用在非相关编辑后仍存在。
 - 所有页面读取同一 revision；计算完成时 revision 已变化则结果不得显示。
 - 从 PoB Code 或 WeGame 加载完整构筑时只创建一次统一对象；产品页面不再重复解码 PoB Code。
+- PoB、Global listing、CN listing 和自定义文本在 canonical 化后生成相同的 PoB2 Item 结构；realm 不改变装备语义。
+- 每件仓库装备可以仅凭规范化 Item Raw 重新创建 PoB2 Item；持久化 Stat resolution 缺失不影响找相似和查价。
+- CN listing 的 Stat ID 到英文 Item Raw 转换必须覆盖复合、多行、option、负值和区间词条；无法验证的 listing 只保留 unresolved source。
 - 代表性真实构筑必须覆盖多 SkillSet、ItemSet、武器组、召唤物、触发技能和多个 ConfigSet。

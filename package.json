@@ -12,6 +12,7 @@
     "dev": "npm run dev:electron",
     "dev:renderer": "vite",
     "dev:server": "tsx server/index.ts",
+    "dev:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restart-dev.ps1",
     "build:electron:main": "tsc -p tsconfig.electron.json && esbuild electron/marketPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/electron/marketPreload.cjs && esbuild electron/opportunityPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/electron/opportunityPreload.cjs",
     "dev:electron:main": "npm run build:electron:main && wait-on http://127.0.0.1:3000 && electron .",
     "dev:electron": "concurrently -k \"npm run dev:renderer\" \"cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:3000 npm run dev:electron:main\"",

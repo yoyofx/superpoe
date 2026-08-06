@@ -1,7 +1,7 @@
 # SuperPoE2 本地持久化、版本兼容与恢复设计
 
 > 状态：方案已确认，待按 M2 实施
-> 更新日期：2026-08-03
+> 更新日期：2026-08-07
 > 适用平台：Windows Electron 桌面端；保留 macOS Apple Silicon 兼容
 > 关联路线图：[ROADMAP.md](./ROADMAP.md) M2“布局、工作流与构筑管理可靠化”
 
@@ -88,7 +88,7 @@ URL Hash 仍可用于临时分享天赋状态，但不能作为可靠保存介�
 │  ├─ settings\
 │  └─ migrations\
 ├─ library\
-│  └─ equipment-library.v1.json
+│  └─ equipment-library.v2.json
 ├─ market\
 │  └─ opportunities.v1.json
 ├─ trade\
@@ -102,8 +102,8 @@ URL Hash 仍可用于临时分享天赋状态，但不能作为可靠保存介�
 
 说明：
 
-- 现有仓库、监控和凭据路径保持不变，避免为目录美观引入无收益迁移。
-- 文件名中的 `v1` 是历史命名，不作为后续 schema 判断依据。以后升级文件内容时不需要随 schema 重命名文件。
+- 监控和凭据路径保持不变；装备仓库因 canonical PoB2 Item schema 升级为 `equipment-library.v2.json`。
+- `equipment-library.v1.json` 只作为迁移输入和可恢复备份保留；完成迁移后不得继续双写。其他文件名中的 `v1` 仍是历史命名，不作为后续 schema 判断依据。
 - `ui-state.json` 只保存可丢弃的窗口和界面偏好；损坏时直接回到默认值。
 - `storage-state.json` 保存迁移记录、最近成功启动 schema 和恢复状态，不保存业务内容。
 
@@ -135,7 +135,7 @@ interface StorageEnvelope<T> {
 - `payloadHash`：规范化序列化后 `data` 的 SHA-256，用于发现截断和意外修改，不是数字签名。
 - `data`：领域数据主体。
 
-现有 `equipment-library.v1.json` 和 `opportunities.v1.json` 不要求一次性改成信封结构。它们在下一次自身 schema 迁移时接入 `revision`、`writtenBy` 和 hash，避免 M2 初期同时改动所有交易领域。
+`equipment-library.v2.json` 在 v1 到 v2 的 canonical Item 迁移时接入信封结构。现有 `opportunities.v1.json` 不要求同步改造，留到其自身下一次 schema 迁移时再接入 `revision`、`writtenBy` 和 hash，避免同时改动所有交易领域。
 
 ## 6. 构筑文件设计
 
@@ -333,11 +333,13 @@ interface AppSettingsFile {
 
 ### 9.1 单文件决策
 
-仓库继续整体保存在：
+统一装备迁移完成后仓库整体保存在：
 
 ```text
-library/equipment-library.v1.json
+library/equipment-library.v2.json
 ```
+
+现有 `equipment-library.v1.json` 是迁移输入。首次成功迁移必须先保留原文件和最近有效备份，再原子写入 v2；不得原地覆盖唯一可恢复的 v1 文件。
 
 当前上限为 5,000 件装备、1,000 个目录和 5,000 条保存搜索，单文件读取和完整事务写入仍然合适。达到以下任一条件后再评估分片或 SQLite：
 
@@ -351,23 +353,24 @@ library/equipment-library.v1.json
 
 仓库文件继续包含：
 
-- `entries`：所有装备主体和完整快照。
+- `entries`：所有 canonical PoB2 装备主体及其多来源信息。
 - `folders`：装备目录与搜索目录树。
 - `searches`：保存的官方搜索。
 - `selectedFolders`：仓库和搜索视图的当前目录。
 - 文件 schema、revision、写入版本和更新时间。
 
-装备主体使用本地 UUID；`fingerprint` 只负责重复识别。Stat ID、listing ID 和仓库来源都不能作为装备永久主键。
+装备主体使用本地 UUID；`fingerprint` 对 `Item:BuildRaw()` 的规范化英文内容计算，只负责重复识别。Stat ID、listing ID、realm 和仓库来源都不能作为装备永久主键。
 
-单件装备包含：
+单件 canonical 装备包含：
 
-- 基础信息、原始文本和本地化显示文本。
-- 有效词缀、数值、T 级和带 realm/catalog hash 的 Stat resolution。
+- `format: 'pob2-item'`、规范化英文 `raw`、PoB 版本和游戏数据版本。
 - 多来源数组：市场收藏、PoB 导入、装备收藏、查价和手工录入。
 - 目录、排序、标签、备注和归档状态。
 - 创建和更新时间。
 
-嵌入物与 `Bonded` 词缀在进入仓库前清理，不参与 fingerprint、找相似和查价。需要诊断时只记录被忽略类型，不保存为有效词缀。
+名称、底材、有效词缀、数值、T 级、本地化显示和 Trade filter 都是 PoB2 Item 的派生视图，不重复写入仓库权威记录。`TradeStatResolutionSnapshot`、catalog template、候选 Stat ID 和 catalog hash 不随装备持久化。
+
+市场 listing 的原始 `extended.hashes`、option 与结构化 mod 数据属于 canonical 化之前的来源证据。转换成功后可以只保留必要审计信息；转换失败时作为 bounded unresolved source 保存，以便数据更新后重试。嵌入物、`Bonded`、符文和其他 PoB2 支持的 Item Raw 内容不得为了仓库展示或 fingerprint 被清理；显示和查价是否忽略它们由派生策略决定。
 
 ### 9.3 来源与删除
 
@@ -381,7 +384,7 @@ library/equipment-library.v1.json
 
 领域边界保持现状：
 
-- 保存搜索继续与仓库目录放在 `equipment-library.v1.json`，因为两者共享目录维护和仓库 UI。
+- 保存搜索继续与仓库目录放在 `equipment-library.v2.json`，因为两者共享目录维护和仓库 UI；v1 文件只用于迁移和恢复。
 - 购买目标、Live 批次、机会历史和监控设置保存在 `market/opportunities.v1.json`。
 - 运行时 WebSocket 状态不持久化；启动后根据 armed 目标重建。
 - 游戏运行状态不持久化，每次启动重新检测。

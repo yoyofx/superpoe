@@ -2,7 +2,7 @@
 
 > 状态：方案阶段，暂不实现替换和构筑收益比较
 >
-> 更新时间：2026-08-04
+> 更新时间：2026-08-07
 >
 > 关联设计：[`marketplace-browser-design.md`](./marketplace-browser-design.md)、[`price-check-design.md`](./price-check-design.md)、[`pob-build-object-design.md`](./pob-build-object-design.md)
 
@@ -74,6 +74,8 @@ SuperPoE2 需要一个独立的装备工作台，用来统一管理不同来源�
 
 一件装备是仓库主体，市场 Listing、PoB Item、自定义导入只是来源。
 
+装备主体统一保存规范化 PoB2 英文 Item Raw，并由 PoB2 `Item` 解析。旧 `LibraryItemSnapshot` 仅作为 schema v1 迁移输入和过渡 UI 投影，不再是目标模型或权威数据。
+
 取消一个来源时，只删除对应来源；只要还存在其他来源、标签、目录或备注，就不能静默删除仓库主体。
 
 ## 3. 第一阶段范围：装备管理
@@ -101,7 +103,7 @@ SuperPoE2 需要一个独立的装备工作台，用来统一管理不同来源�
 - 不自动替换装备
 - 不自动删除构筑中的旧装备
 - 不在仓库列表中直接承诺 DPS 提升
-- 不把市场结构化快照强行转换成完整 PoB Item
+- 不允许未通过 PoB2 Item 解析与 `BuildRaw()` 往返校验的市场快照冒充 canonical item
 - 不让仓库 Entry ID 充当 PoB Item ID
 
 ## 4. 信息架构
@@ -174,14 +176,19 @@ type EquipmentLibraryOpenContext =
 
 ## 6. 数据模型边界
 
-现有 `EquipmentLibraryEntry` 继续作为仓库主体：
+`EquipmentLibraryEntry` 继续作为仓库管理主体，但 schema v2 的装备内容改为 canonical PoB2 Item：
 
 ```ts
 interface EquipmentLibraryEntry {
-  schemaVersion: 1
+  schemaVersion: 2
   id: string
   fingerprint: string
-  item: LibraryItemSnapshot
+  item: {
+    format: 'pob2-item'
+    raw: string
+    pobVersion: string
+    gameVersion: string
+  }
   sources: EquipmentLibrarySource[]
   folderId?: string
   tags: string[]
@@ -204,7 +211,7 @@ interface EquipmentLibraryEntry {
 
 ### 6.2 装备内容和市场状态分离
 
-`LibraryItemSnapshot` 描述装备内容；价格、卖家、Listing 状态和市场来源只放在 `MarketFavoriteSource`。
+规范化英文 Item Raw 描述装备内容；价格、卖家、Listing 状态、realm 和市场来源只放在 `MarketFavoriteSource`。名称、底材、词条、面板值和本地化文本由 PoB2 Item 与显示投影按需生成，不重复持久化为另一份权威快照。
 
 价格变化不能改变装备 fingerprint，也不能造成新的仓库装备。
 
@@ -220,13 +227,13 @@ interface EquipmentLibraryEntry {
 装备仓库需要明确区分“能展示什么”和“能执行什么”：
 
 ```text
-展示能力：能否显示名称、底材、词条和来源
-比较能力：能否完成装备本体差异比较
-应用能力：能否安全转换为构筑内 PoB Item
-计算能力：能否放入临时构筑进行 PoB 计算
+来源能力：是否已取得足够的 listing/剪贴板证据
+转换能力：是否已生成并验证 canonical PoB Item Raw
+展示能力：是否能从 PoB2 Item 派生名称、底材和词条
+应用/计算能力：canonical item 是否与目标槽位和构筑版本兼容
 ```
 
-市场 API 只提供结构化快照但没有完整 PoB 原始文本时，可以进入仓库并参与本体比较，但不能直接承诺可以替换或计算。
+市场数据未能生成有效 PoB Raw 时，只保存为 unresolved source，不创建一个伪完整装备主体，也不能参与比较、替换或计算。转换成功后所有来源具有相同能力，不再按来源区分“市场快照”和“PoB Item”。
 
 ## 7. 三种导入流程
 
@@ -236,20 +243,21 @@ interface EquipmentLibraryEntry {
 市场收藏
   -> 主进程校验 Listing
   -> 官方 Fetch 获取结构化装备
-  -> 归一化词条和 stat ID
-  -> 生成 LibraryItemSnapshot
+  -> 保留 mod description、extended.hashes、option 和实际值
+  -> 统一 Market Item Adapter 生成英文 PoB Item Raw
+  -> new("Item", raw) + Item:BuildRaw() 往返校验
   -> upsert 到统一仓库
 ```
 
-网页 DOM 只负责提供 Listing 引用；仓库必须使用主进程校验后的结构化数据。
+网页 DOM 只负责提供 Listing 引用；仓库必须使用主进程校验后的结构化数据。Global 与 CN 共用 canonical Item 和 Stat Hash 逻辑；realm 只选择 API、会话、联赛、价格和当前 Stats 目录。CN 本地化词条通过同源 Stat ID 反向定位 PoB2 英文 descriptor，无法验证时保留 unresolved source。
 
 ### 7.2 PoB 构筑装备
 
 ```text
 完整 PoB 构筑
   -> 读取 Items 中的 Item
-  -> 保留原始 item raw 文本
-  -> 生成 LibraryItemSnapshot
+  -> new("Item", raw) 解析
+  -> Item:BuildRaw() 规范化
   -> 写入 pob-import 来源
 ```
 
@@ -259,14 +267,15 @@ interface EquipmentLibraryEntry {
 
 ```text
 粘贴 PoB 物品文本
-  -> 预览解析结果
-  -> 显示未识别字段和词条警告
+  -> new("Item", raw) 解析与预览
+  -> Item:BuildRaw() 规范化
+  -> 显示未识别字段和词条错误
   -> 用户确认
-  -> 保存 rawText 和结构化快照
+  -> 保存 canonical Item Raw
   -> 写入 manual 来源
 ```
 
-自定义导入必须保留原始文本。无法完整解析的词条可以保存，但必须标记警告，不能在后续替换时静默丢失。
+自定义导入以规范化后的 Raw 为装备权威。原始输入可以作为导入诊断短期保留，但不能覆盖 `BuildRaw()` 结果。无法完整解析的文本不得成为 canonical item；用户继续编辑时也必须通过 Item Bridge 的受控命令，而不是直接修改派生词条数组。
 
 ## 8. 去重和身份规则
 
@@ -282,7 +291,7 @@ interface EquipmentLibraryEntry {
 - PoB Item ID
 - Trade Stat ID
 
-跨语言或部分解析的装备不能仅凭展示文本自动合并。后续需要补充稳定底材 ID 和完整内容签名，避免不同结构的装备被误合并。
+fingerprint 对 `new("Item", raw) -> Item:BuildRaw()` 的规范化内容计算。跨语言来源先转换为同一英文 Raw 再去重；未完成转换的 source 不参与装备内容去重。
 
 构筑内 Item ID 和仓库 Entry ID 永远是不同身份：
 
@@ -350,7 +359,15 @@ PoB Item ID：构筑内部的可计算物品实体
 4. 保留旧 Item，支持撤销。
 5. 替换成功后刷新当前构筑计算。
 
-市场装备如果没有足够的 PoB 原始信息，只允许“比较”，替换按钮必须禁用并说明原因。
+只有已经 canonical 化的装备才显示比较和替换操作。unresolved source 必须提示转换失败原因，并允许用户重新获取 listing 或在数据更新后重试。
+
+### 11.1 Stat ID 与缓存边界
+
+- listing 原始 Stat ID 是市场导入证据，尤其用于 CN 本地化数据转 PoB 英文 descriptor；完成转换前不得丢弃。
+- canonical item 不持久化 `TradeStatResolutionSnapshot`、catalog template、候选 ID 或 catalog hash。
+- 找相似和查价从 PoB2 Item 的英文 `modLine` 调用 `TradeHelpers.findTradeHash()`/`HashStats()` 动态生成 ID。
+- `TradeSiteStats.lua`、`stat_descriptions.lua` 是 PoB2 语义数据；realm 官方 Stats 文件仅作为可删除、可重建的市场可用性缓存。
+- Stat ID、listing ID、价格和 realm 均不参与 canonical item fingerprint。
 
 ## 12. 分阶段交付
 
@@ -361,7 +378,7 @@ PoB Item ID：构筑内部的可计算物品实体
 - 市场、PoB、自定义导入
 - 目录、标签、备注、归档
 - 来源删除和主体删除确认
-- rawText、解析警告和能力状态
+- canonical Item Raw、转换错误和能力状态
 
 ### Phase 2：装备本体比较
 
