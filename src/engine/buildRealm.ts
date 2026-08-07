@@ -1,4 +1,6 @@
 import type { BuildRealm, SavedBuild } from '@/types/tree'
+import type { Language } from '@/i18n/translationLoader'
+import { uiText } from '@/i18n/uiLocale'
 
 export const DEFAULT_BUILD_REALM: BuildRealm = 'global'
 
@@ -8,7 +10,7 @@ export function inferBuildRealm(build: Pick<SavedBuild, 'name' | 'source'> & { r
   return DEFAULT_BUILD_REALM
 }
 
-export function buildRealmLabel(realm: BuildRealm, chinese: boolean): string {
-  if (realm === 'cn') return chinese ? '腾讯服' : 'Tencent CN'
-  return chinese ? '国际服' : 'Global'
+export function buildRealmLabel(realm: BuildRealm, language: Language): string {
+  if (realm === 'cn') return uiText(language, 'Tencent CN', '腾讯服', '騰訊服', 'Tencent 중국')
+  return uiText(language, 'Global', '国际服', '國際服', '글로벌')
 }

@@ -9,6 +9,7 @@ import {
 } from '@/engine/skillCatalog'
 import type { BuildGem } from '@/engine/skills'
 import { translateGameText, type Language } from '@/i18n/translationLoader'
+import { uiText } from '@/i18n/uiLocale'
 
 export interface GemTooltipTarget {
   gem: BuildGem
@@ -55,9 +56,14 @@ function buildDisplayLines(
 ): GemTooltipLine[] {
   const lines: GemTooltipLine[] = []
   if (detail?.tagString) lines.push({ kind: 'line', text: detail.tagString })
-  const labels = language === 'zh-rCN'
-    ? { category: '类别', tier: '阶级', level: '等级', max: '（最高等级）', quality: '品质' }
-    : { category: 'Category', tier: 'Tier', level: 'Level', max: ' (Max)', quality: 'Quality' }
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
+  const labels = {
+    category: l('Category', '类别', '類別', '분류'),
+    tier: l('Tier', '阶级', '階級', '단계'),
+    level: l('Level', '等级', '等級', '레벨'),
+    max: l(' (Max)', '（最高等级）', '（最高等級）', ' (최대)'),
+    quality: l('Quality', '品质', '品質', '퀄리티'),
+  }
   if (detail?.gemFamily) lines.push({ kind: 'line', text: `${labels.category}: ${translateGameText(detail.gemFamily, language)}`, tone: 'info' })
   if (detail?.tier) lines.push({ kind: 'line', text: `${labels.tier}: ${detail.tier}`, tone: 'info' })
   const max = detail?.naturalMaxLevel != null && gem.level >= detail.naturalMaxLevel ? labels.max : ''

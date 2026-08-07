@@ -28,6 +28,7 @@ import { GameWindowService } from './gameWindowService.js'
 import { MarketMonitoringCoordinator } from './marketMonitoring.js'
 import { OpportunityOverlayController } from './opportunityOverlay.js'
 import { CurrencyMarketService } from './currencyMarket/currencyMarketService.js'
+import { desktopText, isUiLanguage, type UiLanguage } from './uiLocale.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
@@ -247,6 +248,7 @@ let marketMonitoring: MarketMonitoringCoordinator | null = null
 let opportunityOverlay: OpportunityOverlayController | null = null
 let currencyMarketService: CurrencyMarketService | null = null
 let defaultRealm: MarketRealm = 'global'
+let uiLanguage: UiLanguage = 'en'
 const pendingNativeBuildPaths: string[] = []
 const tradeCredentialStore = new TradeCredentialStore(path.join(userDataPath, 'trade', 'credentials.v1.json'))
 const equipmentLibrary = new EquipmentLibraryRepository(
@@ -471,6 +473,7 @@ function createWindow(): BrowserWindow {
     path.join(userDataPath, 'currency-market'),
     (input, init) => net.fetch(input, init),
     (state) => { if (!window.isDestroyed()) window.webContents.send('currency-market:changed', state) },
+    () => uiLanguage,
   )
   opportunityOverlay = new OpportunityOverlayController(window, {
     skip: (id) => marketMonitoring?.skipOpportunity(id),
@@ -479,6 +482,7 @@ function createWindow(): BrowserWindow {
     attempt: async (id) => marketMonitoring ? marketMonitoring.attemptOpportunity(id) : 'error',
     searchName: (targetId) => marketMonitoring?.snapshot().purchaseTargets.find((target) => target.id === targetId)?.name,
   })
+  opportunityOverlay.setLanguage(uiLanguage)
   marketMonitoring = new MarketMonitoringCoordinator(
     marketViewManager,
     equipmentLibrary,
@@ -497,6 +501,7 @@ function createWindow(): BrowserWindow {
   marketMonitoring.start()
   gameWindowService.start()
   marketViewManager.setRealm(defaultRealm)
+  marketViewManager.setLanguage(uiLanguage)
   window.on('closed', () => {
     gameWindowService?.stop()
     gameWindowService = null
@@ -575,7 +580,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   ipcMain.handle('pob2:open-build-file', async (event) => {
     const window = requireMainWindowSender(event)
     const result = await dialog.showOpenDialog(window, {
-      title: '打开 SuperPoE 构筑',
+      title: desktopText(uiLanguage, 'Open SuperPoE Build', '打开 SuperPoE 构筑', '開啟 SuperPoE 構築', 'SuperPoE 빌드 열기'),
       filters: [{ name: 'SuperPoE Build', extensions: ['spoe'] }],
       properties: ['openFile'],
     })
@@ -586,7 +591,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const window = requireMainWindowSender(event)
     const payload = validateNativeBuildFilePayload(value)
     const result = await dialog.showSaveDialog(window, {
-      title: '保存 SuperPoE 构筑副本',
+      title: desktopText(uiLanguage, 'Save a Copy of the SuperPoE Build', '保存 SuperPoE 构筑副本', '儲存 SuperPoE 構築副本', 'SuperPoE 빌드 사본 저장'),
       defaultPath: path.join(app.getPath('documents'), payload.fileName),
       filters: [{ name: 'SuperPoE Build', extensions: ['spoe'] }],
       properties: ['createDirectory', 'showOverwriteConfirmation'],
@@ -613,10 +618,15 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   ipcMain.handle('pob2:set-app-context', (event, value: unknown) => {
     requireMainWindowSender(event)
     if (!value || typeof value !== 'object') throw new Error('Invalid application context')
-    const realm = (value as { defaultRealm?: unknown }).defaultRealm
+    const context = value as { defaultRealm?: unknown; language?: unknown }
+    const realm = context.defaultRealm
     if (realm !== 'cn' && realm !== 'global') throw new Error('Invalid default realm')
+    if (!isUiLanguage(context.language)) throw new Error('Invalid UI language')
     defaultRealm = realm
+    uiLanguage = context.language
     marketViewManager?.setRealm(realm)
+    marketViewManager?.setLanguage(uiLanguage)
+    opportunityOverlay?.setLanguage(uiLanguage)
   })
   ipcMain.handle('market:activate', (event, value: unknown) => {
     const bounds = validateMarketBounds(event, value)
@@ -655,7 +665,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   ipcMain.handle('currency-market:get', (event, value: unknown) => {
     requireMainWindowSender(event)
     if (value != null && typeof value !== 'boolean') throw new Error('Invalid currency market refresh flag')
-    if (!currencyMarketService) throw new Error('通货行情服务不可用')
+    if (!currencyMarketService) throw new Error(desktopText(uiLanguage, 'Currency market service is unavailable', '通货行情服务不可用', '通貨行情服務無法使用', '통화 시세 서비스를 사용할 수 없습니다'))
     return currencyMarketService.get(defaultRealm, value === true)
   })
 
@@ -1210,7 +1220,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   ipcMain.handle('pob2:save-game-build', async (_event, value: unknown) => {
     const payload = validateGameBuildPayload(value)
     const result = await dialog.showSaveDialog({
-      title: '保存游戏规划器文件',
+      title: desktopText(uiLanguage, 'Save Game Build Planner File', '保存游戏规划器文件', '儲存遊戲構築規劃器檔案', '게임 빌드 플래너 파일 저장'),
       defaultPath: path.join(getGameBuildPlannerDirectory(), payload.fileName),
       filters: [{ name: 'Path of Exile 2 Build Planner', extensions: ['build'] }],
       properties: ['createDirectory', 'showOverwriteConfirmation'],

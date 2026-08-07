@@ -5,6 +5,7 @@ import type { MarketDomListingRef, MarketSearchReference, MarketVisitHideoutResu
 import { TradeCredentialStore } from './tradeCredentialStore.js'
 import { isGameOfflineVisitError, OfficialTradeRequestError } from './officialTradeRequestError.js'
 import { createSearchQuerySnapshot, parseOfficialSearchUrl, withSearchSnapshot } from './marketSearch.js'
+import type { UiLanguage } from './uiLocale.js'
 
 export type MarketRealm = 'cn' | 'global'
 export type MarketNavigationCommand = 'back' | 'forward' | 'reload' | 'stop' | 'home'
@@ -81,6 +82,7 @@ export class MarketViewManager {
   private readonly views = new Map<MarketRealm, WebContentsView>()
   private activeView: WebContentsView | null = null
   private activeRealm: MarketRealm = 'global'
+  private language: UiLanguage = 'en'
   private attached = false
   private visible = false
   private disposed = false
@@ -112,6 +114,13 @@ export class MarketViewManager {
     if (this.visible) this.attach(view)
     void this.loadHomeIfNeeded(view, MARKET_PROFILES[realm])
     void this.publishState(view, realm)
+  }
+
+  setLanguage(language: UiLanguage): void {
+    this.language = language
+    for (const view of this.views.values()) {
+      if (!view.webContents.isDestroyed()) view.webContents.send('market-enhancement:set-language', language)
+    }
   }
 
   activate(bounds: Rectangle): void {
@@ -313,6 +322,9 @@ export class MarketViewManager {
     })
     view.setBackgroundColor('#090b0c')
     this.configureWebContents(view.webContents, profile)
+    view.webContents.on('did-finish-load', () => {
+      if (!view.webContents.isDestroyed()) view.webContents.send('market-enhancement:set-language', this.language)
+    })
     this.views.set(realm, view)
     return view
   }

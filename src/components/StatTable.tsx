@@ -2,12 +2,15 @@ import { useState, useCallback } from 'react'
 import { useTreeStore } from '@/store/treeStore'
 import { useTranslation } from '@/i18n/useTranslation'
 import type { CalcResult } from '@/types/calc'
+import type { Language } from '@/i18n/translationLoader'
+import { formatUiNumber, uiText } from '@/i18n/uiLocale'
+import { translateGameText } from '@/i18n/translationLoader'
 
 type SectionKey = 'attributes' | 'offence' | 'defence'
 
-function fmt(n: number | undefined, decimals = 1): string {
+function fmt(n: number | undefined, language: Language, decimals = 1): string {
   if (n === undefined || n === null) return '-'
-  return Number(n).toFixed(decimals)
+  return formatUiNumber(Number(n), language, { minimumFractionDigits: decimals, maximumFractionDigits: decimals })
 }
 
 export function StatTable({ page = false }: { page?: boolean }) {
@@ -15,6 +18,7 @@ export function StatTable({ page = false }: { page?: boolean }) {
   const calcResult = useTreeStore((s) => s.calcResult)
   const calcLoading = useTreeStore((s) => s.calcLoading)
   const calcError = useTreeStore((s) => s.calcError)
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
 
   const [openSections, setOpenSections] = useState<Record<SectionKey, boolean>>({
     attributes: true,
@@ -125,21 +129,21 @@ export function StatTable({ page = false }: { page?: boolean }) {
   return (
     <div className={containerClass}>
       {page && <header className="calculation-heading">
-        <span>{lang === 'zh-rCN' ? '构筑分析' : 'BUILD ANALYSIS'}</span>
-        <h2>{lang === 'zh-rCN' ? '进攻、防御与资源总览' : 'Offence, defence and resources'}</h2>
-        <small>{lang === 'zh-rCN' ? '数值来自当前构筑的最近一次计算' : 'Values from the latest calculation of the current build'}</small>
+        <span>{l('BUILD ANALYSIS', '构筑分析', '構築分析', '빌드 분석')}</span>
+        <h2>{l('Offence, defence and resources', '进攻、防御与资源总览', '攻擊、防禦與資源總覽', '공격, 방어 및 자원')}</h2>
+        <small>{l('Values from the latest calculation of the current build', '数值来自当前构筑的最近一次计算', '數值來自目前構築的最近一次計算', '현재 빌드의 최근 계산 결과입니다')}</small>
       </header>}
       <div className="calc-column">
         {renderSection('attributes', <>
           {renderRow(t('stats.str'), r.Str)}
           {renderRow(t('stats.dex'), r.Dex)}
           {renderRow(t('stats.int'), r.Int)}
-          {renderRow(t('stats.life'), `${r.Life} (${r.LifeUnreserved} unres.)`)}
+          {renderRow(t('stats.life'), `${formatUiNumber(r.Life, lang)} (${formatUiNumber(r.LifeUnreserved, lang)} ${l('unreserved', '未保留', '未保留', '미점유')})`)}
           {renderRow(t('stats.es'), r.EnergyShield)}
-          {renderRow(t('stats.mana'), `${r.Mana} (${r.ManaUnreserved} unres.)`)}
+          {renderRow(t('stats.mana'), `${formatUiNumber(r.Mana, lang)} (${formatUiNumber(r.ManaUnreserved, lang)} ${l('unreserved', '未保留', '未保留', '미점유')})`)}
           {renderRow(t('stats.level'), r.CharacterLevel)}
-          {r.ClassName && renderRow(t('stats.class'), r.ClassName)}
-          {r.AscendClassName && renderRow(t('stats.ascendancy'), r.AscendClassName)}
+          {r.ClassName && renderRow(t('stats.class'), translateGameText(r.ClassName, lang))}
+          {r.AscendClassName && renderRow(t('stats.ascendancy'), translateGameText(r.AscendClassName, lang))}
         </>)}
         <section className="calc-section calc-charges">
           <div className="calc-section-label"><span>{t('stats.charges')}</span></div>
@@ -153,13 +157,13 @@ export function StatTable({ page = false }: { page?: boolean }) {
 
       <div className="calc-column">
         {renderSection('offence', <>
-          {renderRow(t('stats.totalDps'), fmt(r.TotalDPS, 0))}
-          {renderRow(t('stats.fullDps'), fmt(r.FullDPS, 0))}
-          {r.FullDotDPS !== undefined && renderRow(t('stats.fullDotDps'), fmt(r.FullDotDPS, 0))}
-          {renderRow(t('stats.averageHit'), fmt(r.AverageHit, 0))}
-          {renderRow(t('stats.speed'), fmt(r.Speed, 2))}
-          {renderRow(t('stats.critChance'), `${fmt(r.CritChance, 1)}%`)}
-          {renderRow(t('stats.critMultiplier'), `${fmt(r.CritMultiplier, 0)}%`)}
+          {renderRow(t('stats.totalDps'), fmt(r.TotalDPS, lang, 0))}
+          {renderRow(t('stats.fullDps'), fmt(r.FullDPS, lang, 0))}
+          {r.FullDotDPS !== undefined && renderRow(t('stats.fullDotDps'), fmt(r.FullDotDPS, lang, 0))}
+          {renderRow(t('stats.averageHit'), fmt(r.AverageHit, lang, 0))}
+          {renderRow(t('stats.speed'), fmt(r.Speed, lang, 2))}
+          {renderRow(t('stats.critChance'), `${fmt(r.CritChance, lang, 1)}%`)}
+          {renderRow(t('stats.critMultiplier'), `${fmt(r.CritMultiplier, lang, 0)}%`)}
         </>)}
         {r.SkillDPS && r.SkillDPS.length > 0 && (
           <section className="calc-section calc-skills">
@@ -168,7 +172,7 @@ export function StatTable({ page = false }: { page?: boolean }) {
               {r.SkillDPS.map((skill, i) => (
                 <div key={i} className="calc-row skill-dps-row">
                   <span>{skill.name}{skill.trigger && <em>({skill.trigger})</em>}</span>
-                  <strong>{fmt(skill.dps, 0)}{skill.count > 1 && <small>x{skill.count}</small>}</strong>
+                  <strong>{fmt(skill.dps, lang, 0)}{skill.count > 1 && <small>x{skill.count}</small>}</strong>
                 </div>
               ))}
             </div>
@@ -180,18 +184,18 @@ export function StatTable({ page = false }: { page?: boolean }) {
         {renderSection('defence', <>
           {renderRow(t('stats.armour'), r.Armour)}
           {renderRow(t('stats.evasion'), r.Evasion)}
-          {renderRow(t('stats.block'), fmt(r.BlockChance, 0) + '%')}
-          {renderRow(t('stats.spellBlock'), fmt(r.SpellBlockChance, 0) + '%')}
+          {renderRow(t('stats.block'), fmt(r.BlockChance, lang, 0) + '%')}
+          {renderRow(t('stats.spellBlock'), fmt(r.SpellBlockChance, lang, 0) + '%')}
           {renderRow(t('stats.fireResist'), `${r.FireResist}% (${r.FireResistTotal}%)`)}
           {renderRow(t('stats.coldResist'), `${r.ColdResist}% (${r.ColdResistTotal}%)`)}
           {renderRow(t('stats.lightningResist'), `${r.LightningResist}% (${r.LightningResistTotal}%)`)}
           {renderRow(t('stats.chaosResist'), `${r.ChaosResist}% (${r.ChaosResistTotal}%)`)}
-          {renderRow(t('stats.lifeRegen'), fmt(r.LifeRegen, 1))}
-          {renderRow(t('stats.manaRegen'), fmt(r.ManaRegen, 1))}
-          {renderRow(t('stats.esRegen'), fmt(r.EnergyShieldRegen, 1))}
-          {renderRow(t('stats.movementSpeed'), `${fmt(r.MovementSpeedMod, 1)}%`)}
-          {renderRow(t('stats.actionSpeed'), `${fmt(r.ActionSpeedMod, 1)}%`)}
-          {renderRow(t('stats.ward'), fmt(r.Ward, 0))}
+          {renderRow(t('stats.lifeRegen'), fmt(r.LifeRegen, lang, 1))}
+          {renderRow(t('stats.manaRegen'), fmt(r.ManaRegen, lang, 1))}
+          {renderRow(t('stats.esRegen'), fmt(r.EnergyShieldRegen, lang, 1))}
+          {renderRow(t('stats.movementSpeed'), `${fmt(r.MovementSpeedMod, lang, 1)}%`)}
+          {renderRow(t('stats.actionSpeed'), `${fmt(r.ActionSpeedMod, lang, 1)}%`)}
+          {renderRow(t('stats.ward'), fmt(r.Ward, lang, 0))}
         </>)}
       </div>
     </div>

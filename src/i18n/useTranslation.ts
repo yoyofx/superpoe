@@ -1,6 +1,7 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useTreeStore } from '@/store/treeStore'
 import type { Language } from '@/i18n/translationLoader'
+import { LANGUAGE_LOCALES } from '@/i18n/uiLocale'
 
 type Translations = Record<string, string>
 
@@ -330,6 +331,8 @@ const strings: Record<Language, Translations> = {
     'toolbar.set2': '套裝2',
     'toolbar.export': '匯出',
     'toolbar.import': '匯入',
+    'toolbar.wegameImport': 'WeGame',
+    'toolbar.wegameImportTitle': '透過 PoE2DB 匯入 WeGame 分享連結',
     'toolbar.builds': '構築',
     'toolbar.exportTitle': '匯出 PoB2 構築代碼',
     'toolbar.importTitle': '匯入 PoB2 構築代碼',
@@ -345,6 +348,13 @@ const strings: Record<Language, Translations> = {
     'import.decoding': '解碼中...',
     'import.clear': '清除',
     'import.nodesLoaded': '已載入 {count} 個節點',
+    'poe2dbImport.title': '匯入 WeGame 分享',
+    'poe2dbImport.placeholder': '貼上 WeGame 流亡黯道 2 分享連結...',
+    'poe2dbImport.notice': '分享連結會提交至 PoE2DB，用於產生完整 PoB 構築。',
+    'poe2dbImport.button': '從 PoE2DB 匯入',
+    'poe2dbImport.loading': '轉換中...',
+    'poe2dbImport.loaded': '已載入 {count} 個節點',
+    'poe2dbImport.source': '在 PoE2DB 查看轉換結果',
     'export.title': '匯出代碼',
     'export.generate': '產生匯出代碼',
     'export.encoding': '編碼中...',
@@ -474,6 +484,8 @@ const strings: Record<Language, Translations> = {
     'toolbar.set2': '세트2',
     'toolbar.export': '내보내기',
     'toolbar.import': '가져오기',
+    'toolbar.wegameImport': 'WeGame',
+    'toolbar.wegameImportTitle': 'PoE2DB를 통해 WeGame 공유 링크 가져오기',
     'toolbar.builds': '빌드',
     'toolbar.exportTitle': 'PoB2 빌드 코드 내보내기',
     'toolbar.importTitle': 'PoB2 빌드 코드 가져오기',
@@ -489,6 +501,13 @@ const strings: Record<Language, Translations> = {
     'import.decoding': '디코딩 중...',
     'import.clear': '지우기',
     'import.nodesLoaded': '{count}개 노드 불러옴',
+    'poe2dbImport.title': 'WeGame 공유 가져오기',
+    'poe2dbImport.placeholder': 'WeGame 패스 오브 엑자일 2 공유 링크를 붙여넣으세요...',
+    'poe2dbImport.notice': '공유 링크를 PoE2DB로 전송하여 완전한 PoB 빌드를 생성합니다.',
+    'poe2dbImport.button': 'PoE2DB에서 가져오기',
+    'poe2dbImport.loading': '변환 중...',
+    'poe2dbImport.loaded': '{count}개 노드 불러옴',
+    'poe2dbImport.source': 'PoE2DB에서 변환된 빌드 보기',
     'export.title': '코드 내보내기',
     'export.generate': '내보내기 코드 생성',
     'export.encoding': '인코딩 중...',
@@ -611,6 +630,10 @@ export function useTranslation() {
   const lang = useTreeStore((s) => normalizeLanguage(s.language))
   const translationRevision = useTreeStore((s) => s.translationRevision)
   const storeSetLanguage = useTreeStore((s) => s.setLanguage)
+
+  useEffect(() => {
+    document.documentElement.lang = LANGUAGE_LOCALES[lang]
+  }, [lang])
 
   const t = useCallback(
     (key: string, params?: Record<string, string | number>) => {

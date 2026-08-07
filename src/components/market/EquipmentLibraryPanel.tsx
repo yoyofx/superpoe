@@ -10,10 +10,12 @@ import type {
 } from '@/types/market'
 import { MAX_ACTIVE_PURCHASE_TARGETS } from '@/types/market'
 import { PriceCheckDialog } from './PriceCheckDialog'
+import { translateGameText, type Language } from '@/i18n/translationLoader'
+import { uiText, type UiMessage } from '@/i18n/uiLocale'
 
 interface EquipmentLibraryPanelProps {
   realm: MarketRealm
-  zh: boolean
+  language: Language
   currentSearch?: MarketSearchReference
   monitoring: MarketMonitoringSnapshot | null
   activeTab: LibraryTreeScope
@@ -49,15 +51,15 @@ function modifierClass(modifier: EquipmentLibraryEntry['view']['modifiers'][numb
   return [`group-${modifier.group}`, ...modifier.sourceTags.map((tag) => `source-${tag}`)].join(' ')
 }
 
-function sourceLabel(kind: EquipmentLibrarySourceKind, zh: boolean): string {
-  const labels: Record<EquipmentLibrarySourceKind, [string, string]> = {
-    'market-favorite': ['集市', 'Market'],
-    'pob-import': ['PoB', 'PoB'],
-    'equipment-favorite': ['装备', 'Equipment'],
-    'price-check': ['查价器', 'Price check'],
-    manual: ['手动', 'Manual'],
+function sourceLabel(kind: EquipmentLibrarySourceKind, language: Language): string {
+  const labels: Record<EquipmentLibrarySourceKind, UiMessage> = {
+    'market-favorite': { en: 'Market', 'zh-rCN': '集市', 'zh-rTW': '市集', 'ko-KR': '거래소' },
+    'pob-import': { en: 'PoB', 'zh-rCN': 'PoB', 'zh-rTW': 'PoB', 'ko-KR': 'PoB' },
+    'equipment-favorite': { en: 'Equipment', 'zh-rCN': '装备', 'zh-rTW': '裝備', 'ko-KR': '장비' },
+    'price-check': { en: 'Price check', 'zh-rCN': '查价器', 'zh-rTW': '查價器', 'ko-KR': '가격 확인' },
+    manual: { en: 'Manual', 'zh-rCN': '手动', 'zh-rTW': '手動', 'ko-KR': '수동' },
   }
-  return labels[kind][zh ? 0 : 1]
+  return labels[kind][language]
 }
 
 function folderPath(folder: EquipmentLibraryFolder, folders: EquipmentLibraryFolder[]): string {
@@ -85,7 +87,8 @@ function isDescendant(folder: EquipmentLibraryFolder, ancestorId: string, folder
   return false
 }
 
-export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, activeTab, onTabChange, onClose, headerTitle }: EquipmentLibraryPanelProps) {
+export function EquipmentLibraryPanel({ realm, language, currentSearch, monitoring, activeTab, onTabChange, onClose, headerTitle }: EquipmentLibraryPanelProps) {
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
   const bridge = window.pob2Market
   const [entries, setEntries] = useState<EquipmentLibraryEntry[]>([])
   const [sidebar, setSidebar] = useState<EquipmentLibrarySidebarSnapshot>(EMPTY_SIDEBAR)
@@ -215,16 +218,16 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
     const name = folderEditor.name.trim()
     if (!name) return
     if (folderEditor.mode === 'create') {
-      await run('new-folder', () => bridge.createFolder({ scope: activeTab, name, ...(folderEditor.parentId ? { parentId: folderEditor.parentId } : {}) }), zh ? '目录已创建' : 'Folder created')
+      await run('new-folder', () => bridge.createFolder({ scope: activeTab, name, ...(folderEditor.parentId ? { parentId: folderEditor.parentId } : {}) }), l('Folder created', '目录已创建', '目錄已建立', '폴더 생성됨'))
     } else {
-      await run(folderEditor.folderId, () => bridge.updateFolder({ id: folderEditor.folderId, name }), zh ? '目录已重命名' : 'Folder renamed')
+      await run(folderEditor.folderId, () => bridge.updateFolder({ id: folderEditor.folderId, name }), l('Folder renamed', '目录已重命名', '目錄已重新命名', '폴더 이름 변경됨'))
     }
     setFolderEditor(null)
   }
 
   const deleteFolder = async (folder: EquipmentLibraryFolder) => {
     if (!bridge) return
-    await run(folder.id, () => bridge.deleteFolder(folder.id), zh ? '目录已删除' : 'Folder deleted')
+    await run(folder.id, () => bridge.deleteFolder(folder.id), l('Folder deleted', '目录已删除', '目錄已刪除', '폴더 삭제됨'))
     setDeleteCandidate(null)
   }
 
@@ -234,12 +237,12 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
       && search.leagueId === currentSearch.leagueId && search.searchCode === currentSearch.searchCode)
     if (existing) {
       await selectFolder('searches', existing.folderId)
-      setNotice(zh ? `“${existing.name}”已经收藏` : `“${existing.name}” is already saved`)
+      setNotice(l(`“${existing.name}” is already saved`, `“${existing.name}”已经收藏`, `「${existing.name}」已收藏`, `“${existing.name}”이(가) 이미 저장되어 있습니다`))
       return
     }
     setSearchEditor({
       mode: 'create',
-      name: currentSearch.leagueId || (zh ? '已保存的搜索' : 'Saved search'),
+      name: currentSearch.leagueId || l('Saved search', '已保存的搜索', '已儲存的搜尋', '저장된 검색'),
       note: '',
       folderId: selectedFolderId || '',
     })
@@ -250,10 +253,10 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
     const editor = searchEditor
     const input = { name: editor.name.trim(), note: editor.note.trim(), ...(editor.folderId ? { folderId: editor.folderId } : {}) }
     if (editor.mode === 'create') {
-      await run('save-search', () => bridge.saveSearch(input), zh ? '已保存当前搜索' : 'Current search saved')
+      await run('save-search', () => bridge.saveSearch(input), l('Current search saved', '已保存当前搜索', '已儲存目前搜尋', '현재 검색 저장됨'))
     } else if (editor.id) {
       const id = editor.id
-      await run(id, () => bridge.updateSearch({ id, ...input, folderId: editor.folderId || null }), zh ? '保存的搜索已更新' : 'Saved search updated')
+      await run(id, () => bridge.updateSearch({ id, ...input, folderId: editor.folderId || null }), l('Saved search updated', '保存的搜索已更新', '已儲存搜尋已更新', '저장된 검색 업데이트됨'))
     }
     setSearchEditor(null)
   }
@@ -267,9 +270,7 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
   const visitHideout = async (entryId: string) => {
     const result = await bridge!.visitHideout(entryId)
     if (!result.ok && result.reason === 'game-offline') {
-      throw new Error(zh
-        ? '暂时无法前往藏身处。请先启动游戏并登录角色后再试；如果已经在线，该商品可能已经失效。'
-        : 'Unable to travel to the hideout. Start the game and log in to a character, or check whether the listing is still available.')
+      throw new Error(l('Unable to travel to the hideout. Start the game and log in to a character, or check whether the listing is still available.', '暂时无法前往藏身处。请先启动游戏并登录角色后再试；如果已经在线，该商品可能已经失效。', '暫時無法前往藏身處。請先啟動遊戲並登入角色後再試；若已在線，該商品可能已失效。', '은신처로 이동할 수 없습니다. 게임을 실행하고 캐릭터에 로그인하거나 매물이 유효한지 확인하세요.'))
     }
   }
 
@@ -313,8 +314,8 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
     const destinationFolderId = payload.kind === 'folder' && position !== 'inside' ? target?.parentId : folderId
     const destination = destinationFolderId
       ? folderPath(folders.find((folder) => folder.id === destinationFolderId)!, folders)
-      : (zh ? '默认' : 'Default')
-    const success = zh ? `已移动到“${destination}”` : `Moved to “${destination}”`
+      : l('Default', '默认', '預設', '기본')
+    const success = l(`Moved to “${destination}”`, `已移动到“${destination}”`, `已移動至「${destination}」`, `“${destination}”(으)로 이동됨`)
     if (payload.kind === 'folder') {
       let beforeId: string | null = null
       if (target && position === 'before') beforeId = target.id
@@ -355,7 +356,9 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
     const source = marketSource(entry)
     const similarLeagueId = source?.leagueId || leagueId
     const selected = bulkSelecting ? selectedEntryIds.has(entry.id) : selectedEntryId === entry.id
-    const localizedItem = zh ? entry.view.localized?.['zh-CN'] : undefined
+    const localizedItem = language === 'zh-rCN' ? entry.view.localized?.['zh-CN'] : undefined
+    const displayName = localizedItem?.name || translateGameText(entry.view.name, language)
+    const displayBaseType = localizedItem?.baseType || translateGameText(entry.view.baseType, language)
     return <article
       className={`trade-helper-item rarity-${entry.view.rarity.toLowerCase()}${dragging?.kind === 'item' && dragging.id === entry.id ? ' dragging' : ''}${selected ? ' selected' : ''}${bulkSelecting ? ' bulk-selecting' : ''}`}
       tabIndex={0}
@@ -371,32 +374,32 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
     >
       <header>
         {entry.view.iconUrl && <img src={entry.view.iconUrl} alt="" />}
-        <span><strong>{localizedItem?.name || entry.view.name}</strong><small>{localizedItem?.baseType || entry.view.baseType}</small></span>
+        <span><strong>{displayName}</strong><small>{displayBaseType}</small></span>
         {bulkSelecting
-          ? <button className="trade-helper-item-select" aria-pressed={selected} onClick={(event) => { event.stopPropagation(); toggleEntrySelection(entry.id) }} title={selected ? (zh ? '取消选择' : 'Deselect') : (zh ? '选择装备' : 'Select item')} aria-label={selected ? (zh ? '取消选择' : 'Deselect') : (zh ? '选择装备' : 'Select item')}>{selected ? <SquareCheckBig /> : <Square />}</button>
-          : <button onClick={(event) => { event.stopPropagation(); beginEdit(entry) }} title={zh ? '编辑备注和标签' : 'Edit note and tags'} aria-label={zh ? '编辑备注和标签' : 'Edit note and tags'}><Pencil /></button>}
+          ? <button className="trade-helper-item-select" aria-pressed={selected} onClick={(event) => { event.stopPropagation(); toggleEntrySelection(entry.id) }} title={selected ? l('Deselect', '取消选择', '取消選擇', '선택 해제') : l('Select item', '选择装备', '選擇裝備', '아이템 선택')} aria-label={selected ? l('Deselect', '取消选择', '取消選擇', '선택 해제') : l('Select item', '选择装备', '選擇裝備', '아이템 선택')}>{selected ? <SquareCheckBig /> : <Square />}</button>
+          : <button onClick={(event) => { event.stopPropagation(); beginEdit(entry) }} title={l('Edit note and tags', '编辑备注和标签', '編輯備註與標籤', '메모 및 태그 편집')} aria-label={l('Edit note and tags', '编辑备注和标签', '編輯備註與標籤', '메모 및 태그 편집')}><Pencil /></button>}
       </header>
       {source?.price && <div className="trade-helper-price">{source.price.display}</div>}
-      <div className="trade-helper-sources">{entry.sources.map((entrySource) => <span className={`source-${entrySource.kind}`} key={entrySource.sourceKey}>{sourceLabel(entrySource.kind, zh)}</span>)}<span className="modifier-count">{entry.view.modifiers.length ? `${entry.view.modifiers.length}${zh ? ' 条词缀' : ' mods'}` : (zh ? '暂无词条' : 'No modifiers')}</span></div>
+      <div className="trade-helper-sources">{entry.sources.map((entrySource) => <span className={`source-${entrySource.kind}`} key={entrySource.sourceKey}>{sourceLabel(entrySource.kind, language)}</span>)}<span className="modifier-count">{entry.view.modifiers.length ? l(`${entry.view.modifiers.length} mods`, `${entry.view.modifiers.length} 条词缀`, `${entry.view.modifiers.length} 條詞綴`, `속성 ${entry.view.modifiers.length}개`) : l('No modifiers', '暂无词条', '暫無詞綴', '속성 없음')}</span></div>
       <div className="trade-helper-affixes">
         {entry.view.modifiers.map((modifier) => <div className={modifierClass(modifier)} key={modifier.id}>
-          <span>{(zh ? modifier.localized?.['zh-CN'] : undefined) || modifier.text}</span>
+          <span>{language === 'zh-rCN' ? modifier.localized?.['zh-CN'] || modifier.text : translateGameText(modifier.text, language)}</span>
         </div>)}
-        {!entry.view.modifiers.length && <span className="trade-helper-no-modifiers">{zh ? '此装备没有可显示词条。' : 'No modifiers are available.'}</span>}
+        {!entry.view.modifiers.length && <span className="trade-helper-no-modifiers">{l('No modifiers are available.', '此装备没有可显示词条。', '此裝備沒有可顯示的詞綴。', '표시할 속성이 없습니다.')}</span>}
       </div>
       {editingId === entry.id && <div className="trade-helper-editor">
-        <label><span>{zh ? '标签' : 'Tags'}</span><input value={tags} onChange={(event) => setTags(event.target.value)} /></label>
-        <label><span>{zh ? '备注' : 'Note'}</span><textarea rows={2} value={note} onChange={(event) => setNote(event.target.value)} /></label>
+        <label><span>{l('Tags', '标签', '標籤', '태그')}</span><input value={tags} onChange={(event) => setTags(event.target.value)} /></label>
+        <label><span>{l('Note', '备注', '備註', '메모')}</span><textarea rows={2} value={note} onChange={(event) => setNote(event.target.value)} /></label>
         <div><button onClick={() => setEditingId(null)}><X /></button><button onClick={() => void run(entry.id, async () => {
           await bridge!.updateLibrary({ id: entry.id, note, tags: tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean) })
           setEditingId(null)
         })}><Save /></button></div>
       </div>}
       {!bulkSelecting && <footer>
-        {source && <button className="primary-action" disabled={busyId === entry.id} onClick={() => void run(entry.id, () => visitHideout(entry.id), zh ? '已发送前往藏身处请求' : 'Hideout travel request sent')} title={zh ? '前往藏身处' : 'Travel to hideout'}><Home /><span>{zh ? '藏身处' : 'Hideout'}</span></button>}
-        {source && <button onClick={() => void bridge?.openLibrarySource(entry.id, source.sourceKey)} title={zh ? '打开来源' : 'Open source'}><ExternalLink /></button>}
-        <button className="primary-action" disabled={!similarLeagueId || busyId === entry.id} onClick={() => setPriceCheckEntryId(entry.id)} title={zh ? '选择词条并查价' : 'Configure price check'}><Search /><span>{zh ? '查价' : 'Price check'}</span></button>
-        <button className="danger" onClick={() => window.confirm(zh ? `删除“${entry.view.name}”？` : `Delete “${entry.view.name}”?`) && void run(entry.id, () => bridge!.deleteLibrary(entry.id))} title={zh ? '删除' : 'Delete'}><Trash2 /></button>
+        {source && <button className="primary-action" disabled={busyId === entry.id} onClick={() => void run(entry.id, () => visitHideout(entry.id), l('Hideout travel request sent', '已发送前往藏身处请求', '已傳送前往藏身處請求', '은신처 이동 요청 전송됨'))} title={l('Travel to hideout', '前往藏身处', '前往藏身處', '은신처로 이동')}><Home /><span>{l('Hideout', '藏身处', '藏身處', '은신처')}</span></button>}
+        {source && <button onClick={() => void bridge?.openLibrarySource(entry.id, source.sourceKey)} title={l('Open source', '打开来源', '開啟來源', '출처 열기')}><ExternalLink /></button>}
+        <button className="primary-action" disabled={!similarLeagueId || busyId === entry.id} onClick={() => setPriceCheckEntryId(entry.id)} title={l('Configure price check', '选择词条并查价', '選擇詞綴並查價', '속성을 선택하고 가격 확인')}><Search /><span>{l('Price check', '查价', '查價', '가격 확인')}</span></button>
+        <button className="danger" onClick={() => window.confirm(l(`Delete “${displayName}”?`, `删除“${displayName}”？`, `刪除「${displayName}」？`, `“${displayName}”을(를) 삭제할까요?`)) && void run(entry.id, () => bridge!.deleteLibrary(entry.id))} title={l('Delete', '删除', '刪除', '삭제')}><Trash2 /></button>
       </footer>}
     </article>
   }
@@ -422,19 +425,19 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
         const limitReached = (monitoring?.purchaseTargets.filter((candidate) => candidate.status === 'armed').length || 0) >= MAX_ACTIVE_PURCHASE_TARGETS
         return <button className="primary-action" disabled={!target && (search.validity === 'invalid' || limitReached)} onClick={() => void run(`target:${search.id}`, () => target
           ? bridge!.setMonitorTarget(target.id, 'completed')
-          : bridge!.createMonitorTarget(search.id), target ? (zh ? '已取消监控' : 'Monitoring cancelled') : (zh ? '已开始监控' : 'Monitoring started'))} title={target ? (zh ? '取消监控' : 'Cancel monitoring') : limitReached ? (zh ? `最多同时监控 ${MAX_ACTIVE_PURCHASE_TARGETS} 条搜索` : `Up to ${MAX_ACTIVE_PURCHASE_TARGETS} searches can be monitored`) : (zh ? '开始监控' : 'Start monitoring')} aria-label={target ? (zh ? '取消监控' : 'Cancel monitoring') : (zh ? '开始监控' : 'Start monitoring')}>{target ? <BellOff /> : <BellRing />}</button>
+          : bridge!.createMonitorTarget(search.id), target ? l('Monitoring cancelled', '已取消监控', '已取消監控', '모니터링 취소됨') : l('Monitoring started', '已开始监控', '已開始監控', '모니터링 시작됨'))} title={target ? l('Cancel monitoring', '取消监控', '取消監控', '모니터링 취소') : limitReached ? l(`Up to ${MAX_ACTIVE_PURCHASE_TARGETS} searches can be monitored`, `最多同时监控 ${MAX_ACTIVE_PURCHASE_TARGETS} 条搜索`, `最多同時監控 ${MAX_ACTIVE_PURCHASE_TARGETS} 筆搜尋`, `최대 ${MAX_ACTIVE_PURCHASE_TARGETS}개 검색을 모니터링할 수 있습니다`) : l('Start monitoring', '开始监控', '開始監控', '모니터링 시작')} aria-label={target ? l('Cancel monitoring', '取消监控', '取消監控', '모니터링 취소') : l('Start monitoring', '开始监控', '開始監控', '모니터링 시작')}>{target ? <BellOff /> : <BellRing />}</button>
       })()}
-      <button disabled={search.validity === 'invalid'} onClick={() => void bridge?.openSearch(search.id)} title={zh ? '跳转到搜索' : 'Open search'}><ExternalLink /></button>
-      <button onClick={() => setSearchEditor({ mode: 'edit', id: search.id, name: search.name, note: search.note || '', folderId: search.folderId || '' })} title={zh ? '编辑搜索' : 'Edit search'}><Pencil /></button>
-      {search.querySnapshot && <button onClick={() => void run(`recover:${search.id}`, () => bridge!.recoverSearch(search.id), zh ? '搜索码已重新生成' : 'Search code regenerated')} title={zh ? '重新生成搜索码' : 'Regenerate search code'}><RefreshCw /></button>}
-      <button disabled={!currentSearch || currentSearch.realm !== search.realm} onClick={() => window.confirm(zh ? '用当前页面的搜索条件替换这个收藏？' : 'Replace this saved search with the current page?') && void run(search.id, () => bridge!.replaceSearchFromCurrent(search.id), zh ? '搜索条件已更新' : 'Search conditions updated')} title={zh ? '用当前搜索更新' : 'Update from current search'}><Replace /></button>
-      <button onClick={() => setMovingId((current) => current === `search:${search.id}` ? null : `search:${search.id}`)} title={zh ? '移动到目录' : 'Move to folder'}><FolderInput /></button>
-      <button className="danger" onClick={() => window.confirm(zh ? '删除这个保存的搜索？独立购买目标不会被删除。' : 'Delete this saved search? Independent purchase targets are retained.') && void run(search.id, () => bridge!.deleteSearch(search.id))} title={zh ? '删除' : 'Delete'}><Trash2 /></button>
+      <button disabled={search.validity === 'invalid'} onClick={() => void bridge?.openSearch(search.id)} title={l('Open search', '跳转到搜索', '前往搜尋', '검색 열기')}><ExternalLink /></button>
+      <button onClick={() => setSearchEditor({ mode: 'edit', id: search.id, name: search.name, note: search.note || '', folderId: search.folderId || '' })} title={l('Edit search', '编辑搜索', '編輯搜尋', '검색 편집')}><Pencil /></button>
+      {search.querySnapshot && <button onClick={() => void run(`recover:${search.id}`, () => bridge!.recoverSearch(search.id), l('Search code regenerated', '搜索码已重新生成', '搜尋碼已重新產生', '검색 코드 재생성됨'))} title={l('Regenerate search code', '重新生成搜索码', '重新產生搜尋碼', '검색 코드 재생성')}><RefreshCw /></button>}
+      <button disabled={!currentSearch || currentSearch.realm !== search.realm} onClick={() => window.confirm(l('Replace this saved search with the current page?', '用当前页面的搜索条件替换这个收藏？', '使用目前頁面的搜尋條件取代此收藏？', '저장된 검색을 현재 페이지로 교체할까요?')) && void run(search.id, () => bridge!.replaceSearchFromCurrent(search.id), l('Search conditions updated', '搜索条件已更新', '搜尋條件已更新', '검색 조건 업데이트됨'))} title={l('Update from current search', '用当前搜索更新', '使用目前搜尋更新', '현재 검색에서 업데이트')}><Replace /></button>
+      <button onClick={() => setMovingId((current) => current === `search:${search.id}` ? null : `search:${search.id}`)} title={l('Move to folder', '移动到目录', '移動至目錄', '폴더로 이동')}><FolderInput /></button>
+      <button className="danger" onClick={() => window.confirm(l('Delete this saved search? Independent purchase targets are retained.', '删除这个保存的搜索？独立购买目标不会被删除。', '刪除此已儲存搜尋？獨立購買目標不會被刪除。', '저장된 검색을 삭제할까요? 독립 구매 대상은 유지됩니다.')) && void run(search.id, () => bridge!.deleteSearch(search.id))} title={l('Delete', '删除', '刪除', '삭제')}><Trash2 /></button>
     </footer>
     {movingId === `search:${search.id}` && <div className="trade-helper-move"><FolderInput /><select value={search.folderId || ''} onChange={(event) => void run(search.id, async () => {
       await bridge!.updateSearch({ id: search.id, folderId: event.target.value || null })
       setMovingId(null)
-    })}><option value="">{zh ? '默认' : 'Default'}</option>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folderPath(folder, folders)}</option>)}</select></div>}
+    })}><option value="">{l('Default', '默认', '預設', '기본')}</option>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folderPath(folder, folders)}</option>)}</select></div>}
   </article>
 
   const renderFolder = (folder: EquipmentLibraryFolder, depth = 0): ReactNode => {
@@ -458,7 +461,7 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
         }}
         onDrop={(event) => dropInto(event, folder.id, dragOverPosition)}
       >
-        <button onClick={() => void run(folder.id, () => bridge!.updateFolder({ id: folder.id, expanded: !folder.expanded }))} title={folder.expanded ? (zh ? '折叠' : 'Collapse') : (zh ? '展开' : 'Expand')}>{folder.expanded ? <ChevronDown /> : <ChevronRight />}</button>
+        <button onClick={() => void run(folder.id, () => bridge!.updateFolder({ id: folder.id, expanded: !folder.expanded }))} title={folder.expanded ? l('Collapse', '折叠', '收合', '접기') : l('Expand', '展开', '展開', '펼치기')}>{folder.expanded ? <ChevronDown /> : <ChevronRight />}</button>
         <button className="folder-name" onClick={() => void selectFolder(activeTab, folder.id)} title={folderPath(folder, folders)}><Folder /><span>{folder.name}</span><small>{folderEntries.length + folderSearches.length}</small></button>
       </div>
       {folder.expanded && <div className="trade-helper-tree-children">
@@ -483,33 +486,33 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
   const deleteSelectedEntries = async () => {
     if (!bridge || !selectedEntryIds.size) return
     const count = selectedEntryIds.size
-    if (!window.confirm(zh ? `确定删除选中的 ${count} 件装备？此操作无法撤销。` : `Delete the ${count} selected items? This cannot be undone.`)) return
+    if (!window.confirm(l(`Delete the ${count} selected items? This cannot be undone.`, `确定删除选中的 ${count} 件装备？此操作无法撤销。`, `確定刪除選取的 ${count} 件裝備？此操作無法復原。`, `선택한 장비 ${count}개를 삭제할까요? 이 작업은 취소할 수 없습니다.`))) return
     await run('bulk-delete', async () => {
       const deleted = await bridge.deleteLibraries([...selectedEntryIds])
       setSelectedEntryIds(new Set())
       setBulkSelecting(false)
       return deleted
-    }, zh ? `已删除 ${count} 件装备` : `${count} items deleted`)
+    }, l(`${count} items deleted`, `已删除 ${count} 件装备`, `已刪除 ${count} 件裝備`, `장비 ${count}개 삭제됨`))
   }
 
   return <aside className="equipment-library-panel trade-helper-sidebar">
-    <header className="trade-helper-header"><Bookmark /><strong>{headerTitle || (zh ? '装备仓库' : 'Equipment Library')}</strong><span className="trade-helper-header-actions"><button onClick={onClose} title={zh ? '收起快捷栏' : 'Collapse shortcuts'}><X /></button></span></header>
+    <header className="trade-helper-header"><Bookmark /><strong>{headerTitle || l('Equipment Library', '装备仓库', '裝備倉庫', '장비 라이브러리')}</strong><span className="trade-helper-header-actions"><button onClick={onClose} title={l('Collapse shortcuts', '收起快捷栏', '收合快捷欄', '바로 가기 접기')}><X /></button></span></header>
     <nav className="trade-helper-tabs">
-      <button className={activeTab === 'items' ? 'active' : ''} onClick={() => onTabChange('items')}>{zh ? '装备收藏' : 'Equipment favorites'}</button>
-      <button className={activeTab === 'searches' ? 'active' : ''} onClick={() => onTabChange('searches')}>{zh ? '搜索收藏' : 'Search favorites'}</button>
+      <button className={activeTab === 'items' ? 'active' : ''} onClick={() => onTabChange('items')}>{l('Equipment favorites', '装备收藏', '裝備收藏', '장비 즐겨찾기')}</button>
+      <button className={activeTab === 'searches' ? 'active' : ''} onClick={() => onTabChange('searches')}>{l('Search favorites', '搜索收藏', '搜尋收藏', '검색 즐겨찾기')}</button>
     </nav>
     <div className={`trade-helper-workspace${directoryCompact ? ' directory-compact' : ''}${activeTab === 'items' ? ' no-directory' : ''}`}>
       {activeTab === 'searches' && <section className="trade-helper-directory-pane">
-        <header><strong>{zh ? '目录' : 'Folders'}</strong><span>{folders.length}</span><button onClick={() => setDirectoryCompact((compact) => !compact)} title={directoryCompact ? (zh ? '展开目录栏' : 'Expand folders') : (zh ? '缩小目录栏' : 'Compact folders')}>{directoryCompact ? <PanelLeftOpen /> : <PanelLeftClose />}</button></header>
+        <header><strong>{l('Folders', '目录', '目錄', '폴더')}</strong><span>{folders.length}</span><button onClick={() => setDirectoryCompact((compact) => !compact)} title={directoryCompact ? l('Expand folders', '展开目录栏', '展開目錄欄', '폴더 펼치기') : l('Compact folders', '缩小目录栏', '縮小目錄欄', '폴더 축소')}>{directoryCompact ? <PanelLeftOpen /> : <PanelLeftClose />}</button></header>
         <div className="trade-helper-folder-create">
-          <button onClick={() => createFolder()} title={zh ? '新建根目录' : 'Create root folder'} aria-label={zh ? '新建根目录' : 'Create root folder'}><FolderPlus /></button>
-          <button disabled={!selectedFolderId} onClick={() => createFolder(selectedFolderId)} title={zh ? '新建子目录' : 'Create subfolder'} aria-label={zh ? '新建子目录' : 'Create subfolder'}><FolderTree /></button>
-          <button disabled={!selectedFolder} onClick={() => selectedFolder && renameFolder(selectedFolder)} title={zh ? '重命名当前目录' : 'Rename selected folder'} aria-label={zh ? '重命名当前目录' : 'Rename selected folder'}><Pencil /></button>
+          <button onClick={() => createFolder()} title={l('Create root folder', '新建根目录', '建立根目錄', '루트 폴더 생성')} aria-label={l('Create root folder', '新建根目录', '建立根目錄', '루트 폴더 생성')}><FolderPlus /></button>
+          <button disabled={!selectedFolderId} onClick={() => createFolder(selectedFolderId)} title={l('Create subfolder', '新建子目录', '建立子目錄', '하위 폴더 생성')} aria-label={l('Create subfolder', '新建子目录', '建立子目錄', '하위 폴더 생성')}><FolderTree /></button>
+          <button disabled={!selectedFolder} onClick={() => selectedFolder && renameFolder(selectedFolder)} title={l('Rename selected folder', '重命名当前目录', '重新命名目前目錄', '선택한 폴더 이름 변경')} aria-label={l('Rename selected folder', '重命名当前目录', '重新命名目前目錄', '선택한 폴더 이름 변경')}><Pencil /></button>
           <button className="danger" disabled={!selectedFolder} onClick={() => {
             if (!selectedFolder) return
             setFolderEditor(null)
             setDeleteCandidate(selectedFolder)
-          }} title={zh ? '删除当前目录' : 'Delete selected folder'} aria-label={zh ? '删除当前目录' : 'Delete selected folder'}><Trash2 /></button>
+          }} title={l('Delete selected folder', '删除当前目录', '刪除目前目錄', '선택한 폴더 삭제')} aria-label={l('Delete selected folder', '删除当前目录', '刪除目前目錄', '선택한 폴더 삭제')}><Trash2 /></button>
         </div>
         {folderEditor && <div className="trade-helper-folder-editor">
           <input
@@ -520,75 +523,75 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
               if (event.key === 'Enter') void submitFolderEditor()
               if (event.key === 'Escape') setFolderEditor(null)
             }}
-            placeholder={folderEditor.mode === 'create' ? (zh ? '新目录名称' : 'New folder name') : (zh ? '目录名称' : 'Folder name')}
+            placeholder={folderEditor.mode === 'create' ? l('New folder name', '新目录名称', '新目錄名稱', '새 폴더 이름') : l('Folder name', '目录名称', '目錄名稱', '폴더 이름')}
           />
-          <button onClick={() => setFolderEditor(null)} title={zh ? '取消' : 'Cancel'}><X /></button>
-          <button disabled={!folderEditor.name.trim()} onClick={() => void submitFolderEditor()} title={zh ? '确认' : 'Confirm'}><Check /></button>
+          <button onClick={() => setFolderEditor(null)} title={l('Cancel', '取消', '取消', '취소')}><X /></button>
+          <button disabled={!folderEditor.name.trim()} onClick={() => void submitFolderEditor()} title={l('Confirm', '确认', '確認', '확인')}><Check /></button>
         </div>}
         {deleteCandidate && <div className="trade-helper-folder-delete">
-          <span title={deleteCandidate.name}>{zh ? `删除“${deleteCandidate.name}”？` : `Delete “${deleteCandidate.name}”?`}</span>
-          <button onClick={() => setDeleteCandidate(null)} title={zh ? '取消' : 'Cancel'}><X /></button>
-          <button className="danger" onClick={() => void deleteFolder(deleteCandidate)} title={zh ? '确认删除' : 'Confirm deletion'}><Trash2 /></button>
+          <span title={deleteCandidate.name}>{l(`Delete “${deleteCandidate.name}”?`, `删除“${deleteCandidate.name}”？`, `刪除「${deleteCandidate.name}」？`, `“${deleteCandidate.name}”을(를) 삭제할까요?`)}</span>
+          <button onClick={() => setDeleteCandidate(null)} title={l('Cancel', '取消', '取消', '취소')}><X /></button>
+          <button className="danger" onClick={() => void deleteFolder(deleteCandidate)} title={l('Confirm deletion', '确认删除', '確認刪除', '삭제 확인')}><Trash2 /></button>
         </div>}
         <button
           className={`trade-helper-root${!selectedFolderId ? ' selected' : ''}${dragOverFolderId === 'root' ? ' drop-inside' : ''}`}
-          aria-label={zh ? '默认' : 'Default'}
-          title={zh ? '默认' : 'Default'}
+          aria-label={l('Default', '默认', '預設', '기본')}
+          title={l('Default', '默认', '預設', '기본')}
           onClick={() => void selectFolder(activeTab)}
           onDragOver={(event) => dragOver(event)}
           onDragLeave={() => setDragOverFolderId(null)}
           onDrop={(event) => dropInto(event)}
-        ><Tags /><span>{zh ? '默认' : 'Default'}</span><small>{rootSearches.length}</small></button>
+        ><Tags /><span>{l('Default', '默认', '預設', '기본')}</span><small>{rootSearches.length}</small></button>
         <div className="trade-helper-tree">
           {rootFolders.map((folder) => renderFolder(folder))}
-          {!rootFolders.length && <div className="trade-helper-directory-empty"><Folder /><span>{zh ? '暂无目录' : 'No folders'}</span></div>}
+          {!rootFolders.length && <div className="trade-helper-directory-empty"><Folder /><span>{l('No folders', '暂无目录', '暫無目錄', '폴더 없음')}</span></div>}
         </div>
       </section>}
       <section className="trade-helper-content-pane">
         <div className="trade-helper-content-top">
           {(notice || error) && <div className={error ? 'trade-helper-message error' : 'trade-helper-message'}>{error || notice}<button onClick={() => { setError(null); setNotice(null) }}><X /></button></div>}
           <div className="trade-helper-actions">
-            {activeTab === 'searches' && <button disabled={!currentSearch} onClick={() => void openSearchCreator()} title={!currentSearch ? (zh ? '请先打开有效的官方搜索结果页' : 'Open a valid official search result first') : undefined}><Bookmark />{zh ? '保存当前搜索' : 'Save current search'}</button>}
+            {activeTab === 'searches' && <button disabled={!currentSearch} onClick={() => void openSearchCreator()} title={!currentSearch ? l('Open a valid official search result first', '请先打开有效的官方搜索结果页', '請先開啟有效的官方搜尋結果頁', '유효한 공식 검색 결과 페이지를 먼저 여세요') : undefined}><Bookmark />{l('Save current search', '保存当前搜索', '儲存目前搜尋', '현재 검색 저장')}</button>}
           {activeTab === 'items' && <>
-            <label><Search /><input value={query} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setQuery(event.target.value) }} placeholder={zh ? '搜索收藏' : 'Search favorites'} /></label>
-            <select value={sourceCategory} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setSourceCategory(event.target.value as typeof sourceCategory) }} aria-label={zh ? '来源分类' : 'Source category'}>
-              <option value="all">{zh ? '全部来源' : 'All sources'}</option>
-              <option value="market">{zh ? '集市收藏' : 'Market favorites'}</option>
-              <option value="build">{zh ? '构建导入' : 'Build imports'}</option>
-              <option value="custom">{zh ? '自定义' : 'Custom'}</option>
+            <label><Search /><input value={query} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setQuery(event.target.value) }} placeholder={l('Search favorites', '搜索收藏', '搜尋收藏', '즐겨찾기 검색')} /></label>
+            <select value={sourceCategory} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setSourceCategory(event.target.value as typeof sourceCategory) }} aria-label={l('Source category', '来源分类', '來源分類', '출처 분류')}>
+              <option value="all">{l('All sources', '全部来源', '所有來源', '모든 출처')}</option>
+              <option value="market">{l('Market favorites', '集市收藏', '市集收藏', '거래소 즐겨찾기')}</option>
+              <option value="build">{l('Build imports', '构建导入', '構築匯入', '빌드 가져오기')}</option>
+              <option value="custom">{l('Custom', '自定义', '自訂', '사용자 지정')}</option>
             </select>
           </>}
           </div>
         </div>
         <header className="trade-helper-content-header">
-          <span><Folder /><strong>{selectedFolder ? folderPath(selectedFolder, folders) : (zh ? '默认' : 'Default')}</strong></span>
+          <span><Folder /><strong>{selectedFolder ? folderPath(selectedFolder, folders) : l('Default', '默认', '預設', '기본')}</strong></span>
           <span className="trade-helper-content-summary">
-            {activeTab === 'items' && !bulkSelecting && Boolean(visibleEntries.length) && <button onClick={startBulkSelection} title={zh ? '批量选择' : 'Bulk select'} aria-label={zh ? '批量选择' : 'Bulk select'}><ListChecks /></button>}
+            {activeTab === 'items' && !bulkSelecting && Boolean(visibleEntries.length) && <button onClick={startBulkSelection} title={l('Bulk select', '批量选择', '批次選擇', '일괄 선택')} aria-label={l('Bulk select', '批量选择', '批次選擇', '일괄 선택')}><ListChecks /></button>}
             {activeTab === 'items' && bulkSelecting && <>
-              <small>{zh ? `已选 ${selectedEntryIds.size} / ${visibleEntries.length}` : `${selectedEntryIds.size} / ${visibleEntries.length} selected`}</small>
-              <button onClick={() => setSelectedEntryIds(allVisibleEntriesSelected ? new Set() : new Set(visibleEntries.map((entry) => entry.id)))} title={allVisibleEntriesSelected ? (zh ? '取消全选' : 'Deselect all') : (zh ? '全选当前目录' : 'Select all in folder')} aria-label={allVisibleEntriesSelected ? (zh ? '取消全选' : 'Deselect all') : (zh ? '全选当前目录' : 'Select all in folder')}>{allVisibleEntriesSelected ? <Square /> : <SquareCheckBig />}</button>
-              <button className="danger" disabled={!selectedEntryIds.size || busyId === 'bulk-delete'} onClick={() => void deleteSelectedEntries()} title={zh ? '删除选中装备' : 'Delete selected items'} aria-label={zh ? '删除选中装备' : 'Delete selected items'}><Trash2 /></button>
-              <button onClick={() => { setBulkSelecting(false); setSelectedEntryIds(new Set()) }} title={zh ? '退出批量选择' : 'Exit bulk selection'} aria-label={zh ? '退出批量选择' : 'Exit bulk selection'}><X /></button>
+              <small>{l(`${selectedEntryIds.size} / ${visibleEntries.length} selected`, `已选 ${selectedEntryIds.size} / ${visibleEntries.length}`, `已選 ${selectedEntryIds.size} / ${visibleEntries.length}`, `${selectedEntryIds.size} / ${visibleEntries.length} 선택됨`)}</small>
+              <button onClick={() => setSelectedEntryIds(allVisibleEntriesSelected ? new Set() : new Set(visibleEntries.map((entry) => entry.id)))} title={allVisibleEntriesSelected ? l('Deselect all', '取消全选', '取消全選', '모두 선택 해제') : l('Select all in folder', '全选当前目录', '全選目前目錄', '폴더 내 모두 선택')} aria-label={allVisibleEntriesSelected ? l('Deselect all', '取消全选', '取消全選', '모두 선택 해제') : l('Select all in folder', '全选当前目录', '全選目前目錄', '폴더 내 모두 선택')}>{allVisibleEntriesSelected ? <Square /> : <SquareCheckBig />}</button>
+              <button className="danger" disabled={!selectedEntryIds.size || busyId === 'bulk-delete'} onClick={() => void deleteSelectedEntries()} title={l('Delete selected items', '删除选中装备', '刪除選取裝備', '선택한 아이템 삭제')} aria-label={l('Delete selected items', '删除选中装备', '刪除選取裝備', '선택한 아이템 삭제')}><Trash2 /></button>
+              <button onClick={() => { setBulkSelecting(false); setSelectedEntryIds(new Set()) }} title={l('Exit bulk selection', '退出批量选择', '退出批次選擇', '일괄 선택 종료')} aria-label={l('Exit bulk selection', '退出批量选择', '退出批次選擇', '일괄 선택 종료')}><X /></button>
             </>}
-            {!bulkSelecting && <small>{contentCount}{zh ? ' 项' : ' items'}</small>}
+            {!bulkSelecting && <small>{l(`${contentCount} items`, `${contentCount} 项`, `${contentCount} 項`, `${contentCount}개`)}</small>}
           </span>
         </header>
         <div className="trade-helper-content-list">
           {activeTab === 'items' && visibleEntries.map(renderEntry)}
           {activeTab === 'searches' && visibleSearches.map(renderSearch)}
-          {!contentCount && <div className="trade-helper-empty"><Bookmark /><span>{activeTab === 'items' ? (zh ? '此目录还没有收藏装备' : 'No favorite items in this folder') : (zh ? '此目录还没有保存的搜索' : 'No saved searches in this folder')}</span></div>}
+          {!contentCount && <div className="trade-helper-empty"><Bookmark /><span>{activeTab === 'items' ? l('No favorite items in this folder', '此目录还没有收藏装备', '此目錄尚無收藏裝備', '이 폴더에 즐겨찾기 장비가 없습니다') : l('No saved searches in this folder', '此目录还没有保存的搜索', '此目錄尚無已儲存搜尋', '이 폴더에 저장된 검색이 없습니다')}</span></div>}
         </div>
       </section>
       {searchEditor && <div className="trade-helper-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSearchEditor(null) }}>
         <section className="trade-helper-search-dialog" role="dialog" aria-modal="true" aria-labelledby="saved-search-dialog-title">
-          <header><div><small>{zh ? '保存的搜索' : 'Saved search'}</small><strong id="saved-search-dialog-title">{searchEditor.mode === 'create' ? (zh ? '保存当前搜索' : 'Save current search') : (zh ? '编辑保存的搜索' : 'Edit saved search')}</strong></div><button onClick={() => setSearchEditor(null)} title={zh ? '关闭' : 'Close'}><X /></button></header>
+          <header><div><small>{l('Saved search', '保存的搜索', '已儲存搜尋', '저장된 검색')}</small><strong id="saved-search-dialog-title">{searchEditor.mode === 'create' ? l('Save current search', '保存当前搜索', '儲存目前搜尋', '현재 검색 저장') : l('Edit saved search', '编辑保存的搜索', '編輯已儲存搜尋', '저장된 검색 편집')}</strong></div><button onClick={() => setSearchEditor(null)} title={l('Close', '关闭', '關閉', '닫기')}><X /></button></header>
           <div className="trade-helper-search-dialog-body">
-            {searchEditor.mode === 'create' && currentSearch && <div className="trade-helper-search-summary"><GlobeLabel realm={currentSearch.realm} zh={zh} /><span><strong>{currentSearch.leagueId}</strong><small>{currentSearch.captureSource === 'code-only' ? (zh ? '仅保存搜索码；失效后需要手动更新' : 'Code only; manual refresh is required if it expires') : (zh ? '已保存查询快照，可恢复搜索码' : 'Query snapshot available for recovery')}</small></span></div>}
-            <label><span>{zh ? '名称' : 'Name'}</span><input autoFocus maxLength={160} value={searchEditor.name} onChange={(event) => setSearchEditor({ ...searchEditor, name: event.target.value })} /></label>
-            <label><span>{zh ? '目录' : 'Folder'}</span><select value={searchEditor.folderId} onChange={(event) => setSearchEditor({ ...searchEditor, folderId: event.target.value })}><option value="">{zh ? '默认' : 'Default'}</option>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folderPath(folder, folders)}</option>)}</select></label>
-            <label><span>{zh ? '备注' : 'Note'}</span><textarea maxLength={4000} rows={3} value={searchEditor.note} onChange={(event) => setSearchEditor({ ...searchEditor, note: event.target.value })} /></label>
+            {searchEditor.mode === 'create' && currentSearch && <div className="trade-helper-search-summary"><GlobeLabel realm={currentSearch.realm} language={language} /><span><strong>{currentSearch.leagueId}</strong><small>{currentSearch.captureSource === 'code-only' ? l('Code only; manual refresh is required if it expires', '仅保存搜索码；失效后需要手动更新', '僅儲存搜尋碼；失效後需手動更新', '검색 코드만 저장되며 만료 시 수동 업데이트가 필요합니다') : l('Query snapshot available for recovery', '已保存查询快照，可恢复搜索码', '已儲存查詢快照，可恢復搜尋碼', '검색 코드를 복구할 수 있는 쿼리 스냅샷이 있습니다')}</small></span></div>}
+            <label><span>{l('Name', '名称', '名稱', '이름')}</span><input autoFocus maxLength={160} value={searchEditor.name} onChange={(event) => setSearchEditor({ ...searchEditor, name: event.target.value })} /></label>
+            <label><span>{l('Folder', '目录', '目錄', '폴더')}</span><select value={searchEditor.folderId} onChange={(event) => setSearchEditor({ ...searchEditor, folderId: event.target.value })}><option value="">{l('Default', '默认', '預設', '기본')}</option>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folderPath(folder, folders)}</option>)}</select></label>
+            <label><span>{l('Note', '备注', '備註', '메모')}</span><textarea maxLength={4000} rows={3} value={searchEditor.note} onChange={(event) => setSearchEditor({ ...searchEditor, note: event.target.value })} /></label>
           </div>
-          <footer><button onClick={() => setSearchEditor(null)}>{zh ? '取消' : 'Cancel'}</button><button className="primary" disabled={!searchEditor.name.trim() || busyId === 'save-search'} onClick={() => void submitSearchEditor()}><Save />{zh ? '保存' : 'Save'}</button></footer>
+          <footer><button onClick={() => setSearchEditor(null)}>{l('Cancel', '取消', '取消', '취소')}</button><button className="primary" disabled={!searchEditor.name.trim() || busyId === 'save-search'} onClick={() => void submitSearchEditor()}><Save />{l('Save', '保存', '儲存', '저장')}</button></footer>
         </section>
       </div>}
       {priceCheckEntryId && (() => {
@@ -597,16 +600,16 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
         return <PriceCheckDialog
           realm={source?.realm || realm}
           target={{ kind: 'library', entryId: priceCheckEntryId }}
-          zh={zh}
+          language={language}
           initialLeagueId={source?.leagueId || leagueId}
           onClose={() => setPriceCheckEntryId(null)}
-          onSearched={(result) => setNotice(zh ? `查价搜索已更新，共 ${result.total} 条结果` : `Price search updated with ${result.total} results`)}
+          onSearched={(result) => setNotice(l(`Price search updated with ${result.total} results`, `查价搜索已更新，共 ${result.total} 条结果`, `查價搜尋已更新，共 ${result.total} 筆結果`, `가격 검색이 업데이트되었습니다. 결과 ${result.total}개`))}
         />
       })()}
     </div>
   </aside>
 }
 
-function GlobeLabel({ realm, zh }: { realm: MarketRealm; zh: boolean }) {
-  return <em>{realm === 'cn' ? (zh ? '腾讯服' : 'CN') : (zh ? '国际服' : 'Global')}</em>
+function GlobeLabel({ realm, language }: { realm: MarketRealm; language: Language }) {
+  return <em>{realm === 'cn' ? uiText(language, 'CN', '腾讯服', '騰訊服', '중국') : uiText(language, 'Global', '国际服', '國際服', '글로벌')}</em>
 }

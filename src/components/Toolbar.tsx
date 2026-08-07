@@ -31,6 +31,7 @@ import { buildRealmLabel } from '@/engine/buildRealm'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
 import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketMonitoringSnapshot } from '@/types/market'
+import { uiText } from '@/i18n/uiLocale'
 import {
   DEFAULT_ZOOM,
   MAX_ZOOM,
@@ -67,6 +68,7 @@ const VIEW_ORDER: WorkspaceView[] = ['equipment', 'skills', 'passive']
 
 export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onImport, onSave, onSaveCopy, onSettings }: ToolbarProps) {
   const { t, lang } = useTranslation()
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const zoom = useTreeStore((state) => state.zoom)
   const treeVersion = useTreeStore((state) => state.treeVersion)
   const selectedClassId = useTreeStore((state) => state.selectedClassId)
@@ -126,12 +128,17 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
     if (!importedBuildCode) return '1'
     return String(getBuildCharacterLevel(importedBuildCode) || '--')
   }, [importedBuildCode])
-  const viewLabels = useMemo(() => lang === 'zh-rCN'
-    ? { passive: '天赋', equipment: '装备', skills: '技能' }
-    : { passive: 'Passive', equipment: 'Equipment', skills: 'Skills' }, [lang])
-  const saveLabels = lang === 'zh-rCN'
-    ? { saved: '已保存', dirty: '有未保存修改', saving: '正在保存', error: '保存失败' }
-    : { saved: 'Saved', dirty: 'Unsaved changes', saving: 'Saving', error: 'Save failed' }
+  const viewLabels = useMemo(() => ({
+    passive: uiText(lang, 'Passive', '天赋', '天賦', '패시브'),
+    equipment: uiText(lang, 'Equipment', '装备', '裝備', '장비'),
+    skills: uiText(lang, 'Skills', '技能', '技能', '스킬'),
+  }), [lang])
+  const saveLabels = {
+    saved: l('Saved', '已保存', '已儲存', '저장됨'),
+    dirty: l('Unsaved changes', '有未保存修改', '有未儲存的修改', '저장하지 않은 변경 사항'),
+    saving: l('Saving', '正在保存', '正在儲存', '저장 중'),
+    error: l('Save failed', '保存失败', '儲存失敗', '저장 실패'),
+  }
 
   const handleZoomFit = useCallback(() => {
     if (!treeData) return
@@ -174,7 +181,7 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
         </div>
 
         <div className="current-build">
-          <button className="icon-command compact back-command" onClick={onHome} title={lang === 'zh-rCN' ? '返回构筑中心' : 'Back to build center'} aria-label={lang === 'zh-rCN' ? '返回构筑中心' : 'Back to build center'}><ArrowLeft /></button>
+          <button className="icon-command compact back-command" onClick={onHome} title={l('Back to build center', '返回构筑中心', '返回構築中心', '빌드 센터로 돌아가기')} aria-label={l('Back to build center', '返回构筑中心', '返回構築中心', '빌드 센터로 돌아가기')}><ArrowLeft /></button>
           <span className="current-build-profile">
             <span className="class-emblem">
               <FallbackImage src={characterImageUrl || undefined} alt="" decoding="async" fallback={className.slice(0, 1)} />
@@ -186,19 +193,19 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
                 maxLength={80}
                 onChange={(event) => onBuildNameChange(event.target.value)}
                 onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
-                aria-label={lang === 'zh-rCN' ? '构筑名称' : 'Build name'}
-                title={lang === 'zh-rCN' ? '修改构筑名称' : 'Rename build'}
+                aria-label={l('Build name', '构筑名称', '構築名稱', '빌드 이름')}
+                title={l('Rename build', '修改构筑名称', '重新命名構築', '빌드 이름 변경')}
               />
               <small>Lv.{characterLevel} · {className}{ascendancyName ? ` · ${ascendancyName}` : ''}</small>
             </span>
             <span className="character-summary-tooltip" role="tooltip">
-              <strong>{lang === 'zh-rCN' ? '人物基本信息' : 'Character details'}</strong>
-              <span><i>{lang === 'zh-rCN' ? '等级' : 'Level'}</i><b>{characterLevel}</b></span>
-              <span><i>{lang === 'zh-rCN' ? '职业' : 'Class'}</i><b>{className}</b></span>
-              <span><i>{lang === 'zh-rCN' ? '升华' : 'Ascendancy'}</i><b>{ascendancyName || (lang === 'zh-rCN' ? '未选择' : 'Not selected')}</b></span>
-              <span><i>{lang === 'zh-rCN' ? '服务器' : 'Realm'}</i><b>{buildRealmLabel(buildRealm, lang === 'zh-rCN')}</b></span>
-              <span><i>{lang === 'zh-rCN' ? '天赋版本' : 'Tree version'}</i><b>{treeVersion.replace('_', '.')}</b></span>
-              <span><i>{lang === 'zh-rCN' ? '已分配天赋' : 'Allocated passives'}</i><b>{allocatedNodes.size}</b></span>
+              <strong>{l('Character details', '人物基本信息', '角色基本資訊', '캐릭터 정보')}</strong>
+              <span><i>{l('Level', '等级', '等級', '레벨')}</i><b>{characterLevel}</b></span>
+              <span><i>{l('Class', '职业', '職業', '클래스')}</i><b>{className}</b></span>
+              <span><i>{l('Ascendancy', '升华', '昇華', '전직')}</i><b>{ascendancyName || l('Not selected', '未选择', '未選擇', '선택 안 함')}</b></span>
+              <span><i>{l('Realm', '服务器', '伺服器', '리전')}</i><b>{buildRealmLabel(buildRealm, lang)}</b></span>
+              <span><i>{l('Tree version', '天赋版本', '天賦版本', '트리 버전')}</i><b>{treeVersion.replace('_', '.')}</b></span>
+              <span><i>{l('Allocated passives', '已分配天赋', '已配置天賦', '할당된 패시브')}</i><b>{allocatedNodes.size}</b></span>
             </span>
           </span>
         </div>
@@ -209,29 +216,29 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
               className={`build-realm-select ${buildRealm}`}
               value={buildRealm}
               onChange={(event) => setBuildRealm(event.target.value as 'cn' | 'global')}
-              aria-label={lang === 'zh-rCN' ? '游戏服务器' : 'Game realm'}
-              title={lang === 'zh-rCN' ? '修改当前构筑的游戏服务器' : 'Change this build realm'}
+              aria-label={l('Game realm', '游戏服务器', '遊戲伺服器', '게임 리전')}
+              title={l('Change this build realm', '修改当前构筑的游戏服务器', '修改目前構築的遊戲伺服器', '현재 빌드의 게임 리전 변경')}
             >
-              <option value="cn">{lang === 'zh-rCN' ? '腾讯服' : 'Tencent CN'}</option>
-              <option value="global">{lang === 'zh-rCN' ? '国际服' : 'Global'}</option>
+              <option value="cn">{buildRealmLabel('cn', lang)}</option>
+              <option value="global">{buildRealmLabel('global', lang)}</option>
             </select>
             <span className={`save-state ${saveStatus}`}><i />{saveLabels[saveStatus]}</span>
           </div>
-          <span className="version-indicator" title={lang === 'zh-rCN' ? '构筑版本已确定' : 'Build version is fixed'} aria-label={`${t('toolbar.version')} ${treeVersion.replace('_', '.')}`}>
+          <span className="version-indicator" title={l('Build version is fixed', '构筑版本已确定', '構築版本已確定', '빌드 버전이 고정되었습니다')} aria-label={`${t('toolbar.version')} ${treeVersion.replace('_', '.')}`}>
             <LockKeyhole />
             <span>{treeVersion.replace('_', '.')}</span>
           </span>
-          <button className="secondary-command toolbar-text-command" onClick={() => { setActiveMenu(null); onImport() }} title={t('toolbar.importTitle')}><FileInput /><span>{lang === 'zh-rCN' ? '导入' : 'Import'}</span></button>
-          <button className="secondary-command toolbar-text-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')}><FileOutput /><span>{lang === 'zh-rCN' ? '导出' : 'Export'}</span></button>
-          <button className="primary-command" onClick={() => { setActiveMenu(null); onSave() }}><Save />{lang === 'zh-rCN' ? '保存' : 'Save'}</button>
+          <button className="secondary-command toolbar-text-command" onClick={() => { setActiveMenu(null); onImport() }} title={t('toolbar.importTitle')}><FileInput /><span>{l('Import', '导入', '匯入', '가져오기')}</span></button>
+          <button className="secondary-command toolbar-text-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')}><FileOutput /><span>{l('Export', '导出', '匯出', '내보내기')}</span></button>
+          <button className="primary-command" onClick={() => { setActiveMenu(null); onSave() }}><Save />{l('Save', '保存', '儲存', '저장')}</button>
           <GameRuntimeIndicator />
-          <button className="icon-command" onClick={() => { setActiveMenu(null); onSettings() }} title={lang === 'zh-rCN' ? '全局设置' : 'Global settings'} aria-label={lang === 'zh-rCN' ? '全局设置' : 'Global settings'}><Settings /></button>
-          <button className="icon-command" onClick={() => toggleMenu('more')} title={lang === 'zh-rCN' ? '更多操作' : 'More'} aria-label={lang === 'zh-rCN' ? '更多操作' : 'More'} aria-expanded={activeMenu === 'more'}><MoreVertical /></button>
+          <button className="icon-command" onClick={() => { setActiveMenu(null); onSettings() }} title={l('Global settings', '全局设置', '全域設定', '전역 설정')} aria-label={l('Global settings', '全局设置', '全域設定', '전역 설정')}><Settings /></button>
+          <button className="icon-command" onClick={() => toggleMenu('more')} title={l('More', '更多操作', '更多操作', '더 보기')} aria-label={l('More', '更多操作', '更多操作', '더 보기')} aria-expanded={activeMenu === 'more'}><MoreVertical /></button>
         </div>
       </div>
 
       <div className="workspace-tabs-bar">
-        <nav className="workspace-tabs" aria-label={lang === 'zh-rCN' ? '构筑编辑页面' : 'Build workspace'}>
+        <nav className="workspace-tabs" aria-label={l('Build workspace', '构筑编辑页面', '構築編輯頁面', '빌드 작업 공간')}>
           {VIEW_ORDER.map((view) => {
             const Icon = VIEW_ICONS[view]
             const count = view === 'passive' ? allocatedNodes.size : null
@@ -242,8 +249,8 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
             )
           })}
           <i className="workspace-tabs-divider" aria-hidden="true" />
-          <button className={`workspace-global-entry monitoring-entry${isActivelyMonitoring ? ' is-monitoring' : ''}`} onClick={onTradeCenter} aria-label={lang === 'zh-rCN' ? '交易中心' : 'Trade Center'} title={lang === 'zh-rCN' ? '打开全局交易中心' : 'Open global Trade Center'}>
-            <Store /><span>{lang === 'zh-rCN' ? '交易中心' : 'Trade Center'}</span>{isActivelyMonitoring && <span className="monitoring-tab-icon" aria-hidden="true"><BellRing /></span>}{monitoring && <small className="monitoring-tab-count">{armedCount}/{MAX_ACTIVE_PURCHASE_TARGETS}</small>}{pendingCount > 0 && <small className="monitoring-tab-alert">{pendingCount}</small>}
+          <button className={`workspace-global-entry monitoring-entry${isActivelyMonitoring ? ' is-monitoring' : ''}`} onClick={onTradeCenter} aria-label={l('Trade Center', '交易中心', '交易中心', '거래 센터')} title={l('Open global Trade Center', '打开全局交易中心', '開啟全域交易中心', '전역 거래 센터 열기')}>
+            <Store /><span>{l('Trade Center', '交易中心', '交易中心', '거래 센터')}</span>{isActivelyMonitoring && <span className="monitoring-tab-icon" aria-hidden="true"><BellRing /></span>}{monitoring && <small className="monitoring-tab-count">{armedCount}/{MAX_ACTIVE_PURCHASE_TARGETS}</small>}{pendingCount > 0 && <small className="monitoring-tab-alert">{pendingCount}</small>}
           </button>
         </nav>
 
@@ -266,8 +273,8 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
               <button disabled={!treeEditMode} className={treeEditMode && weaponSetMode === 1 ? 'active weapon-one' : ''} onClick={() => setWeaponSetMode(1)}>I</button>
               <button disabled={!treeEditMode} className={treeEditMode && weaponSetMode === 2 ? 'active weapon-two' : ''} onClick={() => setWeaponSetMode(2)}>II</button>
             </div>
-            <button className="icon-command compact" disabled={!undoStack.length} onClick={undo} title="Undo" aria-label="Undo"><Undo2 /></button>
-            <button className="icon-command compact" disabled={!redoStack.length} onClick={redo} title="Redo" aria-label="Redo"><Redo2 /></button>
+            <button className="icon-command compact" disabled={!undoStack.length} onClick={undo} title={l('Undo', '撤销', '復原', '실행 취소')} aria-label={l('Undo', '撤销', '復原', '실행 취소')}><Undo2 /></button>
+            <button className="icon-command compact" disabled={!redoStack.length} onClick={redo} title={l('Redo', '重做', '重做', '다시 실행')} aria-label={l('Redo', '重做', '重做', '다시 실행')}><Redo2 /></button>
             <div className="zoom-control">
               <button onClick={() => setZoom(Math.max(MIN_ZOOM, zoom / 1.3))} title={t('toolbar.zoomOut')} aria-label={t('toolbar.zoomOut')}><ZoomOut /></button>
               <button onClick={resetZoom} title={t('toolbar.zoomReset')}>{Math.round(zoom * 100)}%</button>
@@ -277,14 +284,14 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
           </>}
 
           <span className="toolbar-spacer" />
-          <button className="icon-command compact" title={lang === 'zh-rCN' ? '帮助' : 'Help'} aria-label={lang === 'zh-rCN' ? '帮助' : 'Help'}><CircleHelp /></button>
+          <button className="icon-command compact" title={l('Help', '帮助', '說明', '도움말')} aria-label={l('Help', '帮助', '說明', '도움말')}><CircleHelp /></button>
         </div>
       </div>
 
       {activeMenu && <div className="command-popover">
         {activeMenu === 'export' && <ExportPanel embedded buildName={buildName} sourceUrl={buildSourceUrl} />}
         {activeMenu === 'more' && <div className="native-file-menu" role="menu">
-          <button role="menuitem" onClick={() => { setActiveMenu(null); onSaveCopy() }} disabled={saveStatus === 'saving'}><Files /><span><strong>{lang === 'zh-rCN' ? '保存构筑副本' : 'Save build copy'}</strong><small>{lang === 'zh-rCN' ? '创建可传输的 .spoe 原生文件' : 'Create a portable .spoe native file'}</small></span></button>
+          <button role="menuitem" onClick={() => { setActiveMenu(null); onSaveCopy() }} disabled={saveStatus === 'saving'}><Files /><span><strong>{l('Save build copy', '保存构筑副本', '儲存構築副本', '빌드 복사본 저장')}</strong><small>{l('Create a portable .spoe native file', '创建可传输的 .spoe 原生文件', '建立可攜式 .spoe 原生檔案', '이동 가능한 .spoe 기본 파일 생성')}</small></span></button>
         </div>}
       </div>}
     </header>

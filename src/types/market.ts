@@ -414,6 +414,7 @@ export interface MarketMonitoringSnapshot {
 }
 
 export interface OpportunityOverlayState {
+  language: 'en' | 'zh-rCN' | 'zh-rTW' | 'ko-KR'
   searchName: string
   detectedCount: number
   actionableCount: number

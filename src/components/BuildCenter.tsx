@@ -13,6 +13,7 @@ import type { SpriteIndex } from '@/engine/spriteLoader'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
 import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketMonitoringSnapshot } from '@/types/market'
+import { formatUiDate, uiText } from '@/i18n/uiLocale'
 
 interface BuildCenterProps {
   onCreate: () => void
@@ -52,28 +53,28 @@ interface RowMenuState {
 
 export function BuildCenterNav({ active, onCenter, onLibrary, onTradeCenter, onUtilities, onAbout }: BuildCenterNavProps) {
   const { lang } = useTranslation()
-  const zh = lang === 'zh-rCN'
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   return (
-    <aside className="build-center-nav" aria-label={zh ? '构筑中心导航' : 'Build center navigation'}>
+    <aside className="build-center-nav" aria-label={l('Build center navigation', '构筑中心导航', '構築中心導覽', '빌드 센터 탐색')}>
       <div className="build-center-nav-brand">
         <img src="/assets/ui/superpoe2-logo.png" alt="" />
         <span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span>
       </div>
       <nav className="build-center-nav-list">
         <button className={active === 'center' ? 'active' : ''} aria-current={active === 'center' ? 'page' : undefined} onClick={onCenter}>
-          <span className="build-center-nav-main"><LayoutDashboard aria-hidden="true" /><span>{zh ? '构筑中心' : 'Build center'}</span><span className="build-center-nav-tooltip" role="tooltip">{zh ? '管理构筑、打开最近构筑并进入构筑编辑工作区' : 'Manage builds, open recent builds, and enter the build workspace.'}</span></span>
+          <span className="build-center-nav-main"><LayoutDashboard aria-hidden="true" /><span>{l('Build center', '构筑中心', '構築中心', '빌드 센터')}</span><span className="build-center-nav-tooltip" role="tooltip">{l('Manage builds, open recent builds, and enter the build workspace.', '管理构筑、打开最近构筑并进入构筑编辑工作区', '管理構築、開啟最近構築並進入構築編輯工作區', '빌드를 관리하고 최근 빌드를 열어 빌드 작업 공간으로 이동합니다.')}</span></span>
         </button>
         <button className={active === 'library' ? 'active' : ''} aria-current={active === 'library' ? 'page' : undefined} onClick={onLibrary}>
-          <span className="build-center-nav-main"><Archive aria-hidden="true" /><span>{zh ? '装备仓库' : 'Equipment library'}</span><span className="build-center-nav-tooltip" role="tooltip">{zh ? '集中管理市场收藏、PoB 导入和自定义装备' : 'Organize market favorites, PoB imports, and custom items.'}</span></span>
+          <span className="build-center-nav-main"><Archive aria-hidden="true" /><span>{l('Equipment library', '装备仓库', '裝備倉庫', '장비 라이브러리')}</span><span className="build-center-nav-tooltip" role="tooltip">{l('Organize market favorites, PoB imports, and custom items.', '集中管理市场收藏、PoB 导入和自定义装备', '集中管理市集收藏、PoB 匯入與自訂裝備', '거래소 즐겨찾기, PoB 가져오기 및 사용자 지정 장비를 관리합니다.')}</span></span>
         </button>
         <button onClick={onTradeCenter}>
-          <span className="build-center-nav-main"><Store aria-hidden="true" /><span>{zh ? '交易中心' : 'Trade center'}</span><span className="build-center-nav-tooltip" role="tooltip">{zh ? '搜索装备、收藏市场结果并查看实时行情' : 'Search equipment, save market results, and view live prices.'}</span></span>
+          <span className="build-center-nav-main"><Store aria-hidden="true" /><span>{l('Trade center', '交易中心', '交易中心', '거래 센터')}</span><span className="build-center-nav-tooltip" role="tooltip">{l('Search equipment, save market results, and view live prices.', '搜索装备、收藏市场结果并查看实时行情', '搜尋裝備、收藏市集結果並查看即時行情', '장비를 검색하고 거래소 결과를 저장하며 실시간 시세를 확인합니다.')}</span></span>
         </button>
         <button className={active === 'utilities' ? 'active' : ''} aria-current={active === 'utilities' ? 'page' : undefined} onClick={onUtilities}>
-          <span className="build-center-nav-main"><Wrench aria-hidden="true" /><span>{zh ? '实用工具' : 'Utilities'}</span><span className="build-center-nav-tooltip" role="tooltip">{zh ? '访问通货行情、监控和其它辅助工具' : 'Access currency prices, monitoring, and utility tools.'}</span></span>
+          <span className="build-center-nav-main"><Wrench aria-hidden="true" /><span>{l('Utilities', '实用工具', '實用工具', '유틸리티')}</span><span className="build-center-nav-tooltip" role="tooltip">{l('Access currency prices, monitoring, and utility tools.', '访问通货行情、监控和其它辅助工具', '查看通貨行情、監控與其他輔助工具', '화폐 시세, 모니터링 및 기타 보조 도구를 엽니다.')}</span></span>
         </button>
         <button className={active === 'about' ? 'active' : ''} aria-current={active === 'about' ? 'page' : undefined} onClick={onAbout}>
-          <span className="build-center-nav-main"><Info aria-hidden="true" /><span>{zh ? '关于' : 'About'}</span><span className="build-center-nav-tooltip" role="tooltip">{zh ? '查看应用版本、数据来源和项目信息' : 'View app version, data sources, and project information.'}</span></span>
+          <span className="build-center-nav-main"><Info aria-hidden="true" /><span>{l('About', '关于', '關於', '정보')}</span><span className="build-center-nav-tooltip" role="tooltip">{l('View app version, data sources, and project information.', '查看应用版本、数据来源和项目信息', '查看應用程式版本、資料來源與專案資訊', '앱 버전, 데이터 출처 및 프로젝트 정보를 확인합니다.')}</span></span>
         </button>
       </nav>
     </aside>
@@ -81,15 +82,13 @@ export function BuildCenterNav({ active, onCenter, onLibrary, onTradeCenter, onU
 }
 
 function formatUpdatedAt(value: string, lang: Language): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-  const locale = lang === 'zh-rCN' ? 'zh-CN' : lang === 'zh-rTW' ? 'zh-TW' : lang
-  return new Intl.DateTimeFormat(locale === 'en' ? 'en-US' : locale, {
+  if (Number.isNaN(new Date(value).getTime())) return '-'
+  return formatUiDate(value, lang, {
     month: '2-digit',
     day: '2-digit',
     hour: '2-digit',
     minute: '2-digit',
-  }).format(date)
+  })
 }
 
 function canRefreshBuild(build: SavedBuild): boolean {
@@ -107,7 +106,7 @@ export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckFor
   const [page, setPage] = useState(1)
   const [versionFilter, setVersionFilter] = useState('all')
   const [assetIndexes, setAssetIndexes] = useState<Record<string, SpriteIndex>>({})
-  const zh = lang === 'zh-rCN'
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
 
   const sortedBuilds = useMemo(() => [...savedBuilds].sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)), [savedBuilds])
   const builds = useMemo(() => {
@@ -116,11 +115,11 @@ export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckFor
     return sortedBuilds.filter((build) => {
       const cls = treeData?.constants.classes[build.selectedClassId]
       const asc = cls?.ascendancies.find((item) => (item.id || item.name) === build.selectedAscendancyId)
-      return [build.name, cls?.name, cls?.displayName, asc?.name, asc?.displayName, buildRealmLabel(build.realm, zh)]
+      return [build.name, cls?.name, cls?.displayName, asc?.name, asc?.displayName, buildRealmLabel(build.realm, lang)]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(normalized))
     })
-  }, [query, sortedBuilds, treeData, zh])
+  }, [query, sortedBuilds, treeData, lang])
   const buildVersions = useMemo(() => [...new Set(savedBuilds.map((build) => build.treeVersion).filter(Boolean))]
     .sort((a, b) => b.localeCompare(a, undefined, { numeric: true })), [savedBuilds])
   const filteredBuilds = useMemo(() => versionFilter === 'all'
@@ -209,7 +208,7 @@ export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckFor
     if (source === 'poe-ninja') return 'poe.ninja'
     if (source === 'json') return 'JSON'
     if (source === 'pob') return 'PoB Code'
-    return zh ? '本地' : 'Local'
+    return l('Local', '本地', '本機', '로컬')
   }
 
   const armedCount = monitoring?.purchaseTargets.filter((target) => target.status === 'armed').length || 0
@@ -222,11 +221,11 @@ export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckFor
       <header className="center-app-bar">
         <div className="center-actions">
           <GameRuntimeIndicator />
-          <button className="icon-command" onClick={onSettings} title={zh ? '全局设置' : 'Global settings'} aria-label={zh ? '全局设置' : 'Global settings'}><Settings /></button>
-          <button className="icon-command" title={zh ? '帮助' : 'Help'} aria-label={zh ? '帮助' : 'Help'}><CircleHelp /></button>
+          <button className="icon-command" onClick={onSettings} title={l('Global settings', '全局设置', '全域設定', '전역 설정')} aria-label={l('Global settings', '全局设置', '全域設定', '전역 설정')}><Settings /></button>
+          <button className="icon-command" title={l('Help', '帮助', '說明', '도움말')} aria-label={l('Help', '帮助', '說明', '도움말')}><CircleHelp /></button>
         </div>
         <div className="center-command-row">
-          <div><button className="secondary-command" onClick={onOpenFile}><FolderOpen />{zh ? '打开构筑' : 'Open build'}</button><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button></div>
+          <div><button className="secondary-command" onClick={onOpenFile}><FolderOpen />{l('Open build', '打开构筑', '開啟構築', '빌드 열기')}</button><button className="secondary-command" onClick={onImport}><FileInput />{l('Import build', '导入构筑', '匯入構築', '빌드 가져오기')}</button><button className="primary-command" onClick={onCreate}><Plus />{l('New build', '新建构筑', '新增構築', '새 빌드')}</button></div>
         </div>
       </header>
 
@@ -234,18 +233,18 @@ export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckFor
         {savedBuilds.length === 0 ? (
           <section className="center-empty-state">
             <span className="empty-build-mark">S</span>
-            <h2>{zh ? '还没有本地构筑' : 'No local builds yet'}</h2>
-            <div><button className="primary-command" onClick={onCreate}><Plus />{zh ? '新建构筑' : 'New build'}</button><button className="secondary-command" onClick={onOpenFile}><FolderOpen />{zh ? '打开构筑' : 'Open build'}</button><button className="secondary-command" onClick={onImport}><FileInput />{zh ? '导入构筑' : 'Import build'}</button><button className="secondary-command" onClick={onTradeCenter}><Store />{zh ? '交易中心' : 'Trade Center'}</button></div>
+            <h2>{l('No local builds yet', '还没有本地构筑', '尚無本機構築', '로컬 빌드가 없습니다')}</h2>
+            <div><button className="primary-command" onClick={onCreate}><Plus />{l('New build', '新建构筑', '新增構築', '새 빌드')}</button><button className="secondary-command" onClick={onOpenFile}><FolderOpen />{l('Open build', '打开构筑', '開啟構築', '빌드 열기')}</button><button className="secondary-command" onClick={onImport}><FileInput />{l('Import build', '导入构筑', '匯入構築', '빌드 가져오기')}</button><button className="secondary-command" onClick={onTradeCenter}><Store />{l('Trade Center', '交易中心', '交易中心', '거래 센터')}</button></div>
           </section>
         ) : <>
           <section className="recent-builds-section" id="recent-builds-section">
-            <div className="center-section-title"><h2>{zh ? '最近打开' : 'Recently opened'}</h2><span>{recentBuilds.length}</span></div>
+            <div className="center-section-title"><h2>{l('Recently opened', '最近打开', '最近開啟', '최근 열어본 빌드')}</h2><span>{recentBuilds.length}</span></div>
             <div className="recent-builds">
               {recentBuilds.map((build) => {
                 const info = buildClass(build)
                 return <button key={build.id} onClick={() => onOpen(build)}>
                   <span className="recent-class-mark">{info.name.slice(0, 1)}</span>
-                  <span><strong>{build.name}<em className={`realm-tag ${build.realm}`}>{buildRealmLabel(build.realm, zh)}</em></strong><small>{info.name}{info.ascendancy ? ` · ${info.ascendancy}` : ''}</small></span>
+                  <span><strong>{build.name}<em className={`realm-tag ${build.realm}`}>{buildRealmLabel(build.realm, lang)}</em></strong><small>{info.name}{info.ascendancy ? ` · ${info.ascendancy}` : ''}</small></span>
                   <time><Clock3 />{formatUpdatedAt(build.updatedAt, lang)}</time>
                 </button>
               })}
@@ -253,33 +252,33 @@ export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckFor
           </section>
 
           <section className="build-table-section" id="build-table-section">
-            <div className="center-section-title"><h2>{zh ? '我的构筑' : 'My builds'}</h2><span>{filteredBuilds.length}</span><label className="build-list-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={zh ? '搜索构筑、职业或升华' : 'Search builds, classes, or ascendancies'} /></label><label className="build-version-filter"><ListFilter /><select value={versionFilter} onChange={(event) => setVersionFilter(event.target.value)} aria-label={zh ? '按版本筛选构筑' : 'Filter builds by version'}><option value="all">{zh ? '全部版本' : 'All versions'}</option>{buildVersions.map((version) => <option key={version} value={version}>{version.replace('_', '.')}</option>)}</select></label></div>
+            <div className="center-section-title"><h2>{l('My builds', '我的构筑', '我的構築', '내 빌드')}</h2><span>{filteredBuilds.length}</span><label className="build-list-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={l('Search builds, classes, or ascendancies', '搜索构筑、职业或升华', '搜尋構築、職業或昇華', '빌드, 클래스 또는 전직 검색')} /></label><label className="build-version-filter"><ListFilter /><select value={versionFilter} onChange={(event) => setVersionFilter(event.target.value)} aria-label={l('Filter builds by version', '按版本筛选构筑', '依版本篩選構築', '버전별 빌드 필터')}><option value="all">{l('All versions', '全部版本', '所有版本', '모든 버전')}</option>{buildVersions.map((version) => <option key={version} value={version}>{version.replace('_', '.')}</option>)}</select></label></div>
             <div className="build-table-wrap">
               <div className="build-table-viewport">
                 <table className="build-table">
-                  <thead><tr><th>{zh ? '构筑名' : 'Build'}</th><th>{zh ? '职业 / 升华' : 'Class / Ascendancy'}</th><th>{zh ? '版本' : 'Version'}</th><th>{zh ? '天赋点数' : 'Passives'}</th><th>{zh ? '修改时间' : 'Modified'}</th><th>{zh ? '来源' : 'Source'}</th><th aria-label={zh ? '操作' : 'Actions'} /></tr></thead>
+                  <thead><tr><th>{l('Build', '构筑名', '構築名稱', '빌드')}</th><th>{l('Class / Ascendancy', '职业 / 升华', '職業 / 昇華', '클래스 / 전직')}</th><th>{l('Version', '版本', '版本', '버전')}</th><th>{l('Passives', '天赋点数', '天賦點數', '패시브')}</th><th>{l('Modified', '修改时间', '修改時間', '수정일')}</th><th>{l('Source', '来源', '來源', '출처')}</th><th aria-label={l('Actions', '操作', '操作', '작업')} /></tr></thead>
                   <tbody>{pagedBuilds.map((build) => {
                     const info = buildClass(build)
                     const characterLevel = build.characterLevel || getBuildCharacterLevel(build.importedBuildCode) || 1
                     return <tr key={build.id} onDoubleClick={() => onOpen(build)}>
-                      <td><button className="build-name-cell" onClick={() => onOpen(build)}><span><FallbackImage src={info.imageUrl || undefined} alt="" decoding="async" fallback={info.name.slice(0, 1)} /></span><strong>{build.name}</strong><em className={`realm-tag ${build.realm}`}>{buildRealmLabel(build.realm, zh)}</em></button></td>
-                      <td><strong>Lv.{characterLevel} · {info.name}</strong><small>{info.ascendancy || (zh ? '未选择升华' : 'No ascendancy')}</small></td>
+                      <td><button className="build-name-cell" onClick={() => onOpen(build)}><span><FallbackImage src={info.imageUrl || undefined} alt="" decoding="async" fallback={info.name.slice(0, 1)} /></span><strong>{build.name}</strong><em className={`realm-tag ${build.realm}`}>{buildRealmLabel(build.realm, lang)}</em></button></td>
+                      <td><strong>Lv.{characterLevel} · {info.name}</strong><small>{info.ascendancy || l('No ascendancy', '未选择升华', '未選擇昇華', '전직 선택 안 함')}</small></td>
                       <td>{build.treeVersion.replace('_', '.')}</td>
                       <td>{build.allocatedNodes.length}</td>
                       <td>{formatUpdatedAt(build.updatedAt, lang)}</td>
                       <td><span className={`source-tag ${(build.source && build.source !== 'local') || build.importedBuildCode ? 'imported' : ''}`}>{sourceLabel(build)}</span></td>
-                      <td className="build-row-actions"><button className="icon-command compact" data-build-menu-trigger onClick={(event) => toggleRowMenu(build.id, event.currentTarget)} aria-expanded={rowMenu?.buildId === build.id} aria-label={zh ? '更多操作' : 'More actions'}><MoreVertical /></button></td>
+                      <td className="build-row-actions"><button className="icon-command compact" data-build-menu-trigger onClick={(event) => toggleRowMenu(build.id, event.currentTarget)} aria-expanded={rowMenu?.buildId === build.id} aria-label={l('More actions', '更多操作', '更多操作', '추가 작업')}><MoreVertical /></button></td>
                     </tr>
                   })}</tbody>
                 </table>
-                {filteredBuilds.length === 0 && <div className="table-empty">{zh ? '没有匹配的构筑' : 'No matching builds'}</div>}
+                {filteredBuilds.length === 0 && <div className="table-empty">{l('No matching builds', '没有匹配的构筑', '沒有符合的構築', '일치하는 빌드가 없습니다')}</div>}
               </div>
               <footer className="build-pagination">
                 <span>{filteredBuilds.length === 0 ? '0' : `${pageStart + 1}-${Math.min(pageStart + BUILDS_PER_PAGE, filteredBuilds.length)}`} / {filteredBuilds.length}</span>
                 <div>
-                  <button className="icon-command compact" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} title={zh ? '上一页' : 'Previous page'} aria-label={zh ? '上一页' : 'Previous page'}><ChevronLeft /></button>
+                  <button className="icon-command compact" disabled={currentPage <= 1} onClick={() => setPage((value) => Math.max(1, value - 1))} title={l('Previous page', '上一页', '上一頁', '이전 페이지')} aria-label={l('Previous page', '上一页', '上一頁', '이전 페이지')}><ChevronLeft /></button>
                   <span>{currentPage} / {pageCount}</span>
-                  <button className="icon-command compact" disabled={currentPage >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))} title={zh ? '下一页' : 'Next page'} aria-label={zh ? '下一页' : 'Next page'}><ChevronRight /></button>
+                  <button className="icon-command compact" disabled={currentPage >= pageCount} onClick={() => setPage((value) => Math.min(pageCount, value + 1))} title={l('Next page', '下一页', '下一頁', '다음 페이지')} aria-label={l('Next page', '下一页', '下一頁', '다음 페이지')}><ChevronRight /></button>
                 </div>
               </footer>
             </div>
@@ -291,9 +290,9 @@ export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckFor
         if (!build) return null
         return createPortal(
           <div className="row-menu" style={{ left: rowMenu.left, top: rowMenu.top }} role="menu">
-            <button role="menuitem" onClick={() => { setRowMenu(null); onOpen(build) }}>{zh ? '打开' : 'Open'}</button>
-            {canRefreshBuild(build) && <button role="menuitem" onClick={() => { setRowMenu(null); onCheckForUpdate(build) }}><RefreshCw />{zh ? '\u68c0\u67e5\u66f4\u65b0' : 'Check for updates'}</button>}
-            <button role="menuitem" className="danger" onClick={() => { setRowMenu(null); setDeleteTarget(build) }}><Trash2 />{zh ? '删除' : 'Delete'}</button>
+            <button role="menuitem" onClick={() => { setRowMenu(null); onOpen(build) }}>{l('Open', '打开', '開啟', '열기')}</button>
+            {canRefreshBuild(build) && <button role="menuitem" onClick={() => { setRowMenu(null); onCheckForUpdate(build) }}><RefreshCw />{l('Check for updates', '检查更新', '檢查更新', '업데이트 확인')}</button>}
+            <button role="menuitem" className="danger" onClick={() => { setRowMenu(null); setDeleteTarget(build) }}><Trash2 />{l('Delete', '删除', '刪除', '삭제')}</button>
           </div>,
           document.body,
         )
@@ -302,11 +301,11 @@ export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckFor
         <div className="modal-backdrop" role="presentation">
           <section className="confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-build-title">
             <AlertTriangle />
-            <h2 id="delete-build-title">{zh ? '\u5220\u9664\u6784\u7b51\uff1f' : 'Delete build?'}</h2>
-            <p>{zh ? `\u786e\u5b9a\u8981\u5220\u9664\u201c${deleteTarget.name}\u201d\u5417\uff1f\u6b64\u64cd\u4f5c\u4e0d\u80fd\u64a4\u9500\u3002` : `Delete "${deleteTarget.name}"? This action cannot be undone.`}</p>
+            <h2 id="delete-build-title">{l('Delete build?', '删除构筑？', '刪除構築？', '빌드를 삭제할까요?')}</h2>
+            <p>{l(`Delete "${deleteTarget.name}"? This action cannot be undone.`, `确定要删除“${deleteTarget.name}”吗？此操作不能撤销。`, `確定要刪除「${deleteTarget.name}」嗎？此操作無法復原。`, `“${deleteTarget.name}” 빌드를 삭제할까요? 이 작업은 취소할 수 없습니다.`)}</p>
             <footer>
-              <button className="secondary-command" onClick={() => setDeleteTarget(null)}>{zh ? '\u53d6\u6d88' : 'Cancel'}</button>
-              <button className="primary-command danger-command" onClick={() => { deleteBuild(deleteTarget.id); setDeleteTarget(null) }}><Trash2 />{zh ? '\u786e\u8ba4\u5220\u9664' : 'Delete'}</button>
+              <button className="secondary-command" onClick={() => setDeleteTarget(null)}>{l('Cancel', '取消', '取消', '취소')}</button>
+              <button className="primary-command danger-command" onClick={() => { deleteBuild(deleteTarget.id); setDeleteTarget(null) }}><Trash2 />{l('Delete', '确认删除', '確認刪除', '삭제')}</button>
             </footer>
           </section>
         </div>,

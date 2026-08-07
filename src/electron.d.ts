@@ -36,7 +36,7 @@ declare global {
       saveGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
       installGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: false; filePath: string }>
       setUiScale(factor: number): Promise<number>
-      setAppContext(context: { defaultRealm: import('@/types/tree').BuildRealm }): Promise<void>
+      setAppContext(context: { defaultRealm: import('@/types/tree').BuildRealm; language: import('@/i18n/translationLoader').Language }): Promise<void>
       initPobLua(): Promise<{
         available: boolean
         backend: 'luajit' | 'wasmoon'

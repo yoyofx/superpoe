@@ -31,6 +31,8 @@ import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/app
 import { UpdateDialog } from '@/components/UpdateDialog'
 import type { MarketWorkspaceView } from '@/components/market/MarketShell'
 import type { MarketMonitoringSnapshot } from '@/types/market'
+import type { Language } from '@/i18n/translationLoader'
+import { uiText } from '@/i18n/uiLocale'
 
 const TreePixiCanvas = lazy(() => import('@/components/TreePixiCanvas').then((module) => ({ default: module.TreePixiCanvas })))
 const NodeTooltip = lazy(() => import('@/components/NodeTooltip').then((module) => ({ default: module.NodeTooltip })))
@@ -38,16 +40,17 @@ const EquipmentPanel = lazy(() => import('@/components/EquipmentPanel').then((mo
 const SkillsWorkspace = lazy(() => import('@/components/SkillsWorkspace').then((module) => ({ default: module.SkillsWorkspace })))
 const MarketShell = lazy(() => import('@/components/market/MarketShell').then((module) => ({ default: module.MarketShell })))
 
-function WorkspaceLoading({ zh, error }: { zh: boolean; error?: string | null }) {
+function WorkspaceLoading({ language, error }: { language: Language; error?: string | null }) {
   return <section className={`workspace-loading${error ? ' error' : ''}`} role="status">
     {error ? <AlertTriangle /> : <LoaderCircle />}
-    <strong>{error ? (zh ? '天赋树数据加载失败' : 'Passive tree data failed to load') : (zh ? '正在准备构筑编辑器' : 'Preparing build editor')}</strong>
+    <strong>{error ? uiText(language, 'Passive tree data failed to load', '天赋树数据加载失败', '天賦樹資料載入失敗', '패시브 트리 데이터를 불러오지 못했습니다') : uiText(language, 'Preparing build editor', '正在准备构筑编辑器', '正在準備構築編輯器', '빌드 편집기 준비 중')}</strong>
     {error && <small>{error}</small>}
   </section>
 }
 
 export default function App() {
   const { lang } = useTranslation()
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const hashLoadedRef = useRef(false)
   const cleanSignatureRef = useRef('')
   const [screen, setScreen] = useState<'center' | 'utilities' | 'about' | 'library' | 'editor' | 'trade'>('center')
@@ -55,7 +58,7 @@ export default function App() {
   const [marketWorkspace, setMarketWorkspace] = useState<MarketWorkspaceView>('market')
   const [tradeReturnScreen, setTradeReturnScreen] = useState<'center' | 'editor' | 'library'>('center')
   const [monitoring, setMonitoring] = useState<MarketMonitoringSnapshot | null>(null)
-  const [buildName, setBuildName] = useState(lang === 'zh-rCN' ? '未命名构筑' : 'Untitled build')
+  const [buildName, setBuildName] = useState(l('Untitled build', '未命名构筑', '未命名構築', '이름 없는 빌드'))
   const [activeBuildId, setActiveBuildId] = useState<string | null>(null)
   const [buildSource, setBuildSource] = useState<SavedBuild['source']>('local')
   const [buildSourceUrl, setBuildSourceUrl] = useState<string | null>(null)
@@ -191,8 +194,8 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    void window.pob2Desktop?.setAppContext({ defaultRealm: appSettings.defaultRealm })
-  }, [appSettings.defaultRealm])
+    void window.pob2Desktop?.setAppContext({ defaultRealm: appSettings.defaultRealm, language: lang })
+  }, [appSettings.defaultRealm, lang])
 
   useEffect(() => {
     const bridge = window.pob2Market
@@ -337,7 +340,7 @@ export default function App() {
       const diff = compareBuildCodes(build.importedBuildCode || '', result.code)
       if (!diff.hasChanges) {
         setBuildUpdateTarget(null)
-        setSaveNotice({ type: 'success', message: lang === 'zh-rCN' ? '\u6784\u7b51\u5df2\u662f\u6700\u65b0\u7248\u672c' : 'Build is already up to date' })
+        setSaveNotice({ type: 'success', message: l('Build is already up to date', '构筑已是最新版本', '構築已是最新版本', '빌드가 최신 버전입니다') })
         return
       }
       setBuildUpdateCode(result.code)
@@ -388,7 +391,7 @@ export default function App() {
       setActiveView('equipment')
       setScreen('editor')
       window.setTimeout(markClean, 0)
-      setSaveNotice({ type: 'success', message: lang === 'zh-rCN' ? '\u6784\u7b51\u5df2\u66f4\u65b0' : 'Build updated' })
+      setSaveNotice({ type: 'success', message: l('Build updated', '构筑已更新', '構築已更新', '빌드 업데이트됨') })
     } catch (reason) {
       setBuildUpdateError(reason instanceof Error ? reason.message : String(reason))
     } finally {
@@ -426,13 +429,13 @@ export default function App() {
   const handleSave = useCallback(() => {
     setSaveStatus('saving')
     try {
-      const savedId = saveBuild(buildName.trim() || (lang === 'zh-rCN' ? '未命名构筑' : 'Untitled build'), activeBuildId, buildSource, buildSourceUrl)
+      const savedId = saveBuild(buildName.trim() || l('Untitled build', '未命名构筑', '未命名構築', '이름 없는 빌드'), activeBuildId, buildSource, buildSourceUrl)
       setActiveBuildId(savedId)
       markClean()
-      setSaveNotice({ type: 'success', message: lang === 'zh-rCN' ? '构筑已保存' : 'Build saved' })
+      setSaveNotice({ type: 'success', message: l('Build saved', '构筑已保存', '構築已儲存', '빌드 저장됨') })
     } catch {
       setSaveStatus('error')
-      setSaveNotice({ type: 'error', message: lang === 'zh-rCN' ? '保存失败，请检查本地存储空间' : 'Save failed. Check local storage availability.' })
+      setSaveNotice({ type: 'error', message: l('Save failed. Check local storage availability.', '保存失败，请检查本地存储空间', '儲存失敗，請檢查本機儲存空間', '저장 실패. 로컬 저장 공간을 확인하세요.') })
     }
   }, [activeBuildId, buildName, buildSource, buildSourceUrl, lang, markClean, saveBuild])
 
@@ -451,7 +454,7 @@ export default function App() {
     })
     return createSuperPoeBuildFile({
       id,
-      name: buildName.trim() || (lang === 'zh-rCN' ? '未命名构筑' : 'Untitled build'),
+      name: buildName.trim() || l('Untitled build', '未命名构筑', '未命名構築', '이름 없는 빌드'),
       description: existing?.description,
       tags: existing?.tags,
       realm: state.buildRealm,
@@ -472,7 +475,7 @@ export default function App() {
   const handleSaveCopy = useCallback(async () => {
     const bridge = window.pob2Desktop
     if (!bridge?.saveBuildFileCopy) {
-      setSaveNotice({ type: 'error', message: lang === 'zh-rCN' ? '保存构筑文件仅在桌面版可用' : 'Saving build files is available only in the desktop app.' })
+      setSaveNotice({ type: 'error', message: l('Saving build files is available only in the desktop app.', '保存构筑文件仅在桌面版可用', '儲存構築檔案僅限桌面版使用', '빌드 파일 저장은 데스크톱 앱에서만 사용할 수 있습니다.') })
       return
     }
     const previousStatus = saveStatus
@@ -489,7 +492,7 @@ export default function App() {
         setSaveStatus(previousStatus)
         return
       }
-      const savedId = saveBuild(buildName.trim() || (lang === 'zh-rCN' ? '未命名构筑' : 'Untitled build'), id, buildSource, buildSourceUrl, {
+      const savedId = saveBuild(buildName.trim() || l('Untitled build', '未命名构筑', '未命名構築', '이름 없는 빌드'), id, buildSource, buildSourceUrl, {
         description: existing?.description,
         tags: existing?.tags,
         createdAt: existing?.createdAt || timestamp,
@@ -499,7 +502,7 @@ export default function App() {
       })
       setActiveBuildId(savedId)
       markClean()
-      setSaveNotice({ type: 'success', message: lang === 'zh-rCN' ? `构筑副本已保存到 ${result.filePath}` : `Build copy saved to ${result.filePath}` })
+      setSaveNotice({ type: 'success', message: l(`Build copy saved to ${result.filePath}`, `构筑副本已保存到 ${result.filePath}`, `構築副本已儲存至 ${result.filePath}`, `빌드 복사본이 ${result.filePath}에 저장됨`) })
     } catch (reason) {
       setSaveStatus('error')
       setSaveNotice({ type: 'error', message: reason instanceof Error ? reason.message : String(reason) })
@@ -522,7 +525,7 @@ export default function App() {
   const handleOpenNativeBuildFile = useCallback(async () => {
     const bridge = window.pob2Desktop
     if (!bridge?.openBuildFile) {
-      setSaveNotice({ type: 'error', message: lang === 'zh-rCN' ? '打开构筑仅在桌面版可用' : 'Opening builds is available only in the desktop app.' })
+      setSaveNotice({ type: 'error', message: l('Opening builds is available only in the desktop app.', '打开构筑仅在桌面版可用', '開啟構築僅限桌面版使用', '빌드 열기는 데스크톱 앱에서만 사용할 수 있습니다.') })
       return
     }
     try {
@@ -544,7 +547,7 @@ export default function App() {
       await importPobBuildCode(record.pob.code, { allowEmptyTree: true })
       setBuildRealm(record.metadata.realm)
       const copy = mode === 'copy' && conflict
-      const name = copy ? `${record.metadata.name}${lang === 'zh-rCN' ? ' 副本' : ' Copy'}` : record.metadata.name
+      const name = copy ? l(`${record.metadata.name} Copy`, `${record.metadata.name} 副本`, `${record.metadata.name} 副本`, `${record.metadata.name} 복사본`) : record.metadata.name
       const targetId = copy ? null : record.id
       const savedId = saveBuild(name, targetId, record.metadata.source, record.metadata.sourceUrl || null, {
         description: record.metadata.description,
@@ -556,7 +559,7 @@ export default function App() {
       })
       setNativeBuildCandidate(null)
       enterEditor(name, savedId, record.metadata.source, record.metadata.sourceUrl || null)
-      setSaveNotice({ type: 'success', message: lang === 'zh-rCN' ? '构筑文件已加入构筑库' : 'Build file added to the library' })
+      setSaveNotice({ type: 'success', message: l('Build file added to the library', '构筑文件已加入构筑库', '構築檔案已加入構築庫', '빌드 파일이 라이브러리에 추가됨') })
     } catch (reason) {
       setNativeBuildError(reason instanceof Error ? reason.message : String(reason))
     } finally {
@@ -617,7 +620,6 @@ export default function App() {
     ? savedBuilds.find((build) => build.id === nativeBuildCandidate.parsed.envelope.data.id)
     : undefined
   const tradeSuspended = settingsOpen || importOpen || newBuildOpen || leaveConfirmOpen || Boolean(nativeBuildCandidate)
-  const zh = lang === 'zh-rCN'
 
   return (
     <div className={`superpoe-app${screen === 'library' ? ' library-screen' : ''}`}>
@@ -630,11 +632,11 @@ export default function App() {
           : screen === 'library'
             ? <EquipmentLibraryPage realm={appSettings.defaultRealm} onCenter={() => setScreen('center')} onSettings={() => setSettingsOpen(true)} />
         : screen === 'trade'
-          ? <Suspense fallback={<WorkspaceLoading zh={zh} />}><MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onSettings={() => setSettingsOpen(true)} /></Suspense>
+          ? <Suspense fallback={<WorkspaceLoading language={lang} />}><MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onSettings={() => setSettingsOpen(true)} /></Suspense>
           : <>
       <Toolbar activeView={activeView} onViewChange={setActiveView} onTradeCenter={() => { setTradeReturnScreen('editor'); setScreen('trade') }} monitoring={monitoring} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} onSaveCopy={() => void handleSaveCopy()} onSettings={() => setSettingsOpen(true)} />
       <main className="workspace-view">
-        {!treeData ? <WorkspaceLoading zh={zh} error={error} /> : <Suspense fallback={<WorkspaceLoading zh={zh} />}>
+        {!treeData ? <WorkspaceLoading language={lang} error={error} /> : <Suspense fallback={<WorkspaceLoading language={lang} />}>
         {activeView === 'passive' && (
           <section className="passive-workspace">
             <TreePixiCanvas />
@@ -671,7 +673,7 @@ export default function App() {
         onOpenCopy={() => void acceptNativeBuildFile('copy')}
         onReplace={() => void acceptNativeBuildFile('replace')}
       />}
-      {leaveConfirmOpen && <div className="modal-backdrop"><section className="confirm-dialog" role="alertdialog" aria-modal="true"><AlertTriangle /><h2>{lang === 'zh-rCN' ? '离开当前构筑？' : 'Leave current build?'}</h2><p>{lang === 'zh-rCN' ? '当前构筑有未保存修改。离开后仍会保留自动草稿，但不会出现在命名构筑列表中。' : 'This build has unsaved changes. The draft remains locally, but it will not appear as a named build.'}</p><footer><button className="secondary-command" onClick={() => setLeaveConfirmOpen(false)}>{lang === 'zh-rCN' ? '继续编辑' : 'Keep editing'}</button><button className="primary-command" onClick={() => { setLeaveConfirmOpen(false); setScreen('center') }}>{lang === 'zh-rCN' ? '离开' : 'Leave'}</button></footer></section></div>}
+      {leaveConfirmOpen && <div className="modal-backdrop"><section className="confirm-dialog" role="alertdialog" aria-modal="true"><AlertTriangle /><h2>{l('Leave current build?', '离开当前构筑？', '離開目前構築？', '현재 빌드에서 나갈까요?')}</h2><p>{l('This build has unsaved changes. The draft remains locally, but it will not appear as a named build.', '当前构筑有未保存修改。离开后仍会保留自动草稿，但不会出现在命名构筑列表中。', '目前構築有未儲存的修改。離開後仍會保留自動草稿，但不會出現在命名構築清單中。', '이 빌드에 저장하지 않은 변경 사항이 있습니다. 초안은 로컬에 유지되지만 이름이 지정된 빌드 목록에는 표시되지 않습니다.')}</p><footer><button className="secondary-command" onClick={() => setLeaveConfirmOpen(false)}>{l('Keep editing', '继续编辑', '繼續編輯', '계속 편집')}</button><button className="primary-command" onClick={() => { setLeaveConfirmOpen(false); setScreen('center') }}>{l('Leave', '离开', '離開', '나가기')}</button></footer></section></div>}
       {saveNotice && <div className={`save-notice ${saveNotice.type}`} role="status" aria-live="polite">
         {saveNotice.type === 'success' ? <CheckCircle2 /> : <XCircle />}
         <span>{saveNotice.message}</span>
