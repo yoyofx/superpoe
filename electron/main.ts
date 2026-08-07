@@ -10,14 +10,18 @@ import { requestPoeNinjaBuild } from './poeNinjaClient.js'
 import { setupAutoUpdater } from './updater.js'
 import type { UpdateChannel } from './updater.js'
 import { PobLuaService } from './pobLuaService.js'
+import { canonicalToLegacySnapshot, PobItemBridge } from './pobItemBridge.js'
+import { ItemTranslationIndex } from './itemTranslationIndex.js'
+import { ItemIconIndex } from './itemIconIndex.js'
 import { MarketViewManager, type MarketNavigationCommand, type MarketRealm } from './marketView.js'
 import { TradeCredentialStore } from './tradeCredentialStore.js'
 import { EquipmentLibraryRepository, equipmentSourceKey, pobSourceKey } from './equipmentLibraryRepository.js'
 import { normalizeMarketListing } from './marketListing.js'
 import type {
   EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
-  EquipmentLibraryMetadataPatch, EquipmentTradeSearchRequest, LibraryItemSnapshot, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
-  MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch,
+  EquipmentLibraryMetadataPatch, EquipmentLibrarySource, EquipmentTradeSearchRequest, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
+  MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch, TradePriceCheckCriteria, TradePriceCheckPrepareRequest,
+  TradePriceCheckSearchRequest,
 } from '../src/types/market.js'
 import { OfficialTradeProvider, TradeReferenceDataCache } from './tradeService.js'
 import { GameWindowService } from './gameWindowService.js'
@@ -245,7 +249,10 @@ let currencyMarketService: CurrencyMarketService | null = null
 let defaultRealm: MarketRealm = 'global'
 const pendingNativeBuildPaths: string[] = []
 const tradeCredentialStore = new TradeCredentialStore(path.join(userDataPath, 'trade', 'credentials.v1.json'))
-const equipmentLibrary = new EquipmentLibraryRepository(path.join(userDataPath, 'library', 'equipment-library.v1.json'))
+const equipmentLibrary = new EquipmentLibraryRepository(
+  path.join(userDataPath, 'library', 'equipment-library.v2.json'),
+  path.join(userDataPath, 'library', 'equipment-library.v1.json'),
+)
 const favoriteOperations = new Map<string, Promise<void>>()
 
 function collectNativeBuildPaths(args: string[]): string[] {
@@ -304,6 +311,40 @@ function notifyLibraryChanged(): void {
 function validateShortString(value: unknown, name: string, max = 256): string {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(`Invalid ${name}`)
   return value.trim()
+}
+
+function validateOptionalNumber(value: unknown, name: string): number | undefined {
+  if (value == null || value === '') return undefined
+  if (typeof value !== 'number' || !Number.isFinite(value) || Math.abs(value) > 1_000_000_000_000) throw new Error(`Invalid ${name}`)
+  return value
+}
+
+function validatePriceCheckCriteria(value: unknown): TradePriceCheckCriteria {
+  if (!value || typeof value !== 'object') throw new Error('Invalid price check criteria')
+  const input = value as Partial<TradePriceCheckCriteria>
+  if (!['securable', 'available', 'online', 'any'].includes(String(input.listedStatus))) throw new Error('Invalid listed status')
+  if (typeof input.useBaseType !== 'boolean' || !Array.isArray(input.modifiers) || input.modifiers.length > 128) {
+    throw new Error('Invalid price check criteria')
+  }
+  const modifiers = input.modifiers.map((candidate) => {
+    if (!candidate || typeof candidate !== 'object') throw new Error('Invalid price check modifier')
+    const id = validateShortString(candidate.id, 'price check modifier ID', 128)
+    const min = validateOptionalNumber(candidate.min, 'modifier minimum')
+    const max = validateOptionalNumber(candidate.max, 'modifier maximum')
+    if (min != null && max != null && min > max) throw new Error('Modifier minimum cannot exceed maximum')
+    return { id, ...(min == null ? {} : { min }), ...(max == null ? {} : { max }) }
+  })
+  if (new Set(modifiers.map((modifier) => modifier.id)).size !== modifiers.length) throw new Error('Duplicate price check modifier')
+  const itemLevelMin = validateOptionalNumber(input.itemLevelMin, 'item level minimum')
+  const itemLevelMax = validateOptionalNumber(input.itemLevelMax, 'item level maximum')
+  if (itemLevelMin != null && itemLevelMax != null && itemLevelMin > itemLevelMax) throw new Error('Item level minimum cannot exceed maximum')
+  return {
+    listedStatus: input.listedStatus!,
+    useBaseType: input.useBaseType,
+    ...(itemLevelMin == null ? {} : { itemLevelMin }),
+    ...(itemLevelMax == null ? {} : { itemLevelMax }),
+    modifiers,
+  }
 }
 
 function validateListingRef(value: unknown, senderRealm: MarketRealm): MarketDomListingRef {
@@ -475,8 +516,45 @@ function createWindow(): BrowserWindow {
 let updateChannel: UpdateChannel = 'release'
 let updateCheckIntervalMinutes = 60
 const pobLuaService = new PobLuaService()
+const pobItemBridge = new PobItemBridge(pobLuaService)
+const itemTranslations = new ItemTranslationIndex()
+const itemIcons = new ItemIconIndex()
 
-if (hasSingleInstanceLock) void app.whenReady().then(() => {
+async function priceCheckSnapshot(request: TradePriceCheckPrepareRequest) {
+  const target = request.target
+  if (!target || typeof target !== 'object') throw new Error('Invalid price check target')
+  if (target.kind === 'library') {
+    const entry = equipmentLibrary.get(validateShortString(target.entryId, 'library entry ID', 128))
+    if (!entry) throw new Error('Equipment library entry not found')
+    const normalized = await pobItemBridge.normalize(entry.item.raw)
+    return canonicalToLegacySnapshot(normalized, {
+      ...normalized.view,
+      iconUrl: entry.view.iconUrl,
+      localized: entry.view.localized,
+      modifiers: normalized.view.modifiers.map((modifier, index) => ({
+        ...modifier,
+        localized: entry.view.modifiers[index]?.localized,
+      })),
+    }, request.realm)
+  }
+  if (target.kind !== 'raw' || typeof target.raw !== 'string' || !target.raw.trim() || target.raw.length > 100_000) {
+    throw new Error('Invalid PoB item raw')
+  }
+  const normalized = await pobItemBridge.normalize(target.raw)
+  const name = itemTranslations.toChinese(normalized.view.name)
+  const baseType = itemTranslations.toChinese(normalized.view.baseType)
+  const modifiers = normalized.view.modifiers.map((modifier) => {
+    const localized = itemTranslations.statToChinese(modifier.text)
+    return { ...modifier, ...(localized ? { localized: { 'zh-CN': localized } } : {}) }
+  })
+  return canonicalToLegacySnapshot(normalized, {
+    ...normalized.view,
+    modifiers,
+    ...((name || baseType) ? { localized: { 'zh-CN': { name: name || normalized.view.name, baseType: baseType || normalized.view.baseType } } } : {}),
+  }, request.realm)
+}
+
+if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
   powerMonitor.on('resume', () => marketMonitoring?.refreshTargets())
 
@@ -728,8 +806,21 @@ if (hasSingleInstanceLock) void app.whenReady().then(() => {
         }
         if (!marketViewManager) throw new Error('Market browser is unavailable')
         const payload = await marketViewManager.fetchListing(ref)
-        const normalized = normalizeMarketListing(payload, ref)
-        equipmentLibrary.upsert(normalized.item, normalized.source)
+        const imported = normalizeMarketListing(
+          payload,
+          ref,
+          (text) => itemTranslations.toEnglish(text),
+          (text) => itemTranslations.statToEnglish(text),
+        )
+        const normalized = await pobItemBridge.normalize(imported.item.raw)
+        normalized.view.iconUrl = imported.item.iconUrl
+        normalized.view.localized = imported.item.localized
+        if (imported.source.display?.locale && imported.source.display.locale !== 'en') {
+          imported.source.display.modifiers?.forEach((text, index) => {
+            if (normalized.view.modifiers[index]) normalized.view.modifiers[index].localized = { [imported.source.display!.locale]: text }
+          })
+        }
+        equipmentLibrary.upsert(normalized, imported.source)
         notifyLibraryChanged()
         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('market:sidebar-request', 'items')
         if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:favorite-result', { requestId, listingId: ref.listingId, active: true })
@@ -944,14 +1035,15 @@ if (hasSingleInstanceLock) void app.whenReady().then(() => {
     }
     return { kind: source.kind }
   })
-  ipcMain.handle('market:save-equipment-item', (event, value: unknown) => {
+  ipcMain.handle('market:save-equipment-item', async (event, value: unknown) => {
     requireMainWindowSender(event)
     if (!value || typeof value !== 'object' || JSON.stringify(value).length > 500_000) {
       throw new Error('Invalid equipment library item')
     }
     const input = value as EquipmentLibraryItemInput
+    if (typeof input.raw !== 'string' || !input.raw.trim()) throw new Error('Invalid PoB item raw')
     const now = new Date().toISOString()
-    let source
+    let source: EquipmentLibrarySource
     if (input.source?.kind === 'equipment-favorite') {
       const buildId = validateShortString(input.source.buildId, 'build ID', 128)
       const equipmentSetId = validateShortString(input.source.equipmentSetId, 'equipment set ID', 128)
@@ -966,7 +1058,32 @@ if (hasSingleInstanceLock) void app.whenReady().then(() => {
     } else {
       throw new Error('Invalid equipment library source')
     }
-    const entry = equipmentLibrary.upsert(input.item, source)
+    const normalized = await pobItemBridge.normalize(input.raw)
+    normalized.view.iconUrl = input.iconUrl || itemIcons.resolve(normalized.view.rarity, normalized.view.name, normalized.view.baseType)
+    let localized = input.localized
+    let localizedModifiers: string[] | undefined
+    if (input.source?.kind === 'manual' && !localized) {
+      const localizedName = itemTranslations.toChinese(normalized.view.name)
+      const localizedBaseType = itemTranslations.toChinese(normalized.view.baseType)
+      if (localizedName || localizedBaseType) {
+        localized = { 'zh-CN': { name: localizedName || normalized.view.name, baseType: localizedBaseType || normalized.view.baseType } }
+      }
+      localizedModifiers = normalized.view.modifiers.map((modifier) => itemTranslations.statToChinese(modifier.text) || modifier.text)
+      normalized.view.modifiers.forEach((modifier, index) => {
+        if (localizedModifiers?.[index] !== modifier.text) modifier.localized = { 'zh-CN': localizedModifiers![index] }
+      })
+    }
+    normalized.view.localized = localized
+    const displayLocale = localized && Object.keys(localized)[0] as keyof NonNullable<typeof localized> | undefined
+    const localizedDisplay = displayLocale ? localized?.[displayLocale] : undefined
+    source.display = {
+      locale: displayLocale || 'en',
+      name: localizedDisplay?.name || normalized.view.name,
+      baseType: localizedDisplay?.baseType || normalized.view.baseType,
+      iconUrl: normalized.view.iconUrl,
+      ...(localizedModifiers ? { modifiers: localizedModifiers } : {}),
+    }
+    const entry = equipmentLibrary.upsert(normalized, source)
     notifyLibraryChanged()
     return entry
   })
@@ -977,12 +1094,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(() => {
     }
     const input = value as Partial<EquipmentTradeSearchRequest>
     if (input.realm !== 'cn' && input.realm !== 'global') throw new Error('Invalid market realm')
-    if (!input.item || typeof input.item !== 'object') throw new Error('Invalid equipment item')
-    const item = input.item as LibraryItemSnapshot
-    if (typeof item.rarity !== 'string' || typeof item.name !== 'string' || typeof item.baseType !== 'string'
-      || !Array.isArray(item.modifiers) || item.modifiers.length > 128) {
-      throw new Error('Invalid equipment item')
-    }
+    if (typeof input.raw !== 'string' || !input.raw.trim()) throw new Error('Invalid PoB item raw')
     if (!tradeProvider || !marketViewManager) throw new Error('Trade provider is unavailable')
     const requestedLeague = typeof input.leagueId === 'string' && input.leagueId.trim()
       ? validateShortString(input.leagueId, 'trade league', 128)
@@ -990,7 +1102,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(() => {
     const leagueId = requestedLeague || (await tradeProvider.leagues(input.realm))[0]?.id
     if (!leagueId) throw new Error('No active trade league is available')
     try {
-      const result = await tradeProvider.search(input.realm, leagueId, item)
+      const normalized = await pobItemBridge.normalize(input.raw)
+      const criteria = input.criteria == null ? undefined : validatePriceCheckCriteria(input.criteria)
+      const result = await tradeProvider.search(input.realm, leagueId, canonicalToLegacySnapshot(normalized, normalized.view, input.realm), criteria)
       marketViewManager.openSource(input.realm, result.url)
       const { resolvedItem: _resolvedItem, ...response } = result
       return response
@@ -1010,9 +1124,10 @@ if (hasSingleInstanceLock) void app.whenReady().then(() => {
     const leagueId = validateShortString(input.leagueId, 'trade league', 128)
     if (!tradeProvider || !marketViewManager) throw new Error('Trade provider is unavailable')
     try {
-      const result = await tradeProvider.search(realm, leagueId, entry.item)
-      equipmentLibrary.updateItem(entry.id, result.resolvedItem, { touchUpdatedAt: false })
-      notifyLibraryChanged()
+      const normalized = await pobItemBridge.normalize(entry.item.raw)
+      const legacyItem = canonicalToLegacySnapshot(normalized, { ...normalized.view, iconUrl: entry.view.iconUrl, localized: entry.view.localized }, realm)
+      const criteria = (input as { criteria?: unknown }).criteria == null ? undefined : validatePriceCheckCriteria((input as { criteria?: unknown }).criteria)
+      const result = await tradeProvider.search(realm, leagueId, legacyItem, criteria)
       marketViewManager.openSource(realm, result.url)
       const { resolvedItem: _resolvedItem, ...response } = result
       return response
@@ -1020,6 +1135,29 @@ if (hasSingleInstanceLock) void app.whenReady().then(() => {
       console.error(`[Market search] library failed realm=${realm} league=${leagueId} entry=${entry.id}`, error)
       throw error
     }
+  })
+  ipcMain.handle('market:prepare-price-check', async (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object' || JSON.stringify(value).length > 500_000) throw new Error('Invalid price check request')
+    const input = value as Partial<TradePriceCheckPrepareRequest>
+    if (input.realm !== 'cn' && input.realm !== 'global') throw new Error('Invalid market realm')
+    if (!tradeProvider) throw new Error('Trade provider is unavailable')
+    const item = await priceCheckSnapshot(input as TradePriceCheckPrepareRequest)
+    return (await tradeProvider.prepare(input.realm, item)).draft
+  })
+  ipcMain.handle('market:run-price-check', async (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object' || JSON.stringify(value).length > 500_000) throw new Error('Invalid price check request')
+    const input = value as Partial<TradePriceCheckSearchRequest>
+    if (input.realm !== 'cn' && input.realm !== 'global') throw new Error('Invalid market realm')
+    if (!tradeProvider || !marketViewManager) throw new Error('Trade provider is unavailable')
+    const leagueId = validateShortString(input.leagueId, 'trade league', 128)
+    const criteria = validatePriceCheckCriteria(input.criteria)
+    const item = await priceCheckSnapshot(input as TradePriceCheckSearchRequest)
+    const result = await tradeProvider.search(input.realm, leagueId, item, criteria)
+    marketViewManager.openSource(input.realm, result.url)
+    const { resolvedItem: _resolvedItem, ...response } = result
+    return response
   })
   ipcMain.handle('market:list-leagues', async (event, value: unknown) => {
     requireMainWindowSender(event)
@@ -1101,7 +1239,31 @@ if (hasSingleInstanceLock) void app.whenReady().then(() => {
 
   // Warm the native engine without delaying the first window. Missing native
   // resources are expected in browser-only development and use Wasmoon.
-  void pobLuaService.initialize()
+  await pobLuaService.initialize()
+  try {
+    const migration = await equipmentLibrary.migrateLegacy(pobItemBridge)
+    if (migration.migrated || migration.unresolved) {
+      console.info(`[Equipment library] v1 migration: ${migration.migrated} migrated, ${migration.unresolved} unresolved`)
+    }
+  } catch (error) {
+    console.error('[Equipment library] v1 migration failed; original file was left unchanged', error)
+  }
+  try {
+    const repaired = await equipmentLibrary.repairCorruptedMarketTitles(pobItemBridge, (text) => itemTranslations.toEnglish(text))
+    if (repaired) console.info(`[Equipment library] repaired ${repaired} corrupted localized item title(s)`)
+  } catch (error) {
+    console.error('[Equipment library] localized item title repair failed; original entries were left unchanged', error)
+  }
+  try {
+    const enriched = equipmentLibrary.enrichManualPresentation(
+      (text) => itemTranslations.toChinese(text),
+      (text) => itemTranslations.statToChinese(text),
+      (rarity, name, baseType) => itemIcons.resolve(rarity, name, baseType),
+    )
+    if (enriched) console.info(`[Equipment library] enriched ${enriched} custom item presentation(s)`)
+  } catch (error) {
+    console.error('[Equipment library] custom item presentation enrichment failed; canonical items were left unchanged', error)
+  }
   createWindow()
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

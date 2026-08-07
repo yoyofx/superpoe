@@ -2,6 +2,7 @@ import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMem
 import { createPortal } from 'react-dom'
 import { Bookmark, Check, ChevronDown, ChevronRight, Clipboard, PackageOpen, PanelRightOpen, Search, Upload, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
+import { PriceCheckDialog } from '@/components/market/PriceCheckDialog'
 import { decodeCodeToXml } from '@/engine/buildCode'
 import {
   type EquipmentAffixCategory,
@@ -26,7 +27,6 @@ import type { EquipmentItem, EquipmentSet, EquipmentSlot } from '@/types/equipme
 import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
 import type { CalcResult } from '@/types/calc'
 import { inspectEquipment } from '@/engine/pobLuaClient'
-import { equipmentItemToLibrarySnapshot } from '@/engine/equipmentLibrary'
 import {
   fitPaperDoll,
   getActivePaperDollSlots,
@@ -549,12 +549,10 @@ function SocketedRunes({
   )
 }
 
-function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketedItems, onSave, onFindSimilar, onClose }: { item: EquipmentItem; base?: ItemBaseData; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; onSave: () => Promise<void>; onFindSimilar: () => Promise<void>; onClose: () => void }) {
+function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketedItems, onSave, onPriceCheck, onClose }: { item: EquipmentItem; base?: ItemBaseData; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; onSave: () => Promise<void>; onPriceCheck: () => void; onClose: () => void }) {
   const { t, lang } = useTranslation()
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
-  const [similarState, setSimilarState] = useState<'idle' | 'searching' | 'error'>('idle')
-  const [similarError, setSimilarError] = useState('')
   useTreeStore((state) => state.translationRevision)
   const translateItemText = (value: string) => translateGameText(value.replace(/\{[^}]+\}/g, ''), lang)
   const rarityClass = RARITY_CLASS[item.rarity] || RARITY_CLASS.NORMAL
@@ -589,8 +587,6 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
   useEffect(() => {
     setCopyState('idle')
     setSaveState('idle')
-    setSimilarState('idle')
-    setSimilarError('')
   }, [item.id])
 
   return (
@@ -618,21 +614,12 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
         </button>
         <button
           type="button"
-          className={`equipment-copy-pob${similarState === 'error' ? ' copy-error' : ''}`}
-          disabled={similarState === 'searching'}
-          onClick={() => {
-            setSimilarState('searching')
-            setSimilarError('')
-            void onFindSimilar().then(() => setSimilarState('idle')).catch((error: unknown) => {
-              setSimilarError(error instanceof Error ? error.message : String(error))
-              setSimilarState('error')
-              window.setTimeout(() => setSimilarState('idle'), 3000)
-            })
-          }}
-          title={similarError || (lang === 'zh-rCN' ? '在集市找相似装备' : 'Find similar items on the market')}
+          className="equipment-copy-pob"
+          onClick={onPriceCheck}
+          title={lang === 'zh-rCN' ? '选择词条并查价' : 'Configure price check'}
         >
           <Search />
-          <span>{lang === 'zh-rCN' ? (similarState === 'searching' ? '正在查找...' : similarState === 'error' ? '查找失败' : '集市找相似') : (similarState === 'searching' ? 'Searching...' : similarState === 'error' ? 'Search failed' : 'Find similar')}</span>
+          <span>{lang === 'zh-rCN' ? '查价' : 'Price check'}</span>
         </button>
         <button
           type="button"
@@ -799,6 +786,7 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
   const [inspectorOpen, setInspectorOpen] = useState(false)
+  const [priceCheckRaw, setPriceCheckRaw] = useState<string | null>(null)
   const [paperDollBackgroundAvailable, setPaperDollBackgroundAvailable] = useState(true)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<EquipmentAffixGroup>>(new Set())
   const [expandedAffixes, setExpandedAffixes] = useState<Set<string>>(new Set())
@@ -894,31 +882,15 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
     const iconUrl = resolveItemIcon(item, itemIconIndex)
     const libraryLocale = lang === 'zh-rCN' ? 'zh-CN' : lang === 'zh-rTW' ? 'zh-TW' : lang === 'ko-KR' ? 'ko-KR' : undefined
     await window.pob2Market.saveEquipmentItem({
-      item: equipmentItemToLibrarySnapshot(item, iconUrl, libraryLocale ? {
-        locale: libraryLocale,
+      raw: item.raw,
+      iconUrl,
+      ...(libraryLocale ? { localized: { [libraryLocale]: {
         name: translateItemName(item.name || item.baseType, item.rarity, lang),
         baseType: translateGameText(item.baseType || item.name, lang),
-        translate: (text) => translateGameText(text, lang),
-      } : undefined),
+      } } } : {}),
       source: { kind: 'equipment-favorite', buildId: libraryBuildId, equipmentSetId: activeSet.id, itemId: item.id, slotName },
     })
   }, [activeSet, itemIconIndex, lang, libraryBuildId])
-
-  const findSimilarItem = useCallback(async (item: EquipmentItem) => {
-    if (!window.pob2Market) throw new Error('Market search is unavailable')
-    const iconUrl = resolveItemIcon(item, itemIconIndex)
-    const libraryLocale = lang === 'zh-rCN' ? 'zh-CN' : lang === 'zh-rTW' ? 'zh-TW' : lang === 'ko-KR' ? 'ko-KR' : undefined
-    await window.pob2Market.searchEquipmentItem({
-      realm,
-      item: equipmentItemToLibrarySnapshot(item, iconUrl, libraryLocale ? {
-        locale: libraryLocale,
-        name: translateItemName(item.name || item.baseType, item.rarity, lang),
-        baseType: translateGameText(item.baseType || item.name, lang),
-        translate: (text) => translateGameText(text, lang),
-      } : undefined),
-    })
-    window.dispatchEvent(new Event('open-market-panel'))
-  }, [itemIconIndex, lang, realm])
 
   useEffect(() => {
     let cancelled = false
@@ -1108,8 +1080,14 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
         slotName={selectedSlotName}
         socketedItems={selectedSlotName ? socketedItemsForSlot(selectedSlotName) : []}
         onSave={() => saveItem(selected, selectedSlotName)}
-        onFindSimilar={() => findSimilarItem(selected)}
+        onPriceCheck={() => setPriceCheckRaw(selected.raw)}
         onClose={() => setInspectorOpen(false)}
+      />}
+      {priceCheckRaw && <PriceCheckDialog
+        realm={realm}
+        target={{ kind: 'raw', raw: priceCheckRaw }}
+        zh={lang === 'zh-rCN'}
+        onClose={() => setPriceCheckRaw(null)}
       />}
     </section>
   )

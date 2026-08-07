@@ -49,6 +49,8 @@ contextBridge.exposeInMainWorld('pob2Market', {
   saveEquipmentItem: (input: import('../src/types/market.js').EquipmentLibraryItemInput) => ipcRenderer.invoke('market:save-equipment-item', input) as Promise<import('../src/types/market.js').EquipmentLibraryEntry>,
   searchEquipmentItem: (input: import('../src/types/market.js').EquipmentTradeSearchRequest) => ipcRenderer.invoke('market:search-equipment', input) as Promise<import('../src/types/market.js').TradeSearchResult>,
   searchLibrary: (input: import('../src/types/market.js').TradeSearchRequest) => ipcRenderer.invoke('market:search-library', input) as Promise<import('../src/types/market.js').TradeSearchResult>,
+  preparePriceCheck: (input: import('../src/types/market.js').TradePriceCheckPrepareRequest) => ipcRenderer.invoke('market:prepare-price-check', input) as Promise<import('../src/types/market.js').TradePriceCheckDraft>,
+  runPriceCheck: (input: import('../src/types/market.js').TradePriceCheckSearchRequest) => ipcRenderer.invoke('market:run-price-check', input) as Promise<import('../src/types/market.js').TradeSearchResult>,
   listLeagues: (realm: import('../src/types/market.js').MarketRealm) => ipcRenderer.invoke('market:list-leagues', realm) as Promise<import('../src/types/market.js').TradeLeague[]>,
   getMonitoring: () => ipcRenderer.invoke('market:get-monitoring') as Promise<import('../src/types/market.js').MarketMonitoringSnapshot>,
   createMonitorTarget: (searchId: string, priority?: import('../src/types/market.js').MonitorTaskPriority) => ipcRenderer.invoke('market:create-monitor-target', { searchId, priority }) as Promise<import('../src/types/market.js').PurchaseTarget>,

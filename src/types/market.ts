@@ -106,7 +106,42 @@ export interface LibraryItemSnapshot {
   iconUrl?: string
   rawText?: string
   localized?: Partial<Record<LibraryTextLocale, { name: string; baseType: string }>>
+  tradeCategory?: string
   modifiers: LibraryModifier[]
+}
+
+export interface CanonicalEquipmentItem {
+  format: 'pob2-item'
+  raw: string
+  pobVersion?: string
+  gameDataVersion?: string
+}
+
+export interface CanonicalItemModifierView {
+  id: string
+  displayOrder: number
+  group: LibraryModifierGroup
+  sourceTags: LibraryModifierTag[]
+  text: string
+  localized?: Partial<Record<LibraryTextLocale, string>>
+  tradeStatIds: string[]
+  tradeValue?: number
+  tradeValueNegated?: boolean
+}
+
+export interface CanonicalItemView {
+  rarity: string
+  name: string
+  baseType: string
+  itemLevel?: number
+  quality?: number
+  sockets?: string
+  corrupted?: boolean
+  identified?: boolean
+  iconUrl?: string
+  localized?: Partial<Record<LibraryTextLocale, { name: string; baseType: string }>>
+  tradeCategory?: string
+  modifiers: CanonicalItemModifierView[]
 }
 
 export interface MarketPriceSnapshot {
@@ -119,6 +154,13 @@ interface EquipmentLibrarySourceBase {
   sourceKey: string
   capturedAt: string
   updatedAt: string
+  display?: {
+    locale: LibraryTextLocale
+    name: string
+    baseType: string
+    iconUrl?: string
+    modifiers?: string[]
+  }
 }
 
 export interface MarketFavoriteSource extends EquipmentLibrarySourceBase {
@@ -161,10 +203,11 @@ export type EquipmentLibrarySource = MarketFavoriteSource | PobImportSource | Eq
 export type EquipmentLibrarySourceKind = EquipmentLibrarySource['kind']
 
 export interface EquipmentLibraryEntry {
-  schemaVersion: 1
+  schemaVersion: 2
   id: string
   fingerprint: string
-  item: LibraryItemSnapshot
+  item: CanonicalEquipmentItem
+  view: CanonicalItemView
   sources: EquipmentLibrarySource[]
   folderId?: string
   folder?: string
@@ -395,7 +438,9 @@ export type MarketVisitHideoutResult =
   | { ok: false; reason: 'game-offline' }
 
 export interface EquipmentLibraryItemInput {
-  item: LibraryItemSnapshot
+  raw: string
+  iconUrl?: string
+  localized?: Partial<Record<LibraryTextLocale, { name: string; baseType: string }>>
   source: Omit<PobImportSource, 'sourceKey' | 'capturedAt' | 'updatedAt'> | Omit<EquipmentFavoriteSource, 'sourceKey' | 'capturedAt' | 'updatedAt'> | Omit<ManualSource, 'sourceKey' | 'capturedAt' | 'updatedAt'>
 }
 
@@ -408,12 +453,66 @@ export interface TradeSearchRequest {
   entryId: string
   realm: MarketRealm
   leagueId: string
+  criteria?: TradePriceCheckCriteria
 }
 
 export interface EquipmentTradeSearchRequest {
-  item: LibraryItemSnapshot
+  raw: string
   realm: MarketRealm
   leagueId?: string
+  criteria?: TradePriceCheckCriteria
+}
+
+export type TradeListedStatus = 'securable' | 'available' | 'online' | 'any'
+
+export type TradePriceCheckTarget =
+  | { kind: 'library'; entryId: string }
+  | { kind: 'raw'; raw: string }
+
+export interface TradePriceCheckPrepareRequest {
+  realm: MarketRealm
+  target: TradePriceCheckTarget
+}
+
+export interface TradePriceCheckModifier {
+  id: string
+  group: LibraryModifierGroup
+  lines: string[]
+  localizedLines?: string[]
+  searchable: boolean
+  valueMode: 'numeric' | 'presence' | 'fixed-option'
+  currentValue?: number
+}
+
+export interface TradePriceCheckDraft {
+  realm: MarketRealm
+  rarity: string
+  name: string
+  baseType: string
+  localizedName?: string
+  localizedBaseType?: string
+  unique: boolean
+  itemLevel?: number
+  modifiers: TradePriceCheckModifier[]
+}
+
+export interface TradePriceCheckModifierCriteria {
+  id: string
+  min?: number
+  max?: number
+}
+
+export interface TradePriceCheckCriteria {
+  listedStatus: TradeListedStatus
+  useBaseType: boolean
+  itemLevelMin?: number
+  itemLevelMax?: number
+  modifiers: TradePriceCheckModifierCriteria[]
+}
+
+export interface TradePriceCheckSearchRequest extends TradePriceCheckPrepareRequest {
+  leagueId: string
+  criteria: TradePriceCheckCriteria
 }
 
 export interface TradeLeague {

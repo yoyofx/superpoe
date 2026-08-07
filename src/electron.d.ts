@@ -75,6 +75,8 @@ declare global {
       saveEquipmentItem(input: import('@/types/market').EquipmentLibraryItemInput): Promise<import('@/types/market').EquipmentLibraryEntry>
       searchEquipmentItem(input: import('@/types/market').EquipmentTradeSearchRequest): Promise<import('@/types/market').TradeSearchResult>
       searchLibrary(input: import('@/types/market').TradeSearchRequest): Promise<import('@/types/market').TradeSearchResult>
+      preparePriceCheck(input: import('@/types/market').TradePriceCheckPrepareRequest): Promise<import('@/types/market').TradePriceCheckDraft>
+      runPriceCheck(input: import('@/types/market').TradePriceCheckSearchRequest): Promise<import('@/types/market').TradeSearchResult>
       listLeagues(realm: import('@/types/market').MarketRealm): Promise<import('@/types/market').TradeLeague[]>
       getMonitoring(): Promise<import('@/types/market').MarketMonitoringSnapshot>
       createMonitorTarget(searchId: string, priority?: import('@/types/market').MonitorTaskPriority): Promise<import('@/types/market').PurchaseTarget>

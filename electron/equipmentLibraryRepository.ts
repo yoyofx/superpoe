@@ -10,6 +10,8 @@ import type {
   EquipmentLibraryMetadataPatch,
   EquipmentLibrarySidebarSnapshot,
   EquipmentLibrarySource,
+  CanonicalEquipmentItem,
+  CanonicalItemView,
   LibraryItemSnapshot,
   LibraryTreeScope,
   MarketFavoriteState,
@@ -18,15 +20,32 @@ import type {
   SavedMarketSearchRecordInput,
   SavedMarketSearchPatch,
 } from '../src/types/market.js'
+import type { NormalizedPobItem, PobItemBridge } from './pobItemBridge.js'
 import { createSearchQuerySnapshot, parseOfficialSearchUrl, withSearchSnapshot } from './marketSearch.js'
 
 interface EquipmentLibraryFile {
-  schemaVersion: 1 | 2
-  entries: EquipmentLibraryEntry[]
+  schemaVersion: 2
+  entries: PersistedEquipmentLibraryEntry[]
+  unresolvedLegacyEntries?: unknown[]
   folders?: EquipmentLibraryFolder[]
   searches?: SavedMarketSearch[]
   selectedFolders?: Partial<Record<LibraryTreeScope, string>>
   updatedAt: string
+}
+
+type PersistedEquipmentLibraryEntry = Omit<EquipmentLibraryEntry, 'view'>
+
+interface LegacyEquipmentLibraryFile {
+  schemaVersion: 1
+  entries: LegacyEquipmentLibraryEntry[]
+  folders?: EquipmentLibraryFolder[]
+  searches?: SavedMarketSearch[]
+  selectedFolders?: Partial<Record<LibraryTreeScope, string>>
+}
+
+type LegacyEquipmentLibraryEntry = Omit<EquipmentLibraryEntry, 'schemaVersion' | 'item' | 'view'> & {
+  schemaVersion: 1
+  item: LibraryItemSnapshot
 }
 
 const MAX_ENTRIES = 5_000
@@ -49,28 +68,8 @@ function normalizeTags(tags: string[] | undefined): string[] {
   return [...new Set(tags.map((tag) => normalizeText(tag, MAX_TAG_LENGTH)).filter((tag): tag is string => !!tag))].slice(0, MAX_TAGS)
 }
 
-function fingerprintPayload(item: LibraryItemSnapshot): unknown {
-  return {
-    rarity: item.rarity.trim().toUpperCase(),
-    name: item.name.trim(),
-    baseType: item.baseType.trim(),
-    itemLevel: item.itemLevel,
-    quality: item.quality,
-    sockets: item.sockets?.trim(),
-    corrupted: !!item.corrupted,
-    identified: item.identified !== false,
-    modifiers: item.modifiers.map((modifier) => ({
-      group: modifier.group,
-      sourceTags: [...modifier.sourceTags].sort(),
-      affixKind: modifier.affixKind,
-      text: modifier.original.lines.map((line) => line.trim()),
-      values: modifier.currentValues,
-    })),
-  }
-}
-
-export function fingerprintLibraryItem(item: LibraryItemSnapshot): string {
-  return createHash('sha256').update(JSON.stringify(fingerprintPayload(item))).digest('hex')
+export function fingerprintLibraryItem(item: CanonicalEquipmentItem): string {
+  return createHash('sha256').update(item.raw.replace(/\r\n/g, '\n').trim()).digest('hex')
 }
 
 export function marketSourceKey(realm: MarketRealm, listingId: string): string {
@@ -85,7 +84,7 @@ export function pobSourceKey(buildId: string, pobItemId: string): string {
   return `pob:${buildId}:${pobItemId}`
 }
 
-function isLibraryItem(value: unknown): value is LibraryItemSnapshot {
+function isLegacyLibraryItem(value: unknown): value is LibraryItemSnapshot {
   if (!value || typeof value !== 'object') return false
   const item = value as Partial<LibraryItemSnapshot>
   return typeof item.rarity === 'string'
@@ -95,13 +94,13 @@ function isLibraryItem(value: unknown): value is LibraryItemSnapshot {
     && item.modifiers.length <= 128
 }
 
-function isLibraryEntry(value: unknown): value is EquipmentLibraryEntry {
+function isLegacyLibraryEntry(value: unknown): value is LegacyEquipmentLibraryEntry {
   if (!value || typeof value !== 'object') return false
-  const entry = value as Partial<EquipmentLibraryEntry>
+  const entry = value as Partial<LegacyEquipmentLibraryEntry>
   return entry.schemaVersion === 1
     && typeof entry.id === 'string'
     && typeof entry.fingerprint === 'string'
-    && isLibraryItem(entry.item)
+    && isLegacyLibraryItem(entry.item)
     && Array.isArray(entry.sources)
     && Array.isArray(entry.tags)
     && typeof entry.archived === 'boolean'
@@ -109,13 +108,76 @@ function isLibraryEntry(value: unknown): value is EquipmentLibraryEntry {
     && typeof entry.updatedAt === 'string'
 }
 
+function isCanonicalItem(value: unknown): value is CanonicalEquipmentItem {
+  const item = value as Partial<CanonicalEquipmentItem> | null
+  return !!item && item.format === 'pob2-item' && typeof item.raw === 'string' && item.raw.length > 0 && item.raw.length <= MAX_TEXT
+}
+
+function deriveItemView(item: CanonicalEquipmentItem): CanonicalItemView {
+  const lines = item.raw.split(/\r?\n/).map((line) => line.trim()).filter(Boolean)
+  const rarity = lines[0]?.replace(/^Rarity:\s*/i, '') || 'NORMAL'
+  const metadata = /^(?:Unique ID|League|Unreleased|Crafted|Prefix|Suffix|Catalyst|CatalystQuality|Cluster Jewel|Talisman Tier|Item Level|Quality|Sockets|Rune|LevelReq|Radius|Limited to|Requires Class|Implicits):/i
+  const title = lines[1] || 'Unknown item'
+  const baseType = lines[2] && !metadata.test(lines[2]) ? lines[2] : title
+  const value = (label: string) => Number(lines.find((line) => line.startsWith(label))?.slice(label.length).trim())
+  const implicitAt = lines.findIndex((line) => /^Implicits:\s*\d+/i.test(line))
+  const implicitCount = implicitAt >= 0 ? Number(lines[implicitAt].match(/\d+/)?.[0] || 0) : 0
+  const modifierLines = implicitAt >= 0 ? lines.slice(implicitAt + 1).filter((line) => !/^(?:Mirrored|Sanctified|Twice Corrupted|Corrupted)$/i.test(line)) : []
+  return {
+    rarity,
+    name: title,
+    baseType,
+    ...(Number.isFinite(value('Item Level:')) ? { itemLevel: value('Item Level:') } : {}),
+    ...(Number.isFinite(value('Quality:')) ? { quality: value('Quality:') } : {}),
+    ...(lines.find((line) => line.startsWith('Sockets:'))?.slice(8).trim() ? { sockets: lines.find((line) => line.startsWith('Sockets:'))!.slice(8).trim() } : {}),
+    corrupted: lines.some((line) => /^(?:Twice Corrupted|Corrupted)$/i.test(line)),
+    identified: true,
+    modifiers: modifierLines.map((rawLine, index) => {
+      const tags = [...rawLine.matchAll(/\{([^}:,]+)(?::[^}]*)?\}/g)].map((match) => match[1].toLowerCase())
+      const group = tags.includes('rune') ? 'rune' : tags.includes('enchant') ? 'enchant' : index < implicitCount ? 'implicit' : 'explicit'
+      return {
+        id: `${group}-${index}`,
+        displayOrder: index,
+        group,
+        sourceTags: tags.filter((tag): tag is CanonicalItemView['modifiers'][number]['sourceTags'][number] => ['rune', 'enchant', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated', 'mutated', 'corrupted'].includes(tag)),
+        text: rawLine.replace(/\{[^}]+\}/g, '').trim(),
+        tradeStatIds: [],
+      }
+    }),
+  }
+}
+
+function isPersistedLibraryEntry(value: unknown): value is PersistedEquipmentLibraryEntry {
+  if (!value || typeof value !== 'object') return false
+  const entry = value as Partial<PersistedEquipmentLibraryEntry>
+  return entry.schemaVersion === 2 && typeof entry.id === 'string' && typeof entry.fingerprint === 'string'
+    && isCanonicalItem(entry.item) && Array.isArray(entry.sources) && Array.isArray(entry.tags)
+    && typeof entry.archived === 'boolean' && typeof entry.createdAt === 'string' && typeof entry.updatedAt === 'string'
+}
+
+function hydrateEntry(entry: PersistedEquipmentLibraryEntry): EquipmentLibraryEntry {
+  const view = deriveItemView(entry.item)
+  const displays = [...entry.sources].reverse().flatMap((source) => source.display ? [source.display] : [])
+  const iconDisplay = displays.find((display) => display.iconUrl)
+  const localizedDisplay = displays.find((display) => display.locale !== 'en' && display.locale !== 'unknown')
+  if (iconDisplay?.iconUrl) view.iconUrl = iconDisplay.iconUrl
+  if (localizedDisplay) {
+      view.localized = { [localizedDisplay.locale]: { name: localizedDisplay.name, baseType: localizedDisplay.baseType } }
+      localizedDisplay.modifiers?.forEach((text, index) => {
+        if (view.modifiers[index]) view.modifiers[index].localized = { [localizedDisplay.locale]: text }
+      })
+  }
+  return { ...entry, view }
+}
+
 export class EquipmentLibraryRepository {
   private entries: EquipmentLibraryEntry[] = []
   private folders: EquipmentLibraryFolder[] = []
   private searches: SavedMarketSearch[] = []
   private selectedFolders: Partial<Record<LibraryTreeScope, string>> = {}
+  private unresolvedLegacyEntries: unknown[] = []
 
-  constructor(private readonly filePath: string) {
+  constructor(private readonly filePath: string, private readonly legacyFilePath?: string) {
     this.load()
   }
 
@@ -125,7 +187,7 @@ export class EquipmentLibraryRepository {
       .filter((entry) => filter.includeArchived || !entry.archived)
       .filter((entry) => !filter.realm || entry.sources.some((source) => 'realm' in source && source.realm === filter.realm))
       .filter((entry) => !filter.sourceKind || filter.sourceKind === 'all' || entry.sources.some((source) => source.kind === filter.sourceKind))
-      .filter((entry) => !query || [entry.item.name, entry.item.baseType, entry.folder, this.folderName(entry.folderId), entry.note, ...entry.tags]
+      .filter((entry) => !query || [entry.view.name, entry.view.baseType, ...entry.view.modifiers.map((modifier) => modifier.text), entry.folder, this.folderName(entry.folderId), entry.note, ...entry.tags]
         .some((value) => value?.toLocaleLowerCase().includes(query)))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .map((entry) => structuredClone(entry))
@@ -136,15 +198,16 @@ export class EquipmentLibraryRepository {
     return entry ? structuredClone(entry) : undefined
   }
 
-  upsert(item: LibraryItemSnapshot, source: EquipmentLibrarySource): EquipmentLibraryEntry {
-    if (!isLibraryItem(item)) throw new Error('Invalid equipment library item')
-    const fingerprint = fingerprintLibraryItem(item)
+  upsert(normalized: NormalizedPobItem, source: EquipmentLibrarySource): EquipmentLibraryEntry {
+    if (!isCanonicalItem(normalized.item)) throw new Error('Invalid canonical equipment item')
+    const fingerprint = fingerprintLibraryItem(normalized.item)
     const now = new Date().toISOString()
     let entry = this.entries.find((candidate) => candidate.sources.some((existing) => existing.sourceKey === source.sourceKey))
     entry ||= this.entries.find((candidate) => candidate.fingerprint === fingerprint)
 
     if (entry) {
-      entry.item = structuredClone(item)
+      entry.item = structuredClone(normalized.item)
+      entry.view = structuredClone(normalized.view)
       entry.fingerprint = fingerprint
       const sourceIndex = entry.sources.findIndex((existing) => existing.sourceKey === source.sourceKey)
       if (sourceIndex >= 0) entry.sources[sourceIndex] = structuredClone(source)
@@ -153,10 +216,11 @@ export class EquipmentLibraryRepository {
     } else {
       if (this.entries.length >= MAX_ENTRIES) throw new Error('Equipment library limit reached')
       entry = {
-        schemaVersion: 1,
+        schemaVersion: 2,
         id: randomUUID(),
         fingerprint,
-        item: structuredClone(item),
+        item: structuredClone(normalized.item),
+        view: structuredClone(normalized.view),
         sources: [structuredClone(source)],
         ...(this.selectedFolders.items ? { folderId: this.selectedFolders.items } : {}),
         tags: [],
@@ -175,7 +239,7 @@ export class EquipmentLibraryRepository {
     const entry = this.entries.find((candidate) => candidate.sources.some((source) => source.sourceKey === sourceKey))
     if (!entry) return {}
     entry.sources = entry.sources.filter((source) => source.sourceKey !== sourceKey)
-    if (!entry.sources.length) {
+    if (!entry.sources.length && !entry.folderId && !entry.folder && !entry.tags.length && !entry.note && !entry.archived) {
       this.entries = this.entries.filter((candidate) => candidate.id !== entry.id)
       this.save()
       return { removedEntryId: entry.id }
@@ -223,12 +287,13 @@ export class EquipmentLibraryRepository {
     return structuredClone(entry)
   }
 
-  updateItem(id: string, item: LibraryItemSnapshot, options: { touchUpdatedAt?: boolean } = {}): EquipmentLibraryEntry {
-    if (!isLibraryItem(item)) throw new Error('Invalid equipment library item')
+  updateItem(id: string, normalized: NormalizedPobItem, options: { touchUpdatedAt?: boolean } = {}): EquipmentLibraryEntry {
+    if (!isCanonicalItem(normalized.item)) throw new Error('Invalid canonical equipment item')
     const entry = this.entries.find((candidate) => candidate.id === id)
     if (!entry) throw new Error('Equipment library entry not found')
-    entry.item = structuredClone(item)
-    entry.fingerprint = fingerprintLibraryItem(item)
+    entry.item = structuredClone(normalized.item)
+    entry.view = structuredClone(normalized.view)
+    entry.fingerprint = fingerprintLibraryItem(normalized.item)
     if (options.touchUpdatedAt !== false) entry.updatedAt = new Date().toISOString()
     this.save()
     return structuredClone(entry)
@@ -456,14 +521,128 @@ export class EquipmentLibraryRepository {
     return true
   }
 
+  async migrateLegacy(bridge: PobItemBridge): Promise<{ migrated: number; unresolved: number }> {
+    if (existsSync(this.filePath) || !this.legacyFilePath || !existsSync(this.legacyFilePath)) {
+      return { migrated: 0, unresolved: this.unresolvedLegacyEntries.length }
+    }
+    const raw = readFileSync(this.legacyFilePath, 'utf8')
+    if (raw.length > 50_000_000) throw new Error('Legacy equipment library file is too large')
+    const legacy = JSON.parse(raw) as Partial<LegacyEquipmentLibraryFile>
+    if (legacy.schemaVersion !== 1 || !Array.isArray(legacy.entries)) throw new Error('Unsupported legacy equipment library schema')
+    this.folders = Array.isArray(legacy.folders) ? legacy.folders.filter((folder): folder is EquipmentLibraryFolder => this.isFolder(folder)).slice(0, MAX_FOLDERS) : []
+    this.searches = Array.isArray(legacy.searches) ? legacy.searches.flatMap((search) => this.normalizeLoadedSearch(search)).slice(0, MAX_SEARCHES) : []
+    this.selectedFolders = legacy.selectedFolders && typeof legacy.selectedFolders === 'object' ? legacy.selectedFolders : {}
+    let migrated = 0
+    this.unresolvedLegacyEntries = []
+    for (const candidate of legacy.entries.slice(0, MAX_ENTRIES)) {
+      if (!isLegacyLibraryEntry(candidate) || !candidate.item.rawText?.trim()) {
+        this.unresolvedLegacyEntries.push(candidate)
+        continue
+      }
+      try {
+        const normalized = await bridge.normalize(candidate.item.rawText)
+        this.entries.push({
+          ...candidate,
+          schemaVersion: 2,
+          fingerprint: fingerprintLibraryItem(normalized.item),
+          item: normalized.item,
+          view: {
+            ...normalized.view,
+            ...(candidate.item.iconUrl ? { iconUrl: candidate.item.iconUrl } : {}),
+            ...(candidate.item.localized ? { localized: candidate.item.localized } : {}),
+          },
+        })
+        migrated += 1
+      } catch {
+        this.unresolvedLegacyEntries.push(candidate)
+      }
+    }
+    this.migrateLegacyFolders()
+    const migrationBackup = `${this.legacyFilePath}.migration-backup.json`
+    if (!existsSync(migrationBackup)) copyFileSync(this.legacyFilePath, migrationBackup)
+    this.save()
+    return { migrated, unresolved: this.unresolvedLegacyEntries.length }
+  }
+
+  async repairCorruptedMarketTitles(
+    bridge: PobItemBridge,
+    translateCnItem: (value: string) => string | undefined,
+  ): Promise<number> {
+    let repaired = 0
+    for (let index = 0; index < this.entries.length; index += 1) {
+      const entry = this.entries[index]
+      const lines = entry.item.raw.replace(/\r\n/g, '\n').split('\n')
+      if (!/^Rarity:\s*(?:RARE|UNIQUE)$/i.test(lines[0] || '') || !/[?\ufffd]/.test(lines[1] || '') || !lines[2]) continue
+      const display = [...entry.sources].reverse().find((source) => source.kind === 'market-favorite' && source.display?.locale === 'zh-CN')?.display
+      const translatedName = display?.name ? translateCnItem(display.name) : undefined
+      if (!translatedName || /[\u3400-\u9fff?\ufffd]/.test(translatedName)) continue
+      lines[1] = translatedName
+      try {
+        const normalized = await bridge.normalize(lines.join('\n'))
+        const persisted = {
+          ...entry,
+          item: normalized.item,
+          fingerprint: fingerprintLibraryItem(normalized.item),
+          updatedAt: new Date().toISOString(),
+        }
+        this.entries[index] = hydrateEntry(persisted)
+        repaired += 1
+      } catch {
+        // Leave the original entry intact if PoB does not accept the repaired title.
+      }
+    }
+    if (repaired) this.save()
+    return repaired
+  }
+
+  enrichManualPresentation(
+    toChinese: (value: string) => string | undefined,
+    statToChinese: (value: string) => string | undefined,
+    resolveIcon: (rarity: string, name: string, baseType: string) => string | undefined,
+  ): number {
+    let enriched = 0
+    for (let index = 0; index < this.entries.length; index += 1) {
+      const entry = this.entries[index]
+      const manualSources = entry.sources.filter((source) => source.kind === 'manual')
+      if (!manualSources.length) continue
+      const canonicalView = deriveItemView(entry.item)
+      const name = toChinese(canonicalView.name)
+      const baseType = toChinese(canonicalView.baseType)
+      const modifiers = canonicalView.modifiers.map((modifier) => statToChinese(modifier.text) || modifier.text)
+      const hasLocalizedText = !!name || !!baseType || modifiers.some((text, modifierIndex) => text !== canonicalView.modifiers[modifierIndex].text)
+      const iconUrl = resolveIcon(canonicalView.rarity, canonicalView.name, canonicalView.baseType)
+      let changed = false
+      for (const source of manualSources) {
+        const display = {
+          locale: hasLocalizedText ? 'zh-CN' as const : 'en' as const,
+          name: name || canonicalView.name,
+          baseType: baseType || canonicalView.baseType,
+          ...(iconUrl ? { iconUrl } : {}),
+          ...(hasLocalizedText ? { modifiers } : {}),
+        }
+        if (JSON.stringify(source.display) === JSON.stringify(display)) continue
+        source.display = display
+        source.updatedAt = new Date().toISOString()
+        changed = true
+      }
+      if (changed) {
+        this.entries[index] = hydrateEntry({ ...entry, updatedAt: new Date().toISOString() })
+        enriched += 1
+      }
+    }
+    if (enriched) this.save()
+    return enriched
+  }
+
   private load(): void {
     if (!existsSync(this.filePath)) return
     try {
       const raw = readFileSync(this.filePath, 'utf8')
       if (raw.length > 50_000_000) throw new Error('Equipment library file is too large')
       const parsed = JSON.parse(raw) as Partial<EquipmentLibraryFile>
-      if ((parsed.schemaVersion !== 1 && parsed.schemaVersion !== 2) || !Array.isArray(parsed.entries)) throw new Error('Unsupported equipment library schema')
-      this.entries = parsed.entries.filter(isLibraryEntry).slice(0, MAX_ENTRIES)
+      if (parsed.schemaVersion !== 2 || !Array.isArray(parsed.entries)) throw new Error('Unsupported equipment library schema')
+      this.entries = parsed.entries.filter(isPersistedLibraryEntry).slice(0, MAX_ENTRIES).map(hydrateEntry)
+      this.unresolvedLegacyEntries = Array.isArray(parsed.unresolvedLegacyEntries) ? parsed.unresolvedLegacyEntries.slice(0, MAX_ENTRIES) : []
       this.folders = Array.isArray(parsed.folders) ? parsed.folders.filter((folder): folder is EquipmentLibraryFolder => this.isFolder(folder)).slice(0, MAX_FOLDERS) : []
       this.searches = Array.isArray(parsed.searches) ? parsed.searches.flatMap((search) => this.normalizeLoadedSearch(search)).slice(0, MAX_SEARCHES) : []
       this.selectedFolders = parsed.selectedFolders && typeof parsed.selectedFolders === 'object' ? parsed.selectedFolders : {}
@@ -473,8 +652,9 @@ export class EquipmentLibraryRepository {
       if (!existsSync(backupPath)) return
       try {
         const parsed = JSON.parse(readFileSync(backupPath, 'utf8')) as Partial<EquipmentLibraryFile>
-        if ((parsed.schemaVersion === 1 || parsed.schemaVersion === 2) && Array.isArray(parsed.entries)) {
-          this.entries = parsed.entries.filter(isLibraryEntry).slice(0, MAX_ENTRIES)
+        if (parsed.schemaVersion === 2 && Array.isArray(parsed.entries)) {
+          this.entries = parsed.entries.filter(isPersistedLibraryEntry).slice(0, MAX_ENTRIES).map(hydrateEntry)
+          this.unresolvedLegacyEntries = Array.isArray(parsed.unresolvedLegacyEntries) ? parsed.unresolvedLegacyEntries.slice(0, MAX_ENTRIES) : []
           this.folders = Array.isArray(parsed.folders) ? parsed.folders.filter((folder): folder is EquipmentLibraryFolder => this.isFolder(folder)).slice(0, MAX_FOLDERS) : []
           this.searches = Array.isArray(parsed.searches) ? parsed.searches.flatMap((search) => this.normalizeLoadedSearch(search)).slice(0, MAX_SEARCHES) : []
           this.selectedFolders = parsed.selectedFolders && typeof parsed.selectedFolders === 'object' ? parsed.selectedFolders : {}
@@ -493,7 +673,8 @@ export class EquipmentLibraryRepository {
     const backupPath = `${this.filePath}.backup.json`
     const file: EquipmentLibraryFile = {
       schemaVersion: 2,
-      entries: this.entries,
+      entries: this.entries.map(({ view: _view, ...entry }) => entry),
+      ...(this.unresolvedLegacyEntries.length ? { unresolvedLegacyEntries: this.unresolvedLegacyEntries } : {}),
       folders: this.folders,
       searches: this.searches,
       selectedFolders: this.selectedFolders,

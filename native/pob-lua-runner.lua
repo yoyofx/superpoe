@@ -77,6 +77,96 @@ local function scalar(value)
 	return nil
 end
 
+local function normalizeItem(payload)
+	local raw = payload and payload.raw
+	if type(raw) ~= "string" or raw == "" then
+		return { success = false, error = "Empty PoB item input" }
+	end
+	local okItem, itemOrError = pcall(function() return new("Item", raw) end)
+	if not okItem then
+		return { success = false, error = "PoB Item parse failed: " .. tostring(itemOrError) }
+	end
+	local item = itemOrError
+	if not item or not item.baseName then
+		return { success = false, error = "PoB Item base type was not recognized" }
+	end
+	local tradeHelpers = LoadModule("Classes/TradeHelpers")
+	local modifiers = {}
+	local displayOrder = 0
+	local function appendModifiers(lines, group)
+		for _, modLine in ipairs(lines or {}) do
+			local text = StripEscapes(modLine.line or ""):gsub("^%s+", ""):gsub("%s+$", "")
+			if text ~= "" then
+				local tradeIds = {}
+				local optionTradeId, tradeValue = tradeHelpers.findTradeIdOption(text, group)
+				local shouldNegate = false
+				if optionTradeId then
+					table.insert(tradeIds, optionTradeId)
+				else
+					local hashes
+					hashes, tradeValue, shouldNegate = tradeHelpers.findTradeHash(text)
+					for _, hash in ipairs(hashes or {}) do
+						table.insert(tradeIds, string.format("%s.stat_%s", group, hash))
+					end
+				end
+				local sourceTags = {}
+				for _, tag in ipairs({ "rune", "enchant", "fractured", "crafted", "desecrated", "mutated", "corrupted" }) do
+					if modLine[tag] then table.insert(sourceTags, tag) end
+				end
+				table.insert(modifiers, {
+					id = group .. "-" .. displayOrder,
+					displayOrder = displayOrder,
+					group = group,
+					sourceTags = sourceTags,
+					text = text,
+					tradeStatIds = tradeIds or {},
+					tradeValue = safeNum(tradeValue),
+					tradeValueNegated = shouldNegate or false,
+				})
+				displayOrder = displayOrder + 1
+			end
+		end
+	end
+	appendModifiers(item.runeModLines, "rune")
+	appendModifiers(item.enchantModLines, "enchant")
+	appendModifiers(item.implicitModLines, "implicit")
+	appendModifiers(item.explicitModLines, "explicit")
+	local itemType = item.type or (item.base and item.base.type)
+	local categorySlot
+	if itemType == "Body Armour" then categorySlot = "Body Armour"
+	elseif itemType == "Helmet" then categorySlot = "Helmet"
+	elseif itemType == "Gloves" then categorySlot = "Gloves"
+	elseif itemType == "Boots" then categorySlot = "Boots"
+	elseif itemType == "Amulet" then categorySlot = "Amulet"
+	elseif itemType == "Ring" then categorySlot = "Ring 1"
+	elseif itemType == "Belt" then categorySlot = "Belt"
+	elseif itemType == "Jewel" then categorySlot = "Jewel 1"
+	elseif itemType and itemType:find("Flask") then categorySlot = itemType == "Mana Flask" and "Flask 2" or "Flask 1"
+	elseif itemType == "Charm" then categorySlot = "Charm 1"
+	elseif itemType then categorySlot = "Weapon 1" end
+	local tradeCategory = categorySlot and tradeHelpers.getTradeCategory(categorySlot, item) or nil
+	local socketCount = tonumber(item.itemSocketCount) or tonumber(item.jewelSocketCount) or 0
+	return {
+		success = true,
+		item = {
+			format = "pob2-item",
+			raw = item:BuildRaw(),
+		},
+		view = {
+			rarity = item.rarity or "NORMAL",
+			name = item.title or item.baseName,
+			baseType = item.baseName,
+			itemLevel = safeNum(item.itemLevel),
+			quality = safeNum(item.quality),
+			sockets = socketCount > 0 and string.rep("S ", socketCount):gsub(" $", "") or nil,
+			corrupted = item.corrupted or false,
+			identified = not item.unidentified,
+			tradeCategory = tradeCategory,
+			modifiers = modifiers,
+		},
+	}
+end
+
 local function describeSupportGems(payload)
 	local runtimeData = (build and build.data) or data
 	if not runtimeData or not runtimeData.skills or not runtimeData.describeStats then
@@ -678,6 +768,7 @@ for line in io.lines() do
 		send({ success = false, error = "Invalid JSON request: " .. tostring(decodeError) })
 	else
 		local handled, result = pcall(function()
+			if request.type == "normalizeItem" then return normalizeItem(request.payload) end
 			if request.type == "calculate" then return calculate(request.payload) end
 			if request.type == "rankSkills" then return rankSkills(request.payload) end
 			if request.type == "describeSupportGems" then return describeSupportGems(request.payload) end

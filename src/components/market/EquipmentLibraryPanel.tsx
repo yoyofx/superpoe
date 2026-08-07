@@ -9,6 +9,7 @@ import type {
   EquipmentLibrarySourceKind, MarketFavoriteSource, MarketMonitoringSnapshot, MarketRealm, MarketSearchReference, SavedMarketSearch, TradeLeague,
 } from '@/types/market'
 import { MAX_ACTIVE_PURCHASE_TARGETS } from '@/types/market'
+import { PriceCheckDialog } from './PriceCheckDialog'
 
 interface EquipmentLibraryPanelProps {
   realm: MarketRealm
@@ -44,15 +45,8 @@ function marketSource(entry: EquipmentLibraryEntry): MarketFavoriteSource | unde
   return entry.sources.find((source): source is MarketFavoriteSource => source.kind === 'market-favorite')
 }
 
-function tierLabel(entry: EquipmentLibraryEntry['item']['modifiers'][number]): string | undefined {
-  if (entry.tier?.rank) return `T${entry.tier.rank}`
-  const match = entry.tier?.name?.match(/(?:Tier|T|P|S)\s*(\d+)/i)
-  return match ? `T${match[1]}` : undefined
-}
-
-function modifierClass(modifier: EquipmentLibraryEntry['item']['modifiers'][number]): string {
-  const tier = tierLabel(modifier)?.toLowerCase()
-  return [tier, `group-${modifier.group}`, ...modifier.sourceTags.map((tag) => `source-${tag}`)].filter(Boolean).join(' ')
+function modifierClass(modifier: EquipmentLibraryEntry['view']['modifiers'][number]): string {
+  return [`group-${modifier.group}`, ...modifier.sourceTags.map((tag) => `source-${tag}`)].join(' ')
 }
 
 function sourceLabel(kind: EquipmentLibrarySourceKind, zh: boolean): string {
@@ -96,7 +90,7 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
   const [entries, setEntries] = useState<EquipmentLibraryEntry[]>([])
   const [sidebar, setSidebar] = useState<EquipmentLibrarySidebarSnapshot>(EMPTY_SIDEBAR)
   const [query, setQuery] = useState('')
-  const [sourceKind, setSourceKind] = useState<EquipmentLibrarySourceKind | 'all'>('all')
+  const [sourceCategory, setSourceCategory] = useState<'all' | 'market' | 'build' | 'custom'>('all')
   const [leagues, setLeagues] = useState<TradeLeague[]>([])
   const [leagueId, setLeagueId] = useState('')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -116,12 +110,13 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
   const [bulkSelecting, setBulkSelecting] = useState(false)
   const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(() => new Set())
   const [searchEditor, setSearchEditor] = useState<SearchEditorState | null>(null)
+  const [priceCheckEntryId, setPriceCheckEntryId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!bridge) return
     try {
       const [nextEntries, nextSidebar] = await Promise.all([
-        bridge.listLibrary({ query, sourceKind, includeArchived: false }),
+        bridge.listLibrary({ query, sourceKind: 'all', includeArchived: false }),
         bridge.getSidebar(),
       ])
       setEntries(nextEntries)
@@ -130,7 +125,7 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : String(caught))
     }
-  }, [bridge, query, sourceKind])
+  }, [bridge, query])
 
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 100)
@@ -360,10 +355,9 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
     const source = marketSource(entry)
     const similarLeagueId = source?.leagueId || leagueId
     const selected = bulkSelecting ? selectedEntryIds.has(entry.id) : selectedEntryId === entry.id
-    const localizedItem = zh ? entry.item.localized?.['zh-CN'] : undefined
+    const localizedItem = zh ? entry.view.localized?.['zh-CN'] : undefined
     return <article
-      className={`trade-helper-item rarity-${entry.item.rarity.toLowerCase()}${dragging?.kind === 'item' && dragging.id === entry.id ? ' dragging' : ''}${selected ? ' selected' : ''}${bulkSelecting ? ' bulk-selecting' : ''}`}
-      draggable={!bulkSelecting}
+      className={`trade-helper-item rarity-${entry.view.rarity.toLowerCase()}${dragging?.kind === 'item' && dragging.id === entry.id ? ' dragging' : ''}${selected ? ' selected' : ''}${bulkSelecting ? ' bulk-selecting' : ''}`}
       tabIndex={0}
       aria-selected={selected}
       onClick={() => bulkSelecting ? toggleEntrySelection(entry.id) : setSelectedEntryId(entry.id)}
@@ -373,26 +367,22 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
         if (bulkSelecting) toggleEntrySelection(entry.id)
         else setSelectedEntryId(entry.id)
       }}
-      onDragStart={(event) => startDrag(event, { kind: 'item', id: entry.id })}
-      onDragEnd={endDrag}
       key={entry.id}
     >
       <header>
-        {entry.item.iconUrl && <img src={entry.item.iconUrl} alt="" />}
-        <span><strong>{localizedItem?.name || entry.item.name}</strong><small>{localizedItem?.baseType || entry.item.baseType}</small></span>
+        {entry.view.iconUrl && <img src={entry.view.iconUrl} alt="" />}
+        <span><strong>{localizedItem?.name || entry.view.name}</strong><small>{localizedItem?.baseType || entry.view.baseType}</small></span>
         {bulkSelecting
           ? <button className="trade-helper-item-select" aria-pressed={selected} onClick={(event) => { event.stopPropagation(); toggleEntrySelection(entry.id) }} title={selected ? (zh ? '取消选择' : 'Deselect') : (zh ? '选择装备' : 'Select item')} aria-label={selected ? (zh ? '取消选择' : 'Deselect') : (zh ? '选择装备' : 'Select item')}>{selected ? <SquareCheckBig /> : <Square />}</button>
           : <button onClick={(event) => { event.stopPropagation(); beginEdit(entry) }} title={zh ? '编辑备注和标签' : 'Edit note and tags'} aria-label={zh ? '编辑备注和标签' : 'Edit note and tags'}><Pencil /></button>}
       </header>
       {source?.price && <div className="trade-helper-price">{source.price.display}</div>}
-      <div className="trade-helper-sources">{entry.sources.map((entrySource) => <span className={`source-${entrySource.kind}`} key={entrySource.sourceKey}>{sourceLabel(entrySource.kind, zh)}</span>)}<span className="modifier-count">{entry.item.modifiers.length ? `${entry.item.modifiers.length}${zh ? ' 条词缀' : ' mods'}` : (zh ? '暂无词条' : 'No modifiers')}</span></div>
+      <div className="trade-helper-sources">{entry.sources.map((entrySource) => <span className={`source-${entrySource.kind}`} key={entrySource.sourceKey}>{sourceLabel(entrySource.kind, zh)}</span>)}<span className="modifier-count">{entry.view.modifiers.length ? `${entry.view.modifiers.length}${zh ? ' 条词缀' : ' mods'}` : (zh ? '暂无词条' : 'No modifiers')}</span></div>
       <div className="trade-helper-affixes">
-        {entry.item.modifiers.map((modifier) => <div className={modifierClass(modifier)} key={modifier.id}>
-          {modifier.affixKind && <span className={`affix-kind ${modifier.affixKind}`}>{modifier.affixKind === 'prefix' ? (zh ? '前缀' : 'Pre') : (zh ? '后缀' : 'Suf')}</span>}
-          {tierLabel(modifier) && <span className="affix-tier">{tierLabel(modifier)}</span>}
-          <span>{(zh ? modifier.localized?.['zh-CN']?.displayText : undefined) || modifier.original.displayText}</span>
+        {entry.view.modifiers.map((modifier) => <div className={modifierClass(modifier)} key={modifier.id}>
+          <span>{(zh ? modifier.localized?.['zh-CN'] : undefined) || modifier.text}</span>
         </div>)}
-        {!entry.item.modifiers.length && <span className="trade-helper-no-modifiers">{zh ? '此收藏没有词条快照，重新收藏可更新装备详情。' : 'No modifier snapshot is available. Favorite the listing again to refresh it.'}</span>}
+        {!entry.view.modifiers.length && <span className="trade-helper-no-modifiers">{zh ? '此装备没有可显示词条。' : 'No modifiers are available.'}</span>}
       </div>
       {editingId === entry.id && <div className="trade-helper-editor">
         <label><span>{zh ? '标签' : 'Tags'}</span><input value={tags} onChange={(event) => setTags(event.target.value)} /></label>
@@ -405,20 +395,9 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
       {!bulkSelecting && <footer>
         {source && <button className="primary-action" disabled={busyId === entry.id} onClick={() => void run(entry.id, () => visitHideout(entry.id), zh ? '已发送前往藏身处请求' : 'Hideout travel request sent')} title={zh ? '前往藏身处' : 'Travel to hideout'}><Home /><span>{zh ? '藏身处' : 'Hideout'}</span></button>}
         {source && <button onClick={() => void bridge?.openLibrarySource(entry.id, source.sourceKey)} title={zh ? '打开来源' : 'Open source'}><ExternalLink /></button>}
-        <button className="primary-action" disabled={!similarLeagueId || busyId === entry.id} onClick={() => void run(entry.id, async () => {
-          const result = await bridge!.searchLibrary({ entryId: entry.id, realm: source?.realm || realm, leagueId: similarLeagueId })
-          const total = result.resolvedModifierCount + result.unresolvedModifierCount
-          setNotice(zh
-            ? `已生成相似装备搜索，匹配 ${result.resolvedModifierCount}/${total} 条词条${result.unresolvedModifierCount ? `，${result.unresolvedModifierCount} 条未匹配` : ''}`
-            : `Similar-item search created: ${result.resolvedModifierCount}/${total} modifiers matched${result.unresolvedModifierCount ? `, ${result.unresolvedModifierCount} unmatched` : ''}`)
-        })} title={zh ? '找相似装备' : 'Find similar items'}><Search /><span>{zh ? '找相似' : 'Similar'}</span></button>
-        <button onClick={() => setMovingId((current) => current === `item:${entry.id}` ? null : `item:${entry.id}`)} title={zh ? '移动到目录' : 'Move to folder'}><FolderInput /></button>
-        <button className="danger" onClick={() => window.confirm(zh ? `删除“${entry.item.name}”？` : `Delete “${entry.item.name}”?`) && void run(entry.id, () => bridge!.deleteLibrary(entry.id))} title={zh ? '删除' : 'Delete'}><Trash2 /></button>
+        <button className="primary-action" disabled={!similarLeagueId || busyId === entry.id} onClick={() => setPriceCheckEntryId(entry.id)} title={zh ? '选择词条并查价' : 'Configure price check'}><Search /><span>{zh ? '查价' : 'Price check'}</span></button>
+        <button className="danger" onClick={() => window.confirm(zh ? `删除“${entry.view.name}”？` : `Delete “${entry.view.name}”?`) && void run(entry.id, () => bridge!.deleteLibrary(entry.id))} title={zh ? '删除' : 'Delete'}><Trash2 /></button>
       </footer>}
-      {!bulkSelecting && movingId === `item:${entry.id}` && <div className="trade-helper-move"><FolderInput /><select value={entry.folderId || ''} onChange={(event) => void run(entry.id, async () => {
-        await bridge!.updateLibrary({ id: entry.id, folderId: event.target.value || null })
-        setMovingId(null)
-      })}><option value="">{zh ? '默认' : 'Default'}</option>{folders.map((folder) => <option value={folder.id} key={folder.id}>{folderPath(folder, folders)}</option>)}</select></div>}
     </article>
   }
 
@@ -489,9 +468,13 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
   }
 
   const rootFolders = folders.filter((folder) => !folder.parentId)
-  const rootEntries = entries.filter((entry) => !entry.folderId)
+  const categoryEntries = entries.filter((entry) => sourceCategory === 'all' || entry.sources.some((source) => (
+    sourceCategory === 'market' ? source.kind === 'market-favorite'
+      : sourceCategory === 'build' ? source.kind === 'pob-import' || source.kind === 'equipment-favorite'
+        : source.kind === 'manual'
+  )))
   const rootSearches = sidebar.searches.filter((search) => !search.folderId)
-  const visibleEntries = selectedFolderId ? entries.filter((entry) => entry.folderId === selectedFolderId) : rootEntries
+  const visibleEntries = categoryEntries
   const visibleSearches = selectedFolderId ? sidebar.searches.filter((search) => search.folderId === selectedFolderId) : rootSearches
   const selectedFolder = selectedFolderId ? folders.find((folder) => folder.id === selectedFolderId) : undefined
   const contentCount = activeTab === 'items' ? visibleEntries.length : visibleSearches.length
@@ -515,8 +498,8 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
       <button className={activeTab === 'items' ? 'active' : ''} onClick={() => onTabChange('items')}>{zh ? '装备收藏' : 'Equipment favorites'}</button>
       <button className={activeTab === 'searches' ? 'active' : ''} onClick={() => onTabChange('searches')}>{zh ? '搜索收藏' : 'Search favorites'}</button>
     </nav>
-    <div className={`trade-helper-workspace${directoryCompact ? ' directory-compact' : ''}`}>
-      <section className="trade-helper-directory-pane">
+    <div className={`trade-helper-workspace${directoryCompact ? ' directory-compact' : ''}${activeTab === 'items' ? ' no-directory' : ''}`}>
+      {activeTab === 'searches' && <section className="trade-helper-directory-pane">
         <header><strong>{zh ? '目录' : 'Folders'}</strong><span>{folders.length}</span><button onClick={() => setDirectoryCompact((compact) => !compact)} title={directoryCompact ? (zh ? '展开目录栏' : 'Expand folders') : (zh ? '缩小目录栏' : 'Compact folders')}>{directoryCompact ? <PanelLeftOpen /> : <PanelLeftClose />}</button></header>
         <div className="trade-helper-folder-create">
           <button onClick={() => createFolder()} title={zh ? '新建根目录' : 'Create root folder'} aria-label={zh ? '新建根目录' : 'Create root folder'}><FolderPlus /></button>
@@ -555,12 +538,12 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
           onDragOver={(event) => dragOver(event)}
           onDragLeave={() => setDragOverFolderId(null)}
           onDrop={(event) => dropInto(event)}
-        ><Tags /><span>{zh ? '默认' : 'Default'}</span><small>{activeTab === 'items' ? rootEntries.length : rootSearches.length}</small></button>
+        ><Tags /><span>{zh ? '默认' : 'Default'}</span><small>{rootSearches.length}</small></button>
         <div className="trade-helper-tree">
           {rootFolders.map((folder) => renderFolder(folder))}
           {!rootFolders.length && <div className="trade-helper-directory-empty"><Folder /><span>{zh ? '暂无目录' : 'No folders'}</span></div>}
         </div>
-      </section>
+      </section>}
       <section className="trade-helper-content-pane">
         <div className="trade-helper-content-top">
           {(notice || error) && <div className={error ? 'trade-helper-message error' : 'trade-helper-message'}>{error || notice}<button onClick={() => { setError(null); setNotice(null) }}><X /></button></div>}
@@ -568,13 +551,11 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
             {activeTab === 'searches' && <button disabled={!currentSearch} onClick={() => void openSearchCreator()} title={!currentSearch ? (zh ? '请先打开有效的官方搜索结果页' : 'Open a valid official search result first') : undefined}><Bookmark />{zh ? '保存当前搜索' : 'Save current search'}</button>}
           {activeTab === 'items' && <>
             <label><Search /><input value={query} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setQuery(event.target.value) }} placeholder={zh ? '搜索收藏' : 'Search favorites'} /></label>
-            <select value={sourceKind} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setSourceKind(event.target.value as EquipmentLibrarySourceKind | 'all') }} aria-label={zh ? '来源分类' : 'Source category'}>
+            <select value={sourceCategory} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setSourceCategory(event.target.value as typeof sourceCategory) }} aria-label={zh ? '来源分类' : 'Source category'}>
               <option value="all">{zh ? '全部来源' : 'All sources'}</option>
-              <option value="market-favorite">{zh ? '集市收藏' : 'Market favorites'}</option>
-              <option value="pob-import">{zh ? 'PoB 导入' : 'PoB imports'}</option>
-              <option value="equipment-favorite">{zh ? '装备收藏' : 'Equipment favorites'}</option>
-              <option value="price-check">{zh ? '查价器' : 'Price checks'}</option>
-              <option value="manual">{zh ? '手动添加' : 'Manual'}</option>
+              <option value="market">{zh ? '集市收藏' : 'Market favorites'}</option>
+              <option value="build">{zh ? '构建导入' : 'Build imports'}</option>
+              <option value="custom">{zh ? '自定义' : 'Custom'}</option>
             </select>
           </>}
           </div>
@@ -610,6 +591,18 @@ export function EquipmentLibraryPanel({ realm, zh, currentSearch, monitoring, ac
           <footer><button onClick={() => setSearchEditor(null)}>{zh ? '取消' : 'Cancel'}</button><button className="primary" disabled={!searchEditor.name.trim() || busyId === 'save-search'} onClick={() => void submitSearchEditor()}><Save />{zh ? '保存' : 'Save'}</button></footer>
         </section>
       </div>}
+      {priceCheckEntryId && (() => {
+        const entry = entries.find((candidate) => candidate.id === priceCheckEntryId)
+        const source = entry ? marketSource(entry) : undefined
+        return <PriceCheckDialog
+          realm={source?.realm || realm}
+          target={{ kind: 'library', entryId: priceCheckEntryId }}
+          zh={zh}
+          initialLeagueId={source?.leagueId || leagueId}
+          onClose={() => setPriceCheckEntryId(null)}
+          onSearched={(result) => setNotice(zh ? `查价搜索已更新，共 ${result.total} 条结果` : `Price search updated with ${result.total} results`)}
+        />
+      })()}
     </div>
   </aside>
 }

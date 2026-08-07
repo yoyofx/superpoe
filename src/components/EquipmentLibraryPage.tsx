@@ -23,7 +23,7 @@ export function EquipmentLibraryPage({ realm, onCenter, onSettings }: EquipmentL
         </div>
         <div className="market-shell-title">
           <button className="icon-command compact" onClick={onCenter} title={zh ? '返回构筑中心' : 'Back to build center'} aria-label={zh ? '返回构筑中心' : 'Back to build center'}><ArrowLeft /></button>
-          <span><strong>{zh ? '装备仓库' : 'Equipment Library'}</strong><small>{zh ? '目录管理、装备收藏与详情查看' : 'Directories, equipment favorites, and item details'}</small></span>
+          <span><strong>{zh ? '装备仓库' : 'Equipment Library'}</strong><small>{zh ? '集市收藏、构建导入与自定义装备' : 'Market favorites, build imports, and custom items'}</small></span>
         </div>
         <div className="command-actions">
           <GameRuntimeIndicator />

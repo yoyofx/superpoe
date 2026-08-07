@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTradeQuery, OfficialTradeProvider, TradeStatResolver } from '../../electron/tradeService'
+import { buildTradeQuery, createPriceCheckDraft, OfficialTradeProvider, TradeStatResolver } from '../../electron/tradeService'
 import { OfficialTradeRequestError } from '../../electron/officialTradeRequestError'
 import type { MarketViewManager } from '../../electron/marketView'
 import type { TradeReferenceDataCache } from '../../electron/tradeService'
@@ -131,6 +131,51 @@ describe('shared trade resolver and query builder', () => {
         stats: [{ filters: [{ id: 'explicit.stat_3299347043', value: { min: 109 } }] }],
       },
     })
+  })
+
+  it('builds a PoB-style query from only the user-selected modifiers and ranges', () => {
+    const source = item(['+109 to maximum Life', 'Unknown modifier'])
+    source.tradeCategory = 'armour.chest'
+    source.itemLevel = 82
+    const resolved = new TradeStatResolver().resolve(source, catalog)
+    const draft = createPriceCheckDraft(resolved, 'global')
+    expect(draft.modifiers).toMatchObject([
+      { id: 'explicit-0', searchable: true, currentValue: 109 },
+      { id: 'explicit-1', searchable: false },
+    ])
+
+    const built = buildTradeQuery(resolved, 'global', {
+      listedStatus: 'available',
+      useBaseType: false,
+      itemLevelMin: 80,
+      modifiers: [{ id: 'explicit-0', min: 100, max: 120 }],
+    })
+
+    expect(built).toMatchObject({ resolved: 1, unresolved: 0 })
+    expect(built.query).toMatchObject({
+      query: {
+        status: { option: 'available' },
+        stats: [{ filters: [{ id: 'explicit.stat_3299347043', value: { min: 100, max: 120 } }] }],
+        filters: {
+          type_filters: { filters: { category: { option: 'armour.chest' } } },
+          misc_filters: { filters: { ilvl: { min: 80 } } },
+        },
+      },
+    })
+    expect((built.query as { query: Record<string, unknown> }).query).not.toHaveProperty('type')
+  })
+
+  it('fixes unique searches to their name and base type', () => {
+    const unique = item([])
+    unique.rarity = 'UNIQUE'
+    unique.name = 'Svalinn'
+    unique.baseType = 'Runemastered Crucible Tower Shield'
+    const built = buildTradeQuery(unique, 'global', {
+      listedStatus: 'online', useBaseType: false, modifiers: [],
+    })
+    expect(built.query).toMatchObject({ query: {
+      name: 'Svalinn', type: 'Runemastered Crucible Tower Shield', status: { option: 'online' }, stats: [],
+    } })
   })
 
   it('falls back to a type-only search when the official API rejects detailed stats', async () => {

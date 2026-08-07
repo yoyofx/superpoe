@@ -414,6 +414,7 @@ svg { flex: 0 0 auto; }
 .trade-helper-message.error { border-color: #70453f; background: #281816; color: #d08c81; }
 .trade-helper-message button { width: 22px; height: 22px; border: 0; background: transparent; }
 .trade-helper-workspace { min-width: 0; min-height: 0; display: grid; grid-template-columns: clamp(132px, 20%, 160px) minmax(0, 1fr); }
+.trade-helper-workspace.no-directory { grid-template-columns: minmax(0, 1fr); }
 .trade-helper-workspace.directory-compact { grid-template-columns: 54px minmax(0, 1fr); }
 .trade-helper-directory-pane, .trade-helper-content-pane { min-width: 0; min-height: 0; }
 .trade-helper-directory-pane { display: flex; flex-direction: column; border-right: 1px solid #3e382f; background: #0d0e0d; }
@@ -2301,6 +2302,10 @@ svg { flex: 0 0 auto; }
 .library-workspace-selection-actions button:disabled { opacity: .4; cursor: not-allowed; }
 .library-workspace-selection-actions button svg { width: 14px; height: 14px; }
 .library-workspace-selection-actions button.primary { gap: 5px; border-color: #967944; background: #493b22; color: #e0c47f; }
+.library-workspace-add-custom { height: 30px; display: inline-flex; align-items: center; gap: 6px; padding: 0 10px; border: 1px solid #75613d; background: #292419; color: #d6b96f; font: inherit; cursor: pointer; }
+.library-workspace-add-custom:hover { border-color: #a18753; color: #efd28b; }
+.library-workspace-add-custom:disabled { opacity: .4; cursor: not-allowed; }
+.library-workspace-add-custom svg { width: 14px; height: 14px; }
 .library-workspace-selection-actions button.danger { color: #c1786d; }
 .library-workspace-selection-actions select { min-width: 105px; max-width: 180px; outline: none; }
 .library-workspace-layout { grid-template-columns: 222px minmax(0, 1fr); }
@@ -2317,6 +2322,62 @@ svg { flex: 0 0 auto; }
 .library-workspace-directory-divider { padding: 13px 10px 5px; color: #6c675d; font-size: 9px; text-transform: uppercase; }
 .library-workspace-directory-divider span { letter-spacing: .08em; }
 .library-workspace-directory .library-workspace-tree { overflow: visible; padding: 0; }
+.custom-item-dialog { width: min(680px, calc(100vw - 32px)); grid-template-rows: auto minmax(0, 1fr) auto; }
+.custom-item-dialog-body { min-height: 330px; }
+.custom-item-dialog-body label { height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 7px; color: #908571; font-size: 10px; }
+.custom-item-dialog-body textarea { width: 100%; min-height: 260px; resize: none; padding: 11px; border: 1px solid #48443c; background: #0a0b0a; color: #d0c7b6; font: 11px/1.5 Consolas, monospace; outline: none; }
+.custom-item-dialog-body textarea:focus { border-color: #a38d6d; }
+.custom-item-dialog .dialog-footer svg { width: 14px; height: 14px; }
+
+.price-check-backdrop { z-index: 180; }
+.price-check-dialog { width: min(760px, calc(100vw - 32px)); max-height: min(780px, calc(100vh - 32px)); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; border: 1px solid #6b5d43; border-radius: 3px; background: #10120f; box-shadow: 0 24px 70px #000; }
+.price-check-dialog .dialog-header button { width: 30px; height: 30px; display: grid; place-items: center; border: 1px solid #48433a; border-radius: 2px; background: #151713; color: #9b9386; cursor: pointer; }
+.price-check-dialog .dialog-header button svg { width: 15px; height: 15px; }
+.price-check-body { min-height: 0; overflow-y: auto; padding: 14px 16px 16px; }
+.price-check-loading { min-height: 260px; display: grid; place-items: center; color: #8d8577; font-size: 11px; }
+.price-check-item { display: grid; gap: 3px; padding: 0 0 12px; border-bottom: 1px solid #3b382f; text-align: center; }
+.price-check-item strong { color: #d0bd62; font: 500 15px Georgia, "Microsoft YaHei", serif; }
+.price-check-item span { color: #aaa294; font-size: 10px; }
+.price-check-item.rarity-unique strong { color: #af764b; }
+.price-check-item.rarity-magic strong { color: #8796d4; }
+.price-check-toolbar { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; padding: 12px 0; border-bottom: 1px solid #302e29; }
+.price-check-toolbar label, .price-check-properties > label:not(.price-check-checkbox) { display: grid; grid-template-columns: 86px minmax(0, 1fr); align-items: center; gap: 8px; color: #8e877b; font-size: 10px; }
+.price-check-dialog select, .price-check-dialog input { min-width: 0; height: 29px; border: 1px solid #48433b; border-radius: 2px; outline: 0; background: #090b09; color: #c9c0b0; font: 10px Arial, "Microsoft YaHei", sans-serif; }
+.price-check-dialog select { width: 100%; padding: 0 7px; }
+.price-check-dialog input:focus, .price-check-dialog select:focus { border-color: #9a8256; }
+.price-check-properties { display: grid; gap: 9px; padding: 12px 0; border-bottom: 1px solid #302e29; }
+.price-check-checkbox { min-width: 0; display: flex; align-items: flex-start; gap: 9px; color: #aaa294; font-size: 10px; cursor: pointer; }
+.price-check-checkbox > input { width: 14px; height: 14px; flex: 0 0 auto; margin: 2px 0 0; accent-color: #a78a50; }
+.price-check-range { display: grid; grid-template-columns: repeat(2, minmax(64px, 88px)); gap: 6px; justify-content: end; }
+.price-check-range input { width: 100%; padding: 0 7px; text-align: right; }
+.price-check-modifier-header { min-height: 40px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: #9d9382; font-size: 10px; }
+.price-check-modifier-header > div { display: flex; gap: 4px; }
+.price-check-modifier-header button { width: 27px; height: 25px; display: grid; place-items: center; padding: 0; border: 1px solid #454139; background: #171814; color: #9d917b; cursor: pointer; }
+.price-check-modifier-header button svg { width: 13px; height: 13px; }
+.price-check-modifiers { border-top: 1px solid #39362f; }
+.price-check-modifier { min-height: 48px; display: grid; grid-template-columns: minmax(0, 1fr) 182px; align-items: center; gap: 14px; padding: 8px 9px; border-bottom: 1px solid #2e2c27; }
+.price-check-modifier:hover { background: #151712; }
+.price-check-modifier.unavailable { opacity: .48; }
+.price-check-modifier .price-check-checkbox > span { min-width: 0; display: grid; gap: 2px; }
+.price-check-modifier .price-check-checkbox small { color: #7f765f; font-size: 8px; }
+.price-check-modifier .price-check-checkbox em { color: #91a3ce; font-size: 10px; font-style: normal; line-height: 1.35; overflow-wrap: anywhere; }
+.price-check-modifier-unavailable, .price-check-unmatched { justify-self: end; color: #716d65; font-size: 9px; }
+.price-check-error { margin-top: 10px; padding: 8px 10px; border: 1px solid #70453f; background: #281816; color: #d08c81; font-size: 10px; }
+.price-check-dialog .dialog-footer > span { min-width: 0; color: #777065; font-size: 9px; }
+.price-check-dialog .dialog-footer > div { display: flex; gap: 7px; }
+.price-check-dialog .dialog-footer button { min-height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 12px; border: 1px solid #49453d; border-radius: 2px; background: #1b1c18; color: #aaa296; cursor: pointer; }
+.price-check-dialog .dialog-footer button.primary { border-color: #88734b; background: #29251c; color: #e1c68d; }
+.price-check-dialog .dialog-footer button:disabled { opacity: .45; cursor: default; }
+.price-check-dialog .dialog-footer svg { width: 14px; height: 14px; }
+
+@media (max-width: 680px) {
+  .price-check-toolbar { grid-template-columns: 1fr; }
+  .price-check-modifier { grid-template-columns: minmax(0, 1fr); gap: 7px; }
+  .price-check-modifier > .price-check-range { justify-content: start; padding-left: 23px; }
+  .price-check-unmatched { justify-self: start; padding-left: 23px; }
+  .price-check-dialog .dialog-footer > span { display: none; }
+  .price-check-dialog .dialog-footer { justify-content: flex-end; }
+}
 .library-workspace-directory .library-workspace-tree-node { padding-left: calc(6px + (var(--tree-depth, 0) * 13px)); }
 .library-workspace-directory .library-workspace-folder { min-height: 32px; }
 .library-workspace-directory .library-workspace-folder-name { min-height: 32px; padding: 0 7px; }
