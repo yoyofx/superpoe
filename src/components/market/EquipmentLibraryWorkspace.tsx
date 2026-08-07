@@ -1,24 +1,19 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Check, Clipboard, ClipboardPaste, ExternalLink, FileText, Folder, FolderTree, PanelLeftClose, PanelLeftOpen, Plus, Search, Tags, Trash2, X } from 'lucide-react'
+import { Check, Clipboard, ClipboardPaste, FileText, PanelLeftClose, PanelLeftOpen, Plus, Search, Tags, Trash2, X } from 'lucide-react'
 import type {
-  EquipmentLibraryEntry, EquipmentLibrarySourceKind,
-  CanonicalItemModifierView, MarketFavoriteSource, MarketRealm, TradeLeague,
+  EquipmentCollectionRoot, EquipmentLibraryEntry, EquipmentLibraryFolder, EquipmentLibrarySourceKind,
+  MarketFavoriteSource, MarketRealm, TradeLeague,
 } from '@/types/market'
-import { PriceCheckDialog } from './PriceCheckDialog'
 import { useTranslation } from '@/i18n/useTranslation'
-import { translateGameText, type Language } from '@/i18n/translationLoader'
+import type { Language } from '@/i18n/translationLoader'
 import { uiText, type UiMessage } from '@/i18n/uiLocale'
+import { EquipmentItemInspector, equipmentItemBaseType, equipmentItemName } from '@/components/equipment/EquipmentItemInspector'
+import { EquipmentCollectionTree, type EquipmentCollectionSelection } from '@/components/equipment/EquipmentCollectionTree'
 
 interface EquipmentLibraryWorkspaceProps {
   realm: MarketRealm
 }
-
-type LibraryDirectoryView =
-  | { kind: 'all' }
-  | { kind: 'category'; category: LibraryCategory }
-
-type LibraryCategory = 'market' | 'build' | 'custom'
 
 interface TooltipPosition {
   entryId: string
@@ -40,16 +35,11 @@ interface DirectoryResizeState {
   startWidth: number
 }
 
-const LIBRARY_CATEGORIES: Array<{ category: LibraryCategory; sourceKinds: EquipmentLibrarySourceKind[]; label: UiMessage }> = [
-  { category: 'market', sourceKinds: ['market-favorite'], label: { en: 'Market favorites', 'zh-rCN': '集市收藏', 'zh-rTW': '市集收藏', 'ko-KR': '거래소 즐겨찾기' } },
-  { category: 'build', sourceKinds: ['pob-import', 'equipment-favorite'], label: { en: 'Build imports', 'zh-rCN': '构建导入', 'zh-rTW': '構築匯入', 'ko-KR': '빌드 가져오기' } },
-  { category: 'custom', sourceKinds: ['manual'], label: { en: 'Custom', 'zh-rCN': '自定义', 'zh-rTW': '自訂', 'ko-KR': '사용자 지정' } },
+const LIBRARY_CATEGORIES: Array<{ id: EquipmentCollectionRoot; label: UiMessage }> = [
+  { id: 'market', label: { en: 'Market favorites', 'zh-rCN': '集市收藏', 'zh-rTW': '市集收藏', 'ko-KR': '거래소 즐겨찾기' } },
+  { id: 'build', label: { en: 'Build imports', 'zh-rCN': '构筑导入', 'zh-rTW': '構築匯入', 'ko-KR': '빌드 가져오기' } },
+  { id: 'custom', label: { en: 'Custom', 'zh-rCN': '自定义', 'zh-rTW': '自訂', 'ko-KR': '사용자 지정' } },
 ]
-
-function belongsToCategory(entry: EquipmentLibraryEntry, category: LibraryCategory): boolean {
-  const sourceKinds = LIBRARY_CATEGORIES.find((candidate) => candidate.category === category)?.sourceKinds || []
-  return entry.sources.some((source) => sourceKinds.includes(source.kind))
-}
 
 function marketSource(entry: EquipmentLibraryEntry): MarketFavoriteSource | undefined {
   return entry.sources.find((source): source is MarketFavoriteSource => source.kind === 'market-favorite')
@@ -66,16 +56,12 @@ function sourceLabel(kind: EquipmentLibrarySourceKind, language: Language): stri
   return labels[kind][language]
 }
 
-function modifierText(modifier: CanonicalItemModifierView, language: Language): string {
-  return language === 'zh-rCN' ? modifier.localized?.['zh-CN'] || modifier.text : translateGameText(modifier.text, language)
-}
-
 function itemName(entry: EquipmentLibraryEntry, language: Language): string {
-  return language === 'zh-rCN' ? entry.view.localized?.['zh-CN']?.name || entry.view.name : translateGameText(entry.view.name, language)
+  return equipmentItemName(entry.view, language)
 }
 
 function itemBaseType(entry: EquipmentLibraryEntry, language: Language): string {
-  return language === 'zh-rCN' ? entry.view.localized?.['zh-CN']?.baseType || entry.view.baseType : translateGameText(entry.view.baseType, language)
+  return equipmentItemBaseType(entry.view, language)
 }
 
 export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspaceProps) {
@@ -83,7 +69,8 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const bridge = window.pob2Market
   const [entries, setEntries] = useState<EquipmentLibraryEntry[]>([])
-  const [view, setView] = useState<LibraryDirectoryView>({ kind: 'all' })
+  const [folders, setFolders] = useState<EquipmentLibraryFolder[]>([])
+  const [view, setView] = useState<EquipmentCollectionSelection>({ kind: 'all' })
   const [query, setQuery] = useState('')
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
   const [leagueId, setLeagueId] = useState('')
@@ -98,14 +85,17 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
   const [error, setError] = useState<string | null>(null)
   const [copyPobState, setCopyPobState] = useState<'idle' | 'copied' | 'error'>('idle')
   const [customItemRaw, setCustomItemRaw] = useState<string | null>(null)
-  const [priceCheckEntryId, setPriceCheckEntryId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!bridge) return
     try {
-      const nextEntries = await bridge.listLibrary({ query, sourceKind: 'all', includeArchived: false })
+      const [nextEntries, sidebar] = await Promise.all([
+        bridge.listLibrary({ query, sourceKind: 'all', includeArchived: false }),
+        bridge.getSidebar(),
+      ])
       setEntries(nextEntries)
-      setSelectedEntryId((current) => current && nextEntries.some((entry) => entry.id === current) ? current : nextEntries[0]?.id || null)
+      setFolders(sidebar.folders)
+      setSelectedEntryId((current) => current && nextEntries.some((entry) => entry.id === current) ? current : null)
       setError(null)
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : String(caught))
@@ -129,18 +119,14 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
   }, [bridge, realm])
 
   const visibleEntries = useMemo(() => entries.filter((entry) => {
-    if (view.kind === 'category') return belongsToCategory(entry, view.category)
+    if (view.kind === 'root') return entry.collectionRoot === view.root && entry.folderId === view.folderId
     return true
   }), [entries, view])
-  const selectedEntry = visibleEntries.find((entry) => entry.id === selectedEntryId) || visibleEntries[0]
+  const selectedEntry = selectedEntryId ? visibleEntries.find((entry) => entry.id === selectedEntryId) : undefined
   const tooltipEntry = tooltip ? entries.find((entry) => entry.id === tooltip.entryId) : undefined
   const floatingEntry = floatingDetail ? entries.find((entry) => entry.id === floatingDetail.entryId) : undefined
-  const currentDirectoryLabel = view.kind === 'category'
-    ? (LIBRARY_CATEGORIES.find((directory) => directory.category === view.category)?.label[lang] || '')
-    : l('All equipment', '全部装备', '全部裝備', '모든 장비')
-
   useEffect(() => {
-    setSelectedEntryId((current) => current && visibleEntries.some((entry) => entry.id === current) ? current : visibleEntries[0]?.id || null)
+    setSelectedEntryId((current) => current && visibleEntries.some((entry) => entry.id === current) ? current : null)
   }, [visibleEntries])
 
   useEffect(() => {
@@ -163,15 +149,37 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
     }
   }
 
-  const selectDirectory = (nextView: LibraryDirectoryView) => {
+  const selectDirectory = (nextView: EquipmentCollectionSelection) => {
     setView(nextView)
+    setSelectedEntryId(null)
     setTooltip(null)
+    setFloatingDetail(null)
   }
 
-  const deleteEntry = async () => {
-    if (!bridge || !selectedEntry) return
-    if (!window.confirm(l(`Delete “${itemName(selectedEntry, lang)}”? This cannot be undone.`, `确定删除“${itemName(selectedEntry, lang)}”？此操作无法撤销。`, `確定刪除「${itemName(selectedEntry, lang)}」？此操作無法復原。`, `“${itemName(selectedEntry, lang)}” 장비를 삭제할까요? 이 작업은 취소할 수 없습니다.`))) return
-    await run(() => bridge.deleteLibrary(selectedEntry.id), l('Equipment deleted', '装备已删除', '裝備已刪除', '장비 삭제됨'))
+  const createFolder = async (root: EquipmentCollectionRoot, name: string, parentId?: string) => {
+    if (!bridge) return
+    const folder = await bridge.createFolder({ scope: 'items', collectionRoot: root, name, parentId })
+    await load()
+    setView({ kind: 'root', root, folderId: folder.id })
+  }
+
+  const renameFolder = async (folderId: string, name: string) => {
+    if (!bridge) return
+    await bridge.updateFolder({ id: folderId, name })
+    await load()
+  }
+
+  const deleteFolder = async (folder: EquipmentLibraryFolder) => {
+    if (!bridge || !window.confirm(l(`Delete “${folder.name}”? Its contents will move to the parent folder.`, `删除“${folder.name}”？其中的装备和子目录将移到上级目录。`, `刪除「${folder.name}」？其中的裝備和子目錄將移至上層目錄。`, `“${folder.name}” 폴더를 삭제할까요? 내용은 상위 폴더로 이동합니다.`))) return
+    await bridge.deleteFolder(folder.id)
+    setView({ kind: 'root', root: folder.collectionRoot! })
+    await load()
+  }
+
+  const deleteEntry = async (entry = selectedEntry) => {
+    if (!bridge || !entry) return
+    if (!window.confirm(l(`Delete “${itemName(entry, lang)}”? This cannot be undone.`, `确定删除“${itemName(entry, lang)}”？此操作无法撤销。`, `確定刪除「${itemName(entry, lang)}」？此操作無法復原。`, `“${itemName(entry, lang)}” 장비를 삭제할까요? 이 작업은 취소할 수 없습니다.`))) return
+    await run(() => bridge.deleteLibrary(entry.id), l('Equipment deleted', '装备已删除', '裝備已刪除', '장비 삭제됨'))
   }
 
   const copyPobItem = async () => {
@@ -193,9 +201,10 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
     setNotice(null)
     setError(null)
     try {
-      const entry = await bridge.saveEquipmentItem({ raw: customItemRaw.trim(), source: { kind: 'manual' } })
+      const folderId = view.kind === 'root' && view.root === 'custom' ? view.folderId : undefined
+      const entry = await bridge.saveEquipmentItem({ raw: customItemRaw.trim(), collectionRoot: 'custom', folderId, source: { kind: 'manual' } })
       setCustomItemRaw(null)
-      setView({ kind: 'category', category: 'custom' })
+      setView({ kind: 'root', root: 'custom', folderId })
       await load()
       setSelectedEntryId(entry.id)
       setNotice(l('Custom item added', '自定义装备已添加', '自訂裝備已新增', '사용자 지정 장비 추가됨'))
@@ -230,8 +239,12 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
   }
 
   const handleCardClick = (event: ReactMouseEvent<HTMLButtonElement>, entry: EquipmentLibraryEntry) => {
-    setSelectedEntryId(entry.id)
-    if (event.altKey) openFloatingDetails(event, entry)
+    if (event.altKey) {
+      setSelectedEntryId(entry.id)
+      openFloatingDetails(event, entry)
+      return
+    }
+    setSelectedEntryId((current) => current === entry.id ? null : entry.id)
   }
 
   const handleFloatingPointerDown = (event: ReactPointerEvent<HTMLElement>) => {
@@ -295,49 +308,21 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
     }
   }
 
-  const renderItemInspector = (entry: EquipmentLibraryEntry, floating = false): ReactNode => {
-    const rarityKey = entry.view.rarity.toLowerCase()
-    const modifierGroups = (['implicit', 'enchant', 'rune', 'explicit'] as const)
-      .map((group) => ({ group, entries: entry.view.modifiers.filter((modifier) => modifier.group === group) }))
-      .filter(({ entries: groupEntries }) => groupEntries.length)
-    return <>
-      <header
-        className={`inspector-title item-header-${rarityKey} rarity-${rarityKey}`}
-        onPointerDown={floating ? handleFloatingPointerDown : undefined}
-        onPointerMove={floating ? handleFloatingPointerMove : undefined}
-        onPointerUp={floating ? finishFloatingDrag : undefined}
-        onPointerCancel={floating ? finishFloatingDrag : undefined}
-      >
-        <div className="item-header-copy">
-          <h2>{itemName(entry, lang)}</h2>
-          <p>{itemBaseType(entry, lang)}</p>
-        </div>
-        {floating && <button className="library-item-floating-close" onPointerDown={(event) => event.stopPropagation()} onClick={() => setFloatingDetail(null)} title={l('Close item details', '关闭装备详情', '關閉裝備詳情', '아이템 상세 정보 닫기')} aria-label={l('Close item details', '关闭装备详情', '關閉裝備詳情', '아이템 상세 정보 닫기')}><X /></button>}
-      </header>
-      <div className="inspector-scroll">
-        <div className="item-property-type">{itemBaseType(entry, lang)}</div>
-        <div className="library-item-inspector-sources">{entry.sources.map((source) => <span key={source.sourceKey}>{sourceLabel(source.kind, lang)}</span>)}</div>
-        {marketSource(entry)?.price && <div className="library-item-inspector-price">{marketSource(entry)!.price!.display}</div>}
-        <div className="item-metadata">
-          <span>{l('Rarity', '稀有度', '稀有度', '희귀도')} <strong>{entry.view.rarity}</strong></span>
-          {entry.view.itemLevel != null && <span>{l('Item level', '物品等级', '物品等級', '아이템 레벨')} <strong>{entry.view.itemLevel}</strong></span>}
-          {entry.view.quality != null && <span>{l('Quality', '品质', '品質', '퀄리티')} <strong>{entry.view.quality}%</strong></span>}
-          {entry.view.sockets && <span>{l('Sockets', '孔位', '插槽', '홈')} <strong>{entry.view.sockets}</strong></span>}
-          {entry.view.corrupted && <span className="library-item-inspector-corrupted">{l('Corrupted', '已腐化', '已汙染', '타락')}</span>}
-        </div>
-        <div className="item-modifiers">
-          {modifierGroups.map(({ group, entries: groupEntries }) => <section className={`modifier-group modifier-${group}`} key={group}>
-            {groupEntries.map((modifier) => {
-              const styleTag = modifier.sourceTags.find((tag) => ['crafted', 'fractured', 'mutated', 'rune', 'enchant'].includes(tag))
-              return <p key={modifier.id} className={styleTag ? `mod-${styleTag}` : ''}>{modifierText(modifier, lang)}</p>
-            })}
-          </section>)}
-          {!modifierGroups.length && <p>{l('No modifier snapshot', '暂无词条快照', '暫無詞綴快照', '속성 스냅샷 없음')}</p>}
-        </div>
-        {(entry.tags.length > 0 || entry.note) && <div className="library-item-inspector-notes">{entry.tags.length > 0 && <span>{entry.tags.join(' · ')}</span>}{entry.note && <p>{entry.note}</p>}</div>}
-      </div>
-    </>
-  }
+  const renderItemInspector = (entry: EquipmentLibraryEntry, floating = false) => <EquipmentItemInspector
+    view={entry.view}
+    language={lang}
+    sourceLabels={entry.sources.map((source) => sourceLabel(source.kind, lang))}
+    price={marketSource(entry)?.price?.display}
+    tags={entry.tags}
+    note={entry.note}
+    headerProps={floating ? {
+      onPointerDown: handleFloatingPointerDown,
+      onPointerMove: handleFloatingPointerMove,
+      onPointerUp: finishFloatingDrag,
+      onPointerCancel: finishFloatingDrag,
+    } : undefined}
+    headerAction={floating ? <button className="library-item-floating-close" onPointerDown={(event) => event.stopPropagation()} onClick={() => setFloatingDetail(null)} title={l('Close item details', '关闭装备详情', '關閉裝備詳情', '아이템 상세 정보 닫기')} aria-label={l('Close item details', '关闭装备详情', '關閉裝備詳情', '아이템 상세 정보 닫기')}><X /></button> : undefined}
+  />
 
   const renderCard = (entry: EquipmentLibraryEntry) => {
     return <article
@@ -361,39 +346,56 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
 
   return <section className="equipment-library-workspace">
     <div className="library-workspace-commandbar">
-      <label className="library-workspace-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={l('Search item, base, or modifier', '搜索装备名称、底材或词条', '搜尋裝備名稱、基底或詞綴', '아이템, 베이스 또는 속성 검색')} /></label>
-      <div className="library-workspace-command-context"><Folder /><strong>{currentDirectoryLabel}</strong><small>{l(`${visibleEntries.length} items`, `${visibleEntries.length} 件`, `${visibleEntries.length} 件`, `${visibleEntries.length}개`)}</small></div>
-      <button className="library-workspace-add-custom" disabled={busy} onClick={() => { setError(null); setCustomItemRaw('') }}><Plus /><span>{l('Add custom item', '添加自定义装备', '新增自訂裝備', '사용자 지정 장비 추가')}</span></button>
-      {selectedEntry && <div className="library-workspace-selection-actions">
-        <strong title={itemName(selectedEntry, lang)}>{itemName(selectedEntry, lang)}</strong>
-        <button
-          className={copyPobState === 'error' ? 'copy-error' : ''}
-          disabled={busy || !selectedEntry.item.raw}
-          onClick={() => void copyPobItem()}
-          title={!selectedEntry.item.raw ? l('No PoB item text is available', '此装备没有可复制的 PoB 词条', '此裝備沒有可複製的 PoB 詞綴', '복사할 PoB 아이템 텍스트가 없습니다') : l('Copy PoB item', '复制 PoB 词条', '複製 PoB 詞綴', 'PoB 아이템 복사')}
-          aria-live="polite"
-        >
-          {copyPobState === 'copied' ? <Check /> : <Clipboard />}
-          <span>{copyPobState === 'copied' ? l('Copied', '已复制', '已複製', '복사됨') : copyPobState === 'error' ? l('Copy failed', '复制失败', '複製失敗', '복사 실패') : l('Copy PoB item', '复制 PoB 词条', '複製 PoB 詞綴', 'PoB 아이템 복사')}</span>
-        </button>
-        <button className="primary" disabled={busy || !leagueId} onClick={() => setPriceCheckEntryId(selectedEntry.id)} title={l('Configure price check', '选择词条并查价', '選擇詞綴並查價', '속성을 선택하고 가격 확인')}><Search /><span>{l('Price check', '查价', '查價', '가격 확인')}</span></button>
-        {selectedEntry.sources[0] && <button disabled={busy} onClick={() => void bridge?.openLibrarySource(selectedEntry.id, selectedEntry.sources[0].sourceKey)} title={l('Open source', '打开来源', '開啟來源', '출처 열기')}><ExternalLink /></button>}
-        <button className="danger" disabled={busy} onClick={() => void deleteEntry()} title={l('Delete equipment', '删除装备', '刪除裝備', '장비 삭제')}><Trash2 /></button>
-      </div>}
+      <div className="library-workspace-command-leading">
+        <label className="library-workspace-search"><Search /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={l('Search item, base, or modifier', '搜索装备名称、底材或词条', '搜尋裝備名稱、基底或詞綴', '아이템, 베이스 또는 속성 검색')} /></label>
+        <span className="library-workspace-result-count" aria-live="polite">{l(`${visibleEntries.length} items`, `${visibleEntries.length} 件`, `${visibleEntries.length} 件`, `${visibleEntries.length}개`)}</span>
+      </div>
+      <div className="library-workspace-command-actions">
+        <div className="library-workspace-global-actions">
+          <button className="library-workspace-add-custom" disabled={busy} onClick={() => { setError(null); setCustomItemRaw('') }} title={l('Add a custom equipment item', '添加自定义装备', '新增自訂裝備', '사용자 지정 장비 추가')}><Plus /><span>{l('Add custom item', '添加自定义装备', '新增自訂裝備', '사용자 지정 장비 추가')}</span></button>
+        </div>
+        {selectedEntry && <div className="library-workspace-selection-actions" aria-label={l('Selected equipment actions', '已选装备操作', '已選裝備操作', '선택한 장비 작업')}>
+          <button
+            className={copyPobState === 'error' ? 'copy-error' : ''}
+            disabled={busy || !selectedEntry.item.raw}
+            onClick={() => void copyPobItem()}
+            title={!selectedEntry.item.raw ? l('No PoB item text is available', '此装备没有可复制的 PoB 词条', '此裝備沒有可複製的 PoB 詞綴', '복사할 PoB 아이템 텍스트가 없습니다') : l('Copy PoB item', '复制 PoB 词条', '複製 PoB 詞綴', 'PoB 아이템 복사')}
+            aria-live="polite"
+          >
+            {copyPobState === 'copied' ? <Check /> : <Clipboard />}
+            <span>{copyPobState === 'copied' ? l('Copied', '已复制', '已複製', '복사됨') : copyPobState === 'error' ? l('Copy failed', '复制失败', '複製失敗', '복사 실패') : l('Copy PoB item', '复制 PoB 词条', '複製 PoB 詞綴', 'PoB 아이템 복사')}</span>
+          </button>
+          <button className="primary" disabled={busy || !leagueId} onClick={() => { void window.superpoePriceCheck?.open({ source: { kind: 'library', entryId: selectedEntry.id }, initialLeagueId: marketSource(selectedEntry)?.leagueId || leagueId }) }} title={l('Configure price check', '选择词条并查价', '選擇詞綴並查價', '속성을 선택하고 가격 확인')}><Search /><span>{l('Price check', '查价', '查價', '가격 확인')}</span></button>
+          <button className="danger" disabled={busy} onClick={() => void deleteEntry()} title={l('Delete equipment', '删除装备', '刪除裝備', '장비 삭제')}><Trash2 /></button>
+        </div>}
+      </div>
     </div>
     <div className={`library-workspace-layout${directoryCollapsed ? ' directory-collapsed' : ''}`} style={{ '--library-directory-width': `${directoryCollapsed ? 42 : directoryWidth}px` } as CSSProperties}>
       <aside className="library-workspace-directory">
         <header>
           <strong>{l('Library categories', '仓库分类', '倉庫分類', '라이브러리 분류')}</strong>
-          <span>{LIBRARY_CATEGORIES.length + 1}</span>
+          <span>{folders.filter((folder) => folder.scope === 'items').length}</span>
           <button className="library-workspace-directory-toggle" onClick={() => setDirectoryCollapsed((collapsed) => !collapsed)} title={directoryCollapsed ? l('Expand categories', '展开分类', '展開分類', '분류 펼치기') : l('Collapse categories', '收起分类', '收合分類', '분류 접기')} aria-label={directoryCollapsed ? l('Expand categories', '展开分类', '展開分類', '분류 펼치기') : l('Collapse categories', '收起分类', '收合分類', '분류 접기')}>
             {directoryCollapsed ? <PanelLeftOpen /> : <PanelLeftClose />}
           </button>
         </header>
-        <div className="library-workspace-directory-list">
-          <button className={`library-workspace-directory-entry${view.kind === 'all' ? ' selected' : ''}`} onClick={() => selectDirectory({ kind: 'all' })}><FolderTree /><span>{l('All equipment', '全部装备', '全部裝備', '모든 장비')}</span><small>{entries.length}</small></button>
-          {LIBRARY_CATEGORIES.map((directory) => <button className={`library-workspace-directory-entry source-directory${view.kind === 'category' && view.category === directory.category ? ' selected' : ''}`} key={directory.category} onClick={() => selectDirectory({ kind: 'category', category: directory.category })}><Folder /><span>{directory.label[lang]}</span><small>{entries.filter((entry) => belongsToCategory(entry, directory.category)).length}</small></button>)}
-        </div>
+        <EquipmentCollectionTree
+          roots={LIBRARY_CATEGORIES.map((root) => ({ id: root.id, label: root.label[lang] }))}
+          folders={folders}
+          entries={entries}
+          selection={view}
+          allLabel={l('All equipment', '全部装备', '全部裝備', '모든 장비')}
+          labels={{
+            collapse: l('Collapse', '折叠', '收合', '접기'), expand: l('Expand', '展开', '展開', '펼치기'),
+            newFolder: l('New folder', '新建目录', '建立目錄', '새 폴더'),
+            rename: l('Rename', '重命名', '重新命名', '이름 변경'), delete: l('Delete', '删除', '刪除', '삭제'),
+          }}
+          onSelect={selectDirectory}
+          onCreate={createFolder}
+          onRename={renameFolder}
+          onDelete={deleteFolder}
+          onToggle={async (folder) => { await bridge?.updateFolder({ id: folder.id, expanded: !folder.expanded }); await load() }}
+        />
       </aside>
       <div
         className="library-workspace-splitter"
@@ -417,7 +419,7 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
         {error && <div className="library-workspace-error">{error}<button onClick={() => setError(null)}><X /></button></div>}
         <div className="library-workspace-grid">
           {visibleEntries.map(renderCard)}
-          {!visibleEntries.length && <div className="library-workspace-empty-grid"><Tags /><strong>{l('This directory is empty', '这个目录还没有装备', '這個目錄尚無裝備', '이 디렉터리가 비어 있습니다')}</strong><span>{query ? l('No equipment matches the current search.', '没有匹配当前搜索条件的装备。', '沒有符合目前搜尋條件的裝備。', '현재 검색과 일치하는 장비가 없습니다.') : l('Items added from the market, builds, or custom input will appear here.', '从集市、构建或自定义入口添加装备后，它们会出现在这里。', '從市集、構築或自訂輸入新增的裝備會顯示於此。', '거래소, 빌드 또는 사용자 지정 입력에서 추가한 장비가 여기에 표시됩니다.')}</span></div>}
+          {!visibleEntries.length && <div className="library-workspace-empty-grid"><Tags /><strong>{l('This directory is empty', '这个目录还没有装备', '這個目錄尚無裝備', '이 디렉터리가 비어 있습니다')}</strong><span>{query ? l('No equipment matches the current search.', '没有匹配当前搜索条件的装备。', '沒有符合目前搜尋條件的裝備。', '현재 검색과 일치하는 장비가 없습니다.') : l('Items added from the market, builds, or custom input will appear here.', '从集市、构筑或自定义入口添加装备后，它们会出现在这里。', '從市集、構築或自訂輸入新增的裝備會顯示於此。', '거래소, 빌드 또는 사용자 지정 입력에서 추가한 장비가 여기에 표시됩니다.')}</span></div>}
         </div>
       </section>
     </div>
@@ -432,17 +434,5 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
         <footer className="dialog-footer"><button className="secondary-command" disabled={busy} onClick={() => setCustomItemRaw(null)}>{l('Cancel', '取消', '取消', '취소')}</button><span /><button className="primary-command" disabled={busy || !customItemRaw.trim()} onClick={() => void createCustomItem()}><ClipboardPaste />{l('Parse and add', '解析并添加', '解析並新增', '분석 및 추가')}</button></footer>
       </section>
     </div>, document.body)}
-    {priceCheckEntryId && (() => {
-      const entry = entries.find((candidate) => candidate.id === priceCheckEntryId)
-      const source = entry ? marketSource(entry) : undefined
-      return <PriceCheckDialog
-        realm={source?.realm || realm}
-        target={{ kind: 'library', entryId: priceCheckEntryId }}
-        language={lang}
-        initialLeagueId={source?.leagueId || leagueId}
-        onClose={() => setPriceCheckEntryId(null)}
-        onSearched={(result) => setNotice(l(`Price search updated with ${result.total} results`, `查价搜索已更新，共 ${result.total} 条结果`, `查價搜尋已更新，共 ${result.total} 筆結果`, `가격 검색이 업데이트되었습니다. 결과 ${result.total}개`))}
-      />
-    })()}
   </section>
 }

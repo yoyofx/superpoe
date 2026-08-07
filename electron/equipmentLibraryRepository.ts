@@ -3,6 +3,7 @@ import path from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
 import type {
   EquipmentLibraryEntry,
+  EquipmentCollectionRoot,
   EquipmentLibraryFilter,
   EquipmentLibraryFolder,
   EquipmentLibraryFolderInput,
@@ -24,7 +25,7 @@ import type { NormalizedPobItem, PobItemBridge } from './pobItemBridge.js'
 import { createSearchQuerySnapshot, parseOfficialSearchUrl, withSearchSnapshot } from './marketSearch.js'
 
 interface EquipmentLibraryFile {
-  schemaVersion: 2
+  schemaVersion: 3
   entries: PersistedEquipmentLibraryEntry[]
   unresolvedLegacyEntries?: unknown[]
   folders?: EquipmentLibraryFolder[]
@@ -35,6 +36,20 @@ interface EquipmentLibraryFile {
 
 type PersistedEquipmentLibraryEntry = Omit<EquipmentLibraryEntry, 'view'>
 
+type V2EquipmentLibraryEntry = Omit<EquipmentLibraryEntry, 'schemaVersion' | 'collectionRoot' | 'view'> & {
+  schemaVersion: 2
+}
+
+interface V2EquipmentLibraryFile {
+  schemaVersion: 2
+  entries: V2EquipmentLibraryEntry[]
+  unresolvedLegacyEntries?: unknown[]
+  folders?: Array<Omit<EquipmentLibraryFolder, 'collectionRoot'>>
+  searches?: SavedMarketSearch[]
+  selectedFolders?: Partial<Record<LibraryTreeScope, string>>
+  updatedAt: string
+}
+
 interface LegacyEquipmentLibraryFile {
   schemaVersion: 1
   entries: LegacyEquipmentLibraryEntry[]
@@ -43,9 +58,19 @@ interface LegacyEquipmentLibraryFile {
   selectedFolders?: Partial<Record<LibraryTreeScope, string>>
 }
 
-type LegacyEquipmentLibraryEntry = Omit<EquipmentLibraryEntry, 'schemaVersion' | 'item' | 'view'> & {
+type LegacyEquipmentLibraryEntry = Omit<EquipmentLibraryEntry, 'schemaVersion' | 'collectionRoot' | 'item' | 'view'> & {
   schemaVersion: 1
   item: LibraryItemSnapshot
+}
+
+export function collectionRootForSource(source: EquipmentLibrarySource): EquipmentCollectionRoot {
+  if (source.kind === 'market-favorite') return 'market'
+  if (source.kind === 'pob-import' || source.kind === 'equipment-favorite') return 'build'
+  return 'custom'
+}
+
+function isCollectionRoot(value: unknown): value is EquipmentCollectionRoot {
+  return value === 'market' || value === 'build' || value === 'custom'
 }
 
 const MAX_ENTRIES = 5_000
@@ -55,6 +80,25 @@ const MAX_TAGS = 32
 const MAX_TAG_LENGTH = 64
 const MAX_FOLDERS = 1_000
 const MAX_SEARCHES = 5_000
+
+function librarySearchValues(entry: EquipmentLibraryEntry): string[] {
+  const localizedViewValues = Object.values(entry.view.localized || {}).flatMap((localized) => [localized.name, localized.baseType])
+  const localizedModifierValues = entry.view.modifiers.flatMap((modifier) => Object.values(modifier.localized || {}))
+  const sourceDisplayValues = entry.sources.flatMap((source) => source.display
+    ? [source.display.name, source.display.baseType, ...(source.display.modifiers || [])]
+    : [])
+  return [
+    entry.view.name,
+    entry.view.baseType,
+    ...entry.view.modifiers.map((modifier) => modifier.text),
+    ...localizedViewValues,
+    ...localizedModifierValues,
+    ...sourceDisplayValues,
+    entry.folder,
+    entry.note,
+    ...entry.tags,
+  ].filter((value): value is string => Boolean(value))
+}
 
 function normalizeText(value: string | undefined, maxLength: number): string | undefined {
   if (typeof value !== 'string') return undefined
@@ -150,8 +194,9 @@ function deriveItemView(item: CanonicalEquipmentItem): CanonicalItemView {
 function isPersistedLibraryEntry(value: unknown): value is PersistedEquipmentLibraryEntry {
   if (!value || typeof value !== 'object') return false
   const entry = value as Partial<PersistedEquipmentLibraryEntry>
-  return entry.schemaVersion === 2 && typeof entry.id === 'string' && typeof entry.fingerprint === 'string'
+  return entry.schemaVersion === 3 && typeof entry.id === 'string' && typeof entry.fingerprint === 'string'
     && isCanonicalItem(entry.item) && Array.isArray(entry.sources) && Array.isArray(entry.tags)
+    && isCollectionRoot(entry.collectionRoot)
     && typeof entry.archived === 'boolean' && typeof entry.createdAt === 'string' && typeof entry.updatedAt === 'string'
 }
 
@@ -187,7 +232,9 @@ export class EquipmentLibraryRepository {
       .filter((entry) => filter.includeArchived || !entry.archived)
       .filter((entry) => !filter.realm || entry.sources.some((source) => 'realm' in source && source.realm === filter.realm))
       .filter((entry) => !filter.sourceKind || filter.sourceKind === 'all' || entry.sources.some((source) => source.kind === filter.sourceKind))
-      .filter((entry) => !query || [entry.view.name, entry.view.baseType, ...entry.view.modifiers.map((modifier) => modifier.text), entry.folder, this.folderName(entry.folderId), entry.note, ...entry.tags]
+      .filter((entry) => !filter.collectionRoot || entry.collectionRoot === filter.collectionRoot)
+      .filter((entry) => filter.folderId === undefined || entry.folderId === (filter.folderId || undefined))
+      .filter((entry) => !query || [...librarySearchValues(entry), this.folderName(entry.folderId)]
         .some((value) => value?.toLocaleLowerCase().includes(query)))
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
       .map((entry) => structuredClone(entry))
@@ -198,17 +245,28 @@ export class EquipmentLibraryRepository {
     return entry ? structuredClone(entry) : undefined
   }
 
-  upsert(normalized: NormalizedPobItem, source: EquipmentLibrarySource): EquipmentLibraryEntry {
+  upsert(
+    normalized: NormalizedPobItem,
+    source: EquipmentLibrarySource,
+    target: { collectionRoot?: EquipmentCollectionRoot; folderId?: string } = {},
+  ): EquipmentLibraryEntry {
     if (!isCanonicalItem(normalized.item)) throw new Error('Invalid canonical equipment item')
     const fingerprint = fingerprintLibraryItem(normalized.item)
     const now = new Date().toISOString()
     let entry = this.entries.find((candidate) => candidate.sources.some((existing) => existing.sourceKey === source.sourceKey))
-    entry ||= this.entries.find((candidate) => candidate.fingerprint === fingerprint)
+    const collectionRoot = target.collectionRoot || collectionRootForSource(source)
+    if (target.folderId) this.requireFolder(target.folderId, 'items', collectionRoot)
 
     if (entry) {
       entry.item = structuredClone(normalized.item)
       entry.view = structuredClone(normalized.view)
       entry.fingerprint = fingerprint
+      entry.collectionRoot = collectionRoot
+      if (target.folderId) entry.folderId = target.folderId
+      else {
+        const currentFolderId = entry.folderId
+        if (currentFolderId && this.folders.find((folder) => folder.id === currentFolderId)?.collectionRoot !== collectionRoot) entry.folderId = undefined
+      }
       const sourceIndex = entry.sources.findIndex((existing) => existing.sourceKey === source.sourceKey)
       if (sourceIndex >= 0) entry.sources[sourceIndex] = structuredClone(source)
       else entry.sources.push(structuredClone(source))
@@ -216,13 +274,14 @@ export class EquipmentLibraryRepository {
     } else {
       if (this.entries.length >= MAX_ENTRIES) throw new Error('Equipment library limit reached')
       entry = {
-        schemaVersion: 2,
+        schemaVersion: 3,
         id: randomUUID(),
         fingerprint,
         item: structuredClone(normalized.item),
         view: structuredClone(normalized.view),
         sources: [structuredClone(source)],
-        ...(this.selectedFolders.items ? { folderId: this.selectedFolders.items } : {}),
+        collectionRoot,
+        ...(target.folderId ? { folderId: target.folderId } : {}),
         tags: [],
         archived: false,
         createdAt: now,
@@ -239,7 +298,7 @@ export class EquipmentLibraryRepository {
     const entry = this.entries.find((candidate) => candidate.sources.some((source) => source.sourceKey === sourceKey))
     if (!entry) return {}
     entry.sources = entry.sources.filter((source) => source.sourceKey !== sourceKey)
-    if (!entry.sources.length && !entry.folderId && !entry.folder && !entry.tags.length && !entry.note && !entry.archived) {
+    if (!entry.sources.length) {
       this.entries = this.entries.filter((candidate) => candidate.id !== entry.id)
       this.save()
       return { removedEntryId: entry.id }
@@ -270,10 +329,14 @@ export class EquipmentLibraryRepository {
   updateMetadata(patch: EquipmentLibraryMetadataPatch): EquipmentLibraryEntry {
     const entry = this.entries.find((candidate) => candidate.id === patch.id)
     if (!entry) throw new Error('Equipment library entry not found')
+    if (patch.collectionRoot) {
+      entry.collectionRoot = patch.collectionRoot
+      if (entry.folderId && this.folders.find((folder) => folder.id === entry.folderId)?.collectionRoot !== patch.collectionRoot) entry.folderId = undefined
+    }
     if ('folderId' in patch) {
       if (patch.folderId == null) entry.folderId = undefined
       else {
-        this.requireFolder(patch.folderId, 'items')
+        this.requireFolder(patch.folderId, 'items', entry.collectionRoot)
         entry.folderId = patch.folderId
       }
       entry.folder = undefined
@@ -324,16 +387,19 @@ export class EquipmentLibraryRepository {
     const name = normalizeText(input.name, 120)
     if (!name) throw new Error('Folder name is required')
     if (input.scope !== 'items' && input.scope !== 'searches') throw new Error('Invalid folder scope')
-    if (input.parentId) this.requireFolder(input.parentId, input.scope)
+    if (input.scope === 'items' && !isCollectionRoot(input.collectionRoot)) throw new Error('Equipment folder root is required')
+    if (input.scope === 'searches' && input.collectionRoot) throw new Error('Search folders cannot use an equipment root')
+    if (input.parentId) this.requireFolder(input.parentId, input.scope, input.collectionRoot)
     const now = new Date().toISOString()
     const folder: EquipmentLibraryFolder = {
       id: randomUUID(), scope: input.scope, name,
+      ...(input.collectionRoot ? { collectionRoot: input.collectionRoot } : {}),
       ...(input.parentId ? { parentId: input.parentId } : {}),
-      sortOrder: this.siblingFolders(input.scope, input.parentId).length,
+      sortOrder: this.siblingFolders(input.scope, input.parentId, input.collectionRoot).length,
       expanded: true, createdAt: now, updatedAt: now,
     }
     this.folders.push(folder)
-    this.selectedFolders[input.scope] = folder.id
+    if (input.scope === 'searches') this.selectedFolders.searches = folder.id
     this.save()
     return structuredClone(folder)
   }
@@ -350,14 +416,14 @@ export class EquipmentLibraryRepository {
     if ('parentId' in patch) {
       if (patch.parentId == null) folder.parentId = undefined
       else {
-        const parent = this.requireFolder(patch.parentId, folder.scope)
+        const parent = this.requireFolder(patch.parentId, folder.scope, folder.collectionRoot)
         if (parent.id === folder.id || this.descendantFolderIds(folder.id).has(parent.id)) throw new Error('A folder cannot be moved into itself')
         folder.parentId = parent.id
       }
     }
     if ('beforeId' in patch || previousParentId !== folder.parentId) {
       this.placeFolder(folder, patch.beforeId)
-      if (previousParentId !== folder.parentId) this.normalizeSiblingOrder(folder.scope, previousParentId)
+      if (previousParentId !== folder.parentId) this.normalizeSiblingOrder(folder.scope, previousParentId, folder.collectionRoot)
     }
     if (typeof patch.expanded === 'boolean') folder.expanded = patch.expanded
     folder.updatedAt = new Date().toISOString()
@@ -384,13 +450,14 @@ export class EquipmentLibraryRepository {
       if (folder.parentId) this.selectedFolders[folder.scope] = folder.parentId
       else delete this.selectedFolders[folder.scope]
     }
-    this.normalizeSiblingOrder(folder.scope, folder.parentId)
+    this.normalizeSiblingOrder(folder.scope, folder.parentId, folder.collectionRoot)
     this.save()
     return true
   }
 
   selectFolder(scope: LibraryTreeScope, folderId?: string): EquipmentLibrarySidebarSnapshot {
     if (scope !== 'items' && scope !== 'searches') throw new Error('Invalid folder scope')
+    if (scope === 'items') return this.sidebarSnapshot()
     if (folderId) {
       this.requireFolder(folderId, scope)
       this.selectedFolders[scope] = folderId
@@ -529,7 +596,9 @@ export class EquipmentLibraryRepository {
     if (raw.length > 50_000_000) throw new Error('Legacy equipment library file is too large')
     const legacy = JSON.parse(raw) as Partial<LegacyEquipmentLibraryFile>
     if (legacy.schemaVersion !== 1 || !Array.isArray(legacy.entries)) throw new Error('Unsupported legacy equipment library schema')
-    this.folders = Array.isArray(legacy.folders) ? legacy.folders.filter((folder): folder is EquipmentLibraryFolder => this.isFolder(folder)).slice(0, MAX_FOLDERS) : []
+    this.folders = Array.isArray(legacy.folders) ? legacy.folders.filter((folder) => this.isV2Folder(folder)).slice(0, MAX_FOLDERS).map((folder) => (
+      folder.scope === 'items' ? { ...folder, collectionRoot: 'market' as const } : folder
+    )) : []
     this.searches = Array.isArray(legacy.searches) ? legacy.searches.flatMap((search) => this.normalizeLoadedSearch(search)).slice(0, MAX_SEARCHES) : []
     this.selectedFolders = legacy.selectedFolders && typeof legacy.selectedFolders === 'object' ? legacy.selectedFolders : {}
     let migrated = 0
@@ -543,7 +612,8 @@ export class EquipmentLibraryRepository {
         const normalized = await bridge.normalize(candidate.item.rawText)
         this.entries.push({
           ...candidate,
-          schemaVersion: 2,
+          schemaVersion: 3,
+          collectionRoot: candidate.sources[0] ? collectionRootForSource(candidate.sources[0]) : 'custom',
           fingerprint: fingerprintLibraryItem(normalized.item),
           item: normalized.item,
           view: {
@@ -639,31 +709,99 @@ export class EquipmentLibraryRepository {
     try {
       const raw = readFileSync(this.filePath, 'utf8')
       if (raw.length > 50_000_000) throw new Error('Equipment library file is too large')
-      const parsed = JSON.parse(raw) as Partial<EquipmentLibraryFile>
-      if (parsed.schemaVersion !== 2 || !Array.isArray(parsed.entries)) throw new Error('Unsupported equipment library schema')
-      this.entries = parsed.entries.filter(isPersistedLibraryEntry).slice(0, MAX_ENTRIES).map(hydrateEntry)
-      this.unresolvedLegacyEntries = Array.isArray(parsed.unresolvedLegacyEntries) ? parsed.unresolvedLegacyEntries.slice(0, MAX_ENTRIES) : []
-      this.folders = Array.isArray(parsed.folders) ? parsed.folders.filter((folder): folder is EquipmentLibraryFolder => this.isFolder(folder)).slice(0, MAX_FOLDERS) : []
-      this.searches = Array.isArray(parsed.searches) ? parsed.searches.flatMap((search) => this.normalizeLoadedSearch(search)).slice(0, MAX_SEARCHES) : []
-      this.selectedFolders = parsed.selectedFolders && typeof parsed.selectedFolders === 'object' ? parsed.selectedFolders : {}
-      this.migrateLegacyFolders()
+      const migrated = this.loadPayload(JSON.parse(raw))
+      if (migrated) {
+        const migrationBackup = `${this.filePath}.v2-migration-backup.json`
+        if (!existsSync(migrationBackup)) copyFileSync(this.filePath, migrationBackup)
+        this.save()
+      }
     } catch {
       const backupPath = `${this.filePath}.backup.json`
       if (!existsSync(backupPath)) return
       try {
-        const parsed = JSON.parse(readFileSync(backupPath, 'utf8')) as Partial<EquipmentLibraryFile>
-        if (parsed.schemaVersion === 2 && Array.isArray(parsed.entries)) {
-          this.entries = parsed.entries.filter(isPersistedLibraryEntry).slice(0, MAX_ENTRIES).map(hydrateEntry)
-          this.unresolvedLegacyEntries = Array.isArray(parsed.unresolvedLegacyEntries) ? parsed.unresolvedLegacyEntries.slice(0, MAX_ENTRIES) : []
-          this.folders = Array.isArray(parsed.folders) ? parsed.folders.filter((folder): folder is EquipmentLibraryFolder => this.isFolder(folder)).slice(0, MAX_FOLDERS) : []
-          this.searches = Array.isArray(parsed.searches) ? parsed.searches.flatMap((search) => this.normalizeLoadedSearch(search)).slice(0, MAX_SEARCHES) : []
-          this.selectedFolders = parsed.selectedFolders && typeof parsed.selectedFolders === 'object' ? parsed.selectedFolders : {}
-          this.migrateLegacyFolders()
-        }
+        this.loadPayload(JSON.parse(readFileSync(backupPath, 'utf8')))
       } catch {
         this.entries = []
       }
     }
+  }
+
+  private loadPayload(value: unknown): boolean {
+    if (!value || typeof value !== 'object') throw new Error('Unsupported equipment library schema')
+    const header = value as { schemaVersion?: unknown; entries?: unknown }
+    if (!Array.isArray(header.entries)) throw new Error('Unsupported equipment library schema')
+    if (header.schemaVersion === 2) {
+      this.migrateV2(value as V2EquipmentLibraryFile)
+      return true
+    }
+    if (header.schemaVersion !== 3) throw new Error('Unsupported equipment library schema')
+    const parsed = value as EquipmentLibraryFile
+    this.entries = parsed.entries.filter(isPersistedLibraryEntry).slice(0, MAX_ENTRIES).map(hydrateEntry)
+    this.unresolvedLegacyEntries = Array.isArray(parsed.unresolvedLegacyEntries) ? parsed.unresolvedLegacyEntries.slice(0, MAX_ENTRIES) : []
+    this.folders = Array.isArray(parsed.folders) ? parsed.folders.filter((folder): folder is EquipmentLibraryFolder => this.isFolder(folder)).slice(0, MAX_FOLDERS) : []
+    this.searches = Array.isArray(parsed.searches) ? parsed.searches.flatMap((search) => this.normalizeLoadedSearch(search)).slice(0, MAX_SEARCHES) : []
+    this.selectedFolders = parsed.selectedFolders && typeof parsed.selectedFolders === 'object' ? parsed.selectedFolders : {}
+    delete this.selectedFolders.items
+    this.migrateLegacyFolders()
+    return false
+  }
+
+  private migrateV2(parsed: V2EquipmentLibraryFile): void {
+    const oldFolders = Array.isArray(parsed.folders)
+      ? parsed.folders.filter((value) => this.isV2Folder(value)).slice(0, MAX_FOLDERS)
+      : []
+    const searchFolders = oldFolders.filter((folder) => folder.scope === 'searches') as EquipmentLibraryFolder[]
+    this.folders = searchFolders.map((folder) => ({ ...folder }))
+    const itemFolders = oldFolders.filter((folder) => folder.scope === 'items')
+    const folderMap = new Map<string, string>()
+    const ensureFolder = (oldId: string, root: EquipmentCollectionRoot): string | undefined => {
+      const key = `${root}:${oldId}`
+      const existing = folderMap.get(key)
+      if (existing) return existing
+      const old = itemFolders.find((folder) => folder.id === oldId)
+      if (!old || this.folders.length >= MAX_FOLDERS) return undefined
+      const parentId = old.parentId ? ensureFolder(old.parentId, root) : undefined
+      const id = randomUUID()
+      this.folders.push({ ...old, id, collectionRoot: root, ...(parentId ? { parentId } : { parentId: undefined }) })
+      folderMap.set(key, id)
+      return id
+    }
+
+    // Item folders previously came from the market shortcut, so preserve empty folders there.
+    for (const folder of itemFolders) ensureFolder(folder.id, 'market')
+
+    this.entries = []
+    for (const candidate of parsed.entries.slice(0, MAX_ENTRIES)) {
+      if (!candidate || candidate.schemaVersion !== 2 || typeof candidate.id !== 'string'
+        || typeof candidate.fingerprint !== 'string' || !isCanonicalItem(candidate.item)
+        || !Array.isArray(candidate.sources) || !Array.isArray(candidate.tags)) continue
+      const grouped = new Map<EquipmentCollectionRoot, EquipmentLibrarySource[]>()
+      for (const source of candidate.sources) {
+        const root = collectionRootForSource(source)
+        grouped.set(root, [...(grouped.get(root) || []), source])
+      }
+      if (!grouped.size) grouped.set('custom', [])
+      let first = true
+      for (const [collectionRoot, sources] of grouped) {
+        if (this.entries.length >= MAX_ENTRIES) break
+        const folderId = candidate.folderId ? ensureFolder(candidate.folderId, collectionRoot) : undefined
+        this.entries.push(hydrateEntry({
+          ...candidate,
+          schemaVersion: 3,
+          id: first ? candidate.id : randomUUID(),
+          sources: structuredClone(sources),
+          collectionRoot,
+          ...(folderId ? { folderId } : { folderId: undefined }),
+        }))
+        first = false
+      }
+    }
+    this.unresolvedLegacyEntries = Array.isArray(parsed.unresolvedLegacyEntries) ? parsed.unresolvedLegacyEntries.slice(0, MAX_ENTRIES) : []
+    this.searches = Array.isArray(parsed.searches) ? parsed.searches.flatMap((search) => this.normalizeLoadedSearch(search)).slice(0, MAX_SEARCHES) : []
+    this.selectedFolders = parsed.selectedFolders && typeof parsed.selectedFolders === 'object'
+      ? { ...(parsed.selectedFolders.searches ? { searches: parsed.selectedFolders.searches } : {}) }
+      : {}
+    this.migrateLegacyFolders()
   }
 
   private save(): void {
@@ -672,7 +810,7 @@ export class EquipmentLibraryRepository {
     const temporaryPath = `${this.filePath}.tmp`
     const backupPath = `${this.filePath}.backup.json`
     const file: EquipmentLibraryFile = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       entries: this.entries.map(({ view: _view, ...entry }) => entry),
       ...(this.unresolvedLegacyEntries.length ? { unresolvedLegacyEntries: this.unresolvedLegacyEntries } : {}),
       folders: this.folders,
@@ -691,8 +829,9 @@ export class EquipmentLibraryRepository {
     return id ? this.folders.find((folder) => folder.id === id)?.name : undefined
   }
 
-  private requireFolder(id: string, scope: LibraryTreeScope): EquipmentLibraryFolder {
-    const folder = this.folders.find((candidate) => candidate.id === id && candidate.scope === scope)
+  private requireFolder(id: string, scope: LibraryTreeScope, collectionRoot?: EquipmentCollectionRoot): EquipmentLibraryFolder {
+    const folder = this.folders.find((candidate) => candidate.id === id && candidate.scope === scope
+      && (scope !== 'items' || candidate.collectionRoot === collectionRoot))
     if (!folder) throw new Error('Equipment library folder not found')
     return folder
   }
@@ -710,21 +849,22 @@ export class EquipmentLibraryRepository {
     return result
   }
 
-  private siblingFolders(scope: LibraryTreeScope, parentId?: string): EquipmentLibraryFolder[] {
+  private siblingFolders(scope: LibraryTreeScope, parentId?: string, collectionRoot?: EquipmentCollectionRoot): EquipmentLibraryFolder[] {
     return this.folders
-      .filter((folder) => folder.scope === scope && folder.parentId === parentId)
+      .filter((folder) => folder.scope === scope && folder.parentId === parentId
+        && (scope !== 'items' || folder.collectionRoot === collectionRoot))
       .sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt))
   }
 
-  private normalizeSiblingOrder(scope: LibraryTreeScope, parentId?: string): void {
-    this.siblingFolders(scope, parentId).forEach((folder, index) => { folder.sortOrder = index })
+  private normalizeSiblingOrder(scope: LibraryTreeScope, parentId?: string, collectionRoot?: EquipmentCollectionRoot): void {
+    this.siblingFolders(scope, parentId, collectionRoot).forEach((folder, index) => { folder.sortOrder = index })
   }
 
   private placeFolder(folder: EquipmentLibraryFolder, beforeId: string | null | undefined): void {
-    const siblings = this.siblingFolders(folder.scope, folder.parentId).filter((candidate) => candidate.id !== folder.id)
+    const siblings = this.siblingFolders(folder.scope, folder.parentId, folder.collectionRoot).filter((candidate) => candidate.id !== folder.id)
     let index = siblings.length
     if (beforeId) {
-      const before = this.requireFolder(beforeId, folder.scope)
+      const before = this.requireFolder(beforeId, folder.scope, folder.collectionRoot)
       if (before.id === folder.id || before.parentId !== folder.parentId) throw new Error('Folder sort target must be a sibling')
       index = siblings.findIndex((candidate) => candidate.id === before.id)
       if (index < 0) throw new Error('Folder sort target not found')
@@ -734,15 +874,17 @@ export class EquipmentLibraryRepository {
   }
 
   private migrateLegacyFolders(): void {
-    const byName = new Map(this.folders.filter((folder) => folder.scope === 'items' && !folder.parentId).map((folder) => [folder.name, folder]))
+    const byName = new Map(this.folders.filter((folder) => folder.scope === 'items' && !folder.parentId)
+      .map((folder) => [`${folder.collectionRoot}:${folder.name}`, folder]))
     for (const entry of this.entries) {
       if (!entry.folder || entry.folderId) continue
-      let folder = byName.get(entry.folder)
+      const key = `${entry.collectionRoot}:${entry.folder}`
+      let folder = byName.get(key)
       if (!folder && this.folders.length < MAX_FOLDERS) {
         const now = new Date().toISOString()
-        folder = { id: randomUUID(), scope: 'items', name: entry.folder, sortOrder: this.siblingFolders('items').length, expanded: true, createdAt: now, updatedAt: now }
+        folder = { id: randomUUID(), scope: 'items', collectionRoot: entry.collectionRoot, name: entry.folder, sortOrder: this.siblingFolders('items', undefined, entry.collectionRoot).length, expanded: true, createdAt: now, updatedAt: now }
         this.folders.push(folder)
-        byName.set(folder.name, folder)
+        byName.set(key, folder)
       }
       if (folder) entry.folderId = folder.id
       entry.folder = undefined
@@ -752,7 +894,9 @@ export class EquipmentLibraryRepository {
         if (!Number.isFinite(folder.sortOrder)) folder.sortOrder = Number.MAX_SAFE_INTEGER
       }
       for (const parentId of [undefined, ...this.folders.filter((folder) => folder.scope === scope).map((folder) => folder.id)]) {
-        this.normalizeSiblingOrder(scope, parentId)
+        if (scope === 'items') {
+          for (const root of ['market', 'build', 'custom'] as const) this.normalizeSiblingOrder(scope, parentId, root)
+        } else this.normalizeSiblingOrder(scope, parentId)
       }
       if (this.selectedFolders[scope] && !this.folders.some((folder) => folder.id === this.selectedFolders[scope] && folder.scope === scope)) {
         delete this.selectedFolders[scope]
@@ -764,6 +908,14 @@ export class EquipmentLibraryRepository {
   }
 
   private isFolder(value: unknown): boolean {
+    if (!value || typeof value !== 'object') return false
+    const folder = value as Partial<EquipmentLibraryFolder>
+    return typeof folder.id === 'string' && (folder.scope === 'items' || folder.scope === 'searches')
+      && (folder.scope !== 'items' || isCollectionRoot(folder.collectionRoot))
+      && typeof folder.name === 'string' && typeof folder.expanded === 'boolean'
+  }
+
+  private isV2Folder(value: unknown): value is Omit<EquipmentLibraryFolder, 'collectionRoot'> {
     if (!value || typeof value !== 'object') return false
     const folder = value as Partial<EquipmentLibraryFolder>
     return typeof folder.id === 'string' && (folder.scope === 'items' || folder.scope === 'searches')

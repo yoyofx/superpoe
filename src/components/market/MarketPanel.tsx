@@ -5,6 +5,7 @@ import type { LibraryTreeScope, MarketBounds, MarketMonitoringSnapshot, MarketNa
 import { useTranslation } from '@/i18n/useTranslation'
 import { EquipmentLibraryPanel } from '@/components/market/EquipmentLibraryPanel'
 import { uiText } from '@/i18n/uiLocale'
+import { loadAppSettings } from '@/engine/appSettings'
 
 interface MarketPanelProps {
   realm: BuildRealm
@@ -99,7 +100,8 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
     let active = true
     const sync = async () => {
       try {
-        await window.pob2Desktop?.setAppContext({ defaultRealm: realm, language: lang })
+        const saved = loadAppSettings()
+        await window.pob2Desktop?.setAppContext({ defaultRealm: realm, language: lang, priceCheckEnabled: saved.priceCheckEnabled, priceCheckHotkey: saved.priceCheckHotkey })
         if (active && !viewSuspended) await applyBounds(true)
       } catch (error: unknown) {
         if (active) setBridgeError(error instanceof Error ? error.message : String(error))

@@ -2,7 +2,6 @@ import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMem
 import { createPortal } from 'react-dom'
 import { Bookmark, Check, ChevronDown, ChevronRight, Clipboard, PackageOpen, PanelRightOpen, Search, Upload, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
-import { PriceCheckDialog } from '@/components/market/PriceCheckDialog'
 import { decodeCodeToXml } from '@/engine/buildCode'
 import {
   type EquipmentAffixCategory,
@@ -803,7 +802,6 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
   const [inspectorOpen, setInspectorOpen] = useState(false)
-  const [priceCheckRaw, setPriceCheckRaw] = useState<string | null>(null)
   const [paperDollBackgroundAvailable, setPaperDollBackgroundAvailable] = useState(true)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<EquipmentAffixGroup>>(new Set())
   const [expandedAffixes, setExpandedAffixes] = useState<Set<string>>(new Set())
@@ -1097,14 +1095,8 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
         slotName={selectedSlotName}
         socketedItems={selectedSlotName ? socketedItemsForSlot(selectedSlotName) : []}
         onSave={() => saveItem(selected, selectedSlotName)}
-        onPriceCheck={() => setPriceCheckRaw(selected.raw)}
+        onPriceCheck={() => { void window.superpoePriceCheck?.open({ source: { kind: 'raw', raw: selected.raw } }) }}
         onClose={() => setInspectorOpen(false)}
-      />}
-      {priceCheckRaw && <PriceCheckDialog
-        realm={realm}
-        target={{ kind: 'raw', raw: priceCheckRaw }}
-        language={lang}
-        onClose={() => setPriceCheckRaw(null)}
       />}
     </section>
   )

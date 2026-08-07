@@ -201,14 +201,16 @@ export interface ManualSource extends EquipmentLibrarySourceBase {
 
 export type EquipmentLibrarySource = MarketFavoriteSource | PobImportSource | EquipmentFavoriteSource | PriceCheckSource | ManualSource
 export type EquipmentLibrarySourceKind = EquipmentLibrarySource['kind']
+export type EquipmentCollectionRoot = 'market' | 'build' | 'custom'
 
 export interface EquipmentLibraryEntry {
-  schemaVersion: 2
+  schemaVersion: 3
   id: string
   fingerprint: string
   item: CanonicalEquipmentItem
   view: CanonicalItemView
   sources: EquipmentLibrarySource[]
+  collectionRoot: EquipmentCollectionRoot
   folderId?: string
   folder?: string
   tags: string[]
@@ -221,12 +223,15 @@ export interface EquipmentLibraryEntry {
 export interface EquipmentLibraryFilter {
   realm?: MarketRealm
   sourceKind?: EquipmentLibrarySourceKind | 'all'
+  collectionRoot?: EquipmentCollectionRoot
+  folderId?: string | null
   query?: string
   includeArchived?: boolean
 }
 
 export interface EquipmentLibraryMetadataPatch {
   id: string
+  collectionRoot?: EquipmentCollectionRoot
   folderId?: string | null
   folder?: string
   tags?: string[]
@@ -239,6 +244,7 @@ export type LibraryTreeScope = 'items' | 'searches'
 export interface EquipmentLibraryFolder {
   id: string
   scope: LibraryTreeScope
+  collectionRoot?: EquipmentCollectionRoot
   name: string
   parentId?: string
   sortOrder: number
@@ -277,6 +283,7 @@ export interface EquipmentLibrarySidebarSnapshot {
 
 export interface EquipmentLibraryFolderInput {
   scope: LibraryTreeScope
+  collectionRoot?: EquipmentCollectionRoot
   name: string
   parentId?: string
 }
@@ -442,6 +449,8 @@ export interface EquipmentLibraryItemInput {
   raw: string
   iconUrl?: string
   localized?: Partial<Record<LibraryTextLocale, { name: string; baseType: string }>>
+  collectionRoot?: EquipmentCollectionRoot
+  folderId?: string
   source: Omit<PobImportSource, 'sourceKey' | 'capturedAt' | 'updatedAt'> | Omit<EquipmentFavoriteSource, 'sourceKey' | 'capturedAt' | 'updatedAt'> | Omit<ManualSource, 'sourceKey' | 'capturedAt' | 'updatedAt'>
 }
 
@@ -527,4 +536,42 @@ export interface TradeSearchResult {
   total: number
   resolvedModifierCount: number
   unresolvedModifierCount: number
+}
+
+export interface PriceCheckOpenRequest {
+  source: TradePriceCheckTarget
+  initialLeagueId?: string
+}
+
+export interface PriceCheckListingView {
+  id: string
+  price?: MarketPriceSnapshot
+  seller: {
+    accountName?: string
+    status: 'online' | 'afk' | 'offline'
+  }
+  item: CanonicalItemView
+  listedAt?: string
+  whisper?: string
+  hideoutAvailable: boolean
+}
+
+export interface PriceCheckContextState {
+  generation: number
+  realm: MarketRealm
+  language: 'en' | 'zh-rCN' | 'zh-rTW' | 'ko-KR'
+  phase: 'idle' | 'parsing' | 'configuring' | 'searching' | 'fetching-page' | 'results' | 'error'
+  draft?: TradePriceCheckDraft
+  leagues: TradeLeague[]
+  initialLeagueId?: string
+  search?: TradeSearchResult & { contextId: string; page: number; pageCount: number }
+  listings: PriceCheckListingView[]
+  error?: string
+}
+
+export interface PriceCheckSettings {
+  enabled: boolean
+  hotkey: string
+  alwaysOnTop: boolean
+  registration: { registered: boolean; error?: string }
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type DragEvent as ReactDragEvent, type ReactNode } from 'react'
 import {
-  BellOff, BellRing, Bookmark, Check, ChevronDown, ChevronRight, ExternalLink, Folder, FolderInput, FolderPlus, FolderTree, Home,
+  BellOff, BellRing, Bookmark, Check, ChevronDown, ChevronRight, ExternalLink, Folder, FolderInput, FolderPlus, Home,
   ListChecks, PanelLeftClose, PanelLeftOpen, Pencil, Save, Search, Square,
   RefreshCw, Replace, SquareCheckBig, Tags, Trash2, X,
 } from 'lucide-react'
@@ -9,9 +9,10 @@ import type {
   EquipmentLibrarySourceKind, MarketFavoriteSource, MarketMonitoringSnapshot, MarketRealm, MarketSearchReference, SavedMarketSearch, TradeLeague,
 } from '@/types/market'
 import { MAX_ACTIVE_PURCHASE_TARGETS } from '@/types/market'
-import { PriceCheckDialog } from './PriceCheckDialog'
-import { translateGameText, type Language } from '@/i18n/translationLoader'
+import type { Language } from '@/i18n/translationLoader'
 import { uiText, type UiMessage } from '@/i18n/uiLocale'
+import { EquipmentItemInspector, equipmentItemName } from '@/components/equipment/EquipmentItemInspector'
+import { EquipmentCollectionTree, type EquipmentCollectionSelection } from '@/components/equipment/EquipmentCollectionTree'
 
 interface EquipmentLibraryPanelProps {
   realm: MarketRealm
@@ -45,10 +46,6 @@ type SearchEditorState = {
 
 function marketSource(entry: EquipmentLibraryEntry): MarketFavoriteSource | undefined {
   return entry.sources.find((source): source is MarketFavoriteSource => source.kind === 'market-favorite')
-}
-
-function modifierClass(modifier: EquipmentLibraryEntry['view']['modifiers'][number]): string {
-  return [`group-${modifier.group}`, ...modifier.sourceTags.map((tag) => `source-${tag}`)].join(' ')
 }
 
 function sourceLabel(kind: EquipmentLibrarySourceKind, language: Language): string {
@@ -93,12 +90,9 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   const [entries, setEntries] = useState<EquipmentLibraryEntry[]>([])
   const [sidebar, setSidebar] = useState<EquipmentLibrarySidebarSnapshot>(EMPTY_SIDEBAR)
   const [query, setQuery] = useState('')
-  const [sourceCategory, setSourceCategory] = useState<'all' | 'market' | 'build' | 'custom'>('all')
+  const [itemSelection, setItemSelection] = useState<EquipmentCollectionSelection>({ kind: 'root', root: 'market' })
   const [leagues, setLeagues] = useState<TradeLeague[]>([])
   const [leagueId, setLeagueId] = useState('')
-  const [editingId, setEditingId] = useState<string | null>(null)
-  const [note, setNote] = useState('')
-  const [tags, setTags] = useState('')
   const [movingId, setMovingId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
@@ -113,7 +107,6 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   const [bulkSelecting, setBulkSelecting] = useState(false)
   const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(() => new Set())
   const [searchEditor, setSearchEditor] = useState<SearchEditorState | null>(null)
-  const [priceCheckEntryId, setPriceCheckEntryId] = useState<string | null>(null)
 
   const load = useCallback(async () => {
     if (!bridge) return
@@ -160,8 +153,9 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
     return () => { active = false }
   }, [bridge, realm])
 
-  const folders = useMemo(() => sidebar.folders.filter((folder) => folder.scope === activeTab), [activeTab, sidebar.folders])
-  const selectedFolderId = activeTab === 'items' ? sidebar.selectedItemFolderId : sidebar.selectedSearchFolderId
+  const folders = useMemo(() => sidebar.folders.filter((folder) => folder.scope === activeTab
+    && (activeTab !== 'items' || folder.collectionRoot === 'market')), [activeTab, sidebar.folders])
+  const selectedFolderId = activeTab === 'items' && itemSelection.kind === 'root' ? itemSelection.folderId : sidebar.selectedSearchFolderId
 
   const run = async (id: string, operation: () => Promise<unknown>, success?: string) => {
     setBusyId(id)
@@ -181,7 +175,8 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   const selectFolder = (scope: LibraryTreeScope, id?: string) => run(id || 'root', async () => {
     setBulkSelecting(false)
     setSelectedEntryIds(new Set())
-    setSidebar(await bridge!.selectFolder(scope, id))
+    if (scope === 'items') setItemSelection({ kind: 'root', root: 'market', folderId: id })
+    else setSidebar(await bridge!.selectFolder(scope, id))
   })
 
   const toggleEntrySelection = (entryId: string) => {
@@ -194,7 +189,6 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   }
 
   const startBulkSelection = () => {
-    setEditingId(null)
     setMovingId(null)
     setSelectedEntryId(null)
     setSelectedEntryIds(new Set())
@@ -218,7 +212,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
     const name = folderEditor.name.trim()
     if (!name) return
     if (folderEditor.mode === 'create') {
-      await run('new-folder', () => bridge.createFolder({ scope: activeTab, name, ...(folderEditor.parentId ? { parentId: folderEditor.parentId } : {}) }), l('Folder created', '目录已创建', '目錄已建立', '폴더 생성됨'))
+      await run('new-folder', () => bridge.createFolder({ scope: activeTab, ...(activeTab === 'items' ? { collectionRoot: 'market' as const } : {}), name, ...(folderEditor.parentId ? { parentId: folderEditor.parentId } : {}) }), l('Folder created', '目录已创建', '目錄已建立', '폴더 생성됨'))
     } else {
       await run(folderEditor.folderId, () => bridge.updateFolder({ id: folderEditor.folderId, name }), l('Folder renamed', '目录已重命名', '目錄已重新命名', '폴더 이름 변경됨'))
     }
@@ -259,12 +253,6 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
       await run(id, () => bridge.updateSearch({ id, ...input, folderId: editor.folderId || null }), l('Saved search updated', '保存的搜索已更新', '已儲存搜尋已更新', '저장된 검색 업데이트됨'))
     }
     setSearchEditor(null)
-  }
-
-  const beginEdit = (entry: EquipmentLibraryEntry) => {
-    setEditingId(entry.id)
-    setNote(entry.note || '')
-    setTags(entry.tags.join(', '))
   }
 
   const visitHideout = async (entryId: string) => {
@@ -356,9 +344,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
     const source = marketSource(entry)
     const similarLeagueId = source?.leagueId || leagueId
     const selected = bulkSelecting ? selectedEntryIds.has(entry.id) : selectedEntryId === entry.id
-    const localizedItem = language === 'zh-rCN' ? entry.view.localized?.['zh-CN'] : undefined
-    const displayName = localizedItem?.name || translateGameText(entry.view.name, language)
-    const displayBaseType = localizedItem?.baseType || translateGameText(entry.view.baseType, language)
+    const displayName = equipmentItemName(entry.view, language)
     return <article
       className={`trade-helper-item rarity-${entry.view.rarity.toLowerCase()}${dragging?.kind === 'item' && dragging.id === entry.id ? ' dragging' : ''}${selected ? ' selected' : ''}${bulkSelecting ? ' bulk-selecting' : ''}`}
       tabIndex={0}
@@ -372,33 +358,20 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
       }}
       key={entry.id}
     >
-      <header>
-        {entry.view.iconUrl && <img src={entry.view.iconUrl} alt="" />}
-        <span><strong>{displayName}</strong><small>{displayBaseType}</small></span>
-        {bulkSelecting
+      <EquipmentItemInspector
+        view={entry.view}
+        language={language}
+        sourceLabels={entry.sources.map((entrySource) => sourceLabel(entrySource.kind, language))}
+        price={source?.price?.display}
+        tags={entry.tags}
+        note={entry.note}
+        headerAction={bulkSelecting
           ? <button className="trade-helper-item-select" aria-pressed={selected} onClick={(event) => { event.stopPropagation(); toggleEntrySelection(entry.id) }} title={selected ? l('Deselect', '取消选择', '取消選擇', '선택 해제') : l('Select item', '选择装备', '選擇裝備', '아이템 선택')} aria-label={selected ? l('Deselect', '取消选择', '取消選擇', '선택 해제') : l('Select item', '选择装备', '選擇裝備', '아이템 선택')}>{selected ? <SquareCheckBig /> : <Square />}</button>
-          : <button onClick={(event) => { event.stopPropagation(); beginEdit(entry) }} title={l('Edit note and tags', '编辑备注和标签', '編輯備註與標籤', '메모 및 태그 편집')} aria-label={l('Edit note and tags', '编辑备注和标签', '編輯備註與標籤', '메모 및 태그 편집')}><Pencil /></button>}
-      </header>
-      {source?.price && <div className="trade-helper-price">{source.price.display}</div>}
-      <div className="trade-helper-sources">{entry.sources.map((entrySource) => <span className={`source-${entrySource.kind}`} key={entrySource.sourceKey}>{sourceLabel(entrySource.kind, language)}</span>)}<span className="modifier-count">{entry.view.modifiers.length ? l(`${entry.view.modifiers.length} mods`, `${entry.view.modifiers.length} 条词缀`, `${entry.view.modifiers.length} 條詞綴`, `속성 ${entry.view.modifiers.length}개`) : l('No modifiers', '暂无词条', '暫無詞綴', '속성 없음')}</span></div>
-      <div className="trade-helper-affixes">
-        {entry.view.modifiers.map((modifier) => <div className={modifierClass(modifier)} key={modifier.id}>
-          <span>{language === 'zh-rCN' ? modifier.localized?.['zh-CN'] || modifier.text : translateGameText(modifier.text, language)}</span>
-        </div>)}
-        {!entry.view.modifiers.length && <span className="trade-helper-no-modifiers">{l('No modifiers are available.', '此装备没有可显示词条。', '此裝備沒有可顯示的詞綴。', '표시할 속성이 없습니다.')}</span>}
-      </div>
-      {editingId === entry.id && <div className="trade-helper-editor">
-        <label><span>{l('Tags', '标签', '標籤', '태그')}</span><input value={tags} onChange={(event) => setTags(event.target.value)} /></label>
-        <label><span>{l('Note', '备注', '備註', '메모')}</span><textarea rows={2} value={note} onChange={(event) => setNote(event.target.value)} /></label>
-        <div><button onClick={() => setEditingId(null)}><X /></button><button onClick={() => void run(entry.id, async () => {
-          await bridge!.updateLibrary({ id: entry.id, note, tags: tags.split(/[,，]/).map((tag) => tag.trim()).filter(Boolean) })
-          setEditingId(null)
-        })}><Save /></button></div>
-      </div>}
+          : undefined}
+      />
       {!bulkSelecting && <footer>
         {source && <button className="primary-action" disabled={busyId === entry.id} onClick={() => void run(entry.id, () => visitHideout(entry.id), l('Hideout travel request sent', '已发送前往藏身处请求', '已傳送前往藏身處請求', '은신처 이동 요청 전송됨'))} title={l('Travel to hideout', '前往藏身处', '前往藏身處', '은신처로 이동')}><Home /><span>{l('Hideout', '藏身处', '藏身處', '은신처')}</span></button>}
-        {source && <button onClick={() => void bridge?.openLibrarySource(entry.id, source.sourceKey)} title={l('Open source', '打开来源', '開啟來源', '출처 열기')}><ExternalLink /></button>}
-        <button className="primary-action" disabled={!similarLeagueId || busyId === entry.id} onClick={() => setPriceCheckEntryId(entry.id)} title={l('Configure price check', '选择词条并查价', '選擇詞綴並查價', '속성을 선택하고 가격 확인')}><Search /><span>{l('Price check', '查价', '查價', '가격 확인')}</span></button>
+        <button className="primary-action" disabled={!similarLeagueId || busyId === entry.id} onClick={() => { void window.superpoePriceCheck?.open({ source: { kind: 'library', entryId: entry.id }, initialLeagueId: marketSource(entry)?.leagueId || similarLeagueId }) }} title={l('Configure price check', '选择词条并查价', '選擇詞綴並查價', '속성을 선택하고 가격 확인')}><Search /><span>{l('Price check', '查价', '查價', '가격 확인')}</span></button>
         <button className="danger" onClick={() => window.confirm(l(`Delete “${displayName}”?`, `删除“${displayName}”？`, `刪除「${displayName}」？`, `“${displayName}”을(를) 삭제할까요?`)) && void run(entry.id, () => bridge!.deleteLibrary(entry.id))} title={l('Delete', '删除', '刪除', '삭제')}><Trash2 /></button>
       </footer>}
     </article>
@@ -471,13 +444,9 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   }
 
   const rootFolders = folders.filter((folder) => !folder.parentId)
-  const categoryEntries = entries.filter((entry) => sourceCategory === 'all' || entry.sources.some((source) => (
-    sourceCategory === 'market' ? source.kind === 'market-favorite'
-      : sourceCategory === 'build' ? source.kind === 'pob-import' || source.kind === 'equipment-favorite'
-        : source.kind === 'manual'
-  )))
+  const categoryEntries = entries.filter((entry) => entry.collectionRoot === 'market')
   const rootSearches = sidebar.searches.filter((search) => !search.folderId)
-  const visibleEntries = categoryEntries
+  const visibleEntries = categoryEntries.filter((entry) => entry.folderId === selectedFolderId)
   const visibleSearches = selectedFolderId ? sidebar.searches.filter((search) => search.folderId === selectedFolderId) : rootSearches
   const selectedFolder = selectedFolderId ? folders.find((folder) => folder.id === selectedFolderId) : undefined
   const contentCount = activeTab === 'items' ? visibleEntries.length : visibleSearches.length
@@ -501,12 +470,39 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
       <button className={activeTab === 'items' ? 'active' : ''} onClick={() => onTabChange('items')}>{l('Equipment favorites', '装备收藏', '裝備收藏', '장비 즐겨찾기')}</button>
       <button className={activeTab === 'searches' ? 'active' : ''} onClick={() => onTabChange('searches')}>{l('Search favorites', '搜索收藏', '搜尋收藏', '검색 즐겨찾기')}</button>
     </nav>
-    <div className={`trade-helper-workspace${directoryCompact ? ' directory-compact' : ''}${activeTab === 'items' ? ' no-directory' : ''}`}>
+    <div className={`trade-helper-workspace${directoryCompact ? ' directory-compact' : ''}`}>
+      {activeTab === 'items' && <section className="trade-helper-directory-pane">
+        <header><strong>{l('Market favorite folders', '集市收藏目录', '市集收藏目錄', '거래소 즐겨찾기 폴더')}</strong><span>{folders.length}</span><button onClick={() => setDirectoryCompact((compact) => !compact)} title={directoryCompact ? l('Expand folders', '展开目录栏', '展開目錄欄', '폴더 펼치기') : l('Compact folders', '缩小目录栏', '縮小目錄欄', '폴더 축소')}>{directoryCompact ? <PanelLeftOpen /> : <PanelLeftClose />}</button></header>
+        <EquipmentCollectionTree
+          roots={[{ id: 'market', label: l('Market favorites', '集市收藏', '市集收藏', '거래소 즐겨찾기') }]}
+          folders={sidebar.folders}
+          entries={entries.filter((entry) => entry.collectionRoot === 'market')}
+          selection={itemSelection}
+          labels={{
+            collapse: l('Collapse', '折叠', '收合', '접기'), expand: l('Expand', '展开', '展開', '펼치기'),
+            newFolder: l('New folder', '新建目录', '建立目錄', '새 폴더'),
+            rename: l('Rename', '重命名', '重新命名', '이름 변경'), delete: l('Delete', '删除', '刪除', '삭제'),
+          }}
+          onSelect={(selection) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setItemSelection(selection.kind === 'all' ? { kind: 'root', root: 'market' } : selection) }}
+          onCreate={async (_root, name, parentId) => {
+            const folder = await bridge!.createFolder({ scope: 'items', collectionRoot: 'market', name, parentId })
+            setItemSelection({ kind: 'root', root: 'market', folderId: folder.id })
+            await load()
+          }}
+          onRename={async (folderId, name) => { await bridge!.updateFolder({ id: folderId, name }); await load() }}
+          onDelete={async (folder) => {
+            if (!window.confirm(l(`Delete “${folder.name}”? Its contents will move to the parent folder.`, `删除“${folder.name}”？其中的装备和子目录将移到上级目录。`, `刪除「${folder.name}」？其中的裝備和子目錄將移至上層目錄。`, `“${folder.name}” 폴더를 삭제할까요? 내용은 상위 폴더로 이동합니다.`))) return
+            await bridge!.deleteFolder(folder.id)
+            setItemSelection({ kind: 'root', root: 'market' })
+            await load()
+          }}
+          onToggle={async (folder) => { await bridge!.updateFolder({ id: folder.id, expanded: !folder.expanded }); await load() }}
+        />
+      </section>}
       {activeTab === 'searches' && <section className="trade-helper-directory-pane">
         <header><strong>{l('Folders', '目录', '目錄', '폴더')}</strong><span>{folders.length}</span><button onClick={() => setDirectoryCompact((compact) => !compact)} title={directoryCompact ? l('Expand folders', '展开目录栏', '展開目錄欄', '폴더 펼치기') : l('Compact folders', '缩小目录栏', '縮小目錄欄', '폴더 축소')}>{directoryCompact ? <PanelLeftOpen /> : <PanelLeftClose />}</button></header>
         <div className="trade-helper-folder-create">
-          <button onClick={() => createFolder()} title={l('Create root folder', '新建根目录', '建立根目錄', '루트 폴더 생성')} aria-label={l('Create root folder', '新建根目录', '建立根目錄', '루트 폴더 생성')}><FolderPlus /></button>
-          <button disabled={!selectedFolderId} onClick={() => createFolder(selectedFolderId)} title={l('Create subfolder', '新建子目录', '建立子目錄', '하위 폴더 생성')} aria-label={l('Create subfolder', '新建子目录', '建立子目錄', '하위 폴더 생성')}><FolderTree /></button>
+          <button onClick={() => createFolder(selectedFolderId)} title={l('Create folder', '新建目录', '建立目錄', '폴더 생성')} aria-label={l('Create folder', '新建目录', '建立目錄', '폴더 생성')}><FolderPlus /></button>
           <button disabled={!selectedFolder} onClick={() => selectedFolder && renameFolder(selectedFolder)} title={l('Rename selected folder', '重命名当前目录', '重新命名目前目錄', '선택한 폴더 이름 변경')} aria-label={l('Rename selected folder', '重命名当前目录', '重新命名目前目錄', '선택한 폴더 이름 변경')}><Pencil /></button>
           <button className="danger" disabled={!selectedFolder} onClick={() => {
             if (!selectedFolder) return
@@ -554,17 +550,11 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
             {activeTab === 'searches' && <button disabled={!currentSearch} onClick={() => void openSearchCreator()} title={!currentSearch ? l('Open a valid official search result first', '请先打开有效的官方搜索结果页', '請先開啟有效的官方搜尋結果頁', '유효한 공식 검색 결과 페이지를 먼저 여세요') : undefined}><Bookmark />{l('Save current search', '保存当前搜索', '儲存目前搜尋', '현재 검색 저장')}</button>}
           {activeTab === 'items' && <>
             <label><Search /><input value={query} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setQuery(event.target.value) }} placeholder={l('Search favorites', '搜索收藏', '搜尋收藏', '즐겨찾기 검색')} /></label>
-            <select value={sourceCategory} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setSourceCategory(event.target.value as typeof sourceCategory) }} aria-label={l('Source category', '来源分类', '來源分類', '출처 분류')}>
-              <option value="all">{l('All sources', '全部来源', '所有來源', '모든 출처')}</option>
-              <option value="market">{l('Market favorites', '集市收藏', '市集收藏', '거래소 즐겨찾기')}</option>
-              <option value="build">{l('Build imports', '构建导入', '構築匯入', '빌드 가져오기')}</option>
-              <option value="custom">{l('Custom', '自定义', '自訂', '사용자 지정')}</option>
-            </select>
           </>}
           </div>
         </div>
         <header className="trade-helper-content-header">
-          <span><Folder /><strong>{selectedFolder ? folderPath(selectedFolder, folders) : l('Default', '默认', '預設', '기본')}</strong></span>
+          <span><Folder /><strong>{selectedFolder ? folderPath(selectedFolder, folders) : activeTab === 'items' ? l('Market favorites', '集市收藏', '市集收藏', '거래소 즐겨찾기') : l('Default', '默认', '預設', '기본')}</strong></span>
           <span className="trade-helper-content-summary">
             {activeTab === 'items' && !bulkSelecting && Boolean(visibleEntries.length) && <button onClick={startBulkSelection} title={l('Bulk select', '批量选择', '批次選擇', '일괄 선택')} aria-label={l('Bulk select', '批量选择', '批次選擇', '일괄 선택')}><ListChecks /></button>}
             {activeTab === 'items' && bulkSelecting && <>
@@ -594,18 +584,6 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
           <footer><button onClick={() => setSearchEditor(null)}>{l('Cancel', '取消', '取消', '취소')}</button><button className="primary" disabled={!searchEditor.name.trim() || busyId === 'save-search'} onClick={() => void submitSearchEditor()}><Save />{l('Save', '保存', '儲存', '저장')}</button></footer>
         </section>
       </div>}
-      {priceCheckEntryId && (() => {
-        const entry = entries.find((candidate) => candidate.id === priceCheckEntryId)
-        const source = entry ? marketSource(entry) : undefined
-        return <PriceCheckDialog
-          realm={source?.realm || realm}
-          target={{ kind: 'library', entryId: priceCheckEntryId }}
-          language={language}
-          initialLeagueId={source?.leagueId || leagueId}
-          onClose={() => setPriceCheckEntryId(null)}
-          onSearched={(result) => setNotice(l(`Price search updated with ${result.total} results`, `查价搜索已更新，共 ${result.total} 条结果`, `查價搜尋已更新，共 ${result.total} 筆結果`, `가격 검색이 업데이트되었습니다. 결과 ${result.total}개`))}
-        />
-      })()}
     </div>
   </aside>
 }

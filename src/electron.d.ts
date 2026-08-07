@@ -26,6 +26,16 @@ export interface ProxyDomainsInfo {
 
 declare global {
   interface Window {
+    superpoePriceCheck?: {
+      open(request: import('@/types/market').PriceCheckOpenRequest): Promise<import('@/types/market').PriceCheckContextState>
+      getState?(): Promise<import('@/types/market').PriceCheckContextState>
+      search?(leagueId: string, criteria: import('@/types/market').TradePriceCheckCriteria): Promise<import('@/types/market').PriceCheckContextState>
+      fetchPage?(page: number): Promise<import('@/types/market').PriceCheckContextState>
+      openTradePage?(url: string): Promise<void>
+      visitHideout?(listingId: string): Promise<import('@/types/market').MarketVisitHideoutResult>
+      hide?(): Promise<void>
+      onState?(callback: (state: import('@/types/market').PriceCheckContextState) => void): () => void
+    }
     pob2Desktop?: {
       importWeGame(url: string): Promise<{ code: string; sourceUrl: string }>
       importPoeNinja(url: string): Promise<{ code: string; sourceUrl: string; suggestedName: string }>
@@ -36,7 +46,7 @@ declare global {
       saveGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
       installGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: false; filePath: string }>
       setUiScale(factor: number): Promise<number>
-      setAppContext(context: { defaultRealm: import('@/types/tree').BuildRealm; language: import('@/i18n/translationLoader').Language }): Promise<void>
+      setAppContext(context: { defaultRealm: import('@/types/tree').BuildRealm; language: import('@/i18n/translationLoader').Language; priceCheckEnabled: boolean; priceCheckHotkey: string }): Promise<void>
       initPobLua(): Promise<{
         available: boolean
         backend: 'luajit' | 'wasmoon'

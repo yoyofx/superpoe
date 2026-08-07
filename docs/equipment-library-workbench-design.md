@@ -70,13 +70,32 @@ SuperPoE2 需要一个独立的装备工作台，用来统一管理不同来源�
 
 “构筑内装备”表示当前构筑正在使用的装备；“装备仓库”表示跨来源、跨构筑管理的候选装备。两者名称和职责必须区分。
 
-### 2.3 仓库主体和来源分离
+### 2.3 收藏记录和来源分离
 
-一件装备是仓库主体，市场 Listing、PoB Item、自定义导入只是来源。
+仓库保存的是用户需求下的收藏记录。`集市收藏 / 构筑导入 / 自定义` 是三个固定需求根节点，每个根节点拥有自己的用户目录树；市场 Listing、PoB Item、自定义导入仍作为来源证据保存。
 
 装备主体统一保存规范化 PoB2 英文 Item Raw，并由 PoB2 `Item` 解析。旧 `LibraryItemSnapshot` 仅作为 schema v1 迁移输入和过渡 UI 投影，不再是目标模型或权威数据。
 
-取消一个来源时，只删除对应来源；只要还存在其他来源、标签、目录或备注，就不能静默删除仓库主体。
+相同 canonical 装备可以分别存在于不同根节点或目录中。`fingerprint` 用于比较和提示重复，不能跨用户需求自动合并收藏记录；相同 `sourceKey` 才更新原收藏记录。删除收藏记录只删除当前需求中的记录，不影响其他根节点中内容相同的装备。
+
+### 2.4 一套目录，按固定根分支
+
+```text
+装备仓库
+├─ 集市收藏
+│  └─ 用户目录...
+├─ 构筑导入
+│  └─ 用户目录...
+└─ 自定义
+   └─ 用户目录...
+```
+
+- 三个固定根是系统节点，不能重命名或删除。
+- 交易中心“装备收藏”直接访问 `集市收藏` 分支，不创建第二份目录数据。
+- 装备仓库访问完整目录树。
+- 目录和装备不能通过普通拖动跨固定根移动；跨根操作表示改变收藏类型。
+- 保存搜索继续使用独立的 `searches` 目录树，不混入装备目录。
+- 当前选中目录属于各界面的导航状态，不作为 Repository 的全局隐式写入目标。
 
 ## 3. 第一阶段范围：装备管理
 
@@ -86,13 +105,13 @@ SuperPoE2 需要一个独立的装备工作台，用来统一管理不同来源�
 
 - 一级入口打开装备仓库
 - 交易中心、装备界面快捷打开同一仓库
-- 全部、集市、PoB、自定义来源筛选
+- 全部装备和三个固定需求根
 - 装备搜索、目录、标签、备注和归档
 - 装备格子和 tooltip 中查看内容与全部来源
 - 市场来源 URL、价格、联赛和可用状态展示
 - PoB 来源的构筑、ItemSet、Item ID 展示
 - 自定义 PoB 物品文本导入
-- 装备内容去重和多来源合并
+- 相同来源幂等更新和重复装备识别
 - 删除来源确认
 - 删除仓库主体确认
 - 未完整解析装备的状态提示
@@ -180,7 +199,7 @@ type EquipmentLibraryOpenContext =
 
 ```ts
 interface EquipmentLibraryEntry {
-  schemaVersion: 2
+  schemaVersion: 3
   id: string
   fingerprint: string
   item: {
@@ -190,6 +209,7 @@ interface EquipmentLibraryEntry {
     gameVersion: string
   }
   sources: EquipmentLibrarySource[]
+  collectionRoot: 'market' | 'build' | 'custom'
   folderId?: string
   tags: string[]
   note?: string

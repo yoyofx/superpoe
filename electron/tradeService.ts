@@ -12,7 +12,7 @@ interface CatalogOption { id: string; text: string }
 interface CatalogEntry { id: string; text: string; type?: string; option?: { options?: CatalogOption[] } }
 interface CatalogSnapshot { realm: MarketRealm; fetchedAt: string; payloadHash: string; entries: CatalogEntry[] }
 
-interface SearchResponse { id?: unknown; total?: unknown }
+interface SearchResponse { id?: unknown; total?: unknown; result?: unknown }
 
 type TradeStatMatch = { entry: CatalogEntry; queryStatId: string; option?: CatalogOption }
 
@@ -378,7 +378,7 @@ export class OfficialTradeProvider {
     return { draft: createPriceCheckDraft(resolvedItem, realm), resolvedItem }
   }
 
-  async search(realm: MarketRealm, leagueId: string, item: LibraryItemSnapshot, criteria?: TradePriceCheckCriteria): Promise<TradeSearchResult & { resolvedItem: LibraryItemSnapshot }> {
+  async search(realm: MarketRealm, leagueId: string, item: LibraryItemSnapshot, criteria?: TradePriceCheckCriteria): Promise<TradeSearchResult & { resolvedItem: LibraryItemSnapshot; listingIds: string[] }> {
     const { resolvedItem } = await this.prepare(realm, item)
     const built = buildTradeQuery(resolvedItem, realm, criteria)
     let query = built.query
@@ -406,6 +406,9 @@ export class OfficialTradeProvider {
       total: typeof response.total === 'number' ? response.total : 0,
       resolvedModifierCount,
       unresolvedModifierCount,
+      listingIds: Array.isArray(response.result)
+        ? response.result.filter((value): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]+$/.test(value)).slice(0, 10_000)
+        : [],
       resolvedItem,
     }
   }

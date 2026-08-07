@@ -1,6 +1,6 @@
 # SuperPoE2 统一交易、装备仓库与国服/国际服查价详细设计
 
-> 状态：PriceCheck 独立模块设计已定稿；共享 M0 交易基础可复用；M6 游戏内查价待开发
+> 状态：统一 PriceCheck 第一阶段已实现；独立置顶窗口、三类装备来源、Search/Fetch 价格列表与游戏热键已接通；构筑提升对比仍属 M6 后续阶段
 > 更新日期：2026-08-07
 > 适用项目：`D:\sources\superpoe`
 > 目标平台：Electron 桌面端，支持 Windows 与 macOS Apple Silicon
@@ -1567,9 +1567,9 @@ CI 不依赖实时官方接口，使用脱敏响应 fixture 和 mock fetch。发
 
 ### 26.1 结论
 
-`D:\sources\superpoe` 的 Electron + React/Vite 技术栈可以承载本设计，不需要更换框架或引入本地服务。当前工作树已经具备集市入口、`WebContentsView`、realm partition、官方 Fetch、reference-data cache 和 schema v1 装备仓库；仍缺少 canonical PoB2 Item Bridge、schema v2 迁移和游戏内热键查价闭环。PriceCheck 应接入统一交易领域：中文 listing/剪贴板 adapter 提供 Stat ID、实际值和来源证据，PoB Lua 负责 Item/Hash 语义，Market 与 PriceCheck 不能分别实现 matcher 或装备模型。
+`C:\Users\yoyofx\sources\superpoe` 当前已具备 canonical PoB2 Item Bridge、schema v2 装备仓库、realm persistent session、官方 Search/Fetch、独立 PriceCheck renderer 与 Windows 游戏热键闭环。装备面板、装备仓库和游戏剪贴板都进入同一个 `PriceCheckCoordinator`，统一生成查询条件和规范化 listing 视图；PriceCheck 不再依赖 Market 的 React 组件或 DOM 模态框。
 
-审计时当前工作树基线验证通过：`npm run test:ci` 为 24 个测试文件、144 个测试全部通过，`npm run build:electron:main` 和完整 `npm run build` 均成功。完整构建存在 Vite 的现有大 chunk 警告，因此独立 PriceCheck 动态入口属于性能要求，不只是代码组织偏好。
+当前实现通过独立 `?surface=price-check` 动态入口加载，不初始化完整构筑编辑器；查价窗口使用专属 preload，只暴露 open/state/search/fetch-page/open-trade-page/hide。测试配置已覆盖 PriceCheck coordinator 的 generation 隔离和十条分页，完整验证以本次提交记录为准。
 
 ### 26.2 可直接复用
 

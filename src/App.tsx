@@ -194,8 +194,8 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    void window.pob2Desktop?.setAppContext({ defaultRealm: appSettings.defaultRealm, language: lang })
-  }, [appSettings.defaultRealm, lang])
+    void window.pob2Desktop?.setAppContext({ defaultRealm: appSettings.defaultRealm, language: lang, priceCheckEnabled: appSettings.priceCheckEnabled, priceCheckHotkey: appSettings.priceCheckHotkey })
+  }, [appSettings.defaultRealm, appSettings.priceCheckEnabled, appSettings.priceCheckHotkey, lang])
 
   useEffect(() => {
     const bridge = window.pob2Market

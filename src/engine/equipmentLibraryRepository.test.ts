@@ -44,7 +44,19 @@ describe('EquipmentLibraryRepository', () => {
     expect(fingerprintLibraryItem(snapshot.item)).toBe(fingerprintLibraryItem(snapshot.item))
   })
 
-  it('updates a source idempotently and merges another source by item fingerprint', () => {
+  it('searches localized item, base, and modifier text', () => {
+    const store = repository()
+    const snapshot = item()
+    snapshot.view.localized = { 'zh-CN': { name: '灾厄外壳', baseType: '专家六翼战袍' } }
+    snapshot.view.modifiers[0].localized = { 'zh-CN': '+100 最大生命' }
+    store.upsert(snapshot, marketSource(2))
+
+    expect(store.list({ query: '灾厄外壳' })).toHaveLength(1)
+    expect(store.list({ query: '专家六翼' })).toHaveLength(1)
+    expect(store.list({ query: '最大生命' })).toHaveLength(1)
+  })
+
+  it('updates a source idempotently without merging a different collection record by fingerprint', () => {
     const store = repository()
     store.upsert(item(), marketSource(2))
     store.upsert(item(), marketSource(3))
@@ -55,9 +67,10 @@ describe('EquipmentLibraryRepository', () => {
     }
     store.upsert(item(), equipment)
 
-    expect(store.count()).toBe(1)
-    expect(store.list()[0].sources).toHaveLength(2)
-    expect(store.list()[0].sources.find((source) => source.kind === 'market-favorite')).toMatchObject({ price: { amount: 3 } })
+    expect(store.count()).toBe(2)
+    expect(store.list({ collectionRoot: 'market' })[0].sources).toHaveLength(1)
+    expect(store.list({ collectionRoot: 'market' })[0].sources[0]).toMatchObject({ price: { amount: 3 } })
+    expect(store.list({ collectionRoot: 'build' })[0].sources[0]).toMatchObject({ kind: 'equipment-favorite' })
   })
 
   it('removes only the selected source and preserves the shared entry', () => {
@@ -77,10 +90,9 @@ describe('EquipmentLibraryRepository', () => {
 
   it('stores nested folders and promotes children when deleting their parent folder', () => {
     const store = repository()
-    const parent = store.createFolder({ scope: 'items', name: 'Upgrades' })
-    const child = store.createFolder({ scope: 'items', name: 'Armour', parentId: parent.id })
-    store.selectFolder('items', child.id)
-    const entry = store.upsert(item(), marketSource(2))
+    const parent = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Upgrades' })
+    const child = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Armour', parentId: parent.id })
+    const entry = store.upsert(item(), marketSource(2), { folderId: child.id })
     expect(entry.folderId).toBe(child.id)
 
     store.deleteFolder(parent.id)
@@ -90,22 +102,20 @@ describe('EquipmentLibraryRepository', () => {
 
   it('moves direct contents to the parent when deleting a child folder', () => {
     const store = repository()
-    const parent = store.createFolder({ scope: 'items', name: 'Upgrades' })
-    const child = store.createFolder({ scope: 'items', name: 'Armour', parentId: parent.id })
-    store.selectFolder('items', child.id)
-    const entry = store.upsert(item(), marketSource(2))
+    const parent = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Upgrades' })
+    const child = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Armour', parentId: parent.id })
+    const entry = store.upsert(item(), marketSource(2), { folderId: child.id })
     store.deleteFolder(child.id)
     expect(store.list()[0]).toMatchObject({ id: entry.id, folderId: parent.id })
-    expect(store.sidebarSnapshot().selectedItemFolderId).toBe(parent.id)
+    expect(store.list()[0].folderId).toBe(parent.id)
   })
 
   it('moves folders and equipment between directory targets', () => {
     const store = repository()
-    const source = store.createFolder({ scope: 'items', name: 'Source' })
-    const nested = store.createFolder({ scope: 'items', name: 'Nested', parentId: source.id })
-    const target = store.createFolder({ scope: 'items', name: 'Target' })
-    store.selectFolder('items', source.id)
-    const entry = store.upsert(item(), marketSource(2))
+    const source = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Source' })
+    const nested = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Nested', parentId: source.id })
+    const target = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Target' })
+    const entry = store.upsert(item(), marketSource(2), { folderId: source.id })
 
     store.updateMetadata({ id: entry.id, folderId: target.id })
     store.updateFolder({ id: nested.id, parentId: target.id })
@@ -115,11 +125,21 @@ describe('EquipmentLibraryRepository', () => {
     expect(() => store.updateFolder({ id: target.id, parentId: nested.id })).toThrow('A folder cannot be moved into itself')
   })
 
+  it('rejects moving equipment or folders across fixed collection roots', () => {
+    const store = repository()
+    const marketFolder = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Market' })
+    const customFolder = store.createFolder({ scope: 'items', collectionRoot: 'custom', name: 'Custom' })
+    const entry = store.upsert(item(), marketSource(2), { folderId: marketFolder.id })
+
+    expect(() => store.updateMetadata({ id: entry.id, folderId: customFolder.id })).toThrow('Equipment library folder not found')
+    expect(() => store.updateFolder({ id: marketFolder.id, parentId: customFolder.id })).toThrow('Equipment library folder not found')
+  })
+
   it('persists drag ordering between sibling folders', () => {
     const store = repository()
-    const first = store.createFolder({ scope: 'items', name: 'First' })
-    const second = store.createFolder({ scope: 'items', name: 'Second' })
-    const third = store.createFolder({ scope: 'items', name: 'Third' })
+    const first = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'First' })
+    const second = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Second' })
+    const third = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Third' })
 
     store.updateFolder({ id: third.id, parentId: null, beforeId: first.id })
 
@@ -186,7 +206,7 @@ describe('EquipmentLibraryRepository', () => {
     ])
   })
 
-  it('migrates raw v1 equipment to v2 and preserves unresolved legacy records', async () => {
+  it('migrates raw v1 equipment to the canonical library and preserves unresolved legacy records', async () => {
     const directory = mkdtempSync(path.join(tmpdir(), 'superpoe-library-migration-test-'))
     temporaryDirectories.push(directory)
     const v1Path = path.join(directory, 'equipment-library.v1.json')
@@ -210,6 +230,37 @@ describe('EquipmentLibraryRepository', () => {
     expect(store.list()).toHaveLength(1)
     expect(readFileSync(v2Path, 'utf8')).toContain('unresolvedLegacyEntries')
     expect(readFileSync(`${v1Path}.migration-backup.json`, 'utf8')).toContain('unresolved-entry')
+  })
+
+  it('migrates v2 mixed-source entries into independent collection records', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'superpoe-library-v3-migration-test-'))
+    temporaryDirectories.push(directory)
+    const filePath = path.join(directory, 'equipment-library.v2.json')
+    const market = marketSource(2)
+    const equipment: EquipmentFavoriteSource = {
+      kind: 'equipment-favorite', sourceKey: equipmentSourceKey('build-1', 'set-1', 'item-1'),
+      capturedAt: '2026-07-29T00:00:00.000Z', updatedAt: '2026-07-29T00:00:00.000Z',
+      buildId: 'build-1', equipmentSetId: 'set-1', itemId: 'item-1',
+    }
+    writeFileSync(filePath, JSON.stringify({
+      schemaVersion: 2,
+      entries: [{
+        schemaVersion: 2, id: 'mixed', fingerprint: fingerprintLibraryItem(item().item), item: item().item,
+        sources: [market, equipment], folderId: 'legacy-folder', tags: [], archived: false,
+        createdAt: '2026-01-01', updatedAt: '2026-01-01',
+      }],
+      folders: [{ id: 'legacy-folder', scope: 'items', name: 'Upgrades', sortOrder: 0, expanded: true, createdAt: '2026-01-01', updatedAt: '2026-01-01' }],
+      searches: [], selectedFolders: { items: 'legacy-folder' }, updatedAt: '2026-01-01',
+    }))
+
+    const store = new EquipmentLibraryRepository(filePath)
+    expect(store.list()).toHaveLength(2)
+    expect(store.list().map((entry) => entry.collectionRoot).sort()).toEqual(['build', 'market'])
+    expect(store.list().every((entry) => !!entry.folderId)).toBe(true)
+    expect(store.sidebarSnapshot().folders.filter((folder) => folder.scope === 'items')).toHaveLength(2)
+    expect(JSON.parse(readFileSync(filePath, 'utf8')).schemaVersion).toBe(3)
+    expect(JSON.parse(readFileSync(`${filePath}.backup.json`, 'utf8')).schemaVersion).toBe(2)
+    expect(JSON.parse(readFileSync(`${filePath}.v2-migration-backup.json`, 'utf8')).schemaVersion).toBe(2)
   })
 
   it('repairs a previously corrupted CN market title from its source evidence', async () => {
@@ -275,13 +326,12 @@ describe('EquipmentLibraryRepository', () => {
     expect(() => invalidRepository.updateSearch({ id: 'invalid-target', monitorStatus: 'armed' })).toThrow('Invalid searches cannot be monitored')
   })
 
-  it('preserves a filed entry when its final source is removed', () => {
+  it('removes a filed collection record when its final source is removed', () => {
     const store = repository()
-    store.createFolder({ scope: 'items', name: 'Current target' })
-    store.upsert(item(), marketSource(2))
+    const folder = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Current target' })
+    store.upsert(item(), marketSource(2), { folderId: folder.id })
     store.removeSource(marketSourceKey('global', 'listing-1'))
-    expect(store.list()).toHaveLength(1)
-    expect(store.list()[0].sources).toEqual([])
+    expect(store.list()).toEqual([])
   })
 
   it('removes an unfiled entry with no metadata when its final source is removed', () => {

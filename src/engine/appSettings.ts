@@ -19,6 +19,8 @@ export interface AppSettings {
   updateCheckIntervalMinutes: number
   /** User-configured GitHub proxy domains (unioned with built-in list) */
   proxyDomains: string[]
+  priceCheckEnabled: boolean
+  priceCheckHotkey: string
 }
 
 function getDefaultAppSettings(): AppSettings {
@@ -29,6 +31,8 @@ function getDefaultAppSettings(): AppSettings {
     updateChannel: 'release',
     updateCheckIntervalMinutes: 60,
     proxyDomains: [],
+    priceCheckEnabled: false,
+    priceCheckHotkey: 'Ctrl+D',
   }
 }
 
@@ -56,6 +60,8 @@ export function loadAppSettings(storage: SettingsStorage | undefined = typeof lo
       proxyDomains: Array.isArray(parsed.proxyDomains)
         ? parsed.proxyDomains.filter((d): d is string => typeof d === 'string' && d.trim().length > 0).map((d) => d.trim().replace(/\/+$/, ''))
         : [],
+      priceCheckEnabled: parsed.priceCheckEnabled === true,
+      priceCheckHotkey: typeof parsed.priceCheckHotkey === 'string' && parsed.priceCheckHotkey.trim() ? parsed.priceCheckHotkey.trim().slice(0, 64) : 'Ctrl+D',
     }
   } catch {
     return getDefaultAppSettings()

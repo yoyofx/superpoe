@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, powerMonitor, protocol, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
+import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, net, powerMonitor, protocol, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import path from 'node:path'
@@ -18,10 +18,11 @@ import { TradeCredentialStore } from './tradeCredentialStore.js'
 import { EquipmentLibraryRepository, equipmentSourceKey, pobSourceKey } from './equipmentLibraryRepository.js'
 import { normalizeMarketListing } from './marketListing.js'
 import type {
-  EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
+  EquipmentCollectionRoot, EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
   EquipmentLibraryMetadataPatch, EquipmentLibrarySource, EquipmentTradeSearchRequest, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
   MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch, TradePriceCheckCriteria, TradePriceCheckPrepareRequest,
   TradePriceCheckSearchRequest,
+  PriceCheckOpenRequest,
 } from '../src/types/market.js'
 import { OfficialTradeProvider, TradeReferenceDataCache } from './tradeService.js'
 import { GameWindowService } from './gameWindowService.js'
@@ -29,9 +30,13 @@ import { MarketMonitoringCoordinator } from './marketMonitoring.js'
 import { OpportunityOverlayController } from './opportunityOverlay.js'
 import { CurrencyMarketService } from './currencyMarket/currencyMarketService.js'
 import { desktopText, isUiLanguage, type UiLanguage } from './uiLocale.js'
+import { PriceCheckCoordinator } from './priceCheck/PriceCheckCoordinator.js'
+import { PriceCheckWindowManager } from './priceCheck/PriceCheckWindowManager.js'
+import { GameClipboardService } from './priceCheck/GameClipboardService.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
+const priceCheckPreloadPath = path.join(currentDir, 'priceCheckPreload.cjs')
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
 const packageMetadata = JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')) as {
   name?: string
@@ -247,6 +252,9 @@ let gameWindowService: GameWindowService | null = null
 let marketMonitoring: MarketMonitoringCoordinator | null = null
 let opportunityOverlay: OpportunityOverlayController | null = null
 let currencyMarketService: CurrencyMarketService | null = null
+let priceCheckCoordinator: PriceCheckCoordinator | null = null
+let priceCheckWindowManager: PriceCheckWindowManager | null = null
+let priceCheckHotkey = ''
 let defaultRealm: MarketRealm = 'global'
 let uiLanguage: UiLanguage = 'en'
 const pendingNativeBuildPaths: string[] = []
@@ -256,6 +264,32 @@ const equipmentLibrary = new EquipmentLibraryRepository(
   path.join(userDataPath, 'library', 'equipment-library.v1.json'),
 )
 const favoriteOperations = new Map<string, Promise<void>>()
+
+function registerPriceCheckHotkey(enabled: boolean, requestedHotkey: string): { registered: boolean; error?: string } {
+  if (priceCheckHotkey) globalShortcut.unregister(priceCheckHotkey)
+  priceCheckHotkey = ''
+  if (!enabled) return { registered: false }
+  const accelerator = requestedHotkey.trim().replace(/^Ctrl\+/i, 'CommandOrControl+')
+  if (!accelerator || accelerator.length > 64) return { registered: false, error: 'Invalid price check hotkey' }
+  const registered = globalShortcut.register(accelerator, () => {
+    void (async () => {
+      try {
+        if (!priceCheckCoordinator || !priceCheckWindowManager) throw new Error('Price checker is unavailable')
+        const clipboardText = await new GameClipboardService(() => gameWindowService).copyItem()
+        const raw = gameClipboardToPobRaw(clipboardText)
+        priceCheckWindowManager.show()
+        await priceCheckCoordinator.open({ source: { kind: 'raw', raw } })
+      } catch (error) {
+        priceCheckWindowManager?.show()
+        priceCheckCoordinator?.reportError(error)
+        console.error('[PriceCheck] game capture failed', error)
+      }
+    })()
+  })
+  if (!registered) return { registered: false, error: 'The hotkey is already in use by another application' }
+  priceCheckHotkey = accelerator
+  return { registered: true }
+}
 
 function collectNativeBuildPaths(args: string[]): string[] {
   return args.filter((value) => path.extname(value).toLowerCase() === SUPERPOE_BUILD_EXTENSION)
@@ -313,6 +347,11 @@ function notifyLibraryChanged(): void {
 function validateShortString(value: unknown, name: string, max = 256): string {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(`Invalid ${name}`)
   return value.trim()
+}
+
+function validateCollectionRoot(value: unknown): EquipmentCollectionRoot {
+  if (value !== 'market' && value !== 'build' && value !== 'custom') throw new Error('Invalid equipment collection root')
+  return value
 }
 
 function validateOptionalNumber(value: unknown, name: string): number | undefined {
@@ -469,6 +508,40 @@ function createWindow(): BrowserWindow {
     if (!window.isDestroyed()) window.webContents.send('market:state-changed', state)
   }, tradeCredentialStore)
   tradeProvider = new OfficialTradeProvider(marketViewManager, new TradeReferenceDataCache(path.join(userDataPath, 'trade', 'reference')))
+  priceCheckWindowManager = new PriceCheckWindowManager(
+    priceCheckPreloadPath,
+    rendererUrl,
+    getAppIconPath(),
+    path.join(userDataPath, 'price-check', 'window-bounds.json'),
+  )
+  priceCheckCoordinator = new PriceCheckCoordinator({
+    context: () => ({ realm: defaultRealm, language: uiLanguage }),
+    prepare: async (realm, source) => {
+      if (!tradeProvider) throw new Error('Trade provider is unavailable')
+      const item = await priceCheckSnapshot({ realm, target: source })
+      return (await tradeProvider.prepare(realm, item)).draft
+    },
+    leagues: async (realm) => {
+      if (!tradeProvider) throw new Error('Trade provider is unavailable')
+      return tradeProvider.leagues(realm)
+    },
+    search: async (realm, source, leagueId, criteria) => {
+      if (!tradeProvider) throw new Error('Trade provider is unavailable')
+      const item = await priceCheckSnapshot({ realm, target: source })
+      const result = await tradeProvider.search(realm, leagueId, item, criteria)
+      const { resolvedItem: _resolvedItem, ...response } = result
+      return response
+    },
+    fetch: async (realm, ids, searchId) => {
+      if (!marketViewManager) throw new Error('Trade provider is unavailable')
+      return marketViewManager.fetchListings(realm, ids, searchId)
+    },
+    visitHideout: async (realm, listingId, searchId, sourceUrl) => {
+      if (!marketViewManager) throw new Error('Trade provider is unavailable')
+      return marketViewManager.visitHideout({ realm, listingId, queryId: searchId, sourceUrl })
+    },
+    changed: (state) => priceCheckWindowManager?.publish(state),
+  })
   currencyMarketService = new CurrencyMarketService(
     path.join(userDataPath, 'currency-market'),
     (input, init) => net.fetch(input, init),
@@ -513,6 +586,9 @@ function createWindow(): BrowserWindow {
     marketViewManager = null
     tradeProvider = null
     currencyMarketService = null
+    priceCheckCoordinator = null
+    priceCheckWindowManager?.dispose()
+    priceCheckWindowManager = null
     if (mainWindow === window) mainWindow = null
   })
   return window
@@ -524,6 +600,51 @@ const pobLuaService = new PobLuaService()
 const pobItemBridge = new PobItemBridge(pobLuaService)
 const itemTranslations = new ItemTranslationIndex()
 const itemIcons = new ItemIconIndex()
+
+function gameClipboardToPobRaw(value: string): string {
+  const normalized = value.replace(/\r\n/g, '\n').trim()
+  if (/^Rarity:\s*/i.test(normalized)) return normalized
+  const sections = normalized.split(/^--------+$/m).map((section) => section.split('\n').map((line) => line.trim()).filter(Boolean)).filter((section) => section.length)
+  if (sections.length < 2) throw new Error('Clipboard does not contain a supported Path of Exile 2 item')
+  const header = sections[0]
+  const names = sections[1]
+  const field = (patterns: RegExp[]) => header.find((line) => patterns.some((pattern) => pattern.test(line)))?.split(/:\s*|：\s*/).slice(1).join(':').trim()
+  const raritySource = field([/^Rarity\s*:/i, /^稀有度\s*[：:]/, /^稀有度\s*[：:]/]) || ''
+  const rarity = /unique|傳奇|传奇/i.test(raritySource) ? 'UNIQUE'
+    : /rare|稀有/i.test(raritySource) ? 'RARE'
+      : /magic|魔法/i.test(raritySource) ? 'MAGIC' : 'NORMAL'
+  const displayName = names[0] || ''
+  const displayBaseType = names[1] || names[0] || ''
+  const baseType = itemTranslations.toEnglish(displayBaseType) || (/^[\x20-\x7e]+$/.test(displayBaseType) ? displayBaseType : '')
+  const name = itemTranslations.toEnglish(displayName) || (/^[\x20-\x7e]+$/.test(displayName) ? displayName : '')
+  if (!baseType) throw new Error(`Unsupported item base language: ${displayBaseType}`)
+  const itemLevelLine = sections.flat().find((line) => /^(?:Item Level|物品等级|物品等級)\s*[：:]/i.test(line))
+  const itemLevel = itemLevelLine?.match(/\d+/)?.[0]
+  const itemLevelSection = sections.findIndex((section) => section.some((line) => line === itemLevelLine))
+  const modifierLines: Array<{ text: string; rune: boolean }> = []
+  for (const section of sections.slice(Math.max(2, itemLevelSection + 1))) {
+    for (const sourceLine of section) {
+      if (/^\{.*\}$/.test(sourceLine) || /^(?:Corrupted|已腐化|已污染|Split|分裂)/i.test(sourceLine)) continue
+      const rune = /\((?:rune|符文)\)$/i.test(sourceLine)
+      const cleaned = sourceLine.replace(/\s*\((?:rune|符文)\)\s*$/i, '').replace(/^\{[^}]+\}/, '').trim()
+      const translated = itemTranslations.statToEnglish(cleaned) || (/^[\x20-\x7e]+$/.test(cleaned) ? cleaned : undefined)
+      if (translated && !/^(?:Requirements?|Sockets?|Quality|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second)\s*:/i.test(translated)) {
+        modifierLines.push({ text: translated, rune })
+      }
+    }
+  }
+  const uniqueModifiers = [...new Map(modifierLines.map((modifier) => [`${modifier.rune}:${modifier.text}`, modifier])).values()]
+  if (!uniqueModifiers.length) throw new Error('No supported modifiers could be resolved from the game clipboard')
+  const implicitCount = uniqueModifiers.filter((modifier) => modifier.rune).length
+  const raw = [`Rarity: ${rarity}`]
+  if ((rarity === 'RARE' || rarity === 'UNIQUE') && name && name !== baseType) raw.push(name)
+  raw.push(baseType)
+  if (itemLevel) raw.push(`Item Level: ${itemLevel}`)
+  raw.push(`Implicits: ${implicitCount}`)
+  raw.push(...uniqueModifiers.map((modifier) => `${modifier.rune ? '{rune}' : ''}${modifier.text}`))
+  if (sections.flat().some((line) => /^(?:Corrupted|已腐化|已污染)$/i.test(line))) raw.push('Corrupted')
+  return raw.join('\n')
+}
 
 async function priceCheckSnapshot(request: TradePriceCheckPrepareRequest) {
   const target = request.target
@@ -561,6 +682,10 @@ async function priceCheckSnapshot(request: TradePriceCheckPrepareRequest) {
 
 if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
+  try {
+    const saved = JSON.parse(readFileSync(path.join(userDataPath, 'price-check', 'settings.json'), 'utf8')) as { enabled?: unknown; hotkey?: unknown }
+    registerPriceCheckHotkey(saved.enabled === true, typeof saved.hotkey === 'string' ? saved.hotkey : 'Ctrl+D')
+  } catch { /* Price checking is disabled until settings are synchronized. */ }
   powerMonitor.on('resume', () => marketMonitoring?.refreshTargets())
 
   const iconPath = getAppIconPath()
@@ -618,7 +743,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   ipcMain.handle('pob2:set-app-context', (event, value: unknown) => {
     requireMainWindowSender(event)
     if (!value || typeof value !== 'object') throw new Error('Invalid application context')
-    const context = value as { defaultRealm?: unknown; language?: unknown }
+    const context = value as { defaultRealm?: unknown; language?: unknown; priceCheckEnabled?: unknown; priceCheckHotkey?: unknown }
     const realm = context.defaultRealm
     if (realm !== 'cn' && realm !== 'global') throw new Error('Invalid default realm')
     if (!isUiLanguage(context.language)) throw new Error('Invalid UI language')
@@ -627,6 +752,52 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     marketViewManager?.setRealm(realm)
     marketViewManager?.setLanguage(uiLanguage)
     opportunityOverlay?.setLanguage(uiLanguage)
+    priceCheckCoordinator?.updateApplicationContext()
+    const hotkey = typeof context.priceCheckHotkey === 'string' ? context.priceCheckHotkey : 'Ctrl+D'
+    const registration = registerPriceCheckHotkey(context.priceCheckEnabled === true, hotkey)
+    mkdirSync(path.join(userDataPath, 'price-check'), { recursive: true })
+    writeFileSync(path.join(userDataPath, 'price-check', 'settings.json'), JSON.stringify({ enabled: context.priceCheckEnabled === true, hotkey, registration }), 'utf8')
+    return registration
+  })
+  ipcMain.handle('price-check:open', async (event, value: unknown) => {
+    const fromMain = mainWindow?.webContents.id === event.sender.id
+    const fromPriceCheck = priceCheckWindowManager?.owns(event.sender.id) === true
+    if (!fromMain && !fromPriceCheck) throw new Error('Unauthorized price check sender')
+    if (!value || typeof value !== 'object' || JSON.stringify(value).length > 500_000) throw new Error('Invalid price check request')
+    const input = value as PriceCheckOpenRequest
+    if (!input.source || (input.source.kind !== 'raw' && input.source.kind !== 'library')) throw new Error('Invalid price check source')
+    if (!priceCheckCoordinator || !priceCheckWindowManager) throw new Error('Price checker is unavailable')
+    priceCheckWindowManager.show()
+    return priceCheckCoordinator.open(input)
+  })
+  ipcMain.handle('price-check:get-state', (event) => {
+    if (!priceCheckWindowManager?.owns(event.sender.id) || !priceCheckCoordinator) throw new Error('Unauthorized price check sender')
+    return priceCheckCoordinator.snapshot()
+  })
+  ipcMain.handle('price-check:search', async (event, value: unknown) => {
+    if (!priceCheckWindowManager?.owns(event.sender.id) || !priceCheckCoordinator || !value || typeof value !== 'object') throw new Error('Invalid price check search')
+    const input = value as { leagueId?: unknown; criteria?: unknown }
+    return priceCheckCoordinator.search(validateShortString(input.leagueId, 'trade league', 128), validatePriceCheckCriteria(input.criteria))
+  })
+  ipcMain.handle('price-check:fetch-page', (event, value: unknown) => {
+    if (!priceCheckWindowManager?.owns(event.sender.id) || !priceCheckCoordinator || typeof value !== 'number') throw new Error('Invalid price check page')
+    return priceCheckCoordinator.fetchPage(value)
+  })
+  ipcMain.handle('price-check:open-trade-page', (event, value: unknown) => {
+    if (!priceCheckWindowManager?.owns(event.sender.id) || typeof value !== 'string') throw new Error('Invalid trade page')
+    const url = new URL(value)
+    if (!['www.pathofexile.com', 'poe.game.qq.com'].includes(url.hostname)) throw new Error('Invalid trade page')
+    void shell.openExternal(url.toString())
+  })
+  ipcMain.handle('price-check:visit-hideout', (event, value: unknown) => {
+    if (!priceCheckWindowManager?.owns(event.sender.id) || !priceCheckCoordinator || typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value)) {
+      throw new Error('Invalid price check listing')
+    }
+    return priceCheckCoordinator.visitHideout(value)
+  })
+  ipcMain.handle('price-check:hide', (event) => {
+    if (!priceCheckWindowManager?.owns(event.sender.id)) throw new Error('Unauthorized price check sender')
+    priceCheckWindowManager.hide()
   })
   ipcMain.handle('market:activate', (event, value: unknown) => {
     const bounds = validateMarketBounds(event, value)
@@ -830,7 +1001,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
             if (normalized.view.modifiers[index]) normalized.view.modifiers[index].localized = { [imported.source.display!.locale]: text }
           })
         }
-        equipmentLibrary.upsert(normalized, imported.source)
+        equipmentLibrary.upsert(normalized, imported.source, { collectionRoot: 'market' })
         notifyLibraryChanged()
         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('market:sidebar-request', 'items')
         if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:favorite-result', { requestId, listingId: ref.listingId, active: true })
@@ -856,6 +1027,8 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     if (input.realm === 'cn' || input.realm === 'global') filter.realm = input.realm
     if (typeof input.query === 'string') filter.query = input.query.slice(0, 200)
     if (typeof input.includeArchived === 'boolean') filter.includeArchived = input.includeArchived
+    if (input.collectionRoot === 'market' || input.collectionRoot === 'build' || input.collectionRoot === 'custom') filter.collectionRoot = input.collectionRoot
+    if ('folderId' in input) filter.folderId = input.folderId == null ? null : validateShortString(input.folderId, 'folder ID', 128)
     if (['all', 'market-favorite', 'pob-import', 'equipment-favorite', 'price-check', 'manual'].includes(String(input.sourceKind))) {
       filter.sourceKind = input.sourceKind
     }
@@ -872,6 +1045,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     if (input.scope !== 'items' && input.scope !== 'searches') throw new Error('Invalid folder scope')
     const folder = equipmentLibrary.createFolder({
       scope: input.scope,
+      ...(input.scope === 'items' ? { collectionRoot: validateCollectionRoot(input.collectionRoot) } : {}),
       name: validateShortString(input.name, 'folder name', 120),
       ...(typeof input.parentId === 'string' ? { parentId: validateShortString(input.parentId, 'parent folder ID', 128) } : {}),
     })
@@ -999,6 +1173,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     if (!value || typeof value !== 'object') throw new Error('Invalid equipment library metadata')
     const input = value as Partial<EquipmentLibraryMetadataPatch>
     const patch: EquipmentLibraryMetadataPatch = { id: validateShortString(input.id, 'library entry ID', 128) }
+    if ('collectionRoot' in input) patch.collectionRoot = validateCollectionRoot(input.collectionRoot)
     if ('folderId' in input) patch.folderId = input.folderId == null ? null : validateShortString(input.folderId, 'folder ID', 128)
     if ('folder' in input) patch.folder = typeof input.folder === 'string' ? input.folder.slice(0, 120) : ''
     if ('note' in input) patch.note = typeof input.note === 'string' ? input.note.slice(0, 4_000) : ''
@@ -1093,7 +1268,9 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       iconUrl: normalized.view.iconUrl,
       ...(localizedModifiers ? { modifiers: localizedModifiers } : {}),
     }
-    const entry = equipmentLibrary.upsert(normalized, source)
+    const collectionRoot = input.collectionRoot == null ? undefined : validateCollectionRoot(input.collectionRoot)
+    const folderId = input.folderId == null ? undefined : validateShortString(input.folderId, 'folder ID', 128)
+    const entry = equipmentLibrary.upsert(normalized, source, { collectionRoot, folderId })
     notifyLibraryChanged()
     return entry
   })
@@ -1116,7 +1293,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       const criteria = input.criteria == null ? undefined : validatePriceCheckCriteria(input.criteria)
       const result = await tradeProvider.search(input.realm, leagueId, canonicalToLegacySnapshot(normalized, normalized.view, input.realm), criteria)
       marketViewManager.openSource(input.realm, result.url)
-      const { resolvedItem: _resolvedItem, ...response } = result
+      const { resolvedItem: _resolvedItem, listingIds: _listingIds, ...response } = result
       return response
     } catch (error) {
       console.error(`[Market search] equipment failed realm=${input.realm} league=${leagueId}`, error)
@@ -1139,7 +1316,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       const criteria = (input as { criteria?: unknown }).criteria == null ? undefined : validatePriceCheckCriteria((input as { criteria?: unknown }).criteria)
       const result = await tradeProvider.search(realm, leagueId, legacyItem, criteria)
       marketViewManager.openSource(realm, result.url)
-      const { resolvedItem: _resolvedItem, ...response } = result
+      const { resolvedItem: _resolvedItem, listingIds: _listingIds, ...response } = result
       return response
     } catch (error) {
       console.error(`[Market search] library failed realm=${realm} league=${leagueId} entry=${entry.id}`, error)
@@ -1166,7 +1343,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const item = await priceCheckSnapshot(input as TradePriceCheckSearchRequest)
     const result = await tradeProvider.search(input.realm, leagueId, item, criteria)
     marketViewManager.openSource(input.realm, result.url)
-    const { resolvedItem: _resolvedItem, ...response } = result
+    const { resolvedItem: _resolvedItem, listingIds: _listingIds, ...response } = result
     return response
   })
   ipcMain.handle('market:list-leagues', async (event, value: unknown) => {
@@ -1283,6 +1460,8 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit()
 })
+
+app.on('will-quit', () => globalShortcut.unregisterAll())
 
 app.on('before-quit', () => {
   marketViewManager?.dispose()

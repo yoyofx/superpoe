@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FileCog, Globe2, Info, Languages, MonitorCog, Plus, RefreshCw, ShieldAlert, Trash2, X } from 'lucide-react'
+import { FileCog, Globe2, Info, Keyboard, Languages, MonitorCog, Plus, RefreshCw, ShieldAlert, Trash2, X } from 'lucide-react'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { MAX_UI_SCALE_PERCENT, MIN_UI_SCALE_PERCENT, UI_SCALE_STEP_PERCENT, type AppSettings, type UpdateChannel } from '@/engine/appSettings'
 import { LANGUAGE_OPTIONS, type Language } from '@/i18n/translationLoader'
@@ -43,6 +43,23 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose }: Glob
         </header>
 
         <div className="settings-body">
+          <section className="settings-section">
+            <header><Keyboard /><h3>{l('Price checker', '查价器', '查價器', '가격 확인')}</h3></header>
+            <label className="settings-row settings-toggle-row">
+              <span>{l('Enable the in-game price check hotkey', '启用游戏内查价热键', '啟用遊戲內查價快捷鍵', '게임 내 가격 확인 단축키 사용')}</span>
+              <input type="checkbox" checked={settings.priceCheckEnabled} onChange={(event) => onChange({ ...settings, priceCheckEnabled: event.target.checked })} />
+            </label>
+            <label className="settings-row">
+              <span>{l('Hotkey', '热键', '快捷鍵', '단축키')}</span>
+              <input value={settings.priceCheckHotkey} readOnly disabled={!settings.priceCheckEnabled} onKeyDown={(event) => {
+                event.preventDefault()
+                if (['Control', 'Shift', 'Alt', 'Meta'].includes(event.key)) return
+                const key = event.key.length === 1 ? event.key.toUpperCase() : event.key
+                const parts = [event.ctrlKey || event.metaKey ? 'Ctrl' : '', event.altKey ? 'Alt' : '', event.shiftKey ? 'Shift' : '', key].filter(Boolean)
+                onChange({ ...settings, priceCheckHotkey: parts.join('+') })
+              }} />
+            </label>
+          </section>
           <section className="settings-section">
             <header><Languages /><h3>{l('Interface language', '界面语言', '介面語言', '인터페이스 언어')}</h3></header>
             <label className="settings-row">
