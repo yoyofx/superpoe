@@ -4,6 +4,8 @@ import type { BuildRealm } from '@/types/tree'
 import type { LibraryTreeScope, MarketBounds, MarketMonitoringSnapshot, MarketNavigationCommand, MarketViewState } from '@/types/market'
 import { useTranslation } from '@/i18n/useTranslation'
 import { EquipmentLibraryPanel } from '@/components/market/EquipmentLibraryPanel'
+import { uiText } from '@/i18n/uiLocale'
+import { loadAppSettings } from '@/engine/appSettings'
 
 interface MarketPanelProps {
   realm: BuildRealm
@@ -41,7 +43,7 @@ function displayOrigin(url: string, fallback: string): string {
 
 export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
   const { lang } = useTranslation()
-  const zh = lang === 'zh-rCN'
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const hostRef = useRef<HTMLDivElement>(null)
   const contentRef = useRef<HTMLDivElement>(null)
   const activatedRef = useRef(false)
@@ -54,7 +56,7 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
   const [monitoring, setMonitoring] = useState<MarketMonitoringSnapshot | null>(null)
   const viewSuspended = suspended
   const bridge = window.pob2Market
-  const realmLabel = realm === 'cn' ? (zh ? '腾讯服' : 'Tencent CN') : (zh ? '国际服' : 'Global')
+  const realmLabel = realm === 'cn' ? l('Tencent CN', '腾讯服', '騰訊服', 'Tencent 중국') : l('Global', '国际服', '國際服', '글로벌')
   const officialHost = realm === 'cn' ? 'poe.game.qq.com' : 'www.pathofexile.com'
 
   const applyBounds = useCallback(async (activate: boolean) => {
@@ -98,7 +100,8 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
     let active = true
     const sync = async () => {
       try {
-        await window.pob2Desktop?.setAppContext({ defaultRealm: realm })
+        const saved = loadAppSettings()
+        await window.pob2Desktop?.setAppContext({ defaultRealm: realm, language: lang, priceCheckEnabled: saved.priceCheckEnabled, priceCheckHotkey: saved.priceCheckHotkey })
         if (active && !viewSuspended) await applyBounds(true)
       } catch (error: unknown) {
         if (active) setBridgeError(error instanceof Error ? error.message : String(error))
@@ -111,7 +114,7 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
       void sync()
     }
     return () => { active = false }
-  }, [applyBounds, bridge, realm, viewSuspended])
+  }, [applyBounds, bridge, lang, realm, viewSuspended])
 
   useEffect(() => {
     if (!bridge || viewSuspended || !hostRef.current) return
@@ -159,18 +162,18 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
   }
 
   const statusLabel = useMemo(() => {
-    if (state.sessionStatus === 'valid') return zh ? '已登录' : 'Signed in'
-    if (state.sessionStatus === 'anonymous') return zh ? '未登录' : 'Signed out'
-    return zh ? '检查登录状态' : 'Checking session'
-  }, [state.sessionStatus, zh])
+    if (state.sessionStatus === 'valid') return l('Signed in', '已登录', '已登入', '로그인됨')
+    if (state.sessionStatus === 'anonymous') return l('Signed out', '未登录', '未登入', '로그아웃됨')
+    return l('Checking session', '检查登录状态', '檢查登入狀態', '세션 확인 중')
+  }, [lang, state.sessionStatus])
 
   return <section className="market-workspace">
     <header className="market-toolbar">
       <div className="market-navigation">
-        <button className="icon-command compact" disabled={!bridge || !state.canGoBack} onClick={() => navigate('back')} title={zh ? '后退' : 'Back'} aria-label={zh ? '后退' : 'Back'}><ArrowLeft /></button>
-        <button className="icon-command compact" disabled={!bridge || !state.canGoForward} onClick={() => navigate('forward')} title={zh ? '前进' : 'Forward'} aria-label={zh ? '前进' : 'Forward'}><ArrowRight /></button>
-        <button className="icon-command compact" disabled={!bridge} onClick={() => navigate(state.loading ? 'stop' : 'reload')} title={state.loading ? (zh ? '停止加载' : 'Stop') : (zh ? '刷新' : 'Reload')} aria-label={state.loading ? (zh ? '停止加载' : 'Stop') : (zh ? '刷新' : 'Reload')}>{state.loading ? <Square /> : <RefreshCw />}</button>
-        <button className="icon-command compact" disabled={!bridge} onClick={() => navigate('home')} title={zh ? '集市首页' : 'Market home'} aria-label={zh ? '集市首页' : 'Market home'}><Home /></button>
+        <button className="icon-command compact" disabled={!bridge || !state.canGoBack} onClick={() => navigate('back')} title={l('Back', '后退', '上一頁', '뒤로')} aria-label={l('Back', '后退', '上一頁', '뒤로')}><ArrowLeft /></button>
+        <button className="icon-command compact" disabled={!bridge || !state.canGoForward} onClick={() => navigate('forward')} title={l('Forward', '前进', '下一頁', '앞으로')} aria-label={l('Forward', '前进', '下一頁', '앞으로')}><ArrowRight /></button>
+        <button className="icon-command compact" disabled={!bridge} onClick={() => navigate(state.loading ? 'stop' : 'reload')} title={state.loading ? l('Stop', '停止加载', '停止載入', '중지') : l('Reload', '刷新', '重新載入', '새로 고침')} aria-label={state.loading ? l('Stop', '停止加载', '停止載入', '중지') : l('Reload', '刷新', '重新載入', '새로 고침')}>{state.loading ? <Square /> : <RefreshCw />}</button>
+        <button className="icon-command compact" disabled={!bridge} onClick={() => navigate('home')} title={l('Market home', '集市首页', '市集首頁', '거래소 홈')} aria-label={l('Market home', '集市首页', '市集首頁', '거래소 홈')}><Home /></button>
       </div>
 
 
@@ -182,9 +185,9 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
 
       <span className={`market-realm ${realm}`}>{realmLabel}</span>
       <span className={`market-session ${state.sessionStatus}`}><i />{statusLabel}</span>
-      {state.sessionStatus !== 'valid' && <button className="secondary-command market-login" disabled={!bridge} onClick={() => void bridge?.login()}><LogIn />{zh ? '登录' : 'Sign in'}</button>}
-      <button className={`icon-command compact${libraryOpen ? ' active' : ''}`} disabled={!bridge} onClick={() => setLibraryOpen((open) => !open)} title={zh ? '收藏侧栏' : 'Favorites sidebar'} aria-label={zh ? '收藏侧栏' : 'Favorites sidebar'} aria-pressed={libraryOpen}><Library /></button>
-      <button className="icon-command compact" disabled={!bridge || !state.url} onClick={() => void bridge?.openExternal()} title={zh ? '在系统浏览器打开' : 'Open in browser'} aria-label={zh ? '在系统浏览器打开' : 'Open in browser'}><ExternalLink /></button>
+      {state.sessionStatus !== 'valid' && <button className="secondary-command market-login" disabled={!bridge} onClick={() => void bridge?.login()}><LogIn />{l('Sign in', '登录', '登入', '로그인')}</button>}
+      <button className={`icon-command compact${libraryOpen ? ' active' : ''}`} disabled={!bridge} onClick={() => setLibraryOpen((open) => !open)} title={l('Favorites sidebar', '收藏侧栏', '收藏側欄', '즐겨찾기 사이드바')} aria-label={l('Favorites sidebar', '收藏侧栏', '收藏側欄', '즐겨찾기 사이드바')} aria-pressed={libraryOpen}><Library /></button>
+      <button className="icon-command compact" disabled={!bridge || !state.url} onClick={() => void bridge?.openExternal()} title={l('Open in browser', '在系统浏览器打开', '在系統瀏覽器開啟', '브라우저에서 열기')} aria-label={l('Open in browser', '在系统浏览器打开', '在系統瀏覽器開啟', '브라우저에서 열기')}><ExternalLink /></button>
     </header>
 
     <div
@@ -195,13 +198,13 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
     <div className="market-browser-host" ref={hostRef}>
       {!bridge && <div className="market-browser-fallback">
         <Store />
-        <h2>{zh ? '集市浏览器仅在桌面版可用' : 'The market browser is available in the desktop app'}</h2>
-        <p>{zh ? 'Electron 桌面版会在这里加载当前服务器的官方交易网站。' : 'The Electron desktop app loads the official trade site here.'}</p>
+        <h2>{l('The market browser is available in the desktop app', '集市浏览器仅在桌面版可用', '市集瀏覽器僅限桌面版使用', '거래소 브라우저는 데스크톱 앱에서 사용할 수 있습니다')}</h2>
+        <p>{l('The Electron desktop app loads the official trade site here.', 'Electron 桌面版会在这里加载当前服务器的官方交易网站。', 'Electron 桌面版會在此載入目前伺服器的官方交易網站。', 'Electron 데스크톱 앱은 여기에 현재 리전의 공식 거래 사이트를 불러옵니다.')}</p>
       </div>}
       {(bridgeError || state.error) && <div className="market-browser-error" role="alert">
-        <strong>{zh ? '官方集市加载失败' : 'Official market failed to load'}</strong>
+        <strong>{l('Official market failed to load', '官方集市加载失败', '官方市集載入失敗', '공식 거래소를 불러오지 못했습니다')}</strong>
         <span>{bridgeError || state.error}</span>
-        <button className="secondary-command" onClick={() => navigate('reload')}><RefreshCw />{zh ? '重试' : 'Retry'}</button>
+        <button className="secondary-command" onClick={() => navigate('reload')}><RefreshCw />{l('Retry', '重试', '重試', '다시 시도')}</button>
       </div>}
     </div>
     {libraryOpen
@@ -209,7 +212,7 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
         <div
           className="market-splitter"
           role="separator"
-          aria-label={zh ? '调整集市与仓库宽度' : 'Resize market and library'}
+          aria-label={l('Resize market and library', '调整集市与仓库宽度', '調整市集與倉庫寬度', '거래소 및 라이브러리 크기 조절')}
           aria-orientation="vertical"
           aria-valuemin={30}
           aria-valuemax={75}
@@ -225,9 +228,9 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
             setLibraryWidthPercent((current) => Math.min(75, Math.max(30, current + (event.key === 'ArrowLeft' ? 2 : -2))))
           }}
         />
-        <EquipmentLibraryPanel realm={realm} zh={zh} currentSearch={state.currentSearch} monitoring={monitoring} activeTab={libraryTab} onTabChange={setLibraryTab} onClose={() => setLibraryOpen(false)} />
+        <EquipmentLibraryPanel realm={realm} language={lang} currentSearch={state.currentSearch} monitoring={monitoring} activeTab={libraryTab} onTabChange={setLibraryTab} onClose={() => setLibraryOpen(false)} headerTitle={l('Trade center shortcuts', '交易中心快捷栏', '交易中心快捷欄', '거래 센터 바로 가기')} />
       </>
-      : <button className="trade-helper-rail" onClick={() => setLibraryOpen(true)} title={zh ? '打开装备仓库' : 'Open equipment library'} aria-label={zh ? '打开装备仓库' : 'Open equipment library'}><Archive /><strong>{zh ? '装备仓库' : 'Equipment Library'}</strong><ChevronLeft /></button>}
+      : <button className="trade-helper-rail" onClick={() => setLibraryOpen(true)} title={l('Open trade center shortcuts', '打开交易中心快捷栏', '開啟交易中心快捷欄', '거래 센터 바로 가기 열기')} aria-label={l('Open trade center shortcuts', '打开交易中心快捷栏', '開啟交易中心快捷欄', '거래 센터 바로 가기 열기')}><Archive /><strong>{l('Trade shortcuts', '交易中心快捷栏', '交易中心快捷欄', '거래 바로 가기')}</strong><ChevronLeft /></button>}
     </div>
   </section>
 }

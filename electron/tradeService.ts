@@ -1,14 +1,20 @@
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import type { LibraryItemSnapshot, LibraryModifier, MarketRealm, TradeLeague, TradeSearchResult, TradeStatResolutionSnapshot } from '../src/types/market.js'
+import type {
+  LibraryItemSnapshot, LibraryModifier, MarketRealm, TradeLeague, TradePriceCheckCriteria,
+  TradePriceCheckDraft, TradeSearchResult, TradeStatResolutionSnapshot,
+} from '../src/types/market.js'
 import type { MarketViewManager } from './marketView.js'
+import { OfficialTradeRequestError } from './officialTradeRequestError.js'
 
 interface CatalogOption { id: string; text: string }
 interface CatalogEntry { id: string; text: string; type?: string; option?: { options?: CatalogOption[] } }
 interface CatalogSnapshot { realm: MarketRealm; fetchedAt: string; payloadHash: string; entries: CatalogEntry[] }
 
-interface SearchResponse { id?: unknown; total?: unknown }
+interface SearchResponse { id?: unknown; total?: unknown; result?: unknown }
+
+type TradeStatMatch = { entry: CatalogEntry; queryStatId: string; option?: CatalogOption }
 
 const CATALOG_TTL = 24 * 60 * 60 * 1_000
 
@@ -22,14 +28,45 @@ function clean(value: unknown): string {
 
 function normalizeTemplate(value: string): string {
   return value
-    .replace(/[-+]?\d+(?:\.\d+)?/g, '#')
+    // The Chinese advanced clipboard/catalog may include the Bonded label
+    // as presentation context. It is not part of the searchable stat text.
+    .replace(/^(?:bonded|羁绊|羈絆)\s*[:：]\s*/iu, '')
+    .replace(/[-+]?\d+(?:\.\d+)?/g, (number) => number.startsWith('-') ? '-#' : '#')
+    .replace(/\+(?=#)/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .toLocaleLowerCase()
 }
 
+function normalizeTemplateVariants(value: string): string[] {
+  const normalized = normalizeTemplate(value)
+  const variants = new Set([normalized])
+
+  // PoB's Chinese presentation uses "# 级技能", while the official CN
+  // catalog uses "等级 # 技能" for granted skills.
+  const grantedSkill = normalized.match(/^获得技能\s*[:：]\s*#\s*级\s*(.+)$/iu)
+  if (grantedSkill) variants.add(`获得技能: 等级 # ${grantedSkill[1]}`)
+
+  const catalogOrder = normalized.match(/^获得技能\s*[:：]\s*等级\s*#\s*(.+)$/iu)
+  if (catalogOrder) variants.add(`获得技能: # 级${catalogOrder[1]}`)
+
+  return [...variants]
+}
+
 function normalizeText(value: string): string {
   return value.replace(/\s+/g, ' ').trim().toLocaleLowerCase()
+}
+
+function statScope(queryStatId: string): string {
+  return queryStatId.split('.')[0] || ''
+}
+
+function preferredStatScopes(modifier: LibraryModifier): Set<string> {
+  const known = new Set(['explicit', 'implicit', 'enchant', 'rune', 'fractured', 'crafted', 'desecrated'])
+  const tagged = modifier.sourceTags.filter((tag) => known.has(tag))
+  if (tagged.length) return new Set(tagged)
+  if (modifier.group === 'implicit' || modifier.group === 'enchant' || modifier.group === 'rune') return new Set([modifier.group])
+  return new Set(['explicit'])
 }
 
 function parseEntries(payload: unknown): CatalogEntry[] {
@@ -99,6 +136,7 @@ export class TradeReferenceDataCache {
     mkdirSync(this.directory, { recursive: true })
     writeFileSync(this.filePath(snapshot.realm), JSON.stringify(snapshot), { encoding: 'utf8', mode: 0o600 })
   }
+
 }
 
 export class TradeStatResolver {
@@ -110,7 +148,8 @@ export class TradeStatResolver {
   }
 
   private resolveModifier(modifier: LibraryModifier, catalog: CatalogSnapshot): LibraryModifier {
-    const existing = modifier.tradeResolutions.find((resolution) => resolution.realm === catalog.realm && resolution.status === 'resolved')
+    const previous = modifier.tradeResolutions.find((resolution) => resolution.realm === catalog.realm)
+    const existing = previous?.status === 'resolved' ? previous : undefined
     if (existing) {
       const [baseId] = existing.queryStatId?.split('|') || []
       if (baseId && catalog.entries.some((entry) => entry.id === baseId)) return structuredClone(modifier)
@@ -118,33 +157,37 @@ export class TradeStatResolver {
     const sourceText = catalog.realm === 'cn'
       ? modifier.localized?.['zh-CN']?.displayText || modifier.original.displayText
       : modifier.original.displayText
-    const template = normalizeTemplate(sourceText)
-    const directMatches = catalog.entries
-      .filter((entry) => normalizeTemplate(entry.text) === template)
+    const templates = normalizeTemplateVariants(sourceText)
+    const directMatches: TradeStatMatch[] = catalog.entries
+      .filter((entry) => templates.includes(normalizeTemplate(entry.text)))
       .map((entry) => ({ entry, queryStatId: entry.id }))
-    const optionMatches = catalog.entries.flatMap((entry) => (entry.option?.options || []).flatMap((option) => (
+    const optionMatches: TradeStatMatch[] = catalog.entries.flatMap((entry) => (entry.option?.options || []).flatMap((option) => (
       normalizeText(entry.text.replace('#', option.text)) === normalizeText(sourceText)
         ? [{ entry, option, queryStatId: `${entry.id}|${option.id}` }]
         : []
     )))
-    const matches = [...new Map([...optionMatches, ...directMatches].map((match) => [match.queryStatId, match])).values()]
+    const allMatches = [...new Map([...optionMatches, ...directMatches].map((match) => [match.queryStatId, match])).values()]
+    const scopes = preferredStatScopes(modifier)
+    const scopedMatches = allMatches.filter((match) => scopes.has(statScope(match.queryStatId)))
+    const matches = scopedMatches.length ? scopedMatches : allMatches
     const candidates = matches.map((match) => match.queryStatId).slice(0, 20)
     const match = matches.length === 1 ? matches[0] : undefined
+    const scopedResolution = scopedMatches.length > 0 && matches.length > 0
     const fixedOption = match ? (match as { option?: CatalogOption }).option : undefined
     const resolution: TradeStatResolutionSnapshot = {
       realm: catalog.realm,
-      queryStatId: match?.queryStatId,
+      queryStatId: scopedResolution || match ? matches[0]?.queryStatId : undefined,
       baseStatId: match?.entry.id,
       optionId: fixedOption?.id,
       candidateStatIds: candidates,
       source: modifier.sourceTags.find((tag) => ['enchant', 'rune', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated'].includes(tag)) as TradeStatResolutionSnapshot['source'] || 'unknown',
       catalogTemplate: match?.entry.text,
       valueMode: fixedOption ? 'fixed-option' : modifier.valueMode,
-      valueTransform: 'identity',
+      valueTransform: previous?.valueTransform || 'identity',
       resolvedBy: 'exact-text',
       catalogFetchedAt: catalog.fetchedAt,
       catalogPayloadHash: catalog.payloadHash,
-      status: matches.length === 1 ? 'resolved' : matches.length > 1 ? 'ambiguous' : 'unresolved',
+      status: matches.length === 0 ? 'unresolved' : (matches.length === 1 || scopedResolution) ? 'resolved' : 'ambiguous',
     }
     return {
       ...structuredClone(modifier),
@@ -153,27 +196,179 @@ export class TradeStatResolver {
   }
 }
 
-export function buildTradeQuery(item: LibraryItemSnapshot, realm: MarketRealm): { query: unknown; resolved: number; unresolved: number } {
-  const filters = item.modifiers.flatMap((modifier) => {
-    const resolution = modifier.tradeResolutions.find((candidate) => candidate.realm === realm && candidate.status === 'resolved' && candidate.queryStatId)
-    if (!resolution?.queryStatId) return []
-    const value = resolution.valueMode === 'numeric' && modifier.currentValues.length
-      ? { min: modifier.currentValues[0] }
+function localizedTradeBaseType(item: LibraryItemSnapshot): string | undefined {
+  const localized = clean(item.localized?.['zh-CN']?.baseType)
+  if (!localized) return undefined
+  if (!item.baseType || localized !== item.baseType || !/[A-Za-z]/.test(item.baseType)) return localized
+  return undefined
+}
+
+function queryItemType(item: LibraryItemSnapshot, realm: MarketRealm): string | undefined {
+  if (realm === 'cn') return localizedTradeBaseType(item) || (!/[A-Za-z]/.test(item.baseType) ? clean(item.baseType) : undefined)
+  return clean(item.baseType) || undefined
+}
+
+function queryItemName(item: LibraryItemSnapshot, realm: MarketRealm): string | undefined {
+  if (realm === 'cn') return clean(item.localized?.['zh-CN']?.name) || (!/[A-Za-z]/.test(item.name) ? clean(item.name) : undefined)
+  return clean(item.name) || undefined
+}
+
+function isUniqueItem(item: LibraryItemSnapshot): boolean {
+  return item.rarity === 'UNIQUE' || item.rarity === 'RELIC'
+}
+
+function resolutionFor(modifier: LibraryModifier, realm: MarketRealm): TradeStatResolutionSnapshot | undefined {
+  return modifier.tradeResolutions.find((candidate) => candidate.realm === realm
+    && candidate.status === 'resolved' && (candidate.queryStatId || candidate.candidateStatIds.length))
+}
+
+function resolutionIds(resolution: TradeStatResolutionSnapshot | undefined): string[] {
+  if (!resolution) return []
+  return [...new Set((resolution.candidateStatIds.length ? resolution.candidateStatIds : [resolution.queryStatId])
+    .filter((id): id is string => Boolean(id)))]
+}
+
+function finiteValue(value: number | undefined): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined
+}
+
+function selectedRange(
+  resolution: TradeStatResolutionSnapshot,
+  min: number | undefined,
+  max: number | undefined,
+): { min?: number; max?: number } | undefined {
+  const range = { min: finiteValue(min), max: finiteValue(max) }
+  if (range.min == null && range.max == null) return undefined
+  if (resolution.valueTransform === 'negate') {
+    return {
+      min: range.max == null ? undefined : -range.max,
+      max: range.min == null ? undefined : -range.min,
+    }
+  }
+  return range.min == null && range.max == null ? undefined : range
+}
+
+export function createPriceCheckDraft(item: LibraryItemSnapshot, realm: MarketRealm): TradePriceCheckDraft {
+  const localized = item.localized?.['zh-CN']
+  return {
+    realm,
+    rarity: item.rarity,
+    name: item.name,
+    baseType: item.baseType,
+    localizedName: localized?.name,
+    localizedBaseType: localized?.baseType,
+    unique: isUniqueItem(item),
+    itemLevel: item.itemLevel,
+    modifiers: item.modifiers.map((modifier) => {
+      const resolution = resolutionFor(modifier, realm)
+      const rawValue = modifier.currentValues[0]
+      const currentValue = resolution?.valueTransform === 'negate' && rawValue != null ? -rawValue : rawValue
+      return {
+        id: modifier.id,
+        group: modifier.group,
+        sourceTags: modifier.sourceTags,
+        affixKind: modifier.affixKind,
+        lines: modifier.original.lines,
+        localizedLines: modifier.localized?.['zh-CN']?.lines,
+        searchable: resolutionIds(resolution).length > 0,
+        valueMode: resolution?.valueMode || modifier.valueMode,
+        ...(currentValue == null ? {} : { currentValue }),
+      }
+    }),
+  }
+}
+
+export function buildTradeQuery(item: LibraryItemSnapshot, realm: MarketRealm, criteria?: TradePriceCheckCriteria): { query: unknown; resolved: number; unresolved: number } {
+  const selected = criteria ? new Map(criteria.modifiers.map((modifier) => [modifier.id, modifier])) : undefined
+  const statGroups = item.modifiers.flatMap((modifier) => {
+    const selection = selected?.get(modifier.id)
+    if (selected && !selection) return []
+    const resolution = resolutionFor(modifier, realm)
+    const statIds = resolutionIds(resolution)
+    if (!resolution || !statIds.length) return []
+    const value = resolution.valueMode === 'numeric'
+      ? (criteria ? selectedRange(resolution, selection?.min, selection?.max) : { min: modifier.currentValues[0] })
       : undefined
-    return [{ id: resolution.queryStatId, ...(value ? { value } : {}) }]
+    const filters = statIds.map((id) => ({ id, ...(value ? { value } : {}) }))
+    return [{
+      type: statIds.length > 1 ? 'count' : 'and',
+      ...(statIds.length > 1 ? { value: { min: 1 } } : {}),
+      filters,
+    }]
   })
+  const unique = isUniqueItem(item)
+  const type = queryItemType(item, realm)
+  const miscFilters = criteria && (criteria.itemLevelMin != null || criteria.itemLevelMax != null)
+    ? { filters: { ilvl: { min: finiteValue(criteria.itemLevelMin), max: finiteValue(criteria.itemLevelMax) } } }
+    : undefined
+  const queryFilters = {
+    ...(miscFilters ? { misc_filters: miscFilters } : {}),
+    ...(!unique && item.tradeCategory ? { type_filters: { filters: { category: { option: item.tradeCategory } } } } : {}),
+  }
+  const requestedCount = selected?.size ?? item.modifiers.length
   return {
     query: {
       query: {
-        status: { option: realm === 'cn' ? 'securable' : 'online' },
-        type: (realm === 'cn' ? item.localized?.['zh-CN']?.baseType : undefined) || item.baseType || undefined,
-        stats: filters.length ? [{ type: 'and', filters }] : [],
+        status: { option: criteria?.listedStatus || (realm === 'cn' ? 'securable' : 'online') },
+        ...(unique && queryItemName(item, realm) ? { name: queryItemName(item, realm) } : {}),
+        ...((unique || criteria?.useBaseType !== false) && type ? { type } : {}),
+        stats: statGroups,
+        ...(Object.keys(queryFilters).length ? { filters: queryFilters } : {}),
       },
       sort: { price: 'asc' },
     },
-    resolved: filters.length,
-    unresolved: item.modifiers.length - filters.length,
+    resolved: statGroups.length,
+    unresolved: requestedCount - statGroups.length,
   }
+}
+
+function buildTypeOnlyQuery(item: LibraryItemSnapshot, realm: MarketRealm): unknown {
+  const type = queryItemType(item, realm)
+  return {
+    query: {
+      status: { option: realm === 'cn' ? 'securable' : 'online' },
+      ...(type ? { type } : {}),
+      stats: [],
+    },
+    sort: { price: 'asc' },
+  }
+}
+
+function logTradeQuery(
+  realm: MarketRealm,
+  leagueId: string,
+  phase: 'detailed' | 'type-only',
+  item: LibraryItemSnapshot,
+  query: unknown,
+  resolvedModifierCount: number,
+  unresolvedModifierCount: number,
+): void {
+  const summary = {
+    realm,
+    leagueId,
+    phase,
+    item: {
+      name: item.name,
+      baseType: item.baseType,
+      rarity: item.rarity,
+      modifiers: item.modifiers.map((modifier) => ({
+        group: modifier.group,
+        text: modifier.original.displayText.slice(0, 240),
+        values: modifier.currentValues,
+        resolutions: modifier.tradeResolutions
+          .filter((resolution) => resolution.realm === realm)
+          .map((resolution) => ({
+            status: resolution.status,
+            queryStatId: resolution.queryStatId,
+            candidateStatIds: resolution.candidateStatIds,
+          })),
+      })),
+    },
+    resolvedModifierCount,
+    unresolvedModifierCount,
+    query,
+  }
+  console.info(`[Market search] submit ${JSON.stringify(summary)}`)
 }
 
 export class OfficialTradeProvider {
@@ -197,21 +392,43 @@ export class OfficialTradeProvider {
     }).slice(0, 100)
   }
 
-  async search(realm: MarketRealm, leagueId: string, item: LibraryItemSnapshot): Promise<TradeSearchResult & { resolvedItem: LibraryItemSnapshot }> {
+  async prepare(realm: MarketRealm, item: LibraryItemSnapshot): Promise<{ draft: TradePriceCheckDraft; resolvedItem: LibraryItemSnapshot }> {
     const catalog = await this.stats(realm)
     const resolvedItem = new TradeStatResolver().resolve(item, catalog)
-    const built = buildTradeQuery(resolvedItem, realm)
-    const response = record(await this.limited(() => this.manager.search(realm, leagueId, built.query))) as SearchResponse
+    return { draft: createPriceCheckDraft(resolvedItem, realm), resolvedItem }
+  }
+
+  async search(realm: MarketRealm, leagueId: string, item: LibraryItemSnapshot, criteria?: TradePriceCheckCriteria): Promise<TradeSearchResult & { resolvedItem: LibraryItemSnapshot; listingIds: string[] }> {
+    const { resolvedItem } = await this.prepare(realm, item)
+    const built = buildTradeQuery(resolvedItem, realm, criteria)
+    let query = built.query
+    let resolvedModifierCount = built.resolved
+    let unresolvedModifierCount = built.unresolved
+    let response: SearchResponse
+    try {
+      logTradeQuery(realm, leagueId, 'detailed', resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
+      response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
+    } catch (error) {
+      if (criteria || !(error instanceof OfficialTradeRequestError) || error.status !== 400 || built.resolved === 0 || !queryItemType(resolvedItem, realm)) throw error
+      query = buildTypeOnlyQuery(resolvedItem, realm)
+      resolvedModifierCount = 0
+      unresolvedModifierCount = resolvedItem.modifiers.length
+      logTradeQuery(realm, leagueId, 'type-only', resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
+      response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
+    }
     const searchId = clean(response.id)
     if (!searchId) throw new Error('Official trade search did not return a search ID')
-    this.manager.rememberGeneratedSearch(realm, leagueId, searchId, built.query)
+    this.manager.rememberGeneratedSearch(realm, leagueId, searchId, query)
     const origin = realm === 'cn' ? 'https://poe.game.qq.com' : 'https://www.pathofexile.com'
     return {
       searchId,
       url: `${origin}/trade2/search/poe2/${encodeURIComponent(leagueId)}/${encodeURIComponent(searchId)}`,
       total: typeof response.total === 'number' ? response.total : 0,
-      resolvedModifierCount: built.resolved,
-      unresolvedModifierCount: built.unresolved,
+      resolvedModifierCount,
+      unresolvedModifierCount,
+      listingIds: Array.isArray(response.result)
+        ? response.result.filter((value): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]+$/.test(value)).slice(0, 10_000)
+        : [],
       resolvedItem,
     }
   }

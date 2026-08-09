@@ -13,15 +13,17 @@ import { useTreeStore } from '@/store/treeStore'
 import type { CalculationConfigOption, CalculationConfigValue } from '@/types/calc'
 import { useTranslation } from '@/i18n/useTranslation'
 import { localizeCalculationConfigOption } from '@/i18n/configurationTranslations'
+import type { Language } from '@/i18n/translationLoader'
+import { uiText, type UiMessage } from '@/i18n/uiLocale'
 
-const SECTION_LABELS: Record<string, string> = {
-  General: '通用',
-  'Skill Options': '技能选项',
-  'When In Combat': '战斗状态',
-  'For Effective DPS': '有效 DPS',
-  'Enemy Stats': '敌人数据',
-  'Custom Modifiers': '自定义修正',
-  'Quest Rewards': '剧情奖励',
+const SECTION_LABELS: Record<string, UiMessage> = {
+  General: { en: 'General', 'zh-rCN': '通用', 'zh-rTW': '一般', 'ko-KR': '일반' },
+  'Skill Options': { en: 'Skill Options', 'zh-rCN': '技能选项', 'zh-rTW': '技能選項', 'ko-KR': '스킬 옵션' },
+  'When In Combat': { en: 'When In Combat', 'zh-rCN': '战斗状态', 'zh-rTW': '戰鬥狀態', 'ko-KR': '전투 중' },
+  'For Effective DPS': { en: 'For Effective DPS', 'zh-rCN': '有效 DPS', 'zh-rTW': '有效 DPS', 'ko-KR': '유효 DPS' },
+  'Enemy Stats': { en: 'Enemy Stats', 'zh-rCN': '敌人数据', 'zh-rTW': '敵人資料', 'ko-KR': '적 능력치' },
+  'Custom Modifiers': { en: 'Custom Modifiers', 'zh-rCN': '自定义修正', 'zh-rTW': '自訂修正', 'ko-KR': '사용자 지정 보정' },
+  'Quest Rewards': { en: 'Quest Rewards', 'zh-rCN': '剧情奖励', 'zh-rTW': '任務獎勵', 'ko-KR': '퀘스트 보상' },
 }
 
 function hasOwn(object: object, key: string): boolean {
@@ -37,11 +39,13 @@ function ConfigControl({
   option,
   overrides,
   disabled,
+  language,
   onChange,
 }: {
   option: CalculationConfigOption
   overrides: Record<string, CalculationConfigValue>
   disabled: boolean
+  language: Language
   onChange: (value?: CalculationConfigValue) => void
 }) {
   const value = effectiveValue(option, overrides)
@@ -50,8 +54,8 @@ function ConfigControl({
     type="button"
     className="config-option-reset"
     onClick={() => onChange(undefined)}
-    title="恢复导入值"
-    aria-label="恢复导入值"
+    title={uiText(language, 'Restore imported value', '恢复导入值', '恢復匯入值', '가져온 값 복원')}
+    aria-label={uiText(language, 'Restore imported value', '恢复导入值', '恢復匯入值', '가져온 값 복원')}
   ><RotateCcw /></button>
 
   if (option.type === 'check') {
@@ -112,7 +116,7 @@ function ConfigControl({
 
 export function ConfigurationPanel() {
   const { lang, t } = useTranslation()
-  const zh = lang === 'zh-rCN'
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
   const allocatedNodes = useTreeStore((state) => state.allocatedNodes)
   const activeWeaponSet = useTreeStore((state) => state.activeWeaponSet)
@@ -134,8 +138,8 @@ export function ConfigurationPanel() {
   const lastCalculationKey = useRef('')
   const activeProfile = profiles.find((profile) => profile.id === activeProfileId) || profiles[0]
   const overrides = activeProfile?.values || {}
-  const profileName = activeProfile?.id === 'default' && activeProfile.name === 'Default' && zh
-    ? '默认'
+  const profileName = activeProfile?.id === 'default' && activeProfile.name === 'Default'
+    ? l('Default', '默认', '預設', '기본')
     : activeProfile?.name || ''
   const calculationKey = `${importedBuildCode || ''}:${activeWeaponSet}:${activeProfileId}:${JSON.stringify(overrides)}:${retryNonce}`
 
@@ -172,29 +176,29 @@ export function ConfigurationPanel() {
   if (!importedBuildCode || !allocatedNodes.size) {
     return <section className="configuration-empty">
       <SlidersHorizontal />
-      <h2>{zh ? '没有可配置的构筑' : 'No build to configure'}</h2>
-      <p>{zh ? '导入完整构筑后即可管理技能伤害计算条件。' : 'Import a complete build to manage skill damage conditions.'}</p>
+      <h2>{l('No build to configure', '没有可配置的构筑', '沒有可設定的構築', '설정할 빌드가 없습니다')}</h2>
+      <p>{l('Import a complete build to manage skill damage conditions.', '导入完整构筑后即可管理技能伤害计算条件。', '匯入完整構築後即可管理技能傷害計算條件。', '완전한 빌드를 가져와 스킬 피해 계산 조건을 관리하세요.')}</p>
     </section>
   }
 
   return <section className="configuration-workspace">
     <header className="configuration-header">
       <div>
-        <span>{zh ? '技能伤害计算条件' : 'Skill damage calculation conditions'}</span>
-        <h1>{zh ? '伤害配置' : 'Damage configuration'}</h1>
+        <span>{l('Skill damage calculation conditions', '技能伤害计算条件', '技能傷害計算條件', '스킬 피해 계산 조건')}</span>
+        <h1>{l('Damage configuration', '伤害配置', '傷害設定', '피해 설정')}</h1>
       </div>
       <div className="configuration-runtime-state">
-        {loading && <><LoaderCircle className="spinning" />{zh ? '正在重新计算' : 'Recalculating'}</>}
-        {!loading && snapshot && <>{zh ? `${filtered.length} 项配置` : `${filtered.length} options`}</>}
+        {loading && <><LoaderCircle className="spinning" />{l('Recalculating', '正在重新计算', '正在重新計算', '다시 계산 중')}</>}
+        {!loading && snapshot && <>{l(`${filtered.length} options`, `${filtered.length} 项配置`, `${filtered.length} 項設定`, `옵션 ${filtered.length}개`)}</>}
       </div>
     </header>
 
     <div className="configuration-toolbar">
       <label className="configuration-profile-select">
-        <span>{zh ? '本地方案' : 'Local profile'}</span>
+        <span>{l('Local profile', '本地方案', '本機方案', '로컬 프로필')}</span>
         <select value={activeProfileId} onChange={(event) => setActiveProfile(event.target.value)}>
           {profiles.map((profile) => <option key={profile.id} value={profile.id}>
-            {profile.id === 'default' && profile.name === 'Default' && zh ? '默认' : profile.name}
+            {profile.id === 'default' && profile.name === 'Default' ? l('Default', '默认', '預設', '기본') : profile.name}
           </option>)}
         </select>
       </label>
@@ -202,39 +206,39 @@ export function ConfigurationPanel() {
         className="configuration-profile-name"
         value={profileName}
         maxLength={48}
-        aria-label={zh ? '方案名称' : 'Profile name'}
+        aria-label={l('Profile name', '方案名称', '方案名稱', '프로필 이름')}
         onChange={(event) => activeProfile && renameProfile(activeProfile.id, event.target.value)}
       />
-      <button className="icon-command compact" onClick={() => addProfile(false)} title={zh ? '新建方案' : 'New profile'} aria-label={zh ? '新建方案' : 'New profile'}><Plus /></button>
-      <button className="icon-command compact" onClick={() => addProfile(true)} title={zh ? '复制方案' : 'Duplicate profile'} aria-label={zh ? '复制方案' : 'Duplicate profile'}><Copy /></button>
-      <button className="icon-command compact" disabled={profiles.length <= 1} onClick={() => activeProfile && deleteProfile(activeProfile.id)} title={zh ? '删除方案' : 'Delete profile'} aria-label={zh ? '删除方案' : 'Delete profile'}><Trash2 /></button>
+      <button className="icon-command compact" onClick={() => addProfile(false)} title={l('New profile', '新建方案', '新增方案', '새 프로필')} aria-label={l('New profile', '新建方案', '新增方案', '새 프로필')}><Plus /></button>
+      <button className="icon-command compact" onClick={() => addProfile(true)} title={l('Duplicate profile', '复制方案', '複製方案', '프로필 복제')} aria-label={l('Duplicate profile', '复制方案', '複製方案', '프로필 복제')}><Copy /></button>
+      <button className="icon-command compact" disabled={profiles.length <= 1} onClick={() => activeProfile && deleteProfile(activeProfile.id)} title={l('Delete profile', '删除方案', '刪除方案', '프로필 삭제')} aria-label={l('Delete profile', '删除方案', '刪除方案', '프로필 삭제')}><Trash2 /></button>
       <span className="configuration-toolbar-spacer" />
-      <button className="secondary-command" disabled={!Object.keys(overrides).length} onClick={resetConfig}><RotateCcw />{zh ? '恢复导入值' : 'Restore imported'}</button>
+      <button className="secondary-command" disabled={!Object.keys(overrides).length} onClick={resetConfig}><RotateCcw />{l('Restore imported', '恢复导入值', '恢復匯入值', '가져온 값 복원')}</button>
     </div>
 
     <div className="configuration-filter-bar">
       <label className="configuration-search">
         <Search />
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={zh ? '搜索配置名称或键' : 'Search options or keys'} />
+        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={l('Search options or keys', '搜索配置名称或键', '搜尋設定名稱或鍵', '옵션 또는 키 검색')} />
       </label>
       <label className="configuration-show-all">
         <input type="checkbox" checked={showAll} onChange={(event) => setShowAll(event.target.checked)} />
-        <span>{zh ? '显示全部配置' : 'Show all configurations'}</span>
+        <span>{l('Show all configurations', '显示全部配置', '顯示所有設定', '모든 설정 표시')}</span>
       </label>
     </div>
 
     {error && <p className="configuration-error"><AlertCircle />{error}</p>}
     {definitionUnavailable && !error && <div className="configuration-error configuration-definition-error">
       <AlertCircle />
-      <span>{zh ? 'PoB2 运行时未返回配置定义，请重启桌面应用后重试。' : 'The PoB2 runtime did not return configuration definitions. Restart the desktop app and retry.'}</span>
-      <button className="secondary-command" onClick={() => setRetryNonce((value) => value + 1)}>{zh ? '重试' : 'Retry'}</button>
+      <span>{l('The PoB2 runtime did not return configuration definitions. Restart the desktop app and retry.', 'PoB2 运行时未返回配置定义，请重启桌面应用后重试。', 'PoB2 執行階段未傳回設定定義，請重新啟動桌面應用程式後重試。', 'PoB2 런타임이 설정 정의를 반환하지 않았습니다. 데스크톱 앱을 다시 시작하고 재시도하세요.')}</span>
+      <button className="secondary-command" onClick={() => setRetryNonce((value) => value + 1)}>{l('Retry', '重试', '重試', '다시 시도')}</button>
     </div>}
-    {!snapshot && !error && !definitionUnavailable && <div className="configuration-loading"><LoaderCircle className="spinning" />{zh ? '正在读取 PoB2 配置定义...' : 'Loading PoB2 configuration...'}</div>}
+    {!snapshot && !error && !definitionUnavailable && <div className="configuration-loading"><LoaderCircle className="spinning" />{l('Loading PoB2 configuration...', '正在读取 PoB2 配置定义...', '正在讀取 PoB2 設定定義...', 'PoB2 설정 불러오는 중...')}</div>}
 
     {snapshot && <div className="configuration-sections">
       {sections.map((section) => <section className="configuration-section" key={section.name}>
         <header>
-          <h2>{zh ? SECTION_LABELS[section.name] || section.name : section.name}</h2>
+          <h2>{SECTION_LABELS[section.name]?.[lang] || section.name}</h2>
           <span>{section.options.length}</span>
         </header>
         <div className="configuration-options">
@@ -253,13 +257,14 @@ export function ConfigurationPanel() {
                 option={option}
                 overrides={overrides}
                 disabled={loading}
+                language={lang}
                 onChange={(value) => setValue(option.key, value)}
               />
             </label>
           })}
         </div>
       </section>)}
-      {!sections.length && <p className="configuration-no-results">{zh ? '没有匹配的配置项' : 'No matching configuration options'}</p>}
+      {!sections.length && <p className="configuration-no-results">{l('No matching configuration options', '没有匹配的配置项', '沒有符合的設定項目', '일치하는 설정 옵션이 없습니다')}</p>}
     </div>}
   </section>
 }

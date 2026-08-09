@@ -34,7 +34,7 @@
 | 属性节点 | [x] | 支持 Str/Dex/Int 属性节点选择、显示和导入导出 |
 | PoB code 导入 | [x] | 前端解码 PoB2 build code，恢复节点、职业、升华、武器组、属性覆盖 |
 | PoB code 导出 | [x] | 前端生成 PoB2 build XML 和 export code，可替换导入 build 的 Tree 段 |
-| 保存/读取 | [x] | localStorage 保存构筑，支持 JSON 导入/导出 |
+| 保存/读取 | [~] | 当前构筑库仍由 localStorage 保存；`.spoe` 原生文件的打开、保存副本、校验和系统文件关联已接入，后续迁移内部构筑库目录 |
 | URL 分享 | [x] | 支持 URL hash 分享当前天赋树状态 |
 | i18n 框架 | [x] | `useTranslation` 框架和基础 en/zh 文案已接入 |
 | 原生 PoB 计算 | [x] | Electron 优先使用常驻 LuaJIT sidecar，失败时回退到 Wasmoon worker |
@@ -48,7 +48,7 @@
 | 优先级 | 任务 | 状态 | 说明 |
 |--------|------|------|------|
 | P0 | 扩大 LuaJIT/PoB parity fixtures | [~] | 关键技能、装备和召唤物已有测试；仍需覆盖更多职业、Config、持续伤害和触发场景 |
-| P0 | 文件级构筑保存与自动草稿 | [ ] | 当前主流程仍以 localStorage 为主，需迁移到 Electron `userData` 并提供损坏恢复 |
+| P0 | 文件级构筑保存与自动草稿 | [ ] | 当前主流程仍以 localStorage 为主，需按 [`persistent-storage-design.md`](./persistent-storage-design.md) 迁移到 Electron `userData` 并提供版本保护、草稿与损坏恢复 |
 | P1 | 双区服交易长时验收 | [~] | 需要真实登录分区验证 DOM Adapter、Live 重连、限流、DPI、多显示器和断网回退 |
 | P1 | 通货行情真实数据源验收 | [~] | 需要验证国服/国际服当前赛季选择、缓存新鲜度和异常报价 |
 
@@ -85,7 +85,7 @@
 | 计算详情 | [x] | 已展示技能 DPS、伤害链、点伤、暴击、速度和主要来源；继续补齐更多 breakdown |
 | 多 spec 完整 UI | [ ] | 当前 store 有框架，仍需完整 SpecSelector / Compare UI |
 | 专精效果完整数据 | [ ] | 当前已有框架，完整 masteryEffects 仍需从数据源补齐 |
-| 外部网络功能 | [~] | 官方集市、交易仓库、Live 监控和通货行情已接入；查价浮层和更多网络数据源仍按交易设计推进 |
+| 外部网络功能 | [~] | 官方集市、交易仓库、Live 监控、通货行情与统一查价窗口已接入；构筑提升对比仍按 M6 推进 |
 | 移动端适配 | [ ] | 当前主要面向桌面视口，后续再做响应式工具布局 |
 
 ---

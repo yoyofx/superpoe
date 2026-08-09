@@ -8,6 +8,7 @@ import {
   getLocalizedSearchText,
   isTranslationLoaded,
   loadTranslations,
+  normalizeDisplayTags,
   resetTranslationsForTest,
   translateGameText,
 } from '@/i18n/translationLoader'
@@ -102,6 +103,14 @@ afterEach(() => {
 })
 
 describe('translationLoader', () => {
+  it('removes PoB internal display tags while preserving localized labels', () => {
+    expect(normalizeDisplayTags('[Attack|攻击]速度提高 8%')).toBe('攻击速度提高 8%')
+    expect(normalizeDisplayTags('[ShamanOnlyMods|羁绊]： [Projectile|投射物]伤害提高 20%')).toBe('羁绊：投射物伤害提高 20%')
+    expect(normalizeDisplayTags('获得相当于[Evasion|闪避值] 23% 的[Deflect|偏转值]')).toBe('获得相当于闪避值 23% 的偏转值')
+    expect(normalizeDisplayTags('[Attack]附加 10 [Physical|物理]伤害')).toBe('Attack附加 10 物理伤害')
+    expect(normalizeDisplayTags('<colour>{攻击速度提高 8%}')).toBe('攻击速度提高 8%')
+  })
+
   it('loads CSV translations and localizes passive node display/search text', async () => {
     const csvByFile: Record<string, string> = {
       'tree_dn.csv': '"Energy Shield",能量护盾\n',

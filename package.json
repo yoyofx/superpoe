@@ -1,10 +1,10 @@
 {
   "name": "superpoe2",
   "private": true,
-  "version": "0.5.1",
+  "version": "0.5.3",
   "superpoe": {
     "gameVersion": "0.5.0",
-    "revision": 2
+    "revision": 3
   },
   "type": "module",
   "main": "dist-electron/electron/main.js",
@@ -12,7 +12,8 @@
     "dev": "npm run dev:electron",
     "dev:renderer": "vite",
     "dev:server": "tsx server/index.ts",
-    "build:electron:main": "tsc -p tsconfig.electron.json && esbuild electron/marketPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/electron/marketPreload.cjs && esbuild electron/opportunityPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/electron/opportunityPreload.cjs",
+    "dev:restart": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/restart-dev.ps1",
+    "build:electron:main": "tsc -p tsconfig.electron.json && esbuild electron/marketPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/electron/marketPreload.cjs && esbuild electron/opportunityPreload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/electron/opportunityPreload.cjs && esbuild electron/priceCheck/preload.ts --bundle --platform=node --format=cjs --external:electron --outfile=dist-electron/electron/priceCheckPreload.cjs",
     "dev:electron:main": "npm run build:electron:main && wait-on http://127.0.0.1:3000 && electron .",
     "dev:electron": "concurrently -k \"npm run dev:renderer\" \"cross-env ELECTRON_RENDERER_URL=http://127.0.0.1:3000 npm run dev:electron:main\"",
     "build:electron": "cross-env ELECTRON_BUILD=true npm run build && npm run build:electron:main",
@@ -39,6 +40,7 @@
     "prepare:native:lua": "node scripts/ensure_luajit_sidecar.mjs && npm run test:native:lua",
     "test:native:lua": "node scripts/test_luajit_sidecar.mjs",
     "pipeline:translations": "python scripts/sync_poecharm_translations.py",
+    "verify:translations": "python scripts/audit_translation_coverage.py",
     "pipeline:items": "python scripts/sync_poe2db_item_icons.py",
     "pipeline:skills": "python scripts/sync_poe2db_item_icons.py --skills-only",
     "pipeline:skill-catalog": "python scripts/build_skill_catalog.py && node scripts/build_support_effects.mjs",
@@ -60,6 +62,14 @@
       "buildResources": "build",
       "output": "release"
     },
+    "fileAssociations": [
+      {
+        "ext": "spoe",
+        "name": "SuperPoE Build",
+        "description": "SuperPoE build file",
+        "role": "Editor"
+      }
+    ],
     "extraResources": [
       {
         "from": "build/icon.png",

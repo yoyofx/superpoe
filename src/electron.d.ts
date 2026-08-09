@@ -26,12 +26,36 @@ export interface ProxyDomainsInfo {
 
 declare global {
   interface Window {
+    superpoePriceCheck?: {
+      open(request: import('@/types/market').PriceCheckOpenRequest): Promise<import('@/types/market').PriceCheckContextState>
+      getState?(): Promise<import('@/types/market').PriceCheckContextState>
+      search?(leagueId: string, criteria: import('@/types/market').TradePriceCheckCriteria): Promise<import('@/types/market').PriceCheckContextState>
+      fetchPage?(page: number): Promise<import('@/types/market').PriceCheckContextState>
+      openTradePage?(url: string): Promise<void>
+      openInTradeCenter?(url: string): Promise<void>
+      visitHideout?(listingId: string): Promise<import('@/types/market').MarketVisitHideoutResult>
+      favorite?(listingId: string): Promise<{ ok: true; entryId: string }>
+      showDetail?(listingId: string): Promise<void>
+      hideDetail?(): Promise<void>
+      getDetailState?(): Promise<{ state?: import('@/types/market').PriceCheckContextState; listingId?: string }>
+      hide?(): Promise<void>
+      setUiScale?(factor: number): Promise<number>
+      restartAsAdministrator?(): Promise<{ status: 'started' | 'already-elevated' | 'cancelled' | 'unsupported' }>
+      onState?(callback: (state: import('@/types/market').PriceCheckContextState) => void): () => void
+      onDetailState?(callback: (value: { state?: import('@/types/market').PriceCheckContextState; listingId?: string }) => void): () => void
+    }
     pob2Desktop?: {
       importWeGame(url: string): Promise<{ code: string; sourceUrl: string }>
+      importPoeNinja(url: string): Promise<{ code: string; sourceUrl: string; suggestedName: string }>
+      openBuildFile(): Promise<{ canceled: boolean; filePath?: string; content?: string }>
+      saveBuildFileCopy(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
+      registerBuildFileAssociation(): Promise<{ registered: boolean; isDefault: boolean; settingsOpened: boolean; reason?: 'unsupported-platform' }>
+      onOpenBuildFile(callback: (result: { canceled: boolean; filePath?: string; content?: string; error?: string }) => void): () => void
       saveGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
       installGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: false; filePath: string }>
       setUiScale(factor: number): Promise<number>
-      setAppContext(context: { defaultRealm: import('@/types/tree').BuildRealm }): Promise<void>
+      restartAsAdministrator(): Promise<{ status: 'started' | 'already-elevated' | 'cancelled' | 'unsupported' }>
+      setAppContext(context: { defaultRealm: import('@/types/tree').BuildRealm; language: import('@/i18n/translationLoader').Language; priceCheckEnabled: boolean; priceCheckHotkey: string }): Promise<void>
       initPobLua(): Promise<{
         available: boolean
         backend: 'luajit' | 'wasmoon'
@@ -68,7 +92,10 @@ declare global {
       removeLibrarySource(sourceKey: string): Promise<{ removedEntryId?: string; entry?: import('@/types/market').EquipmentLibraryEntry }>
       openLibrarySource(entryId: string, sourceKey: string): Promise<{ kind: import('@/types/market').EquipmentLibrarySourceKind }>
       saveEquipmentItem(input: import('@/types/market').EquipmentLibraryItemInput): Promise<import('@/types/market').EquipmentLibraryEntry>
+      searchEquipmentItem(input: import('@/types/market').EquipmentTradeSearchRequest): Promise<import('@/types/market').TradeSearchResult>
       searchLibrary(input: import('@/types/market').TradeSearchRequest): Promise<import('@/types/market').TradeSearchResult>
+      preparePriceCheck(input: import('@/types/market').TradePriceCheckPrepareRequest): Promise<import('@/types/market').TradePriceCheckDraft>
+      runPriceCheck(input: import('@/types/market').TradePriceCheckSearchRequest): Promise<import('@/types/market').TradeSearchResult>
       listLeagues(realm: import('@/types/market').MarketRealm): Promise<import('@/types/market').TradeLeague[]>
       getMonitoring(): Promise<import('@/types/market').MarketMonitoringSnapshot>
       createMonitorTarget(searchId: string, priority?: import('@/types/market').MonitorTaskPriority): Promise<import('@/types/market').PurchaseTarget>
@@ -86,6 +113,7 @@ declare global {
       onSidebarRequest(callback: (scope: import('@/types/market').LibraryTreeScope) => void): () => void
       onMonitoringChanged(callback: (snapshot: import('@/types/market').MarketMonitoringSnapshot) => void): () => void
       onOpenMonitoring(callback: () => void): () => void
+      onOpenTradeCenter(callback: () => void): () => void
     }
     pob2CurrencyMarket?: {
       get(forceRefresh?: boolean): Promise<import('@/types/currencyMarket').CurrencyMarketState>

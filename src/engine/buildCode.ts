@@ -333,7 +333,6 @@ export function getEncodeClassPayload(
 }
 
 export function encodeBuildCode(input: EncodeBuildCodeInput): EncodeBuildCodeResult {
-  if (!input.nodes.length) throw new Error('Missing or empty "nodes" array')
   const treeVersion = input.treeVersion || '0_4'
   const nodeStr = input.nodes.join(',')
   const ws1 = weaponSetNodes(input.nodes, input.nodeWeaponSets, 1)

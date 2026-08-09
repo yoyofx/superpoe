@@ -1,6 +1,5 @@
 import { createHash } from 'node:crypto'
 import type {
-  LibraryItemSnapshot,
   LibraryModifier,
   LibraryModifierGroup,
   LibraryModifierSource,
@@ -12,8 +11,29 @@ import type {
 import { marketSourceKey } from './equipmentLibraryRepository.js'
 
 interface NormalizedMarketListing {
-  item: LibraryItemSnapshot
+  item: {
+    raw: string
+    iconUrl?: string
+    localized?: { 'zh-CN': { name: string; baseType: string } }
+    preview: {
+      rarity: string
+      name: string
+      baseType: string
+      itemLevel?: number
+      quality?: number
+      sockets?: string
+      corrupted: boolean
+      identified: boolean
+      modifiers: LibraryModifier[]
+    }
+  }
   source: MarketFavoriteSource
+}
+
+/** Text recovered from the official stat catalog for a listing hash. */
+export interface MarketStatTextResolution {
+  displayText?: string
+  canonicalText?: string
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -26,6 +46,19 @@ function cleanText(value: unknown): string {
 
 function localizedText(value: unknown, realm: MarketDomListingRef['realm']): string {
   return cleanText(value).replace(/\[([^|\]]+)\|([^\]]+)\]/g, (_match, global: string, cn: string) => realm === 'cn' ? cn : global)
+}
+
+function englishText(value: unknown): string {
+  return cleanText(value).replace(/\[([^|\]]+)\|([^\]]+)\]/g, '$1')
+}
+
+function verifiedEnglishText(value: unknown): string {
+  const text = englishText(value)
+  return /[\u3400-\u9fff\ufffd?]/.test(text) ? '' : text
+}
+
+function hasPlaceholderText(value: string): boolean {
+  return /(?:\?{2,}|\uFFFD)/u.test(value)
 }
 
 function numberValue(value: unknown): number | undefined {
@@ -99,16 +132,23 @@ function tierRanges(mods: unknown, index: number): Array<{ min: number; max: num
   })
 }
 
-function modifierDetails(raw: unknown, realm: MarketDomListingRef['realm']): {
+function modifierDetails(raw: unknown, realm: MarketDomListingRef['realm'], translateCnStat?: (value: string) => string | undefined): {
   line: string
+  englishLine: string
   directStatId?: string
   tier?: LibraryModifier['tier']
   tierRanges: Array<{ min: number; max: number }>
   affixKind?: LibraryModifier['affixKind']
 } | null {
-  if (typeof raw === 'string') return { line: localizedText(raw, realm), tierRanges: [] }
+  if (typeof raw === 'string') {
+    const line = localizedText(raw, realm)
+    const english = englishText(raw)
+    return { line, englishLine: realm === 'cn' ? (translateCnStat?.(line) || (/[\u3400-\u9fff]/.test(english) ? '' : english)) : english, tierRanges: [] }
+  }
   const value = record(raw)
   const line = localizedText(value.description || value.text, realm)
+  const directEnglishLine = englishText(value.description || value.text)
+  const englishLine = realm === 'cn' ? (translateCnStat?.(line) || (/[\u3400-\u9fff]/.test(directEnglishLine) ? '' : directEnglishLine)) : directEnglishLine
   if (!line) return null
   const hash = cleanText(value.hash).replace(/^stat\.(?=(?:explicit|implicit|enchant|rune|fractured|crafted|desecrated)\.)/, '')
   const nestedMods = Array.isArray(value.mods) ? value.mods : []
@@ -132,6 +172,7 @@ function modifierDetails(raw: unknown, realm: MarketDomListingRef['realm']): {
   })
   return {
     line,
+    englishLine,
     ...(hash ? { directStatId: hash } : {}),
     ...(tier ? { tier } : {}),
     tierRanges: ranges,
@@ -139,23 +180,41 @@ function modifierDetails(raw: unknown, realm: MarketDomListingRef['realm']): {
   }
 }
 
-function normalizeModifiers(item: Record<string, unknown>, realm: MarketDomListingRef['realm'], capturedAt: string): LibraryModifier[] {
+function normalizeModifiers(
+  item: Record<string, unknown>,
+  realm: MarketDomListingRef['realm'],
+  capturedAt: string,
+  translateCnStat?: (value: string) => string | undefined,
+  resolveStatText?: (queryStatId: string) => MarketStatTextResolution | undefined,
+): Array<LibraryModifier & { englishLine: string }> {
   const extended = record(item.extended)
   const hashGroups = record(extended.hashes)
   const modGroups = record(extended.mods)
   const payloadHash = createHash('sha256').update(JSON.stringify(hashGroups)).digest('hex')
   const groupNames = ['enchant', 'rune', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated']
-  const modifiers: LibraryModifier[] = []
+  const modifiers: Array<LibraryModifier & { englishLine: string }> = []
   let displayOrder = 0
 
   for (const group of groupNames) {
     const rawModifiers = Array.isArray(item[`${group}Mods`]) ? item[`${group}Mods`] as unknown[] : []
     const hashes = hashesByIndex(hashGroups[group])
     for (let index = 0; index < rawModifiers.length; index += 1) {
-      const details = modifierDetails(rawModifiers[index], realm)
+      let details = modifierDetails(rawModifiers[index], realm, translateCnStat)
       if (!details?.line) continue
-      const line = details.line
       const statIds = details.directStatId ? [details.directStatId] : [...new Set(hashes.get(index) || [])]
+      // Some localized trade responses render parameterized descriptions as
+      // question-mark placeholders. The hash remains authoritative; recover
+      // the text from the official catalog instead of adding a per-affix rule.
+      if (resolveStatText && (hasPlaceholderText(details.line) || !details.englishLine)) {
+        const fallback = statIds.map((id) => resolveStatText(id)).find(Boolean)
+        if (fallback) {
+          const line = hasPlaceholderText(details.line) ? fallback.displayText || details.line : details.line
+          const englishLine = details.englishLine || fallback.canonicalText || verifiedEnglishText(fallback.displayText || '')
+          details = { ...details, line, englishLine }
+        }
+      }
+      if (!details.englishLine) throw new Error(`Official trade modifier could not be mapped to PoB English: ${details.line}`)
+      const line = details.line
       const queryStatId = statIds.length === 1 ? statIds[0] : undefined
       const [baseStatId, optionId] = queryStatId?.split('|') || []
       const source = sourceForGroup(group)
@@ -190,6 +249,7 @@ function normalizeModifiers(item: Record<string, unknown>, realm: MarketDomListi
           status: statIds.length === 1 ? 'resolved' : statIds.length > 1 ? 'ambiguous' : 'unresolved',
         }],
         tier: details.tier || tierData(modGroups[group], index),
+        englishLine: details.englishLine,
       })
     }
   }
@@ -226,7 +286,13 @@ function normalizePrice(listing: Record<string, unknown>): MarketPriceSnapshot |
   return { amount, currency, display: `${amount} ${currency}` }
 }
 
-export function normalizeMarketListing(payload: unknown, ref: MarketDomListingRef): NormalizedMarketListing {
+export function normalizeMarketListing(
+  payload: unknown,
+  ref: MarketDomListingRef,
+  translateCnItem?: (value: string) => string | undefined,
+  translateCnStat?: (value: string) => string | undefined,
+  resolveStatText?: (queryStatId: string) => MarketStatTextResolution | undefined,
+): NormalizedMarketListing {
   const root = record(payload)
   const results = Array.isArray(root.result) ? root.result : []
   const result = results.map(record).find((candidate) => cleanText(candidate.id) === ref.listingId) || record(results[0])
@@ -245,18 +311,45 @@ export function normalizeMarketListing(payload: unknown, ref: MarketDomListingRe
   const searchIndex = pathParts.indexOf('search')
   const leagueId = searchIndex >= 0 ? pathParts[searchIndex + 2] : undefined
 
+  const rarity = cleanText(item.rarity) || 'UNKNOWN'
+  const englishBaseType = ref.realm === 'cn' ? (translateCnItem?.(baseType) || verifiedEnglishText(item.baseType) || verifiedEnglishText(item.typeLine)) : baseType
+  const englishName = ref.realm === 'cn' ? (translateCnItem?.(name) || verifiedEnglishText(item.name)) : name
+  if (!englishBaseType) throw new Error('Official trade listing base type could not be mapped to PoB English')
+  const modifiers = normalizeModifiers(item, ref.realm, capturedAt, translateCnStat, resolveStatText)
+  const implicit = modifiers.filter((modifier) => ['rune', 'enchant', 'implicit'].includes(modifier.group))
+  const explicit = modifiers.filter((modifier) => !implicit.includes(modifier))
+  const rawLines = [`Rarity: ${rarity}`]
+  if (englishName && englishName !== englishBaseType && ['RARE', 'UNIQUE'].includes(rarity.toUpperCase())) rawLines.push(englishName)
+  rawLines.push(englishBaseType)
+  const itemLevel = numberValue(item.ilvl)
+  const quality = propertyNumber(item, /quality|品质|品質/i)
+  const sockets = socketText(item)
+  if (itemLevel != null) rawLines.push(`Item Level: ${itemLevel}`)
+  if (quality != null) rawLines.push(`Quality: ${quality}`)
+  if (sockets) rawLines.push(`Sockets: ${sockets}`)
+  rawLines.push(`Implicits: ${implicit.length}`)
+  for (const modifier of [...implicit, ...explicit]) {
+    const tags = modifier.sourceTags.filter((tag) => ['rune', 'enchant', 'fractured', 'crafted', 'desecrated', 'mutated'].includes(tag))
+    rawLines.push(`${tags.map((tag) => `{${tag}}`).join('')}${modifier.englishLine}`)
+  }
+  if (item.corrupted === true) rawLines.push('Corrupted')
+
   return {
     item: {
-      rarity: cleanText(item.rarity) || 'UNKNOWN',
-      name: name || baseType,
-      baseType: baseType || name,
-      itemLevel: numberValue(item.ilvl),
-      quality: propertyNumber(item, /quality|品质|品質/i),
-      sockets: socketText(item),
-      corrupted: item.corrupted === true,
-      identified: item.identified !== false,
+      raw: rawLines.join('\n'),
       iconUrl: cleanText(item.icon) || undefined,
-      modifiers: normalizeModifiers(item, ref.realm, capturedAt),
+      ...(ref.realm === 'cn' ? { localized: { 'zh-CN': { name: name || baseType, baseType: baseType || name } } } : {}),
+      preview: {
+        rarity,
+        name: name || baseType,
+        baseType: baseType || name,
+        ...(itemLevel != null ? { itemLevel } : {}),
+        ...(quality != null ? { quality } : {}),
+        ...(sockets ? { sockets } : {}),
+        corrupted: item.corrupted === true,
+        identified: item.identified !== false,
+        modifiers,
+      },
     },
     source: {
       kind: 'market-favorite',
@@ -271,6 +364,13 @@ export function normalizeMarketListing(payload: unknown, ref: MarketDomListingRe
       state: 'available',
       price: normalizePrice(listing),
       indexedAt: cleanText(listing.indexed) || undefined,
+      display: {
+        locale: ref.realm === 'cn' ? 'zh-CN' : 'en',
+        name: name || baseType,
+        baseType: baseType || name,
+        iconUrl: cleanText(item.icon) || undefined,
+        modifiers: modifiers.map((modifier) => modifier.original.displayText),
+      },
     },
   }
 }

@@ -26,6 +26,7 @@ import { parseSkillsXml } from '@/engine/skills'
 import { translateCalculationStat, translateCalculationTerm, translateCalculationText } from '@/i18n/calculationTranslations'
 import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
+import { formatUiNumber, uiText, type UiMessage } from '@/i18n/uiLocale'
 import { useTreeStore } from '@/store/treeStore'
 import type { CalcResult, SkillCalculationDetails, SkillCalculationMode, SkillLevelReference } from '@/types/calc'
 
@@ -40,28 +41,28 @@ interface SkillPanelSize {
 
 type SkillPanelStyle = CSSProperties & { '--skill-panel-scale': string }
 
-const CALCULATION_MODES: Array<{ value: SkillCalculationMode; zh: string; en: string }> = [
-  { value: 'UNBUFFED', zh: '无增益效果', en: 'Unbuffed' },
-  { value: 'BUFFED', zh: '有增益效果', en: 'Buffed' },
-  { value: 'COMBAT', zh: '战斗中', en: 'In Combat' },
-  { value: 'EFFECTIVE', zh: '有效 DPS', en: 'Effective DPS' },
+const CALCULATION_MODES: Array<{ value: SkillCalculationMode; label: UiMessage }> = [
+  { value: 'UNBUFFED', label: { en: 'Unbuffed', 'zh-rCN': '无增益效果', 'zh-rTW': '無增益效果', 'ko-KR': '버프 없음' } },
+  { value: 'BUFFED', label: { en: 'Buffed', 'zh-rCN': '有增益效果', 'zh-rTW': '有增益效果', 'ko-KR': '버프 적용' } },
+  { value: 'COMBAT', label: { en: 'In Combat', 'zh-rCN': '战斗中', 'zh-rTW': '戰鬥中', 'ko-KR': '전투 중' } },
+  { value: 'EFFECTIVE', label: { en: 'Effective DPS', 'zh-rCN': '有效 DPS', 'zh-rTW': '有效 DPS', 'ko-KR': '유효 DPS' } },
 ]
 
-const DAMAGE_TYPE_LABELS = {
-  all: { zh: '所有类型', en: 'All Types' },
-  physical: { zh: '物理', en: 'Physical' },
-  lightning: { zh: '闪电', en: 'Lightning' },
-  cold: { zh: '冰霜', en: 'Cold' },
-  fire: { zh: '火焰', en: 'Fire' },
-  chaos: { zh: '混沌', en: 'Chaos' },
-} as const
+const DAMAGE_TYPE_LABELS: Record<'all' | 'physical' | 'lightning' | 'cold' | 'fire' | 'chaos', UiMessage> = {
+  all: { en: 'All Types', 'zh-rCN': '所有类型', 'zh-rTW': '所有類型', 'ko-KR': '모든 유형' },
+  physical: { en: 'Physical', 'zh-rCN': '物理', 'zh-rTW': '物理', 'ko-KR': '물리' },
+  lightning: { en: 'Lightning', 'zh-rCN': '闪电', 'zh-rTW': '閃電', 'ko-KR': '번개' },
+  cold: { en: 'Cold', 'zh-rCN': '冰霜', 'zh-rTW': '冰冷', 'ko-KR': '냉기' },
+  fire: { en: 'Fire', 'zh-rCN': '火焰', 'zh-rTW': '火焰', 'ko-KR': '화염' },
+  chaos: { en: 'Chaos', 'zh-rCN': '混沌', 'zh-rTW': '混沌', 'ko-KR': '카오스' },
+}
 
 type SpecificDamageType = Exclude<keyof typeof DAMAGE_TYPE_LABELS, 'all'>
 type DamageBucket = 'added' | 'increased' | 'gain' | 'more' | 'levels'
 
-function formatCalculationValue(value: number | undefined, decimals = 0): string {
+function formatCalculationValue(value: number | undefined, decimals: number, language: Language): string {
   if (!Number.isFinite(value)) return '-'
-  return new Intl.NumberFormat('en-US', { maximumFractionDigits: decimals }).format(value as number)
+  return formatUiNumber(value as number, language, { maximumFractionDigits: decimals })
 }
 
 function SkillLevelReferencePanel({
@@ -75,21 +76,21 @@ function SkillLevelReferencePanel({
   language: Language
   statSetIndex: number
 }) {
-  const zh = language === 'zh-rCN'
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
   const levels = details?.levelReferences || []
   const currentLevel = details?.levelReferenceCurrent
   const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
 
   const formatCosts = (entry: SkillLevelReference) => {
-    const costs = entry.costs.map(({ resource, value }) => `${formatCalculationValue(value, 2)} ${translateCalculationTerm(resource, language)}`)
+    const costs = entry.costs.map(({ resource, value }) => `${formatCalculationValue(value, 2, language)} ${translateCalculationTerm(resource, language)}`)
     if (Number.isFinite(entry.spiritReservation)) {
-      costs.push(`${formatCalculationValue(entry.spiritReservation)} ${zh ? '精魂保留' : 'Spirit reserved'}`)
+      costs.push(`${formatCalculationValue(entry.spiritReservation, 0, language)} ${l('Spirit reserved', '精魂保留', '精魂保留', '정신력 점유')}`)
     }
     return costs.join(' / ') || '-'
   }
 
-  if (loading) return <p className="skill-detail-loading">{zh ? '正在读取等级数据...' : 'Loading level data...'}</p>
-  if (!levels.length) return <p className="skill-detail-empty">{zh ? '所选技能没有可用的逐级数据。' : 'No per-level data is available for the selected skill.'}</p>
+  if (loading) return <p className="skill-detail-loading">{l('Loading level data...', '正在读取等级数据...', '正在讀取等級數據...', '레벨 데이터 불러오는 중...')}</p>
+  if (!levels.length) return <p className="skill-detail-empty">{l('No per-level data is available for the selected skill.', '所选技能没有可用的逐级数据。', '所選技能沒有可用的逐級數據。', '선택한 스킬에 레벨별 데이터가 없습니다.')}</p>
 
   const damageTypes = (Object.keys(DAMAGE_TYPE_LABELS) as Array<keyof typeof DAMAGE_TYPE_LABELS>)
     .filter((type): type is SpecificDamageType => type !== 'all')
@@ -107,7 +108,7 @@ function SkillLevelReferencePanel({
   const series = damageTypes.length
     ? damageTypes.map((type) => ({
       key: type,
-      label: zh ? DAMAGE_TYPE_LABELS[type].zh : DAMAGE_TYPE_LABELS[type].en,
+      label: DAMAGE_TYPE_LABELS[type][language],
       color: damageColors[type],
       values: levels.map((entry) => {
         const range = entry.statSets.find((set) => set.index === statSetIndex)?.damageRanges?.find((item) => item.type === type)
@@ -117,7 +118,7 @@ function SkillLevelReferencePanel({
     : hasBaseMultiplier
       ? [{
         key: 'baseMultiplier',
-        label: zh ? '基础伤害倍率' : 'Base Damage Multiplier',
+        label: l('Base Damage Multiplier', '基础伤害倍率', '基礎傷害倍率', '기본 피해 배율'),
         color: '#d3b96e',
         values: levels.map((entry) => {
           const statSet = entry.statSets.find((set) => set.index === statSetIndex)
@@ -144,7 +145,7 @@ function SkillLevelReferencePanel({
   const activeIndex = hoveredIndex ?? currentIndex
   const activeEntry = levels[activeIndex]
   const activeSet = activeEntry.statSets.find((set) => set.index === statSetIndex) || activeEntry.statSets[0]
-  const axisValue = (value: number) => value >= 1000 ? `${formatCalculationValue(value / 1000, 1)}k` : formatCalculationValue(value, 1)
+  const axisValue = (value: number) => value >= 1000 ? `${formatCalculationValue(value / 1000, 1, language)}k` : formatCalculationValue(value, 1, language)
   const tooltipShift = activeIndex === 0 ? '0' : activeIndex === levels.length - 1 ? '-100%' : '-50%'
   const handleChartMouseMove = (event: MouseEvent<SVGSVGElement>) => {
     const bounds = event.currentTarget.getBoundingClientRect()
@@ -156,14 +157,14 @@ function SkillLevelReferencePanel({
   return <section className="skill-level-reference">
     <header>
       <div>
-        <span>{zh ? '技能等级成长' : 'Skill Level Scaling'}</span>
-        <strong>{zh ? '当前' : 'Current'} Lv. {currentLevel}</strong>
+        <span>{l('Skill Level Scaling', '技能等级成长', '技能等級成長', '스킬 레벨 성장')}</span>
+        <strong>{l('Current', '当前', '目前', '현재')} Lv. {currentLevel}</strong>
       </div>
-      <p>{zh ? '沿横轴移动鼠标查看各等级完整数值。零品质基础值，不包含装备、天赋与辅助宝石。' : 'Move across the x-axis to inspect each level. 0% quality base values, excluding gear, passives, and supports.'}</p>
+      <p>{l('Move across the x-axis to inspect each level. 0% quality base values, excluding gear, passives, and supports.', '沿横轴移动鼠标查看各等级完整数值。零品质基础值，不包含装备、天赋与辅助宝石。', '沿橫軸移動滑鼠以查看各等級完整數值。零品質基礎值，不包含裝備、天賦與輔助寶石。', '가로축에서 마우스를 움직여 레벨별 전체 수치를 확인하세요. 장비, 패시브, 보조 젬을 제외한 퀄리티 0% 기본값입니다.')}</p>
     </header>
     {!!chartSeries.length && <div className="skill-level-chart" onMouseLeave={() => setHoveredIndex(null)}>
       <div className="skill-level-chart-legend">{chartSeries.map((entry) => <span key={entry.key}><i style={{ background: entry.color }} />{entry.label}</span>)}</div>
-      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={zh ? '技能等级成长曲线' : 'Skill level scaling chart'} onMouseMove={handleChartMouseMove}>
+      <svg viewBox={`0 0 ${width} ${height}`} role="img" aria-label={l('Skill level scaling chart', '技能等级成长曲线', '技能等級成長曲線', '스킬 레벨 성장 차트')} onMouseMove={handleChartMouseMove}>
         {[0, .5, 1].map((ratio) => {
           const y = plot.top + plotHeight * (1 - ratio)
           return <g key={ratio}><line className="grid" x1={plot.left} x2={width - plot.right} y1={y} y2={y} /><text className="axis-y" x={plot.left - 6} y={y + 3}>{axisValue(maxValue * ratio)}</text></g>
@@ -175,7 +176,7 @@ function SkillLevelReferencePanel({
           return <g key={entry.key}>
             <polyline points={points.join(' ')} fill="none" stroke={entry.color} />
             {entry.values.map((value, index) => Number.isFinite(value) && <circle key={levels[index].level} cx={xAt(index)} cy={yAt(value as number)} r={levels[index].level === currentLevel ? 4 : 2.4} fill={entry.color}>
-              <title>{`Lv. ${levels[index].level}: ${formatCalculationValue(value as number, 1)}`}</title>
+              <title>{`Lv. ${levels[index].level}: ${formatCalculationValue(value as number, 1, language)}`}</title>
             </circle>)}
           </g>
         })}
@@ -190,18 +191,18 @@ function SkillLevelReferencePanel({
         })}
       </svg>
       {hoveredIndex != null && <div className="skill-level-tooltip" style={{ left: `${xAt(activeIndex) / width * 100}%`, transform: `translateX(${tooltipShift})` }}>
-        <header><strong>Lv. {activeEntry.level}</strong>{activeEntry.level === currentLevel && <span>{zh ? '当前等级' : 'Current'}</span>}<small>{zh ? '需求' : 'Required'} {formatCalculationValue(activeEntry.requiredLevel)}</small></header>
+        <header><strong>Lv. {activeEntry.level}</strong>{activeEntry.level === currentLevel && <span>{l('Current', '当前等级', '目前等級', '현재')}</span>}<small>{l('Required', '需求', '需求', '요구')} {formatCalculationValue(activeEntry.requiredLevel, 0, language)}</small></header>
         <dl>
-          <div><dt>{zh ? '资源消耗' : 'Resource Cost'}</dt><dd>{formatCosts(activeEntry)}</dd></div>
-          {activeSet?.damageRanges?.map((range) => <div key={range.type}><dt>{zh ? DAMAGE_TYPE_LABELS[range.type].zh : DAMAGE_TYPE_LABELS[range.type].en}</dt><dd>{formatCalculationValue(range.min)}–{formatCalculationValue(range.max)}</dd></div>)}
-          {activeEntry.cooldown != null && <div><dt>{zh ? '冷却时间' : 'Cooldown'}</dt><dd>{formatCalculationValue(activeEntry.cooldown, 2)}s</dd></div>}
-          {(activeSet?.critChance ?? activeEntry.critChance) != null && <div><dt>{zh ? '基础暴击率' : 'Base Crit'}</dt><dd>{formatCalculationValue(activeSet?.critChance ?? activeEntry.critChance, 2)}%</dd></div>}
-          {(activeSet?.baseMultiplier ?? activeEntry.baseMultiplier) != null && <div><dt>{zh ? '基础伤害倍率' : 'Base Damage'}</dt><dd>{formatCalculationValue((activeSet?.baseMultiplier ?? activeEntry.baseMultiplier)! * 100)}%</dd></div>}
+          <div><dt>{l('Resource Cost', '资源消耗', '資源消耗', '자원 소모')}</dt><dd>{formatCosts(activeEntry)}</dd></div>
+          {activeSet?.damageRanges?.map((range) => <div key={range.type}><dt>{DAMAGE_TYPE_LABELS[range.type][language]}</dt><dd>{formatCalculationValue(range.min, 0, language)}–{formatCalculationValue(range.max, 0, language)}</dd></div>)}
+          {activeEntry.cooldown != null && <div><dt>{l('Cooldown', '冷却时间', '冷卻時間', '재사용 대기시간')}</dt><dd>{formatCalculationValue(activeEntry.cooldown, 2, language)}s</dd></div>}
+          {(activeSet?.critChance ?? activeEntry.critChance) != null && <div><dt>{l('Base Crit', '基础暴击率', '基礎暴擊率', '기본 치명타')}</dt><dd>{formatCalculationValue(activeSet?.critChance ?? activeEntry.critChance, 2, language)}%</dd></div>}
+          {(activeSet?.baseMultiplier ?? activeEntry.baseMultiplier) != null && <div><dt>{l('Base Damage', '基础伤害倍率', '基礎傷害倍率', '기본 피해')}</dt><dd>{formatCalculationValue((activeSet?.baseMultiplier ?? activeEntry.baseMultiplier)! * 100, 0, language)}%</dd></div>}
         </dl>
         {!!activeSet?.lines.length && <ul>{activeSet.lines.map((line, index) => <li key={`${line}-${index}`}>{translateCalculationText(line, language)}</li>)}</ul>}
       </div>}
     </div>}
-    {!chartSeries.length && <p className="skill-detail-empty">{zh ? '该技能没有可绘制的逐级数值。' : 'This skill has no plottable per-level values.'}</p>}
+    {!chartSeries.length && <p className="skill-detail-empty">{l('This skill has no plottable per-level values.', '该技能没有可绘制的逐级数值。', '此技能沒有可繪製的逐級數值。', '이 스킬에는 차트로 표시할 레벨별 수치가 없습니다.')}</p>}
   </section>
 }
 
@@ -220,14 +221,14 @@ function SkillCriticalMetric({
   loading: boolean
   language: Language
 }) {
-  const zh = language === 'zh-rCN'
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
   const chance = kind === 'chance'
-  const label = chance ? (zh ? '暴击率' : 'Critical Chance') : (zh ? '暴击伤害' : 'Critical Damage')
+  const label = chance ? l('Critical Chance', '暴击率', '暴擊率', '치명타 확률') : l('Critical Damage', '暴击伤害', '暴擊傷害', '치명타 피해')
   const displayValue = loading
     ? '...'
     : chance
-      ? `${formatCalculationValue(value, 2)}%`
-      : `x${formatCalculationValue(multiplier, 2)}`
+      ? `${formatCalculationValue(value, 2, language)}%`
+      : `x${formatCalculationValue(multiplier, 2, language)}`
   const lines = breakdown || []
   const critBonus = Number.isFinite(multiplier) ? ((multiplier as number) - 1) * 100 : undefined
 
@@ -237,14 +238,14 @@ function SkillCriticalMetric({
     <div className="skill-critical-tooltip" role="tooltip">
       <header><span>{label}</span><strong>{displayValue}</strong></header>
       {!chance && Number.isFinite(critBonus) && <p>
-        <span>{zh ? '暴击伤害加成' : 'Critical damage bonus'}</span>
-        <b>+{formatCalculationValue(critBonus, 1)}%</b>
+        <span>{l('Critical damage bonus', '暴击伤害加成', '暴擊傷害加成', '치명타 피해 보너스')}</span>
+        <b>+{formatCalculationValue(critBonus, 1, language)}%</b>
       </p>}
       {lines.length
         ? <ol>{lines.map((line, index) => <li key={`${line}-${index}`}>{translateCalculationText(line, language)}</li>)}</ol>
         : <p className="empty">{chance
-          ? (zh ? '当前没有额外的暴击率计算步骤。' : 'No additional critical chance calculation steps.')
-          : (zh ? '当前倍率已包含所有生效的暴击伤害加成。' : 'The multiplier includes all active critical damage bonuses.')}</p>}
+          ? l('No additional critical chance calculation steps.', '当前没有额外的暴击率计算步骤。', '目前沒有額外的暴擊率計算步驟。', '추가 치명타 확률 계산 단계가 없습니다.')
+          : l('The multiplier includes all active critical damage bonuses.', '当前倍率已包含所有生效的暴击伤害加成。', '目前倍率已包含所有生效的暴擊傷害加成。', '배율에 적용 중인 모든 치명타 피해 보너스가 포함되어 있습니다.')}</p>}
     </div>
   </div>
 }
@@ -253,7 +254,6 @@ function SkillCalculationPanel({
   details,
   result,
   loading,
-  zh,
   groupName,
   activeSkillIndex,
   statSetIndex,
@@ -271,7 +271,6 @@ function SkillCalculationPanel({
   details?: SkillCalculationDetails
   result: CalcResult | null
   loading: boolean
-  zh: boolean
   groupName: string
   activeSkillIndex?: number
   statSetIndex?: number
@@ -286,6 +285,7 @@ function SkillCalculationPanel({
   onMinionStatSetChange: (value: number) => void
   onCalcModeChange: (value: SkillCalculationMode) => void
 }) {
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
   const activeSkills = Array.isArray(details?.activeSkills) ? details.activeSkills : []
   const statSets = Array.isArray(details?.statSets) ? details.statSets : []
   const damageTypes = (Array.isArray(details?.damageTypes) ? details.damageTypes : []).filter((entry) => entry.type === 'all'
@@ -307,52 +307,52 @@ function SkillCalculationPanel({
   }
   return <section className="skill-calculation-panel">
     <div className="skill-calculation-controls">
-      <label><span>{zh ? '插槽组' : 'Socket Group'}</span><strong>{groupName}</strong></label>
-      <label><span>{zh ? '启用技能' : 'Active Skill'}</span><select
+      <label><span>{l('Socket Group', '插槽组', '插槽組', '홈 그룹')}</span><strong>{groupName}</strong></label>
+      <label><span>{l('Active Skill', '启用技能', '啟用技能', '활성 스킬')}</span><select
         value={selectedActiveSkill}
         disabled={!activeSkills.length || loading}
         onChange={(event) => onActiveSkillChange(Number(event.target.value))}
       >{(activeSkills.length ? activeSkills : [{ index: 1, label: groupName }]).map((option) => <option key={option.index} value={option.index}>{localizeSkillOption(option.label)}</option>)}</select></label>
-      <label><span>{zh ? '技能形态' : 'Stat Set'}</span><select
+      <label><span>{l('Stat Set', '技能形态', '技能型態', '능력치 세트')}</span><select
         value={selectedStatSet}
         disabled={!statSets.length || loading}
         onChange={(event) => onStatSetChange(Number(event.target.value))}
       >{(statSets.length ? statSets : [{ index: 1, label: '-' }]).map((option) => <option key={option.index} value={option.index}>{translateCalculationText(option.label, language)}</option>)}</select></label>
-      {details?.hasMinion && <label><span>{zh ? '数据对象' : 'Data Actor'}</span><strong>{details.minionName || (zh ? '召唤物' : 'Minion')}</strong></label>}
-      {details?.hasMinion && selectedActor === 'minion' && <label><span>{zh ? '召唤物技能' : 'Minion Skill'}</span><select
+      {details?.hasMinion && <label><span>{l('Data Actor', '数据对象', '數據對象', '데이터 대상')}</span><strong>{details.minionName || l('Minion', '召唤物', '召喚物', '소환수')}</strong></label>}
+      {details?.hasMinion && selectedActor === 'minion' && <label><span>{l('Minion Skill', '召唤物技能', '召喚物技能', '소환수 스킬')}</span><select
         value={selectedMinionSkill}
         disabled={minionSkills.length < 2 || loading}
         onChange={(event) => onMinionSkillChange(Number(event.target.value))}
       >{minionSkills.map((option) => <option key={option.index} value={option.index}>{localizeSkillOption(option.label)}</option>)}</select></label>}
-      {details?.hasMinion && selectedActor === 'minion' && minionStatSets.length > 1 && <label><span>{zh ? '召唤物技能形态' : 'Minion Stat Set'}</span><select
+      {details?.hasMinion && selectedActor === 'minion' && minionStatSets.length > 1 && <label><span>{l('Minion Stat Set', '召唤物技能形态', '召喚物技能型態', '소환수 능력치 세트')}</span><select
         value={selectedMinionStatSet}
         disabled={loading}
         onChange={(event) => onMinionStatSetChange(Number(event.target.value))}
       >{minionStatSets.map((option) => <option key={option.index} value={option.index}>{translateCalculationText(option.label, language)}</option>)}</select></label>}
-      <label><span>{zh ? '计算模式' : 'Calculation Mode'}</span><select
+      <label><span>{l('Calculation Mode', '计算模式', '計算模式', '계산 모드')}</span><select
         value={calcMode}
         disabled={loading}
         onChange={(event) => onCalcModeChange(event.target.value as SkillCalculationMode)}
-      >{CALCULATION_MODES.map((option) => <option key={option.value} value={option.value}>{zh ? option.zh : option.en}</option>)}</select></label>
+      >{CALCULATION_MODES.map((option) => <option key={option.value} value={option.value}>{option.label[language]}</option>)}</select></label>
     </div>
     <div className="skill-hit-heading">
-      <span>{selectedActor === 'minion' ? (zh ? '召唤物击中伤害' : 'Minion Hit Damage') : (zh ? '技能击中伤害' : 'Skill Hit Damage')}</span>
-      <strong>{loading ? '...' : `${formatCalculationValue(details?.totalDps ?? result?.TotalDPS, 1)} DPS`}</strong>
+      <span>{selectedActor === 'minion' ? l('Minion Hit Damage', '召唤物击中伤害', '召喚物擊中傷害', '소환수 적중 피해') : l('Skill Hit Damage', '技能击中伤害', '技能擊中傷害', '스킬 적중 피해')}</span>
+      <strong>{loading ? '...' : `${formatCalculationValue(details?.totalDps ?? result?.TotalDPS, 1, language)} DPS`}</strong>
     </div>
     {!!composition.length && <div className="skill-damage-composition">
-      <div className="skill-composition-heading"><span>{zh ? '最终伤害构成' : 'Final Damage Mix'}</span><small>{zh ? '按平均击中伤害' : 'By average hit'}</small></div>
-      <div className="skill-composition-bar" aria-label={zh ? '最终伤害构成' : 'Final damage mix'}>{composition.map((entry) => {
+      <div className="skill-composition-heading"><span>{l('Final Damage Mix', '最终伤害构成', '最終傷害構成', '최종 피해 구성')}</span><small>{l('By average hit', '按平均击中伤害', '依平均擊中傷害', '평균 적중 기준')}</small></div>
+      <div className="skill-composition-bar" aria-label={l('Final damage mix', '最终伤害构成', '最終傷害構成', '최종 피해 구성')}>{composition.map((entry) => {
         const percent = compositionTotal ? entry.average / compositionTotal * 100 : 0
-        return <span key={entry.type} className={`damage-${entry.type}`} style={{ width: `${percent}%` }} title={`${zh ? DAMAGE_TYPE_LABELS[entry.type].zh : DAMAGE_TYPE_LABELS[entry.type].en} ${formatCalculationValue(percent, 1)}%`} />
+        return <span key={entry.type} className={`damage-${entry.type}`} style={{ width: `${percent}%` }} title={`${DAMAGE_TYPE_LABELS[entry.type][language]} ${formatCalculationValue(percent, 1, language)}%`} />
       })}</div>
       <div className="skill-composition-legend">{composition.map((entry) => {
         const percent = compositionTotal ? entry.average / compositionTotal * 100 : 0
-        return <div key={entry.type}><i className={`damage-${entry.type}`} /><span>{zh ? DAMAGE_TYPE_LABELS[entry.type].zh : DAMAGE_TYPE_LABELS[entry.type].en}</span><strong>{formatCalculationValue(percent, 1)}%</strong></div>
+        return <div key={entry.type}><i className={`damage-${entry.type}`} /><span>{DAMAGE_TYPE_LABELS[entry.type][language]}</span><strong>{formatCalculationValue(percent, 1, language)}%</strong></div>
       })}</div>
     </div>}
     <dl className="skill-damage-summary">
-      <div><dt>{zh ? '平均击中伤害' : 'Average Hit'}</dt><dd>{loading ? '...' : formatCalculationValue(details?.averageHit ?? result?.AverageHit, 1)}</dd></div>
-      <div><dt>{zh ? '攻击/施法速率' : 'Attack/Cast Rate'}</dt><dd>{loading ? '...' : `${formatCalculationValue(details?.speed ?? result?.Speed, 2)}/s`}</dd></div>
+      <div><dt>{l('Average Hit', '平均击中伤害', '平均擊中傷害', '평균 적중')}</dt><dd>{loading ? '...' : formatCalculationValue(details?.averageHit ?? result?.AverageHit, 1, language)}</dd></div>
+      <div><dt>{l('Attack/Cast Rate', '攻击/施法速率', '攻擊/施法速度', '공격/시전 속도')}</dt><dd>{loading ? '...' : `${formatCalculationValue(details?.speed ?? result?.Speed, 2, language)}/s`}</dd></div>
       <SkillCriticalMetric
         kind="chance"
         value={details?.critChance ?? result?.CritChance}
@@ -367,7 +367,7 @@ function SkillCalculationPanel({
         loading={loading}
         language={language}
       />
-      <div><dt>{zh ? '技能 DPS' : 'Skill DPS'}</dt><dd>{loading ? '...' : formatCalculationValue(details?.totalDps ?? result?.TotalDPS, 1)}</dd></div>
+      <div><dt>{l('Skill DPS', '技能 DPS', '技能 DPS', '스킬 DPS')}</dt><dd>{loading ? '...' : formatCalculationValue(details?.totalDps ?? result?.TotalDPS, 1, language)}</dd></div>
     </dl>
   </section>
 }
@@ -385,16 +385,16 @@ function SkillDamageCalculationDetails({
   catalog: SkillCatalog | null
   statSetIndex: number
 }) {
-  const zh = language === 'zh-rCN'
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
   const availableTypes = (details?.damageTypes || []).filter((entry) => entry.type !== 'all'
     && [entry.hitMin, entry.hitMax, entry.addedMin, entry.addedMax].some((value) => value != null && value !== 0))
   const [selectedType, setSelectedType] = useState<SpecificDamageType | 'all'>('all')
   const [selectedBucket, setSelectedBucket] = useState<DamageBucket>('added')
   const activeType = availableTypes.find((entry) => entry.type === selectedType) || availableTypes[0]
   const effects = [
-    { key: 'auras', label: zh ? '光环与增益技能' : 'Aura and Buff Skills', values: details?.effects?.aurasAndBuffs || [] },
-    { key: 'combat', label: zh ? '战斗增益' : 'Combat Buffs', values: details?.effects?.combatBuffs || [] },
-    { key: 'debuffs', label: zh ? '诅咒与减益' : 'Curses and Debuffs', values: details?.effects?.cursesAndDebuffs || [] },
+    { key: 'auras', label: l('Aura and Buff Skills', '光环与增益技能', '光環與增益技能', '오라 및 버프 스킬'), values: details?.effects?.aurasAndBuffs || [] },
+    { key: 'combat', label: l('Combat Buffs', '战斗增益', '戰鬥增益', '전투 버프'), values: details?.effects?.combatBuffs || [] },
+    { key: 'debuffs', label: l('Curses and Debuffs', '诅咒与减益', '詛咒與減益', '저주 및 디버프'), values: details?.effects?.cursesAndDebuffs || [] },
   ]
   const localize = (value: string) => translateCalculationText(value, language)
   const localizeEffect = (value: string) => {
@@ -406,55 +406,55 @@ function SkillDamageCalculationDetails({
     const item = value.match(/^Item:(\d+):(.+)$/)
     if (item) {
       const fullName = localize(item[2])
-      if (fullName !== item[2] || !zh) return `${zh ? '装备' : 'Item'}：${fullName}`
+      if (fullName !== item[2] || language !== 'zh-rCN') return `${l('Item', '装备', '裝備', '아이템')}：${fullName}`
       const parts = item[2].split(',').map((part) => part.trim())
       const baseName = parts[parts.length - 1] || item[2]
       const localizedBase = localize(baseName)
-      return localizedBase !== baseName ? `装备：${localizedBase}（#${item[1]}）` : `装备 #${item[1]}`
+      return localizedBase !== baseName ? `${l('Item', '装备', '裝備', '아이템')}：${localizedBase}（#${item[1]}）` : `${l('Item', '装备', '裝備', '아이템')} #${item[1]}`
     }
     const skill = value.match(/^Skill:(.+)$/)
     if (skill) {
       const entry = resolveSkillCatalogName(skill[1], catalog)
       const name = entry ? getLocalizedSkillName({ name: entry.name }, entry, language) : localize(skill[1])
-      return `${zh ? '技能' : 'Skill'}：${name}`
+      return `${l('Skill', '技能', '技能', '스킬')}：${name}`
     }
     const tree = value.match(/^Tree(?::(.+))?$/)
-    if (tree) return tree[1] ? (zh ? `天赋树 · 节点 ${tree[1]}` : `Passive Tree · Node ${tree[1]}`) : (zh ? '天赋树' : 'Passive Tree')
+    if (tree) return tree[1] ? `${l('Passive Tree', '天赋树', '天賦樹', '패시브 트리')} · ${l('Node', '节点', '節點', '노드')} ${tree[1]}` : l('Passive Tree', '天赋树', '天賦樹', '패시브 트리')
     const config = value.match(/^Config(?::(.+))?$/)
-    if (config) return config[1] ? (zh ? `配置 · ${config[1]}` : `Configuration · ${config[1]}`) : (zh ? '配置' : 'Configuration')
+    if (config) return config[1] ? `${l('Configuration', '配置', '配置', '설정')} · ${config[1]}` : l('Configuration', '配置', '配置', '설정')
     return localize(value)
   }
   const typeLabel = (value: string) => {
     const weapon = value.match(/^(mainHand|offHand):(.+)$/)
     if (weapon) {
-      const hand = weapon[1] === 'mainHand' ? (zh ? '主手' : 'Main Hand') : (zh ? '副手' : 'Off Hand')
+      const hand = weapon[1] === 'mainHand' ? l('Main Hand', '主手', '主手', '주 무기') : l('Off Hand', '副手', '副手', '보조 무기')
       const labels = DAMAGE_TYPE_LABELS[weapon[2] as keyof typeof DAMAGE_TYPE_LABELS]
-      return `${hand} · ${labels ? (zh ? labels.zh : labels.en) : weapon[2]}`
+      return `${hand} · ${labels ? labels[language] : weapon[2]}`
     }
-    if (value === 'elemental') return zh ? '元素' : 'Elemental'
-    if (value === 'random') return zh ? '随机元素' : 'Random Element'
+    if (value === 'elemental') return l('Elemental', '元素', '元素', '원소')
+    if (value === 'random') return l('Random Element', '随机元素', '隨機元素', '무작위 원소')
     const labels = DAMAGE_TYPE_LABELS[value as keyof typeof DAMAGE_TYPE_LABELS]
-    return labels ? (zh ? labels.zh : labels.en) : value
+    return labels ? labels[language] : value
   }
   const bucketOptions: Array<{ key: DamageBucket; label: string }> = [
-    { key: 'added', label: zh ? '点伤' : 'Added' },
-    { key: 'increased', label: zh ? '提高' : 'Increased' },
-    { key: 'gain', label: zh ? '额外获得' : 'Gain' },
-    { key: 'more', label: zh ? '总增' : 'More' },
-    { key: 'levels', label: zh ? '等级成长' : 'Level Scaling' },
+    { key: 'added', label: l('Added', '点伤', '附加傷害', '추가') },
+    { key: 'increased', label: l('Increased', '提高', '增加', '증가') },
+    { key: 'gain', label: l('Gain', '额外获得', '額外獲得', '추가 획득') },
+    { key: 'more', label: l('More', '总增', '更多', '증폭') },
+    { key: 'levels', label: l('Level Scaling', '等级成长', '等級成長', '레벨 성장') },
   ]
   const sourceRows: Array<{ key: string; value: string; source: string; scope: string; stat: string; kind?: 'skillDamage' }> = []
   if (selectedBucket === 'added') {
     const rows = new Map<string, { min: number; max: number; source: string; damageType: string; stats: Set<string> }>()
     for (const entry of details?.skillDamage || []) {
       const title = entry.damageType.slice(0, 1).toUpperCase() + entry.damageType.slice(1)
-      const level = entry.skillLevel == null ? '' : ` · ${zh ? '等级' : 'Level'} ${formatCalculationValue(entry.skillLevel)}`
+      const level = entry.skillLevel == null ? '' : ` · ${l('Level', '等级', '等級', '레벨')} ${formatCalculationValue(entry.skillLevel, 0, language)}`
       const baseMultiplier = Number.isFinite(entry.baseMultiplier) && Math.abs(entry.baseMultiplier - 1) > 0.0001
-        ? ` · ${zh ? '基础倍率' : 'Base multiplier'} x${formatCalculationValue(entry.baseMultiplier, 3)}`
+        ? ` · ${l('Base multiplier', '基础倍率', '基礎倍率', '기본 배율')} x${formatCalculationValue(entry.baseMultiplier, 3, language)}`
         : ''
       sourceRows.push({
         key: `skill:${entry.source}:${entry.damageType}`,
-        value: `${formatCalculationValue(entry.min, 1)} - ${formatCalculationValue(entry.max, 1)}`,
+        value: `${formatCalculationValue(entry.min, 1, language)} - ${formatCalculationValue(entry.max, 1, language)}`,
         source: entry.source,
         scope: `${typeLabel(entry.damageType)}${level}${baseMultiplier}`,
         stat: `Skill${title}Damage`,
@@ -482,7 +482,7 @@ function SkillDamageCalculationDetails({
     }
     for (const [key, row] of rows) sourceRows.push({
       key,
-      value: `${formatCalculationValue(row.min, 1)} - ${formatCalculationValue(row.max, 1)}`,
+      value: `${formatCalculationValue(row.min, 1, language)} - ${formatCalculationValue(row.max, 1, language)}`,
       source: row.source,
       scope: typeLabel(row.damageType),
       stat: [...row.stats].join(' / '),
@@ -490,7 +490,7 @@ function SkillDamageCalculationDetails({
   } else if (selectedBucket === 'gain') {
     for (const [index, entry] of (details?.gains || []).entries()) sourceRows.push({
       key: `${entry.source}:${entry.stat}:${entry.fromType}:${entry.toType}:${index}`,
-      value: `${formatCalculationValue(entry.value, 2)}%`,
+      value: `${formatCalculationValue(entry.value, 2, language)}%`,
       source: entry.source,
       scope: `${typeLabel(entry.fromType)} → ${typeLabel(entry.toType)}`,
       stat: entry.stat,
@@ -506,7 +506,7 @@ function SkillDamageCalculationDetails({
     }
     for (const [key, row] of rows) sourceRows.push({
       key,
-      value: `${formatCalculationValue(row.value, 2)}%`,
+      value: `${formatCalculationValue(row.value, 2, language)}%`,
       source: row.source,
       scope: [...row.types].map(typeLabel).join(' / '),
       stat: row.stat,
@@ -528,22 +528,22 @@ function SkillDamageCalculationDetails({
   const moreSourceCount = new Set((details?.modifiers || []).filter((entry) => entry.bucket === 'more')
     .map((entry) => `${entry.source}:${entry.stat}:${entry.value}`)).size
 
-  if (loading) return <div className="skill-detail-loading">{zh ? '正在生成伤害计算详情...' : 'Building damage calculation details...'}</div>
+  if (loading) return <div className="skill-detail-loading">{l('Building damage calculation details...', '正在生成伤害计算详情...', '正在建立傷害計算詳情...', '피해 계산 상세 정보 생성 중...')}</div>
 
   return <div className="skill-damage-detail-page">
     <section className="skill-detail-block">
-      <h3>{zh ? '当前伤害结构' : 'Current Damage Structure'}</h3>
+      <h3>{l('Current Damage Structure', '当前伤害结构', '目前傷害結構', '현재 피해 구조')}</h3>
       <div className="skill-damage-insights">
-        <div><span>{zh ? '主要伤害' : 'Primary damage'}</span><strong>{dominantType ? typeLabel(dominantType.type) : '-'}</strong><small>{dominantType && compositionTotal ? `${formatCalculationValue(dominantType.average / compositionTotal * 100, 1)}% ${zh ? '最终伤害' : 'of final damage'}` : '-'}</small></div>
-        <div><span>{zh ? '最高提高 (Increased)' : 'Highest Increased'}</span><strong>{strongestIncrease ? `${formatCalculationValue(strongestIncrease.increased)}%` : '-'}</strong><small>{strongestIncrease ? typeLabel(strongestIncrease.type) : '-'}</small></div>
-        <div><span>{zh ? '独立总增 (More) 来源' : 'More sources'}</span><strong>{moreSourceCount}</strong><small>{moreSourceCount ? (zh ? '乘法叠加' : 'multiplicative') : (zh ? '当前未检测到' : 'none detected')}</small></div>
-        <div><span>{zh ? '额外获得 (Gain)' : 'Gain as Extra'}</span><strong>{details?.gains?.length || 0}</strong><small>{zh ? '生效来源' : 'active sources'}</small></div>
+        <div><span>{l('Primary damage', '主要伤害', '主要傷害', '주요 피해')}</span><strong>{dominantType ? typeLabel(dominantType.type) : '-'}</strong><small>{dominantType && compositionTotal ? `${formatCalculationValue(dominantType.average / compositionTotal * 100, 1, language)}% ${l('of final damage', '最终伤害', '最終傷害', '최종 피해')}` : '-'}</small></div>
+        <div><span>{l('Highest Increased', '最高提高 (Increased)', '最高增加 (Increased)', '가장 높은 증가')}</span><strong>{strongestIncrease ? `${formatCalculationValue(strongestIncrease.increased, 0, language)}%` : '-'}</strong><small>{strongestIncrease ? typeLabel(strongestIncrease.type) : '-'}</small></div>
+        <div><span>{l('More sources', '独立总增 (More) 来源', '更多 (More) 來源', '증폭 출처')}</span><strong>{moreSourceCount}</strong><small>{moreSourceCount ? l('multiplicative', '乘法叠加', '乘法疊加', '곱연산') : l('none detected', '当前未检测到', '目前未偵測到', '감지되지 않음')}</small></div>
+        <div><span>{l('Gain as Extra', '额外获得 (Gain)', '額外獲得 (Gain)', '추가 획득')}</span><strong>{details?.gains?.length || 0}</strong><small>{l('active sources', '生效来源', '生效來源', '활성 출처')}</small></div>
       </div>
     </section>
 
     <section className="skill-detail-block">
-      <h3>{zh ? '伤害来源' : 'Damage Sources'} {selectedBucket !== 'levels' && <small>{sourceRows.length}</small>}</h3>
-      <div className="skill-bucket-switch" role="tablist" aria-label={zh ? '伤害乘区' : 'Damage buckets'}>{bucketOptions.map((bucket) => <button
+      <h3>{l('Damage Sources', '伤害来源', '傷害來源', '피해 출처')} {selectedBucket !== 'levels' && <small>{sourceRows.length}</small>}</h3>
+      <div className="skill-bucket-switch" role="tablist" aria-label={l('Damage buckets', '伤害乘区', '傷害乘區', '피해 구간')}>{bucketOptions.map((bucket) => <button
         key={bucket.key}
         type="button"
         role="tab"
@@ -551,11 +551,11 @@ function SkillDamageCalculationDetails({
         className={selectedBucket === bucket.key ? 'active' : ''}
         onClick={() => setSelectedBucket(bucket.key)}
       ><span>{bucket.label}</span><small>{bucket.key === 'added'
-        ? (zh ? '基础伤害' : 'base damage')
-        : bucket.key === 'increased' ? (zh ? '同乘区相加' : 'additive')
-          : bucket.key === 'gain' ? (zh ? '额外获得' : 'as extra')
-            : bucket.key === 'more' ? (zh ? '独立相乘' : 'multiplicative')
-              : (zh ? '当前至 40 级' : 'current to 40')}</small></button>)}</div>
+        ? l('base damage', '基础伤害', '基礎傷害', '기본 피해')
+        : bucket.key === 'increased' ? l('additive', '同乘区相加', '同乘區相加', '가산')
+          : bucket.key === 'gain' ? l('as extra', '额外获得', '額外獲得', '추가 획득')
+            : bucket.key === 'more' ? l('multiplicative', '独立相乘', '獨立相乘', '곱연산')
+              : l('current to 40', '当前至 40 级', '目前至 40 級', '현재부터 40레벨')}</small></button>)}</div>
       {selectedBucket === 'levels' ? <SkillLevelReferencePanel
         details={details}
         loading={loading}
@@ -564,23 +564,23 @@ function SkillDamageCalculationDetails({
       /> : sourceRows.length ? <div className="skill-source-list">{sourceRows.map((row) => <div key={row.key}>
         <strong>{row.value}</strong>
         <span>{row.kind === 'skillDamage'
-          ? `${zh ? '技能伤害' : 'Skill Damage'} · ${localizeEffect(row.source)}`
+          ? `${l('Skill Damage', '技能伤害', '技能傷害', '스킬 피해')} · ${localizeEffect(row.source)}`
           : localizeSource(row.source)}</span>
         <small>{row.scope}</small>
         <code>{translateCalculationStat(row.stat, language)}</code>
-      </div>)}</div> : <p className="skill-detail-empty">{zh ? '当前技能在这个乘区没有可用来源。' : 'No active sources in this bucket.'}</p>}
+      </div>)}</div> : <p className="skill-detail-empty">{l('No active sources in this bucket.', '当前技能在这个乘区没有可用来源。', '目前技能在此乘區沒有可用來源。', '이 구간에 활성 출처가 없습니다.')}</p>}
     </section>
 
     {!!availableTypes.length && <section className="skill-detail-block">
-      <h3>{zh ? '伤害类型计算链' : 'Damage Type Calculation'}</h3>
-      <div className="skill-damage-type-switch" role="tablist" aria-label={zh ? '伤害类型' : 'Damage type'}>
+      <h3>{l('Damage Type Calculation', '伤害类型计算链', '傷害類型計算鏈', '피해 유형 계산')}</h3>
+      <div className="skill-damage-type-switch" role="tablist" aria-label={l('Damage type', '伤害类型', '傷害類型', '피해 유형')}>
         <button
           type="button"
           role="tab"
           aria-selected={selectedType === 'all'}
           className={selectedType === 'all' ? 'active' : ''}
           onClick={() => setSelectedType('all')}
-        >{zh ? '总计' : 'Total'}</button>
+        >{l('Total', '总计', '總計', '합계')}</button>
         {availableTypes.map((entry) => <button
           type="button"
           role="tab"
@@ -588,54 +588,54 @@ function SkillDamageCalculationDetails({
           className={entry.type === selectedType ? 'active' : ''}
           key={entry.type}
           onClick={() => setSelectedType(entry.type as SpecificDamageType)}
-        >{zh ? DAMAGE_TYPE_LABELS[entry.type].zh : DAMAGE_TYPE_LABELS[entry.type].en}</button>)}
+        >{DAMAGE_TYPE_LABELS[entry.type][language]}</button>)}
       </div>
       {selectedType === 'all' && <>
         <dl className="skill-type-summary skill-total-summary">
-          <div><dt>{zh ? '总击中范围' : 'Total Hit Range'}</dt><dd>{formatCalculationValue(totalDamage?.hitMin)} - {formatCalculationValue(totalDamage?.hitMax)}</dd></div>
-          <div><dt>{zh ? '平均击中' : 'Average Hit'}</dt><dd>{formatCalculationValue(details?.averageHit, 1)}</dd></div>
-          <div><dt>{zh ? '最终 DPS' : 'Final DPS'}</dt><dd>{formatCalculationValue(details?.totalDps, 1)}</dd></div>
+          <div><dt>{l('Total Hit Range', '总击中范围', '總擊中範圍', '총 적중 범위')}</dt><dd>{formatCalculationValue(totalDamage?.hitMin, 0, language)} - {formatCalculationValue(totalDamage?.hitMax, 0, language)}</dd></div>
+          <div><dt>{l('Average Hit', '平均击中', '平均擊中', '평균 적중')}</dt><dd>{formatCalculationValue(details?.averageHit, 1, language)}</dd></div>
+          <div><dt>{l('Final DPS', '最终 DPS', '最終 DPS', '최종 DPS')}</dt><dd>{formatCalculationValue(details?.totalDps, 1, language)}</dd></div>
         </dl>
         <div className="skill-total-damage-chain">{composition.map((entry) => <div key={entry.type}>
           <i className={`damage-${entry.type}`} />
           <strong>{typeLabel(entry.type)}</strong>
-          <span>{formatCalculationValue(entry.hitMin)} - {formatCalculationValue(entry.hitMax)}</span>
-          <small>{compositionTotal ? `${formatCalculationValue(entry.average / compositionTotal * 100, 1)}%` : '-'}</small>
-          <em>{entry.effectiveMultiplier == null ? '-' : `${formatCalculationValue(entry.effectiveMultiplier, 3)}x`}</em>
+          <span>{formatCalculationValue(entry.hitMin, 0, language)} - {formatCalculationValue(entry.hitMax, 0, language)}</span>
+          <small>{compositionTotal ? `${formatCalculationValue(entry.average / compositionTotal * 100, 1, language)}%` : '-'}</small>
+          <em>{entry.effectiveMultiplier == null ? '-' : `${formatCalculationValue(entry.effectiveMultiplier, 3, language)}x`}</em>
         </div>)}</div>
         {!!details?.averageHitBreakdown?.length && <div className="skill-average-hit-breakdown">
-          <strong>{zh ? '暴击与非暴击汇总' : 'Critical and Non-critical Summary'}</strong>
+          <strong>{l('Critical and Non-critical Summary', '暴击与非暴击汇总', '暴擊與非暴擊彙總', '치명타 및 비치명타 요약')}</strong>
           <ol className="skill-formula-lines compact">{details.averageHitBreakdown.map((line, index) => <li key={`${line}-${index}`}>{localize(line)}</li>)}</ol>
         </div>}
       </>}
       {selectedType !== 'all' && activeType && <>
         <dl className="skill-type-summary">
-          <div><dt>{zh ? '最终击中' : 'Final Hit'}</dt><dd>{formatCalculationValue(activeType.hitMin)} - {formatCalculationValue(activeType.hitMax)}</dd></div>
-          <div><dt>{zh ? '有效伤害乘数' : 'Effective Multiplier'}</dt><dd>{activeType.effectiveMultiplier == null ? '-' : `${formatCalculationValue(activeType.effectiveMultiplier, 3)}x`}</dd></div>
+          <div><dt>{l('Final Hit', '最终击中', '最終擊中', '최종 적중')}</dt><dd>{formatCalculationValue(activeType.hitMin, 0, language)} - {formatCalculationValue(activeType.hitMax, 0, language)}</dd></div>
+          <div><dt>{l('Effective Multiplier', '有效伤害乘数', '有效傷害乘數', '유효 피해 배율')}</dt><dd>{activeType.effectiveMultiplier == null ? '-' : `${formatCalculationValue(activeType.effectiveMultiplier, 3, language)}x`}</dd></div>
         </dl>
         {!!activeType.breakdown?.length && <ol className="skill-formula-lines compact">{activeType.breakdown.map((line, index) => <li key={`${line}-${index}`}>{localize(line)}</li>)}</ol>}
         {!!activeType.effectiveBreakdown?.length && <div className="skill-effective-breakdown">
-          <strong>{zh ? '敌人防御与承伤' : 'Enemy Defence and Damage Taken'}</strong>
+          <strong>{l('Enemy Defence and Damage Taken', '敌人防御与承伤', '敵人防禦與承受傷害', '적 방어 및 받는 피해')}</strong>
           <ol className="skill-formula-lines compact">{activeType.effectiveBreakdown.map((line, index) => <li key={`${line}-${index}`}>{localize(line)}</li>)}</ol>
         </div>}
       </>}
     </section>}
 
     <section className="skill-detail-block">
-      <h3>{zh ? '当前生效效果' : 'Active Effects'}</h3>
+      <h3>{l('Active Effects', '当前生效效果', '目前生效效果', '활성 효과')}</h3>
       <div className="skill-effect-groups">{effects.map((effect) => <div key={effect.key}>
         <strong>{effect.label}</strong>
         {effect.values.length
           ? <ul>{effect.values.map((value) => <li key={value}>{localizeEffect(value)}</li>)}</ul>
-          : <span>{zh ? '无' : 'None'}</span>}
+          : <span>{l('None', '无', '無', '없음')}</span>}
       </div>)}</div>
     </section>
 
     <section className="skill-detail-block">
-      <h3>{zh ? '最终 DPS 公式' : 'Final DPS Formula'}</h3>
+      <h3>{l('Final DPS Formula', '最终 DPS 公式', '最終 DPS 公式', '최종 DPS 공식')}</h3>
       {details?.dpsFormula?.length
         ? <ol className="skill-formula-lines">{details.dpsFormula.map((line, index) => <li key={`${line}-${index}`}>{localize(line)}</li>)}</ol>
-        : <p className="skill-detail-empty">{zh ? '当前技能没有可用的击中 DPS 公式。' : 'No hit DPS formula is available for this skill.'}</p>}
+        : <p className="skill-detail-empty">{l('No hit DPS formula is available for this skill.', '当前技能没有可用的击中 DPS 公式。', '目前技能沒有可用的擊中 DPS 公式。', '이 스킬에는 사용 가능한 적중 DPS 공식이 없습니다.')}</p>}
     </section>
   </div>
 }
@@ -671,6 +671,7 @@ function useSkillPanelSize(enabled: boolean) {
 
 export function SkillsPanel() {
   const { lang } = useTranslation()
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
   const weaponSet = useTreeStore((state) => state.activeWeaponSet)
   const setWeaponSet = useTreeStore((state) => state.setActiveWeaponSet)
@@ -699,7 +700,6 @@ export function SkillsPanel() {
   const [rankingLoading, setRankingLoading] = useState(false)
   const [rankingError, setRankingError] = useState('')
   const rankingRequestId = useRef(0)
-  const zh = lang === 'zh-rCN'
 
   useEffect(() => {
     let mounted = true
@@ -823,8 +823,8 @@ export function SkillsPanel() {
   if (!selected) {
     return <section className="workspace-empty">
       <Sparkles />
-      <h2>{zh ? '没有技能数据' : 'No skill data'}</h2>
-      <p>{zh ? '导入完整 PoB2 构筑后，这里会显示独立的技能组。' : 'Import a complete PoB2 build to view skill groups.'}</p>
+      <h2>{l('No skill data', '没有技能数据', '沒有技能數據', '스킬 데이터 없음')}</h2>
+      <p>{l('Import a complete PoB2 build to view skill groups.', '导入完整 PoB2 构筑后，这里会显示独立的技能组。', '匯入完整 PoB2 構築後，此處會顯示獨立的技能組。', '완전한 PoB2 빌드를 가져오면 여기에 개별 스킬 그룹이 표시됩니다.')}</p>
     </section>
   }
 
@@ -832,8 +832,8 @@ export function SkillsPanel() {
     <div className="skill-groups-stage">
       <header>
         <div className="skill-groups-header-actions">
-          <label>{zh ? '武器组' : 'Weapon set'}</label>
-          <div className="skill-weapon-set-control" role="group" aria-label={zh ? '武器组' : 'Weapon set'}>
+          <label>{l('Weapon set', '武器组', '武器組', '무기 세트')}</label>
+          <div className="skill-weapon-set-control" role="group" aria-label={l('Weapon set', '武器组', '武器組', '무기 세트')}>
             {([1, 2] as const).map((value) => <button
               key={value}
               type="button"
@@ -842,22 +842,22 @@ export function SkillsPanel() {
               onClick={() => setWeaponSet(value)}
             >{value === 1 ? 'I' : 'II'}</button>)}
           </div>
-          <span>{zh ? '技能组' : 'Skill groups'}</span>
+          <span>{l('Skill groups', '技能组', '技能組', '스킬 그룹')}</span>
           <button
             type="button"
             className={`skill-dps-sort${dpsRanking ? ' active' : ''}`}
             disabled={rankingLoading}
             onClick={() => void toggleDpsRanking()}
             title={rankingError || (dpsRanking
-              ? (zh ? '恢复导入时的技能组顺序' : 'Restore imported skill order')
-              : (zh ? '按有效 DPS 从高到低排序' : 'Sort by effective DPS, highest first'))}
+              ? l('Restore imported skill order', '恢复导入时的技能组顺序', '恢復匯入時的技能組順序', '가져온 스킬 순서 복원')
+              : l('Sort by effective DPS, highest first', '按有效 DPS 从高到低排序', '依有效 DPS 由高至低排序', '유효 DPS가 높은 순으로 정렬'))}
           >
             {rankingLoading ? <LoaderCircle className="spinning" /> : dpsRanking ? <RotateCcw /> : <ArrowDownWideNarrow />}
             {rankingLoading
-              ? (zh ? '计算中' : 'Calculating')
+              ? l('Calculating', '计算中', '計算中', '계산 중')
               : dpsRanking
-                ? (zh ? '恢复顺序' : 'Restore')
-                : (zh ? '有效 DPS 排序' : 'Effective DPS')}
+                ? l('Restore', '恢复顺序', '恢復順序', '복원')
+                : l('Effective DPS', '有效 DPS 排序', '有效 DPS 排序', '유효 DPS')}
           </button>
           {rankingError && <span className="skill-dps-sort-error" title={rankingError}>!</span>}
         </div>
@@ -867,8 +867,8 @@ export function SkillsPanel() {
             type="button"
             className="skill-inspector-toggle"
             onClick={() => setInspectorOpen(true)}
-            title={zh ? '打开技能详情' : 'Open skill details'}
-            aria-label={zh ? '打开技能详情' : 'Open skill details'}
+            title={l('Open skill details', '打开技能详情', '開啟技能詳情', '스킬 상세 정보 열기')}
+            aria-label={l('Open skill details', '打开技能详情', '開啟技能詳情', '스킬 상세 정보 열기')}
           ><PanelRightOpen /></button>}
         </div>
       </header>
@@ -917,11 +917,11 @@ export function SkillsPanel() {
               <strong>{label}</strong>
               <small>{dpsRanking
                 ? dpsRanking[group.id]?.valid
-                  ? `${zh ? '有效 DPS' : 'Effective DPS'} ${formatCalculationValue(dpsRanking[group.id].dps, 1)}`
-                  : (zh ? '无有效 DPS' : 'No effective DPS')
+                  ? `${l('Effective DPS', '有效 DPS', '有效 DPS', '유효 DPS')} ${formatCalculationValue(dpsRanking[group.id].dps, 1, lang)}`
+                  : l('No effective DPS', '无有效 DPS', '無有效 DPS', '유효 DPS 없음')
                 : calculatedLevel
-                  ? (zh ? `实际等级 ${calculatedLevel}` : `Effective level ${calculatedLevel}`)
-                  : (zh ? `宝石等级 ${main.level}` : `Gem level ${main.level}`)}</small>
+                  ? `${l('Effective level', '实际等级', '實際等級', '유효 레벨')} ${calculatedLevel}`
+                  : `${l('Gem level', '宝石等级', '寶石等級', '젬 레벨')} ${main.level}`}</small>
             </div>
           </div>
           <div className="skill-row-gems">
@@ -961,7 +961,7 @@ export function SkillsPanel() {
           <FallbackImage src={mainSkill?.icon || undefined} alt="" fallback={<Sparkles />} />
         </div>
         <div>
-          <span>{zh ? '技能详情' : 'Skill details'}</span>
+          <span>{l('Skill details', '技能详情', '技能詳情', '스킬 상세 정보')}</span>
           <h2>{mainName}</h2>
           <small>{translateGameText(mainSkill?.gemType || (mainSkill?.type === 'support' ? 'Support' : 'Skill Gem'), lang)}</small>
         </div>
@@ -969,13 +969,13 @@ export function SkillsPanel() {
           type="button"
           className="skill-inspector-close"
           onClick={() => setInspectorOpen(false)}
-          title={zh ? '关闭技能详情' : 'Close skill details'}
-          aria-label={zh ? '关闭技能详情' : 'Close skill details'}
+          title={l('Close skill details', '关闭技能详情', '關閉技能詳情', '스킬 상세 정보 닫기')}
+          aria-label={l('Close skill details', '关闭技能详情', '關閉技能詳情', '스킬 상세 정보 닫기')}
         ><X /></button>
       </header>
-      <nav className="skill-inspector-tabs" aria-label={zh ? '技能详情页面' : 'Skill detail pages'}>
-        <button type="button" className={inspectorPage === 'overview' ? 'active' : ''} onClick={() => setInspectorPage('overview')}>{zh ? '概览' : 'Overview'}</button>
-        <button type="button" className={inspectorPage === 'calculation' ? 'active' : ''} onClick={() => setInspectorPage('calculation')}>{zh ? '伤害计算' : 'Damage Calculation'}</button>
+      <nav className="skill-inspector-tabs" aria-label={l('Skill detail pages', '技能详情页面', '技能詳情頁面', '스킬 상세 페이지')}>
+        <button type="button" className={inspectorPage === 'overview' ? 'active' : ''} onClick={() => setInspectorPage('overview')}>{l('Overview', '概览', '概覽', '개요')}</button>
+        <button type="button" className={inspectorPage === 'calculation' ? 'active' : ''} onClick={() => setInspectorPage('calculation')}>{l('Damage Calculation', '伤害计算', '傷害計算', '피해 계산')}</button>
       </nav>
       <div className="skill-inspector-scroll">
         {inspectorPage === 'calculation' && <>
@@ -983,7 +983,6 @@ export function SkillsPanel() {
             details={calculationDetails}
             result={selectedCalculation}
             loading={calcLoading}
-            zh={zh}
             groupName={mainName}
             activeSkillIndex={activeSkillIndex}
             statSetIndex={statSetIndex}
@@ -1030,19 +1029,19 @@ export function SkillsPanel() {
         <section className="skill-inspector-overview">
           {description
             ? <p className="skill-description">{description}</p>
-            : <p className="skill-description muted">{zh ? '上游暂无技能描述' : 'No upstream description available'}</p>}
+            : <p className="skill-description muted">{l('No upstream description available', '上游暂无技能描述', '上游暫無技能描述', '원본 스킬 설명이 없습니다')}</p>}
           {!!tags.length && <div className="skill-tags">
             {tags.map((tag) => <span key={tag}>{tag}</span>)}
           </div>}
           <dl>
-            <div><dt>{zh ? '宝石等级' : 'Gem level'}</dt><dd>{mainGem.level}</dd></div>
-            <div><dt>{zh ? '实际等级' : 'Effective level'}</dt><dd>{calcLoading ? '...' : (selectedCalculation?.SkillLevel ?? '-')}</dd></div>
-            <div><dt>{zh ? '品质' : 'Quality'}</dt><dd>{mainGem.quality}%</dd></div>
-            <div><dt>{zh ? '变体' : 'Variant'}</dt><dd>{mainGem.variantId || '-'}</dd></div>
+            <div><dt>{l('Gem level', '宝石等级', '寶石等級', '젬 레벨')}</dt><dd>{mainGem.level}</dd></div>
+            <div><dt>{l('Effective level', '实际等级', '實際等級', '유효 레벨')}</dt><dd>{calcLoading ? '...' : (selectedCalculation?.SkillLevel ?? '-')}</dd></div>
+            <div><dt>{l('Quality', '品质', '品質', '퀄리티')}</dt><dd>{mainGem.quality}%</dd></div>
+            <div><dt>{l('Variant', '变体', '變體', '변형')}</dt><dd>{mainGem.variantId || '-'}</dd></div>
           </dl>
         </section>
         <section className="skill-inspector-section">
-          <h3><span>{zh ? '辅助宝石' : 'Support gems'}</span><small>{supports.length}</small></h3>
+          <h3><span>{l('Support gems', '辅助宝石', '輔助寶石', '보조 젬')}</span><small>{supports.length}</small></h3>
           <div className="skill-support-list">{supports.map((gem, index) => {
             const detail = resolveSkillCatalogEntry(gem, catalog)
             const name = getLocalizedSkillName(gem, detail, lang)

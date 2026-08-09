@@ -1,6 +1,6 @@
 import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { Bookmark, Check, ChevronDown, ChevronRight, Clipboard, PackageOpen, PanelRightOpen, Upload, X } from 'lucide-react'
+import { Bookmark, Check, ChevronDown, ChevronRight, Clipboard, PackageOpen, PanelRightOpen, Search, Upload, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import { decodeCodeToXml } from '@/engine/buildCode'
 import {
@@ -21,12 +21,12 @@ import {
 } from '@/engine/runeDetails'
 import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
+import { LANGUAGE_LOCALES, uiText, type UiMessage } from '@/i18n/uiLocale'
 import { useTreeStore } from '@/store/treeStore'
 import type { EquipmentItem, EquipmentSet, EquipmentSlot } from '@/types/equipment'
 import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
 import type { CalcResult } from '@/types/calc'
 import { inspectEquipment } from '@/engine/pobLuaClient'
-import { equipmentItemToLibrarySnapshot } from '@/engine/equipmentLibrary'
 import {
   fitPaperDoll,
   getActivePaperDollSlots,
@@ -69,23 +69,23 @@ const RARITY_CLASS: Record<string, string> = {
   RELIC: 'rarity-relic',
 }
 
-const ITEM_STAT_LABELS: Record<string, { en: string; zh: string }> = {
-  quality: { en: 'Quality', zh: '品质' },
-  physicalDamage: { en: 'Physical Damage', zh: '物理伤害' },
-  elementalDamage: { en: 'Elemental Damage', zh: '元素伤害' },
-  chaosDamage: { en: 'Chaos Damage', zh: '混沌伤害' },
-  criticalHitChance: { en: 'Critical Hit Chance', zh: '暴击率' },
-  attacksPerSecond: { en: 'Attacks per Second', zh: '每秒攻击次数' },
-  reloadTime: { en: 'Reload Time', zh: '装填时间' },
-  blockChance: { en: 'Chance to Block', zh: '格挡几率' },
-  armour: { en: 'Armour', zh: '护甲' },
-  evasion: { en: 'Evasion Rating', zh: '闪避值' },
-  energyShield: { en: 'Energy Shield', zh: '能量护盾' },
-  runicWard: { en: 'Runic Ward', zh: '符文结界' },
-  lifeRecovery: { en: 'Life Recovery', zh: '生命恢复' },
-  manaRecovery: { en: 'Mana Recovery', zh: '魔力恢复' },
-  duration: { en: 'Duration', zh: '持续时间' },
-  charges: { en: 'Charges Used / Maximum', zh: '消耗充能 / 最大充能' },
+const ITEM_STAT_LABELS: Record<string, UiMessage> = {
+  quality: { en: 'Quality', 'zh-rCN': '品质', 'zh-rTW': '品質', 'ko-KR': '퀄리티' },
+  physicalDamage: { en: 'Physical Damage', 'zh-rCN': '物理伤害', 'zh-rTW': '物理傷害', 'ko-KR': '물리 피해' },
+  elementalDamage: { en: 'Elemental Damage', 'zh-rCN': '元素伤害', 'zh-rTW': '元素傷害', 'ko-KR': '원소 피해' },
+  chaosDamage: { en: 'Chaos Damage', 'zh-rCN': '混沌伤害', 'zh-rTW': '混沌傷害', 'ko-KR': '카오스 피해' },
+  criticalHitChance: { en: 'Critical Hit Chance', 'zh-rCN': '暴击率', 'zh-rTW': '暴擊率', 'ko-KR': '치명타 확률' },
+  attacksPerSecond: { en: 'Attacks per Second', 'zh-rCN': '每秒攻击次数', 'zh-rTW': '每秒攻擊次數', 'ko-KR': '초당 공격 횟수' },
+  reloadTime: { en: 'Reload Time', 'zh-rCN': '装填时间', 'zh-rTW': '裝填時間', 'ko-KR': '재장전 시간' },
+  blockChance: { en: 'Chance to Block', 'zh-rCN': '格挡几率', 'zh-rTW': '格擋機率', 'ko-KR': '막기 확률' },
+  armour: { en: 'Armour', 'zh-rCN': '护甲', 'zh-rTW': '護甲', 'ko-KR': '방어도' },
+  evasion: { en: 'Evasion Rating', 'zh-rCN': '闪避值', 'zh-rTW': '閃避值', 'ko-KR': '회피' },
+  energyShield: { en: 'Energy Shield', 'zh-rCN': '能量护盾', 'zh-rTW': '能量護盾', 'ko-KR': '에너지 보호막' },
+  runicWard: { en: 'Runic Ward', 'zh-rCN': '符文结界', 'zh-rTW': '符文結界', 'ko-KR': '룬 수호' },
+  lifeRecovery: { en: 'Life Recovery', 'zh-rCN': '生命恢复', 'zh-rTW': '生命恢復', 'ko-KR': '생명력 회복' },
+  manaRecovery: { en: 'Mana Recovery', 'zh-rCN': '魔力恢复', 'zh-rTW': '魔力恢復', 'ko-KR': '마나 회복' },
+  duration: { en: 'Duration', 'zh-rCN': '持续时间', 'zh-rTW': '持續時間', 'ko-KR': '지속시간' },
+  charges: { en: 'Charges Used / Maximum', 'zh-rCN': '消耗充能 / 最大充能', 'zh-rTW': '消耗充能 / 最大充能', 'ko-KR': '충전 소모 / 최대' },
 }
 
 const MODIFIER_GROUP_ORDER = ['enchant', 'rune', 'implicit', 'explicit'] as const
@@ -101,9 +101,7 @@ function translateItemName(value: string, rarity: string, language: Language): s
 
 function itemClassLabel(item: EquipmentItem, base: ItemBaseData | undefined, language: Language): string {
   if (/\bQuarterstaff\b/i.test(item.baseType)) {
-    if (language === 'zh-rCN') return '节杖'
-    if (language === 'zh-rTW') return '細杖'
-    return translateGameText('Quarterstaff', language)
+    return ({ en: 'Quarterstaff', 'zh-rCN': '节杖', 'zh-rTW': '細杖', 'ko-KR': '쿼터스태프' } satisfies UiMessage)[language]
   }
   return translateGameText(base?.subType || base?.type || item.baseType, language)
 }
@@ -138,36 +136,36 @@ const OFFENCE_GROUP_ORDER: EquipmentAffixGroup[] = [
   'grantedSkills',
 ]
 
-const AFFIX_GROUP_LABELS: Record<EquipmentAffixGroup, { en: string; zh: string }> = {
-  attack: { en: 'Offence', zh: '进攻' },
-  defence: { en: 'Defence', zh: '防御' },
-  life: { en: 'Life', zh: '生命' },
-  mana: { en: 'Mana', zh: '魔力' },
-  resistances: { en: 'Resistances', zh: '抗性' },
-  defenceOther: { en: 'Other Defences', zh: '其他防御' },
-  attributes: { en: 'Attributes', zh: '属性' },
-  important: { en: 'Important', zh: '重要' },
-  other: { en: 'Other', zh: '其他' },
-  flatDamage: { en: 'Flat Damage', zh: '点伤' },
-  increased: { en: 'Increased', zh: 'Increased' },
-  gain: { en: 'Gain', zh: 'Gain' },
-  moreLess: { en: 'More / Less', zh: 'More / Less' },
-  skillLevels: { en: 'Skill Level +', zh: '技能等级 +' },
-  grantedSkills: { en: 'Granted Skills', zh: '装备技能' },
-  speed: { en: 'Speed', zh: '速度' },
-  critical: { en: 'Critical', zh: '暴击' },
-  accuracyPenetration: { en: 'Accuracy / Penetration', zh: '命中 / 穿透' },
-  ailments: { en: 'Ailments / DoT', zh: '异常 / 持续伤害' },
-  offenceOther: { en: 'Other Offence', zh: '其他进攻' },
+const AFFIX_GROUP_LABELS: Record<EquipmentAffixGroup, UiMessage> = {
+  attack: { en: 'Offence', 'zh-rCN': '进攻', 'zh-rTW': '進攻', 'ko-KR': '공격' },
+  defence: { en: 'Defence', 'zh-rCN': '防御', 'zh-rTW': '防禦', 'ko-KR': '방어' },
+  life: { en: 'Life', 'zh-rCN': '生命', 'zh-rTW': '生命', 'ko-KR': '생명력' },
+  mana: { en: 'Mana', 'zh-rCN': '魔力', 'zh-rTW': '魔力', 'ko-KR': '마나' },
+  resistances: { en: 'Resistances', 'zh-rCN': '抗性', 'zh-rTW': '抗性', 'ko-KR': '저항' },
+  defenceOther: { en: 'Other Defences', 'zh-rCN': '其他防御', 'zh-rTW': '其他防禦', 'ko-KR': '기타 방어' },
+  attributes: { en: 'Attributes', 'zh-rCN': '属性', 'zh-rTW': '屬性', 'ko-KR': '속성' },
+  important: { en: 'Important', 'zh-rCN': '重要', 'zh-rTW': '重要', 'ko-KR': '중요' },
+  other: { en: 'Other', 'zh-rCN': '其他', 'zh-rTW': '其他', 'ko-KR': '기타' },
+  flatDamage: { en: 'Flat Damage', 'zh-rCN': '点伤', 'zh-rTW': '點傷', 'ko-KR': '고정 피해' },
+  increased: { en: 'Increased', 'zh-rCN': '提高', 'zh-rTW': '增加', 'ko-KR': '증가' },
+  gain: { en: 'Gain', 'zh-rCN': '额外获得', 'zh-rTW': '額外獲得', 'ko-KR': '추가 획득' },
+  moreLess: { en: 'More / Less', 'zh-rCN': '总增 / 总降', 'zh-rTW': '更多 / 更少', 'ko-KR': '증폭 / 감폭' },
+  skillLevels: { en: 'Skill Level +', 'zh-rCN': '技能等级 +', 'zh-rTW': '技能等級 +', 'ko-KR': '스킬 레벨 +' },
+  grantedSkills: { en: 'Granted Skills', 'zh-rCN': '装备技能', 'zh-rTW': '裝備技能', 'ko-KR': '부여된 스킬' },
+  speed: { en: 'Speed', 'zh-rCN': '速度', 'zh-rTW': '速度', 'ko-KR': '속도' },
+  critical: { en: 'Critical', 'zh-rCN': '暴击', 'zh-rTW': '暴擊', 'ko-KR': '치명타' },
+  accuracyPenetration: { en: 'Accuracy / Penetration', 'zh-rCN': '命中 / 穿透', 'zh-rTW': '命中 / 穿透', 'ko-KR': '정확도 / 관통' },
+  ailments: { en: 'Ailments / DoT', 'zh-rCN': '异常 / 持续伤害', 'zh-rTW': '異常 / 持續傷害', 'ko-KR': '상태 이상 / 지속 피해' },
+  offenceOther: { en: 'Other Offence', 'zh-rCN': '其他进攻', 'zh-rTW': '其他進攻', 'ko-KR': '기타 공격' },
 }
 
-const RECIPIENT_LABELS = {
-  minion: { en: 'Minion', zh: '召唤物' },
-  companion: { en: 'Companion', zh: '同伴' },
-  ally: { en: 'Allies', zh: '友军' },
-  'player-and-allies': { en: 'You + Allies', zh: '自身与友军' },
-  enemy: { en: 'Enemy', zh: '敌人' },
-} as const
+const RECIPIENT_LABELS: Record<Exclude<NonNullable<EquipmentAffixSummary['recipient']>, 'player'>, UiMessage> = {
+  minion: { en: 'Minion', 'zh-rCN': '召唤物', 'zh-rTW': '召喚物', 'ko-KR': '소환수' },
+  companion: { en: 'Companion', 'zh-rCN': '同伴', 'zh-rTW': '同伴', 'ko-KR': '동료' },
+  ally: { en: 'Allies', 'zh-rCN': '友军', 'zh-rTW': '友軍', 'ko-KR': '동료' },
+  'player-and-allies': { en: 'You + Allies', 'zh-rCN': '自身与友军', 'zh-rTW': '自身與友軍', 'ko-KR': '나와 동료' },
+  enemy: { en: 'Enemy', 'zh-rCN': '敌人', 'zh-rTW': '敵人', 'ko-KR': '적' },
+}
 
 const IMPORTANT_AFFIX_PATTERN = /accuracy|chance to hit|penetrat|enemies?.*resistance|resistance.*enemies?|breaks? armour|armour break|ignore[sd]? armour|damage over time|bleed(?:ing)?|poison|ignite|命中|穿透|敌人.*抗性|抗性.*敌人|减抗|破甲|无视护甲|持续伤害|流血|中毒|点燃/i
 const BONDED_AFFIX_PATTERN = /^\s*(?:bonded|羁绊)\s*[:：]/i
@@ -232,19 +230,19 @@ function AffixSummaryRow({
     <div className={`equipment-affix ${expanded ? 'expanded' : ''}`}>
       <button className="equipment-affix-row" type="button" onClick={onToggle} aria-expanded={expanded}>
         <ChevronRight />
-        <span>{recipient && <em className="equipment-affix-recipient">{lang === 'zh-rCN' ? recipient.zh : recipient.en}</em>}{translatedText}</span>
+        <span>{recipient && <em className="equipment-affix-recipient">{recipient[lang]}</em>}{translatedText}</span>
         <small>{summary.sources.length > 1 ? summary.sources.length : ''}</small>
       </button>
       {expanded && <div className="equipment-affix-sources">
         {summary.sources.map((source, index) => {
           const socketSlot = getSocketSlotInfo(source.slotName)
           const slotLabel = socketSlot
-            ? `${t(SLOT_KEYS[socketSlot.parent] || socketSlot.parent)} · ${lang === 'zh-rCN' ? '珠宝' : 'Jewel'} ${socketSlot.index}`
+            ? `${t(SLOT_KEYS[socketSlot.parent] || socketSlot.parent)} · ${uiText(lang, 'Jewel', '珠宝', '珠寶', '주얼')} ${socketSlot.index}`
             : t(SLOT_KEYS[source.slotName] || source.slotName)
           return <button key={`${source.itemId}-${source.line}-${index}`} type="button" onClick={() => onSelectSource(source.itemId)}>
             <span>{slotLabel}</span>
             <strong>{translateGameText(source.itemName, lang)}</strong>
-            {source.rune && <i>{lang === 'zh-rCN' ? '符文' : 'Rune'}</i>}
+            {source.rune && <i>{uiText(lang, 'Rune', '符文', '符文', '룬')}</i>}
           </button>
         })}
       </div>}
@@ -263,11 +261,11 @@ function CharacterSummary({ result, loading, error, onCalculate }: {
   onCalculate: () => void
 }) {
   const { lang } = useTranslation()
-  const zh = lang === 'zh-rCN'
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
 
-  if (loading) return <div className="equipment-character-state">{zh ? '人物数据计算中' : 'Calculating character stats'}</div>
-  if (error) return <div className="equipment-character-state error"><span>{error}</span><button type="button" onClick={onCalculate}>{zh ? '重新计算' : 'Retry'}</button></div>
-  if (!result) return <div className="equipment-character-state"><button type="button" onClick={onCalculate}>{zh ? '计算人物数据' : 'Calculate character stats'}</button></div>
+  if (loading) return <div className="equipment-character-state">{l('Calculating character stats', '人物数据计算中', '正在計算角色數據', '캐릭터 능력치 계산 중')}</div>
+  if (error) return <div className="equipment-character-state error"><span>{error}</span><button type="button" onClick={onCalculate}>{l('Retry', '重新计算', '重新計算', '다시 계산')}</button></div>
+  if (!result) return <div className="equipment-character-state"><button type="button" onClick={onCalculate}>{l('Calculate character stats', '计算人物数据', '計算角色數據', '캐릭터 능력치 계산')}</button></div>
 
   const movement = (result.EffectiveMovementSpeedMod ?? result.MovementSpeedMod ?? 1) * 100
   const block = result.EffectiveBlockChance ?? result.BlockChance
@@ -277,35 +275,35 @@ function CharacterSummary({ result, loading, error, onCalculate }: {
 
   return <div className="equipment-character-summary">
     <section>
-      <h3>{zh ? '属性' : 'Attributes'}</h3>
+      <h3>{l('Attributes', '属性', '屬性', '속성')}</h3>
       {rows([
-        [zh ? '属性' : 'Attributes', `${characterNumber(result.Str)}/${characterNumber(result.Dex)}/${characterNumber(result.Int)}`],
-        [zh ? '移动速度' : 'Movement Speed', characterNumber(movement, '%')],
+        [l('Attributes', '属性', '屬性', '속성'), `${characterNumber(result.Str)}/${characterNumber(result.Dex)}/${characterNumber(result.Int)}`],
+        [l('Movement Speed', '移动速度', '移動速度', '이동 속도'), characterNumber(movement, '%')],
       ])}
     </section>
     <section>
-      <h3>{zh ? '防御' : 'Defence'}</h3>
+      <h3>{l('Defence', '防御', '防禦', '방어')}</h3>
       {rows([
-        [zh ? '生命值' : 'Life', characterNumber(result.Life)],
-        [zh ? '能量护盾' : 'Energy Shield', characterNumber(result.EnergyShield)],
-        [zh ? '精神' : 'Spirit', characterNumber(result.Spirit)],
-        [zh ? '魔力' : 'Mana', characterNumber(result.Mana)],
-        [zh ? '护甲' : 'Armour', characterNumber(result.Armour)],
-        [zh ? '物理伤害减免' : 'Physical Damage Reduction', characterNumber(result.PhysicalDamageReduction ?? result.ArmourPhysicalDamageReduction, '%')],
-        [zh ? '闪避值' : 'Evasion Rating', characterNumber(result.Evasion)],
-        [zh ? '闪避率' : 'Evade Chance', characterNumber(result.EvadeChance, '%')],
-        [zh ? '偏斜几率' : 'Deflect Chance', characterNumber(result.DeflectChance, '%')],
-        [zh ? '偏斜效果' : 'Deflect Effect', characterNumber(result.DeflectEffect, '%')],
-        [zh ? '格挡率' : 'Block Chance', characterNumber(block, '%')],
-        [zh ? '抗性' : 'Resistances', `${characterNumber(result.FireResist, '%')}/${characterNumber(result.ColdResist, '%')}/${characterNumber(result.LightningResist, '%')}/${characterNumber(result.ChaosResist, '%')}`],
+        [l('Life', '生命值', '生命', '생명력'), characterNumber(result.Life)],
+        [l('Energy Shield', '能量护盾', '能量護盾', '에너지 보호막'), characterNumber(result.EnergyShield)],
+        [l('Spirit', '精魂', '精魂', '정신력'), characterNumber(result.Spirit)],
+        [l('Mana', '魔力', '魔力', '마나'), characterNumber(result.Mana)],
+        [l('Armour', '护甲', '護甲', '방어도'), characterNumber(result.Armour)],
+        [l('Physical Damage Reduction', '物理伤害减免', '物理傷害減免', '물리 피해 감소'), characterNumber(result.PhysicalDamageReduction ?? result.ArmourPhysicalDamageReduction, '%')],
+        [l('Evasion Rating', '闪避值', '閃避值', '회피'), characterNumber(result.Evasion)],
+        [l('Evade Chance', '闪避率', '閃避率', '회피 확률'), characterNumber(result.EvadeChance, '%')],
+        [l('Deflect Chance', '偏斜几率', '偏斜機率', '빗겨내기 확률'), characterNumber(result.DeflectChance, '%')],
+        [l('Deflect Effect', '偏斜效果', '偏斜效果', '빗겨내기 효과'), characterNumber(result.DeflectEffect, '%')],
+        [l('Block Chance', '格挡率', '格擋率', '막기 확률'), characterNumber(block, '%')],
+        [l('Resistances', '抗性', '抗性', '저항'), `${characterNumber(result.FireResist, '%')}/${characterNumber(result.ColdResist, '%')}/${characterNumber(result.LightningResist, '%')}/${characterNumber(result.ChaosResist, '%')}`],
       ])}
     </section>
     <section>
-      <h3>{zh ? '充能' : 'Charges'}</h3>
+      <h3>{l('Charges', '充能球', '充能球', '충전')}</h3>
       {rows([
-        [zh ? '暴击球数量上限' : 'Maximum Power Charges', characterNumber(result.PowerChargesMax)],
-        [zh ? '狂怒球数量上限' : 'Maximum Frenzy Charges', characterNumber(result.FrenzyChargesMax)],
-        [zh ? '耐力球数量上限' : 'Maximum Endurance Charges', characterNumber(result.EnduranceChargesMax)],
+        [l('Maximum Power Charges', '暴击球数量上限', '暴擊球數量上限', '최대 권능 충전'), characterNumber(result.PowerChargesMax)],
+        [l('Maximum Frenzy Charges', '狂怒球数量上限', '狂怒球數量上限', '최대 격분 충전'), characterNumber(result.FrenzyChargesMax)],
+        [l('Maximum Endurance Charges', '耐力球数量上限', '耐力球數量上限', '최대 인내 충전'), characterNumber(result.EnduranceChargesMax)],
       ])}
     </section>
   </div>
@@ -351,6 +349,7 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
   onCalculate: () => void
 }) {
   const { t, lang } = useTranslation()
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const groupOrder = semanticView === 'offence'
     ? OFFENCE_GROUP_ORDER
     : semanticView === 'defence' ? DEFENCE_GROUP_ORDER : []
@@ -359,17 +358,17 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
     <aside className="equipment-loadouts">
       <div className="equipment-affix-heading">
         <span>{semanticView === 'character'
-          ? (lang === 'zh-rCN' ? '人物面板' : 'Character')
-          : (lang === 'zh-rCN' ? '已装备词缀' : 'Equipped modifiers')}</span>
-        <strong>{lang === 'zh-rCN' ? `武器组 ${weaponSet === 1 ? 'I' : 'II'}` : `Weapon set ${weaponSet === 1 ? 'I' : 'II'}`}</strong>
+          ? l('Character', '人物面板', '角色面板', '캐릭터')
+          : l('Equipped modifiers', '已装备词缀', '已裝備詞綴', '장착 속성')}</span>
+        <strong>{l('Weapon set', '武器组', '武器組', '무기 세트')} {weaponSet === 1 ? 'I' : 'II'}</strong>
       </div>
-      <div className="equipment-semantic-tabs" role="tablist" aria-label={lang === 'zh-rCN' ? '装备词缀视图' : 'Equipment modifier view'}>
+      <div className="equipment-semantic-tabs" role="tablist" aria-label={l('Equipment modifier view', '装备词缀视图', '裝備詞綴檢視', '장비 속성 보기')}>
         {(['character', 'offence', 'defence'] as const).map((view) => {
           const label = view === 'character'
-            ? (lang === 'zh-rCN' ? '人物' : 'Character')
+            ? l('Character', '人物', '角色', '캐릭터')
             : view === 'offence'
-            ? (lang === 'zh-rCN' ? '进攻' : 'Offence')
-            : (lang === 'zh-rCN' ? '防御' : 'Defence')
+            ? l('Offence', '进攻', '進攻', '공격')
+            : l('Defence', '防御', '防禦', '방어')
           return <button
             key={view}
             type="button"
@@ -382,7 +381,7 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
       </div>
       {semanticView === 'character' ? <CharacterSummary result={calcResult} loading={calcLoading} error={calcError} onCalculate={onCalculate} /> : <>
       <label className="equipment-loadout-select">
-        <span>{lang === 'zh-rCN' ? '装备方案' : 'Loadout'}</span>
+        <span>{l('Loadout', '装备方案', '裝備配置', '장비 구성')}</span>
         <select value={activeSet.id} onChange={(event) => onSelectSet(event.target.value)}>
           {itemSets.map((set, index) => {
             const title = /^Set \d+$/i.test(set.title) ? t('equipment.defaultSet', { number: index + 1 }) : set.title
@@ -403,7 +402,7 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
               onClick={() => onToggleCategory(group)}
               aria-expanded={!collapsed}
             >
-              <span>{lang === 'zh-rCN' ? label.zh : label.en}</span>
+              <span>{label[lang]}</span>
               <small>{summaries.length}</small>
               {collapsed ? <ChevronRight /> : <ChevronDown />}
             </button>
@@ -417,8 +416,8 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
           </section>
         })}
         {!affixCount && <div className="equipment-affix-empty">{semanticsLoading
-          ? (lang === 'zh-rCN' ? '装备数据分析中' : 'Analysing equipment')
-          : (lang === 'zh-rCN' ? '当前装备没有可汇总的词缀' : 'No equipped modifiers to summarize')}</div>}
+          ? l('Analysing equipment', '装备数据分析中', '正在分析裝備數據', '장비 분석 중')
+          : l('No equipped modifiers to summarize', '当前装备没有可汇总的词缀', '目前裝備沒有可彙總的詞綴', '요약할 장착 속성이 없습니다')}</div>}
       </div>
       </>}
     </aside>
@@ -443,6 +442,7 @@ function SocketedRunes({
   onSelectSocketedItem?: (item: EquipmentItem) => void
 }) {
   const { lang } = useTranslation()
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   useTreeStore((state) => state.translationRevision)
   const [tooltip, setTooltip] = useState<{
     x: number
@@ -465,18 +465,34 @@ function SocketedRunes({
   const socketCount = Math.max(item.socketCount, socketContents.length)
   if (!socketCount) return null
 
-  const typeLabel = (value: string) => {
-    if (lang !== 'zh-rCN') return value
-    return ({ Rune: '符文', SoulCore: '灵魂核心', Idol: '雕像', CongealedMist: '凝结迷雾', Jewel: '珠宝', Skill: '技能' } as Record<string, string>)[value] || value
+  const typeLabels: Record<string, UiMessage> = {
+    Rune: { en: 'Rune', 'zh-rCN': '符文', 'zh-rTW': '符文', 'ko-KR': '룬' },
+    SoulCore: { en: 'Soul Core', 'zh-rCN': '灵魂核心', 'zh-rTW': '靈魂核心', 'ko-KR': '영혼 핵' },
+    Idol: { en: 'Idol', 'zh-rCN': '雕像', 'zh-rTW': '雕像', 'ko-KR': '우상' },
+    CongealedMist: { en: 'Congealed Mist', 'zh-rCN': '凝结迷雾', 'zh-rTW': '凝結迷霧', 'ko-KR': '응결된 안개' },
+    Jewel: { en: 'Jewel', 'zh-rCN': '珠宝', 'zh-rTW': '珠寶', 'ko-KR': '주얼' },
+    Skill: { en: 'Skill', 'zh-rCN': '技能', 'zh-rTW': '技能', 'ko-KR': '스킬' },
   }
-  const categoryLabel = (value: string) => {
-    if (lang !== 'zh-rCN') return value
-    return ({ weapon: '武器', wand: '法杖', staff: '长杖', sceptre: '权杖', shield: '盾牌', buckler: '圆盾', armour: '护甲', helmet: '头盔', 'body armour': '胸甲', gloves: '手套', boots: '鞋子', skill: '装备授予' } as Record<string, string>)[value] || value
+  const categoryLabels: Record<string, UiMessage> = {
+    weapon: { en: 'Weapon', 'zh-rCN': '武器', 'zh-rTW': '武器', 'ko-KR': '무기' },
+    wand: { en: 'Wand', 'zh-rCN': '法杖', 'zh-rTW': '法杖', 'ko-KR': '마법봉' },
+    staff: { en: 'Staff', 'zh-rCN': '长杖', 'zh-rTW': '長杖', 'ko-KR': '지팡이' },
+    sceptre: { en: 'Sceptre', 'zh-rCN': '权杖', 'zh-rTW': '權杖', 'ko-KR': '셉터' },
+    shield: { en: 'Shield', 'zh-rCN': '盾牌', 'zh-rTW': '盾牌', 'ko-KR': '방패' },
+    buckler: { en: 'Buckler', 'zh-rCN': '圆盾', 'zh-rTW': '圓盾', 'ko-KR': '버클러' },
+    armour: { en: 'Armour', 'zh-rCN': '护甲', 'zh-rTW': '護甲', 'ko-KR': '방어구' },
+    helmet: { en: 'Helmet', 'zh-rCN': '头盔', 'zh-rTW': '頭盔', 'ko-KR': '투구' },
+    'body armour': { en: 'Body Armour', 'zh-rCN': '胸甲', 'zh-rTW': '胸甲', 'ko-KR': '갑옷' },
+    gloves: { en: 'Gloves', 'zh-rCN': '手套', 'zh-rTW': '手套', 'ko-KR': '장갑' },
+    boots: { en: 'Boots', 'zh-rCN': '鞋子', 'zh-rTW': '鞋子', 'ko-KR': '장화' },
+    skill: { en: 'Granted by equipment', 'zh-rCN': '装备授予', 'zh-rTW': '裝備賦予', 'ko-KR': '장비 부여' },
   }
+  const typeLabel = (value: string) => typeLabels[value]?.[lang] || translateGameText(value, lang)
+  const categoryLabel = (value: string) => categoryLabels[value.toLowerCase()]?.[lang] || translateGameText(value, lang)
   const translateRuneStat = (value: string) => {
     if (!value.startsWith('Bonded:')) return translateGameText(value, lang)
     const translated = translateGameText(value.slice('Bonded:'.length).trim(), lang)
-    return lang === 'zh-rCN' ? `羁绊：${translated}` : `Bonded: ${translated}`
+    return `${l('Bonded', '羁绊', '羈絆', '결속')}: ${translated}`
   }
 
   return (
@@ -522,10 +538,10 @@ function SocketedRunes({
               })
             }}
           >
-            <span className="rune-socket" aria-label={label || 'Empty socket'}>
+            <span className="rune-socket" aria-label={label || l('Empty socket', '空插槽', '空插槽', '빈 홈')}>
               <FallbackImage src={imageUrl} alt={label} fallback={<span>{socketedItem ? 'J' : (rune ? 'R' : '')}</span>} />
             </span>
-            {!compact && <span className="socket-copy"><strong>{label || 'Empty'}</strong><small>{socketedItem ? `${typeLabel('Jewel')} · ${tooltipCategory}` : (resolved ? `${typeLabel(resolved.variant.type)} · ${categoryLabel(resolved.category)}` : (rune ? 'Rune / Soul Core / Idol' : 'Empty socket'))}</small></span>}
+            {!compact && <span className="socket-copy"><strong>{label || l('Empty', '空', '空', '비어 있음')}</strong><small>{socketedItem ? `${typeLabel('Jewel')} · ${tooltipCategory}` : (resolved ? `${typeLabel(resolved.variant.type)} · ${categoryLabel(resolved.category)}` : (rune ? `${typeLabel('Rune')} / ${typeLabel('SoulCore')} / ${typeLabel('Idol')}` : l('Empty socket', '空插槽', '空插槽', '빈 홈')))}</small></span>}
           </span>
         )
       })}
@@ -541,7 +557,7 @@ function SocketedRunes({
           </header>
           {tooltip.stats.length
             ? <div className="rune-tooltip-stats">{tooltip.stats.map((stat, statIndex) => <p key={`${stat}-${statIndex}`} className={stat.startsWith('Bonded:') || stat.startsWith('羁绊：') ? 'bonded' : ''}>{stat}</p>)}</div>
-            : <p className="rune-tooltip-empty">{lang === 'zh-rCN' ? '暂无可用的详细词条' : 'No detailed modifier data available'}</p>}
+            : <p className="rune-tooltip-empty">{l('No detailed modifier data available', '暂无可用的详细词条', '暫無可用的詳細詞綴', '사용 가능한 상세 속성이 없습니다')}</p>}
         </div>,
         document.body,
       )}
@@ -549,8 +565,9 @@ function SocketedRunes({
   )
 }
 
-function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketedItems, onSave, onClose }: { item: EquipmentItem; base?: ItemBaseData; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; onSave: () => Promise<void>; onClose: () => void }) {
+function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketedItems, onSave, onPriceCheck, onClose }: { item: EquipmentItem; base?: ItemBaseData; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; onSave: () => Promise<void>; onPriceCheck: () => void; onClose: () => void }) {
   const { t, lang } = useTranslation()
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
   useTreeStore((state) => state.translationRevision)
@@ -568,9 +585,9 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
   const requirements = base?.requirements || {}
   const displayRequirements = deriveItemDisplayRequirements(item, base)
   const attributeRequirements = ([
-    ['str', '力量', 'Str'],
-    ['dex', '敏捷', 'Dex'],
-    ['int', '智慧', 'Int'],
+    ['str', l('Str', '力量', '力量', '힘')],
+    ['dex', l('Dex', '敏捷', '敏捷', '민첩')],
+    ['int', l('Int', '智慧', '智慧', '지능')],
   ] as const).filter(([field]) => requirements[field])
   const propertyType = itemClassLabel(item, base, lang)
   const handleCopyToPob = useCallback(async () => {
@@ -584,6 +601,11 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
     }
   }, [item.raw])
 
+  useEffect(() => {
+    setCopyState('idle')
+    setSaveState('idle')
+  }, [item.id])
+
   return (
     <aside className="equipment-inspector equipment-inspector-floating">
       <header className={`inspector-title item-header-${rarityKey} ${runicHeader ? 'runic-item-header' : ''} ${rarityClass}`}>
@@ -593,19 +615,28 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
         </div>
       </header>
 
-      <div className="equipment-inspector-actions" role="toolbar" aria-label={lang === 'zh-rCN' ? '装备功能' : 'Item actions'}>
+      <div className="equipment-inspector-actions" role="toolbar" aria-label={l('Item actions', '装备功能', '裝備功能', '아이템 작업')}>
         <button
           type="button"
           className="equipment-copy-pob"
-          disabled={saveState === 'saving'}
+          disabled={saveState === 'saving' || saveState === 'saved'}
           onClick={() => {
             setSaveState('saving')
             void onSave().then(() => setSaveState('saved')).catch(() => setSaveState('error'))
           }}
-          title={lang === 'zh-rCN' ? '收藏到仓库' : 'Save to library'}
+          title={l('Save to library', '收藏到仓库', '收藏至倉庫', '보관함에 저장')}
         >
           {saveState === 'saved' ? <Check /> : <Bookmark />}
-          <span>{lang === 'zh-rCN' ? (saveState === 'saved' ? '已收藏到仓库' : saveState === 'error' ? '收藏失败' : '收藏到仓库') : (saveState === 'saved' ? 'Saved to library' : saveState === 'error' ? 'Save failed' : 'Save to library')}</span>
+          <span>{saveState === 'saved' ? l('Saved', '已收藏', '已收藏', '저장됨') : saveState === 'error' ? l('Save failed', '收藏失败', '收藏失敗', '저장 실패') : l('Save to library', '收藏到仓库', '收藏至倉庫', '보관함에 저장')}</span>
+        </button>
+        <button
+          type="button"
+          className="equipment-copy-pob"
+          onClick={onPriceCheck}
+          title={l('Configure price check', '选择词条并查价', '選擇詞綴並查價', '속성을 선택하여 가격 확인')}
+        >
+          <Search />
+          <span>{l('Price check', '查价', '查價', '가격 확인')}</span>
         </button>
         <button
           type="button"
@@ -632,7 +663,7 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
         </div>
         {displayStats.length > 0 && <div className="item-display-stats">
           {displayStats.map((stat) => <div key={stat.key}>
-            <span>{ITEM_STAT_LABELS[stat.key]?.[lang === 'zh-rCN' ? 'zh' : 'en'] || stat.key}:</span>
+            <span>{ITEM_STAT_LABELS[stat.key]?.[lang] || stat.key}:</span>
             <strong className={[stat.tone ? `stat-${stat.tone}` : '', stat.augmented ? 'stat-augmented' : ''].filter(Boolean).join(' ')}>
               {stat.segments
                 ? stat.segments.map((segment, index) => <span className={`stat-${segment.tone}`} key={`${segment.tone}-${segment.value}`}>{index ? ', ' : ''}{segment.value}</span>)
@@ -642,13 +673,11 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
         </div>}
         <div className="item-metadata">
           {item.levelReq && <span>{t('equipment.levelReq', { value: item.levelReq })}</span>}
-          {attributeRequirements.map(([field, zhLabel, enLabel]) => {
+          {attributeRequirements.map(([field, label]) => {
             const value = displayRequirements[field] || requirements[field]
             const augmented = value !== requirements[field]
             return <span key={field}>
-              {lang === 'zh-rCN'
-                ? <><strong className={augmented ? 'requirement-augmented' : ''}>{value}</strong> {zhLabel}</>
-                : <>{enLabel} <strong className={augmented ? 'requirement-augmented' : ''}>{value}</strong></>}
+              {label} <strong className={augmented ? 'requirement-augmented' : ''}>{value}</strong>
             </span>
           })}
           {item.sockets && <span>{t('equipment.sockets', { value: item.sockets })}</span>}
@@ -670,7 +699,7 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
         </div>}
 
         {!!Math.max(item.socketCount, socketedItems?.length || 0) && <>
-          <div className="inspector-section-title"><span>{lang === 'zh-rCN' ? '孔位镶嵌物' : 'Socketed items'}</span><small>{Math.max(item.socketCount, item.runes.length + (socketedItems?.length || 0))}</small></div>
+          <div className="inspector-section-title"><span>{l('Socketed items', '孔位镶嵌物', '插槽鑲嵌物', '홈에 장착된 아이템')}</span><small>{Math.max(item.socketCount, item.runes.length + (socketedItems?.length || 0))}</small></div>
           <SocketedRunes item={item} index={itemIconIndex} details={runeDetails} slotName={slotName} socketedItems={socketedItems} />
         </>}
       </div>
@@ -757,8 +786,9 @@ function usePaperDollSize() {
   return { hostRef, size }
 }
 
-export function EquipmentPanel({ buildId }: { buildId?: string | null }) {
+export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string | null; realm?: 'cn' | 'global' }) {
   const { t, lang } = useTranslation()
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
   const calcResult = useTreeStore((state) => state.calcResult)
   const calcLoading = useTreeStore((state) => state.calcLoading)
@@ -865,14 +895,14 @@ export function EquipmentPanel({ buildId }: { buildId?: string | null }) {
   const saveItem = useCallback(async (item: EquipmentItem, slotName?: string) => {
     if (!window.pob2Market || !activeSet) throw new Error('Equipment library is unavailable')
     const iconUrl = resolveItemIcon(item, itemIconIndex)
-    const libraryLocale = lang === 'zh-rCN' ? 'zh-CN' : lang === 'zh-rTW' ? 'zh-TW' : lang === 'ko-KR' ? 'ko-KR' : undefined
+    const libraryLocale = lang === 'en' ? undefined : LANGUAGE_LOCALES[lang]
     await window.pob2Market.saveEquipmentItem({
-      item: equipmentItemToLibrarySnapshot(item, iconUrl, libraryLocale ? {
-        locale: libraryLocale,
+      raw: item.raw,
+      iconUrl,
+      ...(libraryLocale ? { localized: { [libraryLocale]: {
         name: translateItemName(item.name || item.baseType, item.rarity, lang),
         baseType: translateGameText(item.baseType || item.name, lang),
-        translate: (text) => translateGameText(text, lang),
-      } : undefined),
+      } } } : {}),
       source: { kind: 'equipment-favorite', buildId: libraryBuildId, equipmentSetId: activeSet.id, itemId: item.id, slotName },
     })
   }, [activeSet, itemIconIndex, lang, libraryBuildId])
@@ -993,13 +1023,13 @@ export function EquipmentPanel({ buildId }: { buildId?: string | null }) {
         <header className="paper-doll-heading">
           <span>{t('equipment.title')}</span>
           <div className="paper-doll-heading-actions">
-            <small>{lang === 'zh-rCN' ? '选择装备查看完整属性' : 'Select an item to inspect its properties'}</small>
+            <small>{l('Select an item to inspect its properties', '选择装备查看完整属性', '選擇裝備以查看完整屬性', '아이템을 선택하여 전체 속성을 확인하세요')}</small>
             {!inspectorOpen && selected && <button
               type="button"
               className="equipment-inspector-toggle"
               onClick={() => setInspectorOpen(true)}
-              title={lang === 'zh-rCN' ? '打开装备详情' : 'Open item details'}
-              aria-label={lang === 'zh-rCN' ? '打开装备详情' : 'Open item details'}
+              title={l('Open item details', '打开装备详情', '開啟裝備詳情', '아이템 상세 정보 열기')}
+              aria-label={l('Open item details', '打开装备详情', '開啟裝備詳情', '아이템 상세 정보 열기')}
             ><PanelRightOpen /></button>}
           </div>
         </header>
@@ -1019,7 +1049,7 @@ export function EquipmentPanel({ buildId }: { buildId?: string | null }) {
             />}
             {PAPER_DOLL_WEAPON_SET_CONTROLS.map((control) => {
               const roman = control.weaponSet === 1 ? 'I' : 'II'
-              const label = lang === 'zh-rCN' ? `切换到武器组 ${roman}` : `Switch to weapon set ${roman}`
+              const label = `${l('Switch to weapon set', '切换到武器组', '切換至武器組', '무기 세트로 전환')} ${roman}`
               return <button
                 key={`${control.side}-${control.weaponSet}`}
                 type="button"
@@ -1057,6 +1087,7 @@ export function EquipmentPanel({ buildId }: { buildId?: string | null }) {
       </div>
 
       {inspectorOpen && selected && <ItemDetail
+        key={selected.id}
         item={selected}
         base={resolveItemBaseData(selected.baseType, itemBases)}
         itemIconIndex={itemIconIndex}
@@ -1064,6 +1095,7 @@ export function EquipmentPanel({ buildId }: { buildId?: string | null }) {
         slotName={selectedSlotName}
         socketedItems={selectedSlotName ? socketedItemsForSlot(selectedSlotName) : []}
         onSave={() => saveItem(selected, selectedSlotName)}
+        onPriceCheck={() => { void window.superpoePriceCheck?.open({ source: { kind: 'raw', raw: selected.raw } }) }}
         onClose={() => setInspectorOpen(false)}
       />}
     </section>

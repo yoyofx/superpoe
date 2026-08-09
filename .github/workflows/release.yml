@@ -74,8 +74,8 @@ jobs:
 
           # Strip optional leading v
           version="${raw#v}"
-          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid version '${raw}'. Expected semver like 0.5.0 or v0.5.0-beta.1" >&2
+          if [[ ! "${version}" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "Invalid release version '${raw}'. Use a three-part SemVer tag such as v0.5.2 or v0.5.2-beta.1. The four-part product display version v0.5.0.2 is not a package/release version." >&2
             exit 1
           fi
 
@@ -178,6 +178,8 @@ jobs:
 
       - name: Verify pinned PoB runtime
         run: npm run verify:lua
+      - name: Audit translation coverage
+        run: npm run verify:translations -- --limit 10
 
       - name: Verify prebuilt LuaJIT sidecar
         run: node scripts/ensure_luajit_sidecar.mjs

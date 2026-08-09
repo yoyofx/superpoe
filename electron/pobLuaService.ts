@@ -3,6 +3,7 @@ import { createInterface, type Interface as ReadlineInterface } from 'node:readl
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
+import type { CanonicalEquipmentItem, CanonicalItemView } from '../src/types/market.js'
 
 interface SidecarResponse {
   id?: number
@@ -18,6 +19,13 @@ export interface PobLuaStatus {
   available: boolean
   backend: 'luajit' | 'wasmoon'
   runtime?: string
+  error?: string
+}
+
+export interface PobItemNormalizationResult {
+  success: boolean
+  item?: CanonicalEquipmentItem
+  view?: CanonicalItemView
   error?: string
 }
 
@@ -187,6 +195,12 @@ export class PobLuaService {
     const status = await this.initialize()
     if (!status.available || !this.child) throw new Error(status.error || 'LuaJIT sidecar is unavailable')
     return this.request('rankSkills', input)
+  }
+
+  async normalizeItem(raw: string): Promise<PobItemNormalizationResult> {
+    const status = await this.initialize()
+    if (!status.available || !this.child) throw new Error(status.error || 'LuaJIT sidecar is unavailable')
+    return this.request('normalizeItem', { raw }) as Promise<PobItemNormalizationResult>
   }
 
   private request(type: string, payload: unknown): Promise<unknown> {

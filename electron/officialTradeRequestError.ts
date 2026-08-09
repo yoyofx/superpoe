@@ -1,6 +1,7 @@
 export class OfficialTradeRequestError extends Error {
-  constructor(readonly status: number) {
-    super(`Official trade request failed (${status})`)
+  constructor(readonly status: number, readonly detail?: string) {
+    const normalizedDetail = detail?.replace(/\s+/g, ' ').trim().slice(0, 240)
+    super(`Official trade request failed (${status})${normalizedDetail ? `: ${normalizedDetail}` : ''}`)
     this.name = 'OfficialTradeRequestError'
   }
 }

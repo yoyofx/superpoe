@@ -1,6 +1,10 @@
 import { ipcRenderer } from 'electron'
 import { parseLiveResult } from './marketLive.js'
 import { MAX_ACTIVE_PURCHASE_TARGETS } from '../src/types/market.js'
+import { desktopText, isUiLanguage, type UiLanguage } from './uiLocale.js'
+
+let language: UiLanguage = 'en'
+const l = (en: string, zhCN: string, zhTW: string, koKR: string) => desktopText(language, en, zhCN, zhTW, koKR)
 
 interface MonitorConfig {
   searchId: string
@@ -224,10 +228,10 @@ function applyButtonState(button: HTMLButtonElement, state: FavoriteVisualState)
   button.disabled = state === 'pending'
   button.textContent = state === 'active' ? '★' : state === 'pending' ? '…' : '☆'
   button.title = state === 'active'
-    ? '从 SuperPoE2 装备仓库移除市场收藏来源'
+    ? l('Remove the market favorite source from the SuperPoE2 equipment library', '从 SuperPoE2 装备仓库移除市场收藏来源', '從 SuperPoE2 裝備倉庫移除市集收藏來源', 'SuperPoE2 장비 보관함에서 거래소 즐겨찾기 출처 제거')
     : state === 'error'
-      ? '收藏失败，点击重试'
-      : '收藏到 SuperPoE2 装备仓库'
+      ? l('Save failed; click to retry', '收藏失败，点击重试', '收藏失敗，點擊重試', '저장 실패, 클릭하여 다시 시도')
+      : l('Save to the SuperPoE2 equipment library', '收藏到 SuperPoE2 装备仓库', '收藏至 SuperPoE2 裝備倉庫', 'SuperPoE2 장비 보관함에 저장')
   button.dataset.tooltip = button.title
   button.setAttribute('aria-label', button.title)
 }
@@ -366,9 +370,18 @@ ipcRenderer.on('market-enhancement:favorite-result', (_event, payload: unknown) 
   if (typeof result.error === 'string') {
     const message = result.error.slice(0, 240)
     for (const button of buttonsByListing.get(result.listingId) || []) {
-      button.title = `收藏失败：${message}`
+      button.title = `${l('Save failed', '收藏失败', '收藏失敗', '저장 실패')}：${message}`
       button.setAttribute('aria-label', button.title)
     }
+  }
+})
+
+ipcRenderer.on('market-enhancement:set-language', (_event, value: unknown) => {
+  if (!isUiLanguage(value)) return
+  language = value
+  for (const [listingId, buttons] of buttonsByListing) {
+    const state = stateByListing.get(listingId) || 'idle'
+    for (const button of buttons) applyButtonState(button, state)
   }
 })
 

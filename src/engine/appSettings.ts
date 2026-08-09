@@ -1,4 +1,5 @@
 import type { BuildRealm } from '@/types/tree'
+import { mapSystemRealm } from '@/engine/systemLocale'
 
 export type UpdateChannel = 'release' | 'dev'
 
@@ -18,15 +19,21 @@ export interface AppSettings {
   updateCheckIntervalMinutes: number
   /** User-configured GitHub proxy domains (unioned with built-in list) */
   proxyDomains: string[]
+  priceCheckEnabled: boolean
+  priceCheckHotkey: string
 }
 
-const DEFAULT_APP_SETTINGS: AppSettings = {
-  defaultRealm: 'global',
-  confirmUnsavedExit: true,
-  uiScalePercent: DEFAULT_UI_SCALE_PERCENT,
-  updateChannel: 'release',
-  updateCheckIntervalMinutes: 60,
-  proxyDomains: [],
+function getDefaultAppSettings(): AppSettings {
+  return {
+    defaultRealm: mapSystemRealm(),
+    confirmUnsavedExit: true,
+    uiScalePercent: DEFAULT_UI_SCALE_PERCENT,
+    updateChannel: 'release',
+    updateCheckIntervalMinutes: 60,
+    proxyDomains: [],
+    priceCheckEnabled: false,
+    priceCheckHotkey: 'Ctrl+D',
+  }
 }
 
 interface SettingsStorage {
@@ -41,7 +48,7 @@ export function normalizeUiScalePercent(value: unknown): number {
 }
 
 export function loadAppSettings(storage: SettingsStorage | undefined = typeof localStorage === 'undefined' ? undefined : localStorage): AppSettings {
-  if (!storage) return DEFAULT_APP_SETTINGS
+  if (!storage) return getDefaultAppSettings()
   try {
     const parsed = JSON.parse(storage.getItem(APP_SETTINGS_STORAGE_KEY) || '{}') as Partial<AppSettings>
     return {
@@ -53,9 +60,11 @@ export function loadAppSettings(storage: SettingsStorage | undefined = typeof lo
       proxyDomains: Array.isArray(parsed.proxyDomains)
         ? parsed.proxyDomains.filter((d): d is string => typeof d === 'string' && d.trim().length > 0).map((d) => d.trim().replace(/\/+$/, ''))
         : [],
+      priceCheckEnabled: parsed.priceCheckEnabled === true,
+      priceCheckHotkey: typeof parsed.priceCheckHotkey === 'string' && parsed.priceCheckHotkey.trim() ? parsed.priceCheckHotkey.trim().slice(0, 64) : 'Ctrl+D',
     }
   } catch {
-    return DEFAULT_APP_SETTINGS
+    return getDefaultAppSettings()
   }
 }
 

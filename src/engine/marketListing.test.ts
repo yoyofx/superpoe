@@ -27,16 +27,17 @@ describe('official market listing normalization', () => {
     })
 
     expect(result.source).toMatchObject({ leagueId: 'Standard', price: { amount: 2.5, currency: 'divine' } })
-    expect(result.item.quality).toBe(20)
-    expect(result.item.modifiers.map((modifier) => modifier.group)).toEqual(['implicit', 'explicit', 'explicit', 'explicit'])
-    expect(result.item.modifiers[1].tradeResolutions[0]).toMatchObject({
+    expect(result.item.preview.quality).toBe(20)
+    expect(result.item.preview.modifiers.map((modifier) => modifier.group)).toEqual(['implicit', 'explicit', 'explicit', 'explicit'])
+    expect(result.item.preview.modifiers[1].tradeResolutions[0]).toMatchObject({
       queryStatId: 'explicit.stat_3299347043', baseStatId: 'explicit.stat_3299347043', status: 'resolved',
     })
-    expect(result.item.modifiers[2].tradeResolutions[0]).toMatchObject({
+    expect(result.item.preview.modifiers[2].tradeResolutions[0]).toMatchObject({
       queryStatId: 'explicit.stat_200|3', baseStatId: 'explicit.stat_200', optionId: '3', valueMode: 'fixed-option', status: 'resolved',
     })
-    expect(result.item.modifiers[2].currentValues).toEqual([])
-    expect(result.item.modifiers[3].sourceTags).toEqual(['crafted'])
+    expect(result.item.preview.modifiers[2].currentValues).toEqual([])
+    expect(result.item.preview.modifiers[3].sourceTags).toEqual(['crafted'])
+    expect(result.item.raw).toContain('+109 to maximum Life')
   })
 
   it('keeps duplicate official candidates ambiguous instead of selecting one', () => {
@@ -46,7 +47,7 @@ describe('official market listing normalization', () => {
     } }] }, {
       realm: 'cn', listingId: 'listing_1234', sourceUrl: 'https://poe.game.qq.com/trade2/search/poe2/Standard/query_5678',
     })
-    expect(result.item.modifiers[0].tradeResolutions[0]).toMatchObject({
+    expect(result.item.preview.modifiers[0].tradeResolutions[0]).toMatchObject({
       status: 'ambiguous', candidateStatIds: ['explicit.stat_1', 'explicit.stat_2'],
     })
   })
@@ -63,12 +64,43 @@ describe('official market listing normalization', () => {
     } }] }, {
       realm: 'cn', listingId: 'listing_1234', queryId: 'query_5678',
       sourceUrl: 'https://poe.game.qq.com/trade2/search/poe2/Standard/query_5678',
-    })
+    }, (value) => value === '懦夫护甲' ? 'Dastard Armour' : undefined, (value) => ({
+      '药剂的魔力回复提高 20%': '20% increased Mana Recovery from Flasks',
+      '+128 护甲': '+128 to Armour',
+    }[value]))
 
-    expect(result.item.modifiers.map((modifier) => modifier.original.displayText)).toEqual(['药剂的魔力回复提高 20%', '+128 护甲'])
-    expect(result.item.modifiers[1]).toMatchObject({
+    expect(result.item.preview.modifiers.map((modifier) => modifier.original.displayText)).toEqual(['药剂的魔力回复提高 20%', '+128 护甲'])
+    expect(result.item.preview.modifiers[1]).toMatchObject({
       affixKind: 'prefix', tier: { name: '电镀的', rank: 6, level: 33 }, tierRanges: [{ min: 108, max: 140 }],
       tradeResolutions: [{ queryStatId: 'explicit.stat_809229260', status: 'resolved' }],
     })
+    expect(result.item.raw).toContain('Dastard Armour')
+    expect(result.item.raw).toContain('+128 to Armour')
+  })
+
+  it('never writes an untranslated CN rare name into PoB raw', () => {
+    const result = normalizeMarketListing({ result: [{ id: 'listing_1234', item: {
+      rarity: 'RARE', name: '\u66b4\u6012 \u4e4b\u672f', baseType: '\u795e\u5723\u957f\u6756', explicitMods: [],
+    } }] }, {
+      realm: 'cn', listingId: 'listing_1234', sourceUrl: 'https://poe.game.qq.com/trade2/search/poe2/Standard/query_5678',
+    }, (value) => ({ '\u66b4\u6012 \u4e4b\u672f': 'Wrath Spell', '\u795e\u5723\u957f\u6756': 'Sanctified Staff' }[value]))
+
+    expect(result.item.raw).toContain('Wrath Spell\nSanctified Staff')
+    expect(result.item.raw).not.toMatch(/[\u3400-\u9fff?]/)
+  })
+
+  it('recovers placeholder modifier text from the official stat hash', () => {
+    const result = normalizeMarketListing({ result: [{ id: 'listing_1234', item: {
+      rarity: 'UNIQUE', name: 'Mageblood', baseType: 'Utility Belt',
+      explicitMods: ['?????? (??????-??????) 继承'],
+      extended: { hashes: { explicit: [['explicit.stat_264262054|4', [0]]] } },
+    } }] }, {
+      realm: 'cn', listingId: 'listing_1234', sourceUrl: 'https://poe.game.qq.com/trade2/search/poe2/Standard/query_5678',
+    }, undefined, undefined, (id) => id === 'explicit.stat_264262054|4'
+      ? { displayText: '钻石 继承', canonicalText: 'Legacy of Diamond' }
+      : undefined)
+
+    expect(result.item.preview.modifiers[0].original.displayText).toBe('钻石 继承')
+    expect(result.item.raw).toContain('Legacy of Diamond')
   })
 })

@@ -15,7 +15,9 @@ describe('build realm metadata', () => {
   })
 
   it('provides stable localized labels', () => {
-    expect(buildRealmLabel('cn', true)).toBe('腾讯服')
-    expect(buildRealmLabel('global', false)).toBe('Global')
+    expect(buildRealmLabel('cn', 'zh-rCN')).toBe('腾讯服')
+    expect(buildRealmLabel('global', 'en')).toBe('Global')
+    expect(buildRealmLabel('cn', 'zh-rTW')).toBe('騰訊服')
+    expect(buildRealmLabel('global', 'ko-KR')).toBe('글로벌')
   })
 })

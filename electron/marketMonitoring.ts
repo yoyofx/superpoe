@@ -412,12 +412,13 @@ export class MarketMonitoringCoordinator {
           })
           candidate.status = 'actionable'
           candidate.fetchedAt = new Date().toISOString()
+          const preview = normalized.item.preview
           candidate.item = {
-            name: normalized.item.name, baseType: normalized.item.baseType, rarity: normalized.item.rarity,
+            name: preview.name, baseType: preview.baseType, rarity: preview.rarity,
             iconUrl: normalized.item.iconUrl, price: normalized.source.price?.display,
-            itemLevel: normalized.item.itemLevel, quality: normalized.item.quality, sockets: normalized.item.sockets,
-            corrupted: normalized.item.corrupted, identified: normalized.item.identified,
-            modifiers: normalized.item.modifiers,
+            itemLevel: preview.itemLevel, quality: preview.quality, sockets: preview.sockets,
+            corrupted: preview.corrupted, identified: preview.identified,
+            modifiers: preview.modifiers,
           }
           actionable.push(candidate)
         } catch { candidate.status = 'unavailable' }

@@ -125,6 +125,8 @@ jobs:
 
       - name: Verify pinned PoB runtime
         run: npm run verify:lua
+      - name: Audit translation coverage
+        run: npm run verify:translations -- --limit 10
 
       - name: Verify prebuilt LuaJIT sidecar
         run: node scripts/ensure_luajit_sidecar.mjs

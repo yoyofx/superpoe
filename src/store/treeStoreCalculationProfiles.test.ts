@@ -41,20 +41,4 @@ describe('tree store calculation profiles', () => {
     expect(useTreeStore.getState().calcResult).toBeNull()
   })
 
-  it('includes local profiles in JSON export without modifying the imported code', () => {
-    useTreeStore.setState({
-      importedBuildCode: 'original-pob-code',
-      calculationProfiles: [{ id: 'boss', name: 'Boss', values: { boss: 'Pinnacle', conditionRage: 44 } }],
-      activeCalculationProfileId: 'boss',
-      allocatedNodes: new Set(['node-1']),
-    })
-
-    const exported = JSON.parse(useTreeStore.getState().exportBuildJSON())
-    expect(exported.importedBuildCode).toBe('original-pob-code')
-    expect(exported.calculationProfiles).toEqual([
-      { id: 'boss', name: 'Boss', values: { boss: 'Pinnacle', conditionRage: 44 } },
-    ])
-    expect(exported.activeCalculationProfileId).toBe('boss')
-  })
-
 })

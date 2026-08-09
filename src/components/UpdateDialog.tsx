@@ -2,12 +2,15 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Download, RefreshCw, X } from 'lucide-react'
 import type { UpdateInfo } from '@/electron'
 import type { AppSettings } from '@/engine/appSettings'
+import { useTranslation } from '@/i18n/useTranslation'
+import { formatUiDate, uiText } from '@/i18n/uiLocale'
 
 interface UpdateDialogProps {
   settings: AppSettings
 }
 
 export function UpdateDialog({ settings }: UpdateDialogProps) {
+  const { lang } = useTranslation()
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [showPrompt, setShowPrompt] = useState(false)
   const [downloading, setDownloading] = useState(false)
@@ -92,35 +95,32 @@ export function UpdateDialog({ settings }: UpdateDialogProps) {
 
   if (!showPrompt || !updateInfo) return null
 
-  const zh = document.documentElement.lang === 'zh-rCN' ||
-    navigator.language.startsWith('zh')
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
 
   return (
     <div className="modal-backdrop" role="presentation">
       <section className="workflow-dialog update-dialog" role="dialog" aria-modal="true" aria-labelledby="update-dialog-title">
         <header className="dialog-header">
           <div>
-            <span>{zh ? '应用更新' : 'Application Update'}</span>
+            <span>{l('Application Update', '应用更新', '應用程式更新', '애플리케이션 업데이트')}</span>
             <h2 id="update-dialog-title">
-              {zh ? '发现新版本' : 'Update Available'}
+              {l('Update Available', '发现新版本', '發現新版本', '업데이트 사용 가능')}
             </h2>
           </div>
-          {!downloading && <button className="icon-command" onClick={handleDismiss} aria-label={zh ? '关闭' : 'Close'}><X /></button>}
+          {!downloading && <button className="icon-command" onClick={handleDismiss} aria-label={l('Close', '关闭', '關閉', '닫기')}><X /></button>}
         </header>
 
         <div className="settings-body">
           <div className="update-info">
             <p>
-              {zh
-                ? `新版本 ${updateInfo.version} 可用（当前版本：${updateInfo.currentVersion}）`
-                : `Version ${updateInfo.version} is available (current: ${updateInfo.currentVersion})`}
+              {l(`Version ${updateInfo.version} is available (current: ${updateInfo.currentVersion})`, `新版本 ${updateInfo.version} 可用（当前版本：${updateInfo.currentVersion}）`, `新版本 ${updateInfo.version} 可用（目前版本：${updateInfo.currentVersion}）`, `새 버전 ${updateInfo.version}을 사용할 수 있습니다 (현재: ${updateInfo.currentVersion})`)}
             </p>
             <p className="update-channel-label">
-              {zh ? '更新通道' : 'Channel'}: <strong>{updateInfo.channel === 'dev' ? (zh ? '预览通道' : 'Dev') : (zh ? '正式通道' : 'Release')}</strong>
+              {l('Channel', '更新通道', '更新頻道', '채널')}: <strong>{updateInfo.channel === 'dev' ? l('Dev', '预览通道', '預覽頻道', '개발') : l('Release', '正式通道', '正式頻道', '정식')}</strong>
             </p>
             {updateInfo.releaseDate && (
               <p className="update-date">
-                {zh ? '发布时间' : 'Released'}: {new Date(updateInfo.releaseDate).toLocaleDateString()}
+                {l('Released', '发布时间', '發布時間', '출시일')}: {formatUiDate(updateInfo.releaseDate, lang)}
               </p>
             )}
           </div>
@@ -135,7 +135,7 @@ export function UpdateDialog({ settings }: UpdateDialogProps) {
           )}
 
           {error && (
-            <p className="update-error">{zh ? '下载失败' : 'Download failed'}: {error}</p>
+            <p className="update-error">{l('Download failed', '下载失败', '下載失敗', '다운로드 실패')}: {error}</p>
           )}
         </div>
 
@@ -143,15 +143,15 @@ export function UpdateDialog({ settings }: UpdateDialogProps) {
           <span />
           {downloading ? (
             <button className="secondary-command" disabled>
-              <Download /> {zh ? '下载中...' : 'Downloading...'}
+              <Download /> {l('Downloading...', '下载中...', '下載中...', '다운로드 중...')}
             </button>
           ) : (
             <>
               <button className="secondary-command" onClick={handleDismiss}>
-                {zh ? '稍后提醒' : 'Later'}
+                {l('Later', '稍后提醒', '稍後提醒', '나중에')}
               </button>
               <button className="primary-command" onClick={handleUpdate}>
-                <RefreshCw /> {zh ? '立即更新' : 'Update Now'}
+                <RefreshCw /> {l('Update Now', '立即更新', '立即更新', '지금 업데이트')}
               </button>
             </>
           )}

@@ -5,6 +5,7 @@ import type { MarketDomListingRef, MarketSearchReference, MarketVisitHideoutResu
 import { TradeCredentialStore } from './tradeCredentialStore.js'
 import { isGameOfflineVisitError, OfficialTradeRequestError } from './officialTradeRequestError.js'
 import { createSearchQuerySnapshot, parseOfficialSearchUrl, withSearchSnapshot } from './marketSearch.js'
+import type { UiLanguage } from './uiLocale.js'
 
 export type MarketRealm = 'cn' | 'global'
 export type MarketNavigationCommand = 'back' | 'forward' | 'reload' | 'stop' | 'home'
@@ -81,7 +82,10 @@ export class MarketViewManager {
   private readonly views = new Map<MarketRealm, WebContentsView>()
   private activeView: WebContentsView | null = null
   private activeRealm: MarketRealm = 'global'
+  private language: UiLanguage = 'en'
   private attached = false
+  private visible = false
+  private disposed = false
   private bounds: Rectangle = { x: 0, y: 0, width: 1, height: 1 }
   private readonly sessionStates = new Map<MarketRealm, { status: MarketViewState['sessionStatus']; checkedAt: number }>()
   private readonly sessionChecks = new Map<MarketRealm, Promise<MarketViewState['sessionStatus']>>()
@@ -96,7 +100,7 @@ export class MarketViewManager {
   ) {
     window.on('minimize', () => this.detach())
     window.on('restore', () => {
-      if (this.activeView) this.attach(this.activeView)
+      if (this.visible && this.activeView) this.attach(this.activeView)
     })
   }
 
@@ -107,13 +111,21 @@ export class MarketViewManager {
     this.detach()
     const view = this.getOrCreateView(realm)
     this.activeView = view
-    this.attach(view)
+    if (this.visible) this.attach(view)
     void this.loadHomeIfNeeded(view, MARKET_PROFILES[realm])
     void this.publishState(view, realm)
   }
 
+  setLanguage(language: UiLanguage): void {
+    this.language = language
+    for (const view of this.views.values()) {
+      if (!view.webContents.isDestroyed()) view.webContents.send('market-enhancement:set-language', language)
+    }
+  }
+
   activate(bounds: Rectangle): void {
     this.bounds = bounds
+    this.visible = true
     const view = this.getOrCreateView(this.activeRealm)
     if (this.activeView !== view) this.detach()
     this.activeView = view
@@ -124,6 +136,7 @@ export class MarketViewManager {
   }
 
   deactivate(): void {
+    this.visible = false
     this.detach()
   }
 
@@ -281,6 +294,9 @@ export class MarketViewManager {
   }
 
   dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
+    this.visible = false
     this.detach()
     for (const view of this.views.values()) {
       if (!view.webContents.isDestroyed()) view.webContents.close()
@@ -306,6 +322,9 @@ export class MarketViewManager {
     })
     view.setBackgroundColor('#090b0c')
     this.configureWebContents(view.webContents, profile)
+    view.webContents.on('did-finish-load', () => {
+      if (!view.webContents.isDestroyed()) view.webContents.send('market-enhancement:set-language', this.language)
+    })
     this.views.set(realm, view)
     return view
   }
@@ -401,6 +420,7 @@ export class MarketViewManager {
   }
 
   private attach(view: WebContentsView): void {
+    if (this.disposed || !this.visible || this.window.isDestroyed() || view.webContents.isDestroyed()) return
     if (!this.attached) {
       this.window.contentView.addChildView(view)
       this.attached = true
@@ -409,10 +429,11 @@ export class MarketViewManager {
   }
 
   private detach(): void {
-    if (this.activeView && this.attached) {
-      this.window.contentView.removeChildView(this.activeView)
-      this.attached = false
-    }
+    if (!this.activeView || !this.attached) return
+    const view = this.activeView
+    this.attached = false
+    if (this.window.isDestroyed() || view.webContents.isDestroyed()) return
+    this.window.contentView.removeChildView(view)
   }
 
   private async publishStateFor(contents: WebContents, realm: MarketRealm, error?: string): Promise<void> {
@@ -507,8 +528,20 @@ export class MarketViewManager {
     if (view.webContents.isDestroyed()) throw new Error('Market session is unavailable')
     await this.ensureSessionRestored(view.webContents, MARKET_PROFILES[realm])
     const response = await view.webContents.session.fetch(url, init)
-    if (!response.ok) throw new OfficialTradeRequestError(response.status)
     const text = await response.text()
+    if (!response.ok) {
+      let detail: string | undefined
+      try {
+        const payload = JSON.parse(text) as { error?: unknown; message?: unknown }
+        const error = payload.error && typeof payload.error === 'object' ? payload.error as { message?: unknown } : undefined
+        const message = error?.message ?? payload.message ?? (typeof payload.error === 'string' ? payload.error : undefined)
+        if (typeof message === 'string') detail = message
+      } catch {
+        const compact = text.replace(/\s+/g, ' ').trim()
+        if (compact && !/^<!doctype html/i.test(compact)) detail = compact.slice(0, 240)
+      }
+      throw new OfficialTradeRequestError(response.status, detail)
+    }
     if (text.length > 5_000_000) throw new Error('Official trade response is too large')
     return JSON.parse(text) as unknown
   }
