@@ -594,6 +594,21 @@ function createWindow(): BrowserWindow {
         opportunityOverlay?.updateSnapshot(snapshot)
       },
       actionable: (opportunities) => opportunityOverlay?.actionable(opportunities),
+      normalizeListing: async (payload, ref) => {
+        let resolveStatText: (queryStatId: string) => MarketStatTextResolution | undefined = () => undefined
+        try {
+          resolveStatText = await createMarketStatTextResolver(ref.realm)
+        } catch {
+          // Raw official listing text remains usable when the reference catalog is unavailable.
+        }
+        return normalizeMarketListing(
+          payload,
+          ref,
+          ref.realm === 'cn' ? (text) => itemTranslations.toEnglish(text) : undefined,
+          ref.realm === 'cn' ? (text) => itemTranslations.statToEnglish(text) : undefined,
+          resolveStatText,
+        )
+      },
     },
   )
   gameWindowService = new GameWindowService()
@@ -895,6 +910,14 @@ async function savePriceCheckListing(ref: MarketDomListingRef) {
 
 if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   Menu.setApplicationMenu(null)
+  ipcMain.on('pob2:get-system-locale', (event) => {
+    const applicationLocale = app.getLocale()
+    const systemLocale = app.getSystemLocale()
+    // Prefer a Chinese/Korean application locale when available. Windows can
+    // expose a different legacy system code-page locale (for example zh-MO)
+    // even while the user's active UI/region is zh-CN.
+    event.returnValue = /^(?:zh|ko)(?:[-_]|$)/i.test(applicationLocale) ? applicationLocale : systemLocale
+  })
   try {
     const saved = JSON.parse(readFileSync(path.join(userDataPath, 'price-check', 'settings.json'), 'utf8')) as { enabled?: unknown; hotkey?: unknown }
     registerPriceCheckHotkey(saved.enabled === true, typeof saved.hotkey === 'string' ? saved.hotkey : 'Ctrl+D')

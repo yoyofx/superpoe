@@ -12,8 +12,8 @@ function createStorage(initial?: string) {
 
 describe('global app settings', () => {
   it('loads defaults for empty or invalid storage', () => {
-    expect(loadAppSettings(createStorage())).toMatchObject({ confirmUnsavedExit: true, uiScalePercent: 100, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [] })
-    expect(loadAppSettings(createStorage('{invalid'))).toMatchObject({ confirmUnsavedExit: true, uiScalePercent: 100, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [] })
+    expect(loadAppSettings(createStorage())).toMatchObject({ confirmUnsavedExit: true, uiScalePercent: 120, updateChannel: 'dev', updateCheckIntervalMinutes: 60, proxyDomains: [], priceCheckEnabled: true })
+    expect(loadAppSettings(createStorage('{invalid'))).toMatchObject({ confirmUnsavedExit: true, uiScalePercent: 120, updateChannel: 'dev', updateCheckIntervalMinutes: 60, proxyDomains: [], priceCheckEnabled: true })
   })
 
   it('persists supported settings', () => {

@@ -529,6 +529,9 @@ export class MarketViewManager {
     await this.ensureSessionRestored(view.webContents, MARKET_PROFILES[realm])
     const response = await view.webContents.session.fetch(url, init)
     const text = await response.text()
+    if (process.env.ELECTRON_RENDERER_URL && /\/api\/trade2\/(fetch|whisper)(?:\/|$)/.test(url)) {
+      console.info(`[Market API] ${init.method || 'GET'} ${url} status=${response.status} bytes=${text.length}`)
+    }
     if (!response.ok) {
       let detail: string | undefined
       try {
@@ -543,6 +546,10 @@ export class MarketViewManager {
       throw new OfficialTradeRequestError(response.status, detail)
     }
     if (text.length > 5_000_000) throw new Error('Official trade response is too large')
+    // The whisper endpoint can acknowledge a request with 204 or an empty
+    // body. It is still a successful HTTP response and must not be parsed as
+    // JSON, otherwise a sent whisper is reported as a validation failure.
+    if (!text.trim()) return null
     return JSON.parse(text) as unknown
   }
 }

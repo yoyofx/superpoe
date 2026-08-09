@@ -10,6 +10,8 @@ SuperPoE2 是面向 Path of Exile 2 的 Electron 桌面构筑规划工具。它�
 - 使用本地 PoB2 Lua 运行时计算；桌面版优先使用常驻 LuaJIT sidecar，失败时回退到 Web Worker + Wasmoon。
 - 在交易中心内浏览官方集市、管理统一装备仓库、保存搜索、监控 Live 挂单并显示机会提醒。
 
+项目官网位于 [`website/`](./website/)，与桌面端独立部署。开发预览使用 `npm run dev:website`，生产构建使用 `npm run build:website`；它是纯静态页面，不需要 API、登录或数据库。
+
 产品完成度和后续里程碑见 [`docs/ROADMAP.md`](./docs/ROADMAP.md)，当前任务看板见 [`docs/TASKS.md`](./docs/TASKS.md)。
 
 ## Electron 桌面版

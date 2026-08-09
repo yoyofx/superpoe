@@ -17,11 +17,16 @@ import type {
   PurchaseTargetStatus,
   SavedMarketSearch,
   MarketSoundId,
+  MarketDomListingRef,
 } from '../src/types/market.js'
 import { MAX_ACTIVE_PURCHASE_TARGETS } from '../src/types/market.js'
 import { EquipmentLibraryRepository } from './equipmentLibraryRepository.js'
 import { normalizeMarketListing } from './marketListing.js'
+import { OfficialTradeRequestError } from './officialTradeRequestError.js'
 import type { MarketViewManager } from './marketView.js'
+
+type ListingNormalizer = (payload: unknown, ref: MarketDomListingRef) =>
+  ReturnType<typeof normalizeMarketListing> | Promise<ReturnType<typeof normalizeMarketListing>>
 
 interface MonitoringFile {
   schemaVersion: 1 | 2
@@ -88,6 +93,7 @@ export class MarketMonitoringCoordinator {
     private readonly callbacks: {
       changed: (snapshot: MarketMonitoringSnapshot) => void
       actionable: (opportunities: MarketOpportunity[]) => void
+      normalizeListing?: ListingNormalizer
     },
   ) {
     this.load()
@@ -306,7 +312,11 @@ export class MarketMonitoringCoordinator {
     try {
       const result = await this.manager.visitHideout(ref)
       if (!result.ok) {
-        opportunity.status = 'error'
+        // A 400 means the game client is offline or the character is not in
+        // a hideout. The listing is still retryable, so do not turn it into a
+        // terminal validation error.
+        opportunity.status = 'actionable'
+        this.scheduleSave()
         this.emitChanged()
         return 'game-offline'
       }
@@ -316,12 +326,23 @@ export class MarketMonitoringCoordinator {
       this.emitChanged()
       return 'attempted'
     } catch (error) {
+      if (process.env.ELECTRON_RENDERER_URL) {
+        const detail = error instanceof Error ? error.message : String(error)
+        console.warn(`[Market monitor] visit hideout failed realm=${opportunity.realm} listing=${opportunity.listingId}: ${detail}`)
+      }
       const message = error instanceof Error ? error.message.toLowerCase() : ''
       const unavailable = message.includes('hideout token') || message.includes('listing') && message.includes('not')
-      opportunity.status = unavailable ? 'unavailable' : 'error'
+      const status = error instanceof OfficialTradeRequestError ? error.status : undefined
+      const loginRequired = status === 401 || status === 403
+      const rateLimited = status === 429
+      const gone = status === 404 || status === 410
+      opportunity.status = unavailable || gone ? 'unavailable' : 'error'
       this.scheduleSave()
       this.emitChanged()
-      return unavailable ? 'unavailable' : 'error'
+      if (unavailable || gone) return 'unavailable'
+      if (loginRequired) return 'login-required'
+      if (rateLimited) return 'rate-limited'
+      return 'error'
     }
   }
 
@@ -405,9 +426,9 @@ export class MarketMonitoringCoordinator {
       const candidates = created.filter((opportunity) => opportunity.targetId === entry.target.id).slice(0, 30)
       for (const candidate of candidates) candidate.status = 'fetching'
       this.emitChanged()
-      const applyPayload = (candidate: MarketOpportunity, payload: unknown) => {
+      const applyPayload = async (candidate: MarketOpportunity, payload: unknown) => {
         try {
-          const normalized = normalizeMarketListing(payload, {
+          const normalized = await (this.callbacks.normalizeListing || ((value, ref) => normalizeMarketListing(value, ref)))(payload, {
             realm: candidate.realm, listingId: candidate.listingId, queryId: candidate.searchCode, sourceUrl: entry.target.search.canonicalUrl,
           })
           candidate.status = 'actionable'
@@ -421,17 +442,23 @@ export class MarketMonitoringCoordinator {
             modifiers: preview.modifiers,
           }
           actionable.push(candidate)
-        } catch { candidate.status = 'unavailable' }
+        } catch (error) {
+          candidate.status = 'unavailable'
+          if (process.env.ELECTRON_RENDERER_URL) {
+            const message = error instanceof Error ? error.message : String(error)
+            console.warn(`[Market monitor] listing normalization failed realm=${candidate.realm} listing=${candidate.listingId}: ${message}`)
+          }
+        }
       }
       for (const candidate of candidates.filter((item) => prefetchedPayloads.has(item.id))) {
-        applyPayload(candidate, prefetchedPayloads.get(candidate.id))
+        await applyPayload(candidate, prefetchedPayloads.get(candidate.id))
       }
       const fetchCandidates = candidates.filter((item) => !prefetchedPayloads.has(item.id))
       for (let index = 0; index < fetchCandidates.length; index += 10) {
         const batch = fetchCandidates.slice(index, index + 10)
         try {
           const payload = await this.manager.fetchListings(entry.target.search.realm, batch.map((candidate) => candidate.listingId), entry.target.search.searchCode)
-          for (const candidate of batch) applyPayload(candidate, payload)
+          for (const candidate of batch) await applyPayload(candidate, payload)
         } catch {
           for (const candidate of batch) candidate.status = 'error'
         }

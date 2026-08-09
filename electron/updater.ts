@@ -335,17 +335,37 @@ async function downloadAndInstall(info: UpdateInfo): Promise<void> {
   try {
     const tempDir = path.join(app.getPath('temp'), 'superpoe-update')
     if (!existsSync(tempDir)) mkdirSync(tempDir, { recursive: true })
-    const destPath = path.join(tempDir, info.fileName)
-
-    if (existsSync(destPath)) {
-      try { unlinkSync(destPath) } catch { /* ignore */ }
+    // Some older electron-builder manifests used `-Setup`, while the
+    // uploaded Windows installer uses `.Setup`. Try both names so an
+    // otherwise valid update is not blocked by a stale/mismatched manifest.
+    const fileNames = [info.fileName]
+    if (process.platform === 'win32' && /[-.]Setup\./i.test(info.fileName)) {
+      const alternate = info.fileName.replace(/-Setup\./i, '.Setup.')
+      if (!fileNames.includes(alternate)) fileNames.push(alternate)
     }
 
-    sendToAllWindows('updater:download-progress', 0)
-
-    await downloadWithProxyFallback(info.downloadUrl, destPath, (percent) => {
-      sendToAllWindows('updater:download-progress', percent)
-    })
+    let destPath = ''
+    let lastError: unknown
+    for (const [index, fileName] of fileNames.entries()) {
+      const candidatePath = path.join(tempDir, fileName)
+      if (existsSync(candidatePath)) {
+        try { unlinkSync(candidatePath) } catch { /* ignore */ }
+      }
+      sendToAllWindows('updater:download-progress', 0)
+      const candidateUrl = index === 0
+        ? info.downloadUrl
+        : getAssetDownloadUrl(info.channel, fileName, info.version)
+      try {
+        await downloadWithProxyFallback(candidateUrl, candidatePath, (percent) => {
+          sendToAllWindows('updater:download-progress', percent)
+        })
+        destPath = candidatePath
+        break
+      } catch (error) {
+        lastError = error
+      }
+    }
+    if (!destPath) throw lastError instanceof Error ? lastError : new Error('Update download failed')
 
     sendToAllWindows('updater:download-complete')
 

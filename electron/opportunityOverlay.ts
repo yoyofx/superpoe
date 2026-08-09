@@ -176,6 +176,8 @@ export class OpportunityOverlayController {
         this.statusMessage = result === 'attempted' ? desktopText(this.language, 'Hideout request sent; this does not confirm a purchase', '已发送藏身处请求，不代表购买成功', '已傳送藏身處請求，不代表購買成功', '은신처 요청을 보냈습니다. 구매 성공을 의미하지 않습니다')
           : result === 'game-offline' ? desktopText(this.language, 'The game is offline; try again after entering the game', '游戏未在线，进入游戏后可再次尝试', '遊戲未上線，進入遊戲後可再次嘗試', '게임이 오프라인입니다. 게임 접속 후 다시 시도하세요')
             : result === 'unavailable' ? desktopText(this.language, 'The listing may no longer be available', '挂单可能已经失效', '掛單可能已失效', '매물이 더 이상 유효하지 않을 수 있습니다')
+              : result === 'login-required' ? desktopText(this.language, 'Trade login is required', '交易站登录已失效，请重新登录', '交易站登入已失效，請重新登入', '거래소 로그인이 필요합니다')
+                : result === 'rate-limited' ? desktopText(this.language, 'Too many requests; try again shortly', '请求过于频繁，请稍后重试', '請求過於頻繁，請稍後重試', '요청이 너무 많습니다. 잠시 후 다시 시도하세요')
               : desktopText(this.language, 'Request failed; check your login and try again', '请求失败，请检查登录状态后重试', '請求失敗，請檢查登入狀態後重試', '요청에 실패했습니다. 로그인 상태를 확인하고 다시 시도하세요')
         if (this.snapshot) this.updateSnapshot(this.snapshot)
       })

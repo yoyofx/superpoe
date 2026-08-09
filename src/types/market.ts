@@ -441,7 +441,7 @@ export interface OpportunityOverlayState {
   statusMessage?: string
 }
 
-export type MarketOpportunityAttemptResult = 'attempted' | 'game-offline' | 'unavailable' | 'error'
+export type MarketOpportunityAttemptResult = 'attempted' | 'game-offline' | 'unavailable' | 'login-required' | 'rate-limited' | 'error'
 
 export interface MarketDomListingRef {
   realm: MarketRealm
