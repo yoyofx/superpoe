@@ -107,6 +107,12 @@ function normalizeText(value: string | undefined, maxLength: number): string | u
   return normalized.slice(0, maxLength)
 }
 
+function nextUpdatedAt(previous: string): string {
+  const now = Date.now()
+  const previousMs = Date.parse(previous)
+  return new Date(Math.max(now, Number.isFinite(previousMs) ? previousMs + 1 : now)).toISOString()
+}
+
 function normalizeTags(tags: string[] | undefined): string[] {
   if (!Array.isArray(tags)) return []
   return [...new Set(tags.map((tag) => normalizeText(tag, MAX_TAG_LENGTH)).filter((tag): tag is string => !!tag))].slice(0, MAX_TAGS)
@@ -560,7 +566,7 @@ export class EquipmentLibraryRepository {
       search.monitorStatus = patch.monitorStatus
     }
     if (patch.monitorPriority && ['high', 'normal', 'low'].includes(patch.monitorPriority)) search.monitorPriority = patch.monitorPriority
-    search.updatedAt = new Date().toISOString()
+    search.updatedAt = nextUpdatedAt(search.updatedAt)
     this.save()
     return structuredClone(search)
   }
