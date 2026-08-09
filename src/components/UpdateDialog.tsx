@@ -16,30 +16,34 @@ export function UpdateDialog({ settings }: UpdateDialogProps) {
   const [downloading, setDownloading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
+  const [forceInstall, setForceInstall] = useState(true)
   const configSyncedRef = useRef(false)
 
-  // Sync config and proxy domains to main process whenever settings change
+  // Sync update timing to the main process whenever settings change.
+  // Downloads use the built-in proxy fallback; custom proxy domains are no
+  // longer exposed or applied.
   useEffect(() => {
     if (!window.pob2Updater) return
     window.pob2Updater.setConfig({
       channel: settings.updateChannel,
       intervalMinutes: settings.updateCheckIntervalMinutes,
     })
-    window.pob2Updater.setProxyDomains(settings.proxyDomains)
     if (configSyncedRef.current) {
       window.pob2Updater.restartTimer()
     }
     configSyncedRef.current = true
-  }, [settings.updateChannel, settings.updateCheckIntervalMinutes, settings.proxyDomains])
+  }, [settings.updateChannel, settings.updateCheckIntervalMinutes])
 
   // Listen for update-available from main process (periodic check)
   useEffect(() => {
     if (!window.pob2Updater) return
     const off = window.pob2Updater.onUpdateAvailable((info) => {
       setUpdateInfo(info)
+      setForceInstall(true)
       setShowPrompt(true)
       setError(null)
     })
+    window.pob2Updater.ready()
     return off
   }, [])
 
@@ -48,6 +52,7 @@ export function UpdateDialog({ settings }: UpdateDialogProps) {
     const handler = (e: Event) => {
       if (e instanceof CustomEvent && e.detail) {
         setUpdateInfo(e.detail as UpdateInfo)
+        setForceInstall(true)
         setShowPrompt(true)
         setError(null)
       }
@@ -84,8 +89,8 @@ export function UpdateDialog({ settings }: UpdateDialogProps) {
     setDownloading(true)
     setProgress(0)
     setError(null)
-    void window.pob2Updater.download(updateInfo)
-  }, [updateInfo])
+    void window.pob2Updater.download(updateInfo, { forceInstall })
+  }, [forceInstall, updateInfo])
 
   const handleDismiss = useCallback(() => {
     setShowPrompt(false)
@@ -124,6 +129,18 @@ export function UpdateDialog({ settings }: UpdateDialogProps) {
               </p>
             )}
           </div>
+
+          <label className="settings-row settings-toggle-row">
+            <span>
+              {l('Install automatically', '自动安装', '自動安裝', '자동 설치')}
+            </span>
+            <input
+              type="checkbox"
+              checked={forceInstall}
+              disabled={downloading}
+              onChange={(event) => setForceInstall(event.target.checked)}
+            />
+          </label>
 
           {downloading && (
             <div className="update-progress">

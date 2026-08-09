@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FileCog, Globe2, Info, Keyboard, Languages, MonitorCog, Plus, RefreshCw, ShieldAlert, ShieldCheck, Trash2, X } from 'lucide-react'
+import { FileCog, Globe2, Info, Keyboard, Languages, MonitorCog, RefreshCw, ShieldAlert, ShieldCheck, X } from 'lucide-react'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { MAX_UI_SCALE_PERCENT, MIN_UI_SCALE_PERCENT, UI_SCALE_STEP_PERCENT, type AppSettings, type UpdateChannel } from '@/engine/appSettings'
 import { LANGUAGE_OPTIONS, type Language } from '@/i18n/translationLoader'
@@ -23,7 +23,6 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose }: Glob
   const [registeringAssociation, setRegisteringAssociation] = useState(false)
   const [elevationResult, setElevationResult] = useState<string | null>(null)
   const [elevating, setElevating] = useState(false)
-  const [proxyDraft, setProxyDraft] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -210,59 +209,6 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose }: Glob
                 {checking ? l('Checking...', '检查中...', '檢查中...', '확인 중...') : l('Check now', '立即检查', '立即檢查', '지금 확인')}
               </button>
               {checkResult && <span className="update-check-result">{checkResult}</span>}
-            </div>
-            <div className="settings-proxy-block">
-              <div className="settings-row settings-proxy-header">
-                <span>{l('GitHub proxy domains (user)', 'GitHub 代理域名（用户配置）', 'GitHub 代理網域（使用者設定）', 'GitHub 프록시 도메인(사용자 설정)')}</span>
-              </div>
-              <p className="settings-proxy-hint">
-                {l('On direct failure, proxies are tried in order as {proxy}/https://github.com/... Built-in proxies always apply.', '直连失败后按列表依次重试。拼接规则：{代理域名}/https://github.com/... 内置代理始终生效。', '直接連線失敗後會依序嘗試代理。組合規則：{代理網域}/https://github.com/... 內建代理永遠有效。', '직접 연결에 실패하면 {proxy}/https://github.com/... 형식으로 프록시를 순서대로 시도합니다. 기본 프록시는 항상 적용됩니다.')}
-              </p>
-              {settings.proxyDomains.length > 0 && (
-                <ul className="settings-proxy-list">
-                  {settings.proxyDomains.map((domain) => (
-                    <li key={domain} className="settings-proxy-item">
-                      <span title={domain}>{domain}</span>
-                      <button
-                        type="button"
-                        className="icon-command"
-                        aria-label={l('Remove proxy', '删除代理', '移除代理', '프록시 제거')}
-                        onClick={() => onChange({ ...settings, proxyDomains: settings.proxyDomains.filter((d) => d !== domain) })}
-                      >
-                        <Trash2 />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="settings-proxy-add">
-                <input
-                  type="url"
-                  value={proxyDraft}
-                  placeholder="https://example-proxy.example"
-                  onChange={(event) => setProxyDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Enter') return
-                    event.preventDefault()
-                    const normalized = proxyDraft.trim().replace(/\/+$/, '')
-                    if (!normalized || settings.proxyDomains.includes(normalized)) return
-                    onChange({ ...settings, proxyDomains: [...settings.proxyDomains, normalized] })
-                    setProxyDraft('')
-                  }}
-                />
-                <button
-                  type="button"
-                  className="secondary-command"
-                  onClick={() => {
-                    const normalized = proxyDraft.trim().replace(/\/+$/, '')
-                    if (!normalized || settings.proxyDomains.includes(normalized)) return
-                    onChange({ ...settings, proxyDomains: [...settings.proxyDomains, normalized] })
-                    setProxyDraft('')
-                  }}
-                >
-                  <Plus /> {l('Add', '添加', '新增', '추가')}
-                </button>
-              </div>
             </div>
           </section>
 

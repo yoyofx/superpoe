@@ -638,7 +638,10 @@ function createWindow(): BrowserWindow {
   return window
 }
 
-let updateChannel: UpdateChannel = 'release'
+// Keep the main-process startup default aligned with the first-run settings.
+// The renderer may synchronize a saved preference later, but the initial
+// automatic check must not briefly fall back to the release feed.
+let updateChannel: UpdateChannel = 'dev'
 let updateCheckIntervalMinutes = 60
 const pobLuaService = new PobLuaService()
 const pobItemBridge = new PobItemBridge(pobLuaService)

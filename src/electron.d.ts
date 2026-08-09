@@ -6,6 +6,7 @@ export interface UpdateInfo {
   channel: 'release' | 'dev'
   downloadUrl: string
   fileName: string
+  size?: number
   releaseDate: string
 }
 
@@ -122,7 +123,8 @@ declare global {
     }
     pob2Updater?: {
       check(channel?: 'release' | 'dev'): Promise<UpdateCheckResult>
-      download(info: UpdateInfo): Promise<void>
+      download(info: UpdateInfo, options?: { forceInstall?: boolean }): Promise<void>
+      ready(): void
       setConfig(config: { channel?: string; intervalMinutes?: number }): void
       setProxyDomains(domains: string[]): void
       getProxyDomains(): Promise<ProxyDomainsInfo>

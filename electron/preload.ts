@@ -112,7 +112,8 @@ contextBridge.exposeInMainWorld('pob2CurrencyMarket', {
 
 contextBridge.exposeInMainWorld('pob2Updater', {
   check: (channel?: string) => ipcRenderer.invoke('updater:check', channel),
-  download: (info: unknown) => ipcRenderer.invoke('updater:download', info),
+  download: (info: unknown, options?: { forceInstall?: boolean }) => ipcRenderer.invoke('updater:download', info, options),
+  ready: () => ipcRenderer.send('updater:renderer-ready'),
   setConfig: (config: { channel?: string; intervalMinutes?: number }) => ipcRenderer.send('updater:set-config', config),
   setProxyDomains: (domains: string[]) => ipcRenderer.send('updater:set-proxy-domains', domains),
   getProxyDomains: () => ipcRenderer.invoke('updater:get-proxy-domains') as Promise<{ builtin: string[]; user: string[] }>,
