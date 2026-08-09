@@ -222,7 +222,18 @@ jobs:
           if [[ -f artifact/latest.yml ]]; then
             installer="$(find artifact -maxdepth 1 -type f -name '*.exe' -printf '%f\n' | head -n 1)"
             if [[ -n "${installer}" ]]; then
-              sed -i -E "s#^(  - url: ).*\.exe$#\1${installer}#; s#^(path: ).*\.exe$#\1${installer}#" artifact/latest.yml
+              python - "${installer}" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          path = Path('artifact/latest.yml')
+          installer = sys.argv[1]
+          text = path.read_text(encoding='utf-8')
+          text = re.sub(r'(?m)^(\s*-\s+url:\s+).*\.exe\s*$', lambda m: f'{m.group(1)}{installer}', text)
+          text = re.sub(r'(?m)^(path:\s+).*\.exe\s*$', lambda m: f'{m.group(1)}{installer}', text)
+          path.write_text(text, encoding='utf-8')
+          PY
             fi
           fi
 
