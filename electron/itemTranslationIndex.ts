@@ -2,19 +2,34 @@ import { existsSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
 
+export type ItemRawLanguage = 'en' | 'zh-rCN' | 'zh-rTW' | 'ko-KR'
+
+/** Detects the language used by the game's item clipboard format, independently of UI language. */
+export function detectItemRawLanguage(value: string): ItemRawLanguage {
+  const text = value.replace(/\r\n/g, '\n')
+  if (/^\s*Rarity\s*:/im.test(text)) return 'en'
+  if (/[\uAC00-\uD7AF]/u.test(text)) return 'ko-KR'
+  if (/(?:物品類別|物品等級|傳奇|品質\s*[：:]|獲得技能|屬性需求|攻擊速度|閃電傷害)/u.test(text)) return 'zh-rTW'
+  if (/(?:物品类别|物品等级|传奇|品质\s*[：:]|获得技能|属性需求|攻击速度|闪电伤害)/u.test(text)) return 'zh-rCN'
+  return 'en'
+}
+
 const ITEM_FILES = [
+  // Short variant tokens (for example, Mageblood's Legacy of Silver) must
+  // win before generic item names such as Diamond Ring introduce a different
+  // localized token for the same English stem.
+  'Items_Oils.csv',
+  'Items_Flasks.txt.csv',
   'Items_Armour.txt.csv',
   'Items_Accessories.txt.csv',
   'Items_Weapons.txt.csv',
   'Items_Jewels.txt.csv',
-  'Items_Flasks.txt.csv',
   'Uniques.txt.csv',
   'Items_Gems.txt.csv',
   'Gems_data.txt.csv',
 ]
 const STAT_FILES = ['statDescriptions.csv', 'Query_Mod.csv']
 const RARE_NAME_FILES = ['stats_words_suffix.csv', 'stats_words_prefix.csv']
-
 interface ReverseTemplate {
   pattern: RegExp
   english: string
@@ -40,6 +55,37 @@ function reverseTemplate(english: string, chinese: string): ReverseTemplate | nu
   if (!names.length) return null
   pattern += escapeRegExp(chinese.slice(cursor)) + '$'
   return { pattern: new RegExp(pattern, 'i'), english, placeholderNames: names, literalLength: chinese.replace(placeholder, '').length }
+}
+
+function normalizeStatLine(value: string): string {
+  return value
+    .replace(/\s*[—-]\s*数值不可调整\s*$/u, '')
+    .replace(/\s*[—-]\s*數值不可調整\s*$/u, '')
+    .replace(/\s*[—-]\s*수치를 조정할 수 없음\s*$/u, '')
+    // Granted-skill clipboard lines can include a display-only level cap.
+    .replace(/\s*[（(]\s*(?:最高等级|最高等級|max(?:imum)?\s+level)\s*\d+\s*[）)]\s*$/iu, '')
+    // Advanced item copy includes the current value followed by its tier range.
+    // PoB's stat catalog expects only the current value.
+    .replace(/(-?\d+(?:\.\d+)?)\s*\(\s*-?\d+(?:\.\d+)?\s*-\s*-?\d+(?:\.\d+)?\s*\)/g, '$1')
+    .replace(/(-?\d+(?:\.\d+)?)\s*\(\s*-?\d+(?:\.\d+)?\s*\)/g, '$1')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/**
+ * The game's advanced clipboard format may prefix a stat with item context
+ * (for example, "该装备精魂提高 20%"). Translation catalogs usually store
+ * the reusable stat template without that presentation prefix. Keep the raw
+ * form first, then try a context-free variant so both formats resolve.
+ */
+function statLineVariants(value: string): string[] {
+  const normalized = normalizeStatLine(value)
+  const contextFree = normalized
+    .replace(/^(?:该装备|该物品|此装备|此物品|該裝備|該物品|此裝備)\s*(?:的)?\s*/u, '')
+    // Bonded/羁绊 is a presentation prefix used by the advanced clipboard
+    // format. The PoB stat catalog contains the reusable stat without it.
+    .replace(/^(?:Bonded|羁绊|羈絆)\s*[:：]\s*/iu, '')
+  return contextFree && contextFree !== normalized ? [normalized, contextFree] : [normalized]
 }
 
 function parseCsvRows(text: string): string[][] {
@@ -95,6 +141,22 @@ export class ItemTranslationIndex {
         if (english && chinese && english !== chinese) {
           if (!this.cnToEnglish.has(chinese)) this.cnToEnglish.set(chinese, english)
           if (!this.englishToCn.has(english)) this.englishToCn.set(english, chinese)
+          // Variant stats such as "Legacy of {0}" use the short item token
+          // ("Diamond"/"宝钻") rather than the full item name
+          // ("Diamond Flask"/"宝钻药剂"). Keep these short tokens data-driven from
+          // the item catalogs instead of adding one rule per variant stat.
+          for (const [englishSuffix, chineseSuffix] of [
+            [' Flask', '药剂'], [' Charm', '咒符'], [' Oil', '圣油'],
+            [' Ring', '戒指'], [' Amulet', '护符'], [' Belt', '腰带'],
+          ] as const) {
+            if (!english.endsWith(englishSuffix) || !chinese.endsWith(chineseSuffix)) continue
+            const englishToken = english.slice(0, -englishSuffix.length).trim()
+            const chineseToken = chinese.slice(0, -chineseSuffix.length).trim()
+            if (englishToken && chineseToken) {
+              if (!this.cnToEnglish.has(chineseToken)) this.cnToEnglish.set(chineseToken, englishToken)
+              if (!this.englishToCn.has(englishToken)) this.englishToCn.set(englishToken, chineseToken)
+            }
+          }
         }
       }
     }
@@ -145,6 +207,17 @@ export class ItemTranslationIndex {
     this.cnStatTemplates.sort((left, right) => right.literalLength - left.literalLength)
   }
 
+  /** Adds authoritative runtime translations (for example official trade options). */
+  registerStatTranslation(source: string, translated: string): void {
+    const from = source.trim()
+    const to = translated.trim()
+    if (!from || !to || from === to) return
+    // Runtime catalogs are authoritative and may correct a generic template
+    // translation that was loaded earlier.
+    this.cnStatToEnglish.set(from, to)
+    this.englishStatToCn.set(to, from)
+  }
+
   private translateRareName(value: string, direction: 'toEnglish' | 'toChinese'): string | undefined {
     const normalized = value.trim()
     const memo = new Map<number, string | undefined>()
@@ -178,12 +251,19 @@ export class ItemTranslationIndex {
     return this.englishToCn.get(normalized) || this.translateRareName(normalized, 'toChinese')
   }
 
-  private translateStatTemplate(value: string, templates: ReverseTemplate[]): string | undefined {
+  private translateStatTemplate(
+    value: string,
+    templates: ReverseTemplate[],
+    resolveValue?: (value: string) => string | undefined,
+  ): string | undefined {
     for (const template of templates) {
       const match = value.match(template.pattern)
       if (!match) continue
       const values = new Map<string, string>()
-      template.placeholderNames.forEach((name, index) => values.set(name, match[index + 1]))
+      template.placeholderNames.forEach((name, index) => {
+        const captured = match[index + 1]
+        values.set(name, resolveValue?.(captured.trim()) || captured)
+      })
       let sequential = 0
       return template.english.replace(/\{(\d+)\}|#/g, (_placeholder, index: string | undefined) => values.get(index ?? String(sequential++)) || '')
     }
@@ -191,19 +271,34 @@ export class ItemTranslationIndex {
   }
 
   statToEnglish(value: string): string | undefined {
-    const normalized = value.trim()
-    const exact = this.cnStatToEnglish.get(normalized)
-    if (exact) return exact
-    return this.translateStatTemplate(normalized, this.statTemplates)
+    const variants = statLineVariants(value)
+    for (const normalized of variants) {
+      const exact = this.cnStatToEnglish.get(normalized)
+      if (exact) return exact
+      const translated = this.translateStatTemplate(normalized, this.statTemplates, (captured) => this.toEnglish(captured))
+      if (translated) return translated
+    }
+
+    const normalized = variants[0]
+
+    // The advanced Chinese copy format uses a localized label for granted skills,
+    // while PoB's canonical item format always uses "Grants Skill".
+    const grantedSkill = normalized.match(/^(?:获得技能|獲得技能)\s*[:：]\s*(?:等级|等級)?\s*(?:(\d+)\s*(?:级|級)?\s*)?(.+)$/u)
+    if (grantedSkill) {
+      const skillName = this.toEnglish(grantedSkill[2])
+      if (skillName) return `Grants Skill: ${grantedSkill[1] ? `Level ${grantedSkill[1]} ` : ''}${skillName}`
+    }
+    return undefined
   }
 
   statToChinese(value: string): string | undefined {
-    const normalized = value.trim()
+    const normalized = normalizeStatLine(value)
     const grantedSkill = normalized.match(/^Grants Skill:\s+(?:Level\s+(\d+)\s+)?(.+)$/i)
     if (grantedSkill) {
       const skillName = this.toChinese(grantedSkill[2])
       if (skillName) return `获得技能: ${grantedSkill[1] ? `${grantedSkill[1]} 级` : ''}${skillName}`
     }
-    return this.englishStatToCn.get(normalized) || this.translateStatTemplate(normalized, this.cnStatTemplates)
+    return this.englishStatToCn.get(normalized)
+      || this.translateStatTemplate(normalized, this.cnStatTemplates, (captured) => this.toChinese(captured))
   }
 }

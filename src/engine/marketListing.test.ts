@@ -88,4 +88,19 @@ describe('official market listing normalization', () => {
     expect(result.item.raw).toContain('Wrath Spell\nSanctified Staff')
     expect(result.item.raw).not.toMatch(/[\u3400-\u9fff?]/)
   })
+
+  it('recovers placeholder modifier text from the official stat hash', () => {
+    const result = normalizeMarketListing({ result: [{ id: 'listing_1234', item: {
+      rarity: 'UNIQUE', name: 'Mageblood', baseType: 'Utility Belt',
+      explicitMods: ['?????? (??????-??????) 继承'],
+      extended: { hashes: { explicit: [['explicit.stat_264262054|4', [0]]] } },
+    } }] }, {
+      realm: 'cn', listingId: 'listing_1234', sourceUrl: 'https://poe.game.qq.com/trade2/search/poe2/Standard/query_5678',
+    }, undefined, undefined, (id) => id === 'explicit.stat_264262054|4'
+      ? { displayText: '钻石 继承', canonicalText: 'Legacy of Diamond' }
+      : undefined)
+
+    expect(result.item.preview.modifiers[0].original.displayText).toBe('钻石 继承')
+    expect(result.item.raw).toContain('Legacy of Diamond')
+  })
 })

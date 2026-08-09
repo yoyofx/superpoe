@@ -106,12 +106,20 @@ function normalizeKey(value: string): string {
   return value.trim()
 }
 
-function normalizeDisplayTags(value: string): string {
+export function normalizeDisplayTags(value: string): string {
   return value
-    .replace(/\[([^|\]]+)\|([^\]]+)\]/g, '$2')
-    .replace(/<i>\{([^}]+)\}/g, '$1')
+    // PoB stat descriptions use markup such as [Attack|攻击] and
+    // <colour>{...}. Keep the localized label and remove the internal key
+    // and formatting wrapper before text reaches the user-facing UI.
+    .replace(/\[([^|\]\r\n]+)\|([^\]\r\n]*)\]/g, (_match, key: string, label: string) => label || key)
+    .replace(/\[([A-Za-z][A-Za-z0-9_]*)\]/g, '$1')
+    .replace(/<[^>]+>\{([^}]*)\}/g, '$1')
+    .replace(/<[^>]+>/g, '')
     .replace(/\s+\n/g, '\n')
     .replace(/\n\s+/g, '\n')
+    .replace(/\s+([，。；：！？、])/g, '$1')
+    .replace(/([，。；：！？、])\s+/g, '$1')
+    .replace(/[ \t]{2,}/g, ' ')
     .trim()
 }
 

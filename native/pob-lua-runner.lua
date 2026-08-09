@@ -77,6 +77,21 @@ local function scalar(value)
 	return nil
 end
 
+local function displayNumber(value)
+	value = safeNum(value)
+	if value == nil then return nil end
+	return tostring(value)
+end
+
+local function displayStat(key, values)
+	local normalized = {}
+	for _, value in ipairs(values or {}) do
+		if value ~= nil and value ~= "" then table.insert(normalized, tostring(value)) end
+	end
+	if #normalized == 0 then return nil end
+	return { key = key, values = normalized }
+end
+
 local function normalizeItem(payload)
 	local raw = payload and payload.raw
 	if type(raw) ~= "string" or raw == "" then
@@ -91,6 +106,46 @@ local function normalizeItem(payload)
 		return { success = false, error = "PoB Item base type was not recognized" }
 	end
 	local tradeHelpers = LoadModule("Classes/TradeHelpers")
+	local properties = {}
+	local requirements = {}
+	local armourData = item.armourData or {}
+	local function addNumberProperty(key, value)
+		local display = displayNumber(value)
+		if display and tonumber(display) ~= 0 then table.insert(properties, displayStat(key, { display })) end
+	end
+	addNumberProperty("Armour", armourData.Armour)
+	addNumberProperty("Evasion", armourData.Evasion)
+	addNumberProperty("EnergyShield", armourData.EnergyShield)
+	addNumberProperty("Ward", armourData.Ward)
+	addNumberProperty("BlockChance", armourData.BlockChance)
+	addNumberProperty("Spirit", item.spiritValue)
+	addNumberProperty("CharmSlots", item.charmLimit)
+	local weaponData = item.weaponData and item.weaponData[1]
+	if weaponData then
+		local function addDamageProperty(key, min, max)
+			min, max = displayNumber(min), displayNumber(max)
+			if min and max and tonumber(min) ~= 0 and tonumber(max) ~= 0 then
+				table.insert(properties, displayStat(key, { min .. "-" .. max }))
+			end
+		end
+		addDamageProperty("PhysicalDamage", weaponData.PhysicalMin, weaponData.PhysicalMax)
+		addDamageProperty("FireDamage", weaponData.FireMin, weaponData.FireMax)
+		addDamageProperty("ColdDamage", weaponData.ColdMin, weaponData.ColdMax)
+		addDamageProperty("LightningDamage", weaponData.LightningMin, weaponData.LightningMax)
+		addDamageProperty("ChaosDamage", weaponData.ChaosMin, weaponData.ChaosMax)
+		if displayNumber(weaponData.CritChance) then table.insert(properties, displayStat("CriticalChance", { displayNumber(weaponData.CritChance) .. "%" })) end
+		if displayNumber(weaponData.AttackRate) then table.insert(properties, displayStat("AttackRate", { displayNumber(weaponData.AttackRate) })) end
+		if displayNumber(weaponData.range) then table.insert(properties, displayStat("WeaponRange", { displayNumber(weaponData.range) })) end
+	end
+	local itemRequirements = item.requirements or {}
+	local function addRequirement(key, value)
+		local display = displayNumber(value)
+		if display and tonumber(display) ~= 0 then table.insert(requirements, displayStat(key, { display })) end
+	end
+	addRequirement("Level", itemRequirements.level)
+	addRequirement("Strength", itemRequirements.strMod or itemRequirements.str)
+	addRequirement("Dexterity", itemRequirements.dexMod or itemRequirements.dex)
+	addRequirement("Intelligence", itemRequirements.intMod or itemRequirements.int)
 	local modifiers = {}
 	local displayOrder = 0
 	local function appendModifiers(lines, group)
@@ -145,6 +200,12 @@ local function normalizeItem(payload)
 	elseif itemType == "Charm" then categorySlot = "Charm 1"
 	elseif itemType then categorySlot = "Weapon 1" end
 	local tradeCategory = categorySlot and tradeHelpers.getTradeCategory(categorySlot, item) or nil
+	local socketParts = {}
+	for line in raw:gmatch("[^\r\n]+") do
+		local socketLine = line:match("^Sockets:%s*(.+)$")
+		if socketLine and socketLine ~= "" then table.insert(socketParts, socketLine) end
+	end
+	local socketText = #socketParts > 0 and table.concat(socketParts, " ") or nil
 	local socketCount = tonumber(item.itemSocketCount) or tonumber(item.jewelSocketCount) or 0
 	return {
 		success = true,
@@ -158,7 +219,9 @@ local function normalizeItem(payload)
 			baseType = item.baseName,
 			itemLevel = safeNum(item.itemLevel),
 			quality = safeNum(item.quality),
-			sockets = socketCount > 0 and string.rep("S ", socketCount):gsub(" $", "") or nil,
+			sockets = socketText or (socketCount > 0 and string.rep("S ", socketCount):gsub(" $", "") or nil),
+			properties = properties,
+			requirements = requirements,
 			corrupted = item.corrupted or false,
 			identified = not item.unidentified,
 			tradeCategory = tradeCategory,

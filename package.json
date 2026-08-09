@@ -1,10 +1,10 @@
 {
   "name": "superpoe2",
   "private": true,
-  "version": "0.5.1",
+  "version": "0.5.3",
   "superpoe": {
     "gameVersion": "0.5.0",
-    "revision": 2
+    "revision": 3
   },
   "type": "module",
   "main": "dist-electron/electron/main.js",
@@ -40,6 +40,7 @@
     "prepare:native:lua": "node scripts/ensure_luajit_sidecar.mjs && npm run test:native:lua",
     "test:native:lua": "node scripts/test_luajit_sidecar.mjs",
     "pipeline:translations": "python scripts/sync_poecharm_translations.py",
+    "verify:translations": "python scripts/audit_translation_coverage.py",
     "pipeline:items": "python scripts/sync_poe2db_item_icons.py",
     "pipeline:skills": "python scripts/sync_poe2db_item_icons.py --skills-only",
     "pipeline:skill-catalog": "python scripts/build_skill_catalog.py && node scripts/build_support_effects.mjs",

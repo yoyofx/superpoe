@@ -133,6 +133,44 @@ describe('shared trade resolver and query builder', () => {
     })
   })
 
+  it('matches Chinese skill level stats when the catalog adds the Bonded presentation prefix', () => {
+    const localizedItem = item(['+3 to Level of all Attack Skills'])
+    localizedItem.modifiers[0].group = 'rune'
+    localizedItem.modifiers[0].sourceTags = ['rune']
+    localizedItem.modifiers[0].localized = {
+      'zh-CN': { lines: ['所有攻击技能等级 +3'], displayText: '所有攻击技能等级 +3' },
+    }
+    const cnCatalog = {
+      ...catalog,
+      realm: 'cn' as const,
+      entries: [{ id: 'rune.stat_attack_level', text: '羁绊： 所有攻击技能等级 #' }],
+    }
+
+    const resolved = new TradeStatResolver().resolve(localizedItem, cnCatalog)
+    expect(resolved.modifiers[0].tradeResolutions[0]).toMatchObject({
+      queryStatId: 'rune.stat_attack_level', status: 'resolved',
+    })
+  })
+
+  it('matches Chinese granted skills despite the catalog and UI using different level order', () => {
+    const localizedItem = item(['Grants Skill: Level 19 The Stars Answer'])
+    localizedItem.modifiers[0].group = 'implicit'
+    localizedItem.modifiers[0].sourceTags = ['implicit']
+    localizedItem.modifiers[0].localized = {
+      'zh-CN': { lines: ['获得技能: 19 级群星召唤'], displayText: '获得技能: 19 级群星召唤' },
+    }
+    const cnCatalog = {
+      ...catalog,
+      realm: 'cn' as const,
+      entries: [{ id: 'skill.the_stars_answer', text: '获得技能: 等级 # 群星召唤', type: 'skill' }],
+    }
+
+    const resolved = new TradeStatResolver().resolve(localizedItem, cnCatalog)
+    expect(resolved.modifiers[0].tradeResolutions[0]).toMatchObject({
+      queryStatId: 'skill.the_stars_answer', status: 'resolved',
+    })
+  })
+
   it('builds a PoB-style query from only the user-selected modifiers and ranges', () => {
     const source = item(['+109 to maximum Life', 'Unknown modifier'])
     source.tradeCategory = 'armour.chest'
@@ -140,7 +178,7 @@ describe('shared trade resolver and query builder', () => {
     const resolved = new TradeStatResolver().resolve(source, catalog)
     const draft = createPriceCheckDraft(resolved, 'global')
     expect(draft.modifiers).toMatchObject([
-      { id: 'explicit-0', searchable: true, currentValue: 109 },
+      { id: 'explicit-0', searchable: true, currentValue: 109, sourceTags: ['explicit'] },
       { id: 'explicit-1', searchable: false },
     ])
 

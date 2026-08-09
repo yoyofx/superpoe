@@ -217,6 +217,16 @@ export default function App() {
   }, [screen])
 
   useEffect(() => {
+    const bridge = window.pob2Market
+    if (!bridge?.onOpenTradeCenter) return
+    return bridge.onOpenTradeCenter(() => {
+      setTradeReturnScreen(screen === 'editor' ? 'editor' : screen === 'library' ? 'library' : 'center')
+      setMarketWorkspace('market')
+      setScreen('trade')
+    })
+  }, [screen])
+
+  useEffect(() => {
     if (screen !== 'trade' || marketWorkspace !== 'market') {
       void window.pob2Market?.deactivate().catch(() => {})
     }

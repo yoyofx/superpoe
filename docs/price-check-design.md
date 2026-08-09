@@ -6,6 +6,7 @@
 > 目标平台：Electron 桌面端，支持 Windows 与 macOS Apple Silicon
 > 关联路线图：`docs/ROADMAP.md` 中 M0“集市、统一装备仓库与共享交易基础”和 M6“游戏内查价器与构筑提升浮层”
 > 配套设计：[marketplace-browser-design.md](./marketplace-browser-design.md)
+> 词缀到查询请求的逐步解析和 SuperPoE/Xiletrade 对照见：[price-check-affix-pipeline.md](./price-check-affix-pipeline.md)
 
 > **统一装备模型修订（2026-08-07）：** 本文早期章节中的 `LibraryItemSnapshot`、持久化 `LibraryModifier.tradeResolutions` 和“完全不使用 PoB TradeSiteStats”的结论已被统一 PoB2 Item 方案替代。目标结构与持久化边界以 [`pob-build-object-design.md`](./pob-build-object-design.md#33-统一装备对象) 和 [`equipment-library-workbench-design.md`](./equipment-library-workbench-design.md) 为准；本文保留的旧接口仅描述当前实现和迁移输入，不得继续扩展为新权威模型。
 

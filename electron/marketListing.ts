@@ -30,6 +30,12 @@ interface NormalizedMarketListing {
   source: MarketFavoriteSource
 }
 
+/** Text recovered from the official stat catalog for a listing hash. */
+export interface MarketStatTextResolution {
+  displayText?: string
+  canonicalText?: string
+}
+
 function record(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }
@@ -49,6 +55,10 @@ function englishText(value: unknown): string {
 function verifiedEnglishText(value: unknown): string {
   const text = englishText(value)
   return /[\u3400-\u9fff\ufffd?]/.test(text) ? '' : text
+}
+
+function hasPlaceholderText(value: string): boolean {
+  return /(?:\?{2,}|\uFFFD)/u.test(value)
 }
 
 function numberValue(value: unknown): number | undefined {
@@ -170,7 +180,13 @@ function modifierDetails(raw: unknown, realm: MarketDomListingRef['realm'], tran
   }
 }
 
-function normalizeModifiers(item: Record<string, unknown>, realm: MarketDomListingRef['realm'], capturedAt: string, translateCnStat?: (value: string) => string | undefined): Array<LibraryModifier & { englishLine: string }> {
+function normalizeModifiers(
+  item: Record<string, unknown>,
+  realm: MarketDomListingRef['realm'],
+  capturedAt: string,
+  translateCnStat?: (value: string) => string | undefined,
+  resolveStatText?: (queryStatId: string) => MarketStatTextResolution | undefined,
+): Array<LibraryModifier & { englishLine: string }> {
   const extended = record(item.extended)
   const hashGroups = record(extended.hashes)
   const modGroups = record(extended.mods)
@@ -183,11 +199,22 @@ function normalizeModifiers(item: Record<string, unknown>, realm: MarketDomListi
     const rawModifiers = Array.isArray(item[`${group}Mods`]) ? item[`${group}Mods`] as unknown[] : []
     const hashes = hashesByIndex(hashGroups[group])
     for (let index = 0; index < rawModifiers.length; index += 1) {
-      const details = modifierDetails(rawModifiers[index], realm, translateCnStat)
+      let details = modifierDetails(rawModifiers[index], realm, translateCnStat)
       if (!details?.line) continue
+      const statIds = details.directStatId ? [details.directStatId] : [...new Set(hashes.get(index) || [])]
+      // Some localized trade responses render parameterized descriptions as
+      // question-mark placeholders. The hash remains authoritative; recover
+      // the text from the official catalog instead of adding a per-affix rule.
+      if (resolveStatText && (hasPlaceholderText(details.line) || !details.englishLine)) {
+        const fallback = statIds.map((id) => resolveStatText(id)).find(Boolean)
+        if (fallback) {
+          const line = hasPlaceholderText(details.line) ? fallback.displayText || details.line : details.line
+          const englishLine = details.englishLine || fallback.canonicalText || verifiedEnglishText(fallback.displayText || '')
+          details = { ...details, line, englishLine }
+        }
+      }
       if (!details.englishLine) throw new Error(`Official trade modifier could not be mapped to PoB English: ${details.line}`)
       const line = details.line
-      const statIds = details.directStatId ? [details.directStatId] : [...new Set(hashes.get(index) || [])]
       const queryStatId = statIds.length === 1 ? statIds[0] : undefined
       const [baseStatId, optionId] = queryStatId?.split('|') || []
       const source = sourceForGroup(group)
@@ -264,6 +291,7 @@ export function normalizeMarketListing(
   ref: MarketDomListingRef,
   translateCnItem?: (value: string) => string | undefined,
   translateCnStat?: (value: string) => string | undefined,
+  resolveStatText?: (queryStatId: string) => MarketStatTextResolution | undefined,
 ): NormalizedMarketListing {
   const root = record(payload)
   const results = Array.isArray(root.result) ? root.result : []
@@ -287,7 +315,7 @@ export function normalizeMarketListing(
   const englishBaseType = ref.realm === 'cn' ? (translateCnItem?.(baseType) || verifiedEnglishText(item.baseType) || verifiedEnglishText(item.typeLine)) : baseType
   const englishName = ref.realm === 'cn' ? (translateCnItem?.(name) || verifiedEnglishText(item.name)) : name
   if (!englishBaseType) throw new Error('Official trade listing base type could not be mapped to PoB English')
-  const modifiers = normalizeModifiers(item, ref.realm, capturedAt, translateCnStat)
+  const modifiers = normalizeModifiers(item, ref.realm, capturedAt, translateCnStat, resolveStatText)
   const implicit = modifiers.filter((modifier) => ['rune', 'enchant', 'implicit'].includes(modifier.group))
   const explicit = modifiers.filter((modifier) => !implicit.includes(modifier))
   const rawLines = [`Rarity: ${rarity}`]

@@ -164,9 +164,22 @@ function deriveItemView(item: CanonicalEquipmentItem): CanonicalItemView {
   const title = lines[1] || 'Unknown item'
   const baseType = lines[2] && !metadata.test(lines[2]) ? lines[2] : title
   const value = (label: string) => Number(lines.find((line) => line.startsWith(label))?.slice(label.length).trim())
+  const stat = (key: string, label: string) => {
+    const raw = lines.find((line) => line.startsWith(label))?.slice(label.length).trim()
+    return raw ? { key, values: [raw] } : undefined
+  }
   const implicitAt = lines.findIndex((line) => /^Implicits:\s*\d+/i.test(line))
   const implicitCount = implicitAt >= 0 ? Number(lines[implicitAt].match(/\d+/)?.[0] || 0) : 0
   const modifierLines = implicitAt >= 0 ? lines.slice(implicitAt + 1).filter((line) => !/^(?:Mirrored|Sanctified|Twice Corrupted|Corrupted)$/i.test(line)) : []
+  const properties = [
+    stat('Armour', 'Armour:'),
+    stat('Evasion', 'Evasion:'),
+    stat('EnergyShield', 'Energy Shield:'),
+    stat('Ward', 'Ward:'),
+    stat('Spirit', 'Spirit:'),
+    stat('CharmSlots', 'Charm Slots:'),
+  ].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+  const requirements = [stat('Level', 'LevelReq:')].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
   return {
     rarity,
     name: title,
@@ -174,6 +187,8 @@ function deriveItemView(item: CanonicalEquipmentItem): CanonicalItemView {
     ...(Number.isFinite(value('Item Level:')) ? { itemLevel: value('Item Level:') } : {}),
     ...(Number.isFinite(value('Quality:')) ? { quality: value('Quality:') } : {}),
     ...(lines.find((line) => line.startsWith('Sockets:'))?.slice(8).trim() ? { sockets: lines.find((line) => line.startsWith('Sockets:'))!.slice(8).trim() } : {}),
+    ...(properties.length ? { properties } : {}),
+    ...(requirements.length ? { requirements } : {}),
     corrupted: lines.some((line) => /^(?:Twice Corrupted|Corrupted)$/i.test(line)),
     identified: true,
     modifiers: modifierLines.map((rawLine, index) => {

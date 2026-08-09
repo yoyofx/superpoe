@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FileCog, Globe2, Info, Keyboard, Languages, MonitorCog, Plus, RefreshCw, ShieldAlert, Trash2, X } from 'lucide-react'
+import { FileCog, Globe2, Info, Keyboard, Languages, MonitorCog, Plus, RefreshCw, ShieldAlert, ShieldCheck, Trash2, X } from 'lucide-react'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { MAX_UI_SCALE_PERCENT, MIN_UI_SCALE_PERCENT, UI_SCALE_STEP_PERCENT, type AppSettings, type UpdateChannel } from '@/engine/appSettings'
 import { LANGUAGE_OPTIONS, type Language } from '@/i18n/translationLoader'
@@ -21,6 +21,8 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose }: Glob
   const [checkResult, setCheckResult] = useState<string | null>(null)
   const [associationResult, setAssociationResult] = useState<string | null>(null)
   const [registeringAssociation, setRegisteringAssociation] = useState(false)
+  const [elevationResult, setElevationResult] = useState<string | null>(null)
+  const [elevating, setElevating] = useState(false)
   const [proxyDraft, setProxyDraft] = useState('')
 
   useEffect(() => {
@@ -59,6 +61,35 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose }: Glob
                 onChange({ ...settings, priceCheckHotkey: parts.join('+') })
               }} />
             </label>
+            <div className="settings-row settings-file-association-row">
+              <span>{l('Administrator permissions', '管理员权限', '管理員權限', '관리자 권한')}</span>
+              <div className="settings-file-association-control">
+                <button type="button" className="secondary-command" disabled={elevating || !window.pob2Desktop} onClick={async () => {
+                  setElevating(true)
+                  setElevationResult(null)
+                  try {
+                    const result = await window.pob2Desktop?.restartAsAdministrator()
+                    if (result?.status === 'started') {
+                      setElevationResult(l('Restarting with administrator permissions...', '正在以管理员权限重启...', '正在以管理員權限重新啟動...', '관리자 권한으로 다시 시작하는 중...'))
+                    } else if (result?.status === 'already-elevated') {
+                      setElevationResult(l('Already running as administrator', '当前已是管理员权限', '目前已是管理員權限', '이미 관리자 권한으로 실행 중'))
+                    } else if (result?.status === 'unsupported') {
+                      setElevationResult(l('Windows only', '仅支持 Windows', '僅支援 Windows', 'Windows 전용'))
+                    } else {
+                      setElevationResult(l('UAC request cancelled', '已取消 UAC 提权', '已取消 UAC 提權', 'UAC 요청이 취소됨'))
+                    }
+                  } catch {
+                    setElevationResult(l('Unable to restart as administrator', '无法以管理员权限重启', '無法以管理員權限重新啟動', '관리자 권한으로 다시 시작할 수 없음'))
+                  } finally {
+                    setElevating(false)
+                  }
+                }}>
+                  <ShieldCheck />{elevating ? l('Restarting...', '重启中...', '重新啟動中...', '다시 시작 중...') : l('Restart as administrator', '以管理员身份重启', '以管理員身份重新啟動', '관리자 권한으로 다시 시작')}
+                </button>
+                {!window.pob2Desktop && <small>{l('Desktop app only', '仅桌面版', '僅限桌面版', '데스크톱 앱 전용')}</small>}
+                {elevationResult && <small>{elevationResult}</small>}
+              </div>
+            </div>
           </section>
           <section className="settings-section">
             <header><Languages /><h3>{l('Interface language', '界面语言', '介面語言', '인터페이스 언어')}</h3></header>

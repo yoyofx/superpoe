@@ -32,9 +32,17 @@ declare global {
       search?(leagueId: string, criteria: import('@/types/market').TradePriceCheckCriteria): Promise<import('@/types/market').PriceCheckContextState>
       fetchPage?(page: number): Promise<import('@/types/market').PriceCheckContextState>
       openTradePage?(url: string): Promise<void>
+      openInTradeCenter?(url: string): Promise<void>
       visitHideout?(listingId: string): Promise<import('@/types/market').MarketVisitHideoutResult>
+      favorite?(listingId: string): Promise<{ ok: true; entryId: string }>
+      showDetail?(listingId: string): Promise<void>
+      hideDetail?(): Promise<void>
+      getDetailState?(): Promise<{ state?: import('@/types/market').PriceCheckContextState; listingId?: string }>
       hide?(): Promise<void>
+      setUiScale?(factor: number): Promise<number>
+      restartAsAdministrator?(): Promise<{ status: 'started' | 'already-elevated' | 'cancelled' | 'unsupported' }>
       onState?(callback: (state: import('@/types/market').PriceCheckContextState) => void): () => void
+      onDetailState?(callback: (value: { state?: import('@/types/market').PriceCheckContextState; listingId?: string }) => void): () => void
     }
     pob2Desktop?: {
       importWeGame(url: string): Promise<{ code: string; sourceUrl: string }>
@@ -46,6 +54,7 @@ declare global {
       saveGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
       installGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: false; filePath: string }>
       setUiScale(factor: number): Promise<number>
+      restartAsAdministrator(): Promise<{ status: 'started' | 'already-elevated' | 'cancelled' | 'unsupported' }>
       setAppContext(context: { defaultRealm: import('@/types/tree').BuildRealm; language: import('@/i18n/translationLoader').Language; priceCheckEnabled: boolean; priceCheckHotkey: string }): Promise<void>
       initPobLua(): Promise<{
         available: boolean
@@ -104,6 +113,7 @@ declare global {
       onSidebarRequest(callback: (scope: import('@/types/market').LibraryTreeScope) => void): () => void
       onMonitoringChanged(callback: (snapshot: import('@/types/market').MarketMonitoringSnapshot) => void): () => void
       onOpenMonitoring(callback: () => void): () => void
+      onOpenTradeCenter(callback: () => void): () => void
     }
     pob2CurrencyMarket?: {
       get(forceRefresh?: boolean): Promise<import('@/types/currencyMarket').CurrencyMarketState>

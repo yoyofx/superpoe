@@ -11,12 +11,12 @@ import { setupAutoUpdater } from './updater.js'
 import type { UpdateChannel } from './updater.js'
 import { PobLuaService } from './pobLuaService.js'
 import { canonicalToLegacySnapshot, PobItemBridge } from './pobItemBridge.js'
-import { ItemTranslationIndex } from './itemTranslationIndex.js'
+import { detectItemRawLanguage, ItemTranslationIndex, type ItemRawLanguage } from './itemTranslationIndex.js'
 import { ItemIconIndex } from './itemIconIndex.js'
 import { MarketViewManager, type MarketNavigationCommand, type MarketRealm } from './marketView.js'
 import { TradeCredentialStore } from './tradeCredentialStore.js'
 import { EquipmentLibraryRepository, equipmentSourceKey, pobSourceKey } from './equipmentLibraryRepository.js'
-import { normalizeMarketListing } from './marketListing.js'
+import { normalizeMarketListing, type MarketStatTextResolution } from './marketListing.js'
 import type {
   EquipmentCollectionRoot, EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
   EquipmentLibraryMetadataPatch, EquipmentLibrarySource, EquipmentTradeSearchRequest, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
@@ -32,7 +32,7 @@ import { CurrencyMarketService } from './currencyMarket/currencyMarketService.js
 import { desktopText, isUiLanguage, type UiLanguage } from './uiLocale.js'
 import { PriceCheckCoordinator } from './priceCheck/PriceCheckCoordinator.js'
 import { PriceCheckWindowManager } from './priceCheck/PriceCheckWindowManager.js'
-import { GameClipboardService } from './priceCheck/GameClipboardService.js'
+import { GameClipboardService, processIsElevated } from './priceCheck/GameClipboardService.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
@@ -276,9 +276,20 @@ function registerPriceCheckHotkey(enabled: boolean, requestedHotkey: string): { 
       try {
         if (!priceCheckCoordinator || !priceCheckWindowManager) throw new Error('Price checker is unavailable')
         const clipboardText = await new GameClipboardService(() => gameWindowService).copyItem()
-        const raw = gameClipboardToPobRaw(clipboardText)
+        // Load the official stat catalog before parsing localized clipboard
+        // lines. This supplies runtime option translations without hardcoded
+        // per-affix mappings (and is cached for subsequent checks).
+        const clipboardLanguage = detectItemRawLanguage(clipboardText)
+        if (clipboardLanguage === 'zh-rCN' || clipboardLanguage === 'zh-rTW' || clipboardLanguage === 'ko-KR') {
+          await createMarketStatTextResolver('cn')
+        }
+        await createMarketStatTextResolver(defaultRealm)
+        const parsed = gameClipboardToPobRaw(clipboardText)
         priceCheckWindowManager.show()
-        await priceCheckCoordinator.open({ source: { kind: 'raw', raw } })
+        await priceCheckCoordinator.open({
+          source: { kind: 'raw', raw: parsed.raw },
+          ...(parsed.unresolved.length ? { captureWarnings: parsed.unresolved } : {}),
+        })
       } catch (error) {
         priceCheckWindowManager?.show()
         priceCheckCoordinator?.reportError(error)
@@ -347,6 +358,10 @@ function notifyLibraryChanged(): void {
 function validateShortString(value: unknown, name: string, max = 256): string {
   if (typeof value !== 'string' || !value.trim() || value.length > max) throw new Error(`Invalid ${name}`)
   return value.trim()
+}
+
+function quotePowerShellArgument(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
 }
 
 function validateCollectionRoot(value: unknown): EquipmentCollectionRoot {
@@ -513,6 +528,8 @@ function createWindow(): BrowserWindow {
     rendererUrl,
     getAppIconPath(),
     path.join(userDataPath, 'price-check', 'window-bounds.json'),
+    true,
+    () => gameWindowService?.focusGame(),
   )
   priceCheckCoordinator = new PriceCheckCoordinator({
     context: () => ({ realm: defaultRealm, language: uiLanguage }),
@@ -536,6 +553,17 @@ function createWindow(): BrowserWindow {
       if (!marketViewManager) throw new Error('Trade provider is unavailable')
       return marketViewManager.fetchListings(realm, ids, searchId)
     },
+    resolveListingStatText: async (realm, queryStatId) => {
+      try {
+        const resolver = await createMarketStatTextResolver(realm)
+        return resolver(queryStatId)
+      } catch {
+        // Catalog enrichment is best-effort; listing results remain usable
+        // when the reference endpoint is temporarily unavailable.
+        return undefined
+      }
+    },
+    resolveListingItemText: resolveMarketItemText,
     visitHideout: async (realm, listingId, searchId, sourceUrl) => {
       if (!marketViewManager) throw new Error('Trade provider is unavailable')
       return marketViewManager.visitHideout({ realm, listingId, queryId: searchId, sourceUrl })
@@ -585,6 +613,7 @@ function createWindow(): BrowserWindow {
     marketViewManager?.dispose()
     marketViewManager = null
     tradeProvider = null
+    marketStatResolverPromises.clear()
     currencyMarketService = null
     priceCheckCoordinator = null
     priceCheckWindowManager?.dispose()
@@ -599,85 +628,269 @@ let updateCheckIntervalMinutes = 60
 const pobLuaService = new PobLuaService()
 const pobItemBridge = new PobItemBridge(pobLuaService)
 const itemTranslations = new ItemTranslationIndex()
+const itemTranslationIndexes = new Map<ItemRawLanguage, ItemTranslationIndex>([['zh-rCN', itemTranslations]])
 const itemIcons = new ItemIconIndex()
+const marketStatResolverPromises = new Map<MarketRealm, Promise<(queryStatId: string) => MarketStatTextResolution | undefined>>()
 
-function gameClipboardToPobRaw(value: string): string {
+function getItemTranslationIndex(language: ItemRawLanguage): ItemTranslationIndex {
+  if (language === 'en') return itemTranslations
+  const existing = itemTranslationIndexes.get(language)
+  if (existing) return existing
+  const root = path.join(
+    app.getAppPath(),
+    app.isPackaged ? 'dist' : 'public',
+    'data',
+    'Translate',
+    language,
+  )
+  const index = new ItemTranslationIndex(root)
+  itemTranslationIndexes.set(language, index)
+  return index
+}
+
+/**
+ * Builds a stat-ID lookup from the official catalogs. CN entries are kept for
+ * display while the global catalog supplies PoB's canonical English text.
+ * This keeps parameterized stats data-driven and avoids per-affix mappings.
+ */
+async function createMarketStatTextResolver(realm: MarketRealm): Promise<(queryStatId: string) => MarketStatTextResolution | undefined> {
+  if (!tradeProvider) return () => undefined
+  const existing = marketStatResolverPromises.get(realm)
+  if (existing) return existing
+  const pending = (async () => {
+    const displayCatalog = await tradeProvider!.stats(realm)
+    let canonicalCatalog = displayCatalog
+    if (realm === 'cn') {
+      try { canonicalCatalog = await tradeProvider!.stats('global') } catch { /* CN catalog still provides a safe display fallback. */ }
+    }
+    const displayById = new Map(displayCatalog.entries.map((entry) => [entry.id, entry.text]))
+    const canonicalById = new Map(canonicalCatalog.entries.map((entry) => [entry.id, entry.text]))
+    if (realm === 'cn') {
+      for (const [queryStatId, displayText] of displayById) {
+        const canonicalText = canonicalById.get(queryStatId)
+        if (canonicalText) itemTranslations.registerStatTranslation(displayText, canonicalText)
+      }
+    }
+    return (queryStatId: string) => {
+      const displayText = displayById.get(queryStatId)
+      const canonicalText = canonicalById.get(queryStatId)
+      return displayText || canonicalText ? { displayText, canonicalText } : undefined
+    }
+  })()
+  marketStatResolverPromises.set(realm, pending)
+  void pending.catch(() => { marketStatResolverPromises.delete(realm) })
+  return pending
+}
+
+function resolveMarketItemText(realm: MarketRealm, value: string): { canonicalText?: string } {
+  if (realm !== 'cn') return { canonicalText: value }
+  return { canonicalText: itemTranslations.toEnglish(value) || itemTranslations.statToEnglish(value) || value }
+}
+
+interface GameClipboardParseResult {
+  raw: string
+  unresolved: string[]
+}
+
+function usableLocalizedText(value: string | undefined): string | undefined {
+  if (!value || /(?:\?{2,}|\uFFFD)/u.test(value)) return undefined
+  return value
+}
+
+function translatePobRawForPriceCheck(value: string): GameClipboardParseResult {
   const normalized = value.replace(/\r\n/g, '\n').trim()
-  if (/^Rarity:\s*/i.test(normalized)) return normalized
+  const language = detectItemRawLanguage(normalized)
+  if (language === 'en') return { raw: normalized, unresolved: [] }
+  const translations = getItemTranslationIndex(language)
+  const lines = normalized.split('\n').map((line) => line.trim()).filter(Boolean)
+  const unresolved: string[] = []
+  const output: string[] = []
+  const metadata = /^(?:Rarity|Item Level|LevelReq|Quality|Sockets|Implicits|Unique ID|Corrupted|Twice Corrupted|Rune|Passive|Variant|备注|备注信息)\b/i
+  for (const line of lines) {
+    if (metadata.test(line) || /^\{[^}]+\}/u.test(line)) {
+      const prefix = line.match(/^(?:\{[^}]+\})+/u)?.[0] || ''
+      const body = line.slice(prefix.length)
+      const translated = translations.statToEnglish(body)
+      output.push(prefix + (translated || body))
+      continue
+    }
+    const translatedName = translations.toEnglish(line)
+    const translatedStat = translations.statToEnglish(line)
+    const translated = translatedStat || translatedName || (/^[\x20-\x7e]+$/.test(line) ? line : undefined)
+    if (translated) output.push(translated)
+    else unresolved.push(line)
+  }
+  return { raw: output.join('\n'), unresolved: [...new Set(unresolved)] }
+}
+
+function gameClipboardToPobRaw(value: string): GameClipboardParseResult {
+  const normalized = value.replace(/\r\n/g, '\n').trim()
+  const language = detectItemRawLanguage(normalized)
+  if (language === 'en') return { raw: normalized, unresolved: [] }
+  const translations = getItemTranslationIndex(language)
   const sections = normalized.split(/^--------+$/m).map((section) => section.split('\n').map((line) => line.trim()).filter(Boolean)).filter((section) => section.length)
   if (sections.length < 2) throw new Error('Clipboard does not contain a supported Path of Exile 2 item')
-  const header = sections[0]
-  const names = sections[1]
+  const firstSection = sections[0]
+  const rarityIndex = firstSection.findIndex((line) => /^(?:Rarity|稀有度|희귀도)\s*[：:]/iu.test(line))
+  // The game places the item name and base type before the first separator,
+  // immediately after the rarity line. Older clipboard layouts may put them
+  // in a separate section, so retain that fallback for compatibility.
+  const header = rarityIndex >= 0 ? firstSection.slice(0, rarityIndex + 1) : firstSection
+  const inlineNames = rarityIndex >= 0 ? firstSection.slice(rarityIndex + 1) : []
+  const names = inlineNames.length ? inlineNames : sections[1]
   const field = (patterns: RegExp[]) => header.find((line) => patterns.some((pattern) => pattern.test(line)))?.split(/:\s*|：\s*/).slice(1).join(':').trim()
-  const raritySource = field([/^Rarity\s*:/i, /^稀有度\s*[：:]/, /^稀有度\s*[：:]/]) || ''
-  const rarity = /unique|傳奇|传奇/i.test(raritySource) ? 'UNIQUE'
-    : /rare|稀有/i.test(raritySource) ? 'RARE'
-      : /magic|魔法/i.test(raritySource) ? 'MAGIC' : 'NORMAL'
+  const raritySource = field([/^Rarity\s*:/i, /^稀有度\s*[：:]/u, /^희귀도\s*[：:]/u]) || ''
+  const rarity = /unique|傳奇|传奇|유니크/i.test(raritySource) ? 'UNIQUE'
+    : /rare|稀有|희귀/i.test(raritySource) ? 'RARE'
+      : /magic|魔法|마법/i.test(raritySource) ? 'MAGIC' : 'NORMAL'
   const displayName = names[0] || ''
   const displayBaseType = names[1] || names[0] || ''
-  const baseType = itemTranslations.toEnglish(displayBaseType) || (/^[\x20-\x7e]+$/.test(displayBaseType) ? displayBaseType : '')
-  const name = itemTranslations.toEnglish(displayName) || (/^[\x20-\x7e]+$/.test(displayName) ? displayName : '')
+  const baseType = translations.toEnglish(displayBaseType) || (/^[\x20-\x7e]+$/.test(displayBaseType) ? displayBaseType : '')
+  const name = translations.toEnglish(displayName) || (/^[\x20-\x7e]+$/.test(displayName) ? displayName : '')
   if (!baseType) throw new Error(`Unsupported item base language: ${displayBaseType}`)
-  const itemLevelLine = sections.flat().find((line) => /^(?:Item Level|物品等级|物品等級)\s*[：:]/i.test(line))
+  const itemLevelLine = sections.flat().find((line) => /^(?:Item Level|物品等级|物品等級|아이템 레벨)\s*[：:]/iu.test(line))
   const itemLevel = itemLevelLine?.match(/\d+/)?.[0]
   const itemLevelSection = sections.findIndex((section) => section.some((line) => line === itemLevelLine))
-  const modifierLines: Array<{ text: string; rune: boolean }> = []
+  const modifierLines: Array<{ text: string; rune: boolean; implicit: boolean }> = []
+  const unresolved: string[] = []
+  const footerMarker = /^(?:Corrupted|Twice Corrupted|Sanctified|Sanctified Item|已腐化|已污染|被腐化|已腐化|双重腐化|圣化|圣化物品|Split|分裂|分裂之物|引路石掉落|Waystone Drop|타락|이중 타락|분열|웨이스톤 드롭)$/iu
+  let footerMode = false
   for (const section of sections.slice(Math.max(2, itemLevelSection + 1))) {
+    if (footerMode) continue
+    if (section.some((line) => footerMarker.test(line))) {
+      footerMode = true
+      continue
+    }
+    const isFlavorSection = section.some((line) => /^(?:[“"]|'.*')/u.test(line))
+      || section.every((line) => /[，。！？；、——…]$/u.test(line))
+    if (isFlavorSection) continue
+    let implicit = false
+    if (section.some((line) => /^\{\s*(?:基底属性|基底屬性|Base Properties)\s*\}$/u.test(line))) implicit = true
     for (const sourceLine of section) {
-      if (/^\{.*\}$/.test(sourceLine) || /^(?:Corrupted|已腐化|已污染|Split|分裂)/i.test(sourceLine)) continue
+      if (/^\{.*\}$/u.test(sourceLine) || footerMarker.test(sourceLine)) continue
       const rune = /\((?:rune|符文)\)$/i.test(sourceLine)
       const cleaned = sourceLine.replace(/\s*\((?:rune|符文)\)\s*$/i, '').replace(/^\{[^}]+\}/, '').trim()
-      const translated = itemTranslations.statToEnglish(cleaned) || (/^[\x20-\x7e]+$/.test(cleaned) ? cleaned : undefined)
+      const translated = translations.statToEnglish(cleaned) || (/^[\x20-\x7e]+$/.test(cleaned) ? cleaned : undefined)
       if (translated && !/^(?:Requirements?|Sockets?|Quality|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second)\s*:/i.test(translated)) {
-        modifierLines.push({ text: translated, rune })
+        modifierLines.push({
+          text: translated,
+          rune,
+          // Unique base properties and granted skills are implicit item data in
+          // PoB, even when the game clipboard puts them in separate sections.
+          implicit: !rune && (implicit || /^Grants Skill:/i.test(translated)),
+        })
+      } else if (!translated && cleaned && !/^[-—]+$/u.test(cleaned)) {
+        unresolved.push(sourceLine)
       }
     }
   }
   const uniqueModifiers = [...new Map(modifierLines.map((modifier) => [`${modifier.rune}:${modifier.text}`, modifier])).values()]
-  if (!uniqueModifiers.length) throw new Error('No supported modifiers could be resolved from the game clipboard')
-  const implicitCount = uniqueModifiers.filter((modifier) => modifier.rune).length
+  const uniqueUnresolved = [...new Set(unresolved)]
+  if (!uniqueModifiers.length) {
+    const detail = uniqueUnresolved.length ? ` Unsupported ${language} item lines: ${uniqueUnresolved.join(' | ')}` : ''
+    throw new Error(`No supported modifiers could be resolved from the game clipboard.${detail}`)
+  }
+  // Unknown localized lines are deliberately excluded from PoB raw. They are
+  // retained as diagnostics so a partial query can still use all recognized
+  // modifiers without silently submitting an unsafe approximation.
+  if (uniqueUnresolved.length) console.warn(`[PriceCheck] Unsupported ${language} item lines: ${uniqueUnresolved.join(' | ')}`)
+  const implicitCount = uniqueModifiers.filter((modifier) => modifier.rune || modifier.implicit).length
   const raw = [`Rarity: ${rarity}`]
   if ((rarity === 'RARE' || rarity === 'UNIQUE') && name && name !== baseType) raw.push(name)
   raw.push(baseType)
   if (itemLevel) raw.push(`Item Level: ${itemLevel}`)
   raw.push(`Implicits: ${implicitCount}`)
-  raw.push(...uniqueModifiers.map((modifier) => `${modifier.rune ? '{rune}' : ''}${modifier.text}`))
-  if (sections.flat().some((line) => /^(?:Corrupted|已腐化|已污染)$/i.test(line))) raw.push('Corrupted')
-  return raw.join('\n')
+  raw.push(...uniqueModifiers.map((modifier) => `${modifier.rune ? '{rune}' : modifier.implicit ? '{implicit}' : ''}${modifier.text}`))
+  const footerLines = sections.flat()
+  if (footerLines.some((line) => /^(?:Twice Corrupted|双重腐化|이중 타락)$/iu.test(line))) raw.push('Twice Corrupted')
+  else if (footerLines.some((line) => /^(?:Corrupted|已腐化|已污染|被腐化|已腐化|타락)$/iu.test(line))) raw.push('Corrupted')
+  return { raw: raw.join('\n'), unresolved: uniqueUnresolved }
 }
 
 async function priceCheckSnapshot(request: TradePriceCheckPrepareRequest) {
   const target = request.target
   if (!target || typeof target !== 'object') throw new Error('Invalid price check target')
+  const sourceText = target.kind === 'raw' ? target.raw : target.kind === 'library' ? equipmentLibrary.get(target.entryId)?.item.raw : ''
+  if (sourceText && detectItemRawLanguage(sourceText) !== 'en') {
+    await createMarketStatTextResolver('cn')
+    await createMarketStatTextResolver(request.realm)
+  }
+  const statResolver = await createMarketStatTextResolver(request.realm).catch(() => () => undefined)
   if (target.kind === 'library') {
     const entry = equipmentLibrary.get(validateShortString(target.entryId, 'library entry ID', 128))
     if (!entry) throw new Error('Equipment library entry not found')
-    const normalized = await pobItemBridge.normalize(entry.item.raw)
+    const translatedRaw = translatePobRawForPriceCheck(entry.item.raw)
+    const normalized = await pobItemBridge.normalize(translatedRaw.raw)
+    const modifiers = normalized.view.modifiers.map((modifier, index) => {
+      const existing = entry.view.modifiers[index]?.localized || modifier.localized
+      // Rebuild localized text from the canonical English modifier first.
+      // Older library entries may contain stale '?' placeholders produced by
+      // the previous template translator.
+      const fallback = modifier.tradeStatIds.map((id) => statResolver(id)).find(Boolean)
+      const canonicalText = usableLocalizedText(modifier.text) || usableLocalizedText(fallback?.canonicalText)
+      const chinese = usableLocalizedText(canonicalText ? itemTranslations.statToChinese(canonicalText) : undefined)
+        || usableLocalizedText(fallback?.displayText)
+        || usableLocalizedText(existing?.['zh-CN'])
+      const canonicalModifier = canonicalText ? { ...modifier, text: canonicalText } : modifier
+      return {
+        ...canonicalModifier,
+        localized: chinese ? { ...existing, 'zh-CN': chinese } : existing,
+      }
+    })
     return canonicalToLegacySnapshot(normalized, {
       ...normalized.view,
       iconUrl: entry.view.iconUrl,
       localized: entry.view.localized,
-      modifiers: normalized.view.modifiers.map((modifier, index) => ({
-        ...modifier,
-        localized: entry.view.modifiers[index]?.localized,
-      })),
+      modifiers,
     }, request.realm)
   }
   if (target.kind !== 'raw' || typeof target.raw !== 'string' || !target.raw.trim() || target.raw.length > 100_000) {
     throw new Error('Invalid PoB item raw')
   }
-  const normalized = await pobItemBridge.normalize(target.raw)
+  const translatedRaw = translatePobRawForPriceCheck(target.raw)
+  const normalized = await pobItemBridge.normalize(translatedRaw.raw)
   const name = itemTranslations.toChinese(normalized.view.name)
   const baseType = itemTranslations.toChinese(normalized.view.baseType)
   const modifiers = normalized.view.modifiers.map((modifier) => {
-    const localized = itemTranslations.statToChinese(modifier.text)
-    return { ...modifier, ...(localized ? { localized: { 'zh-CN': localized } } : {}) }
+    const fallback = modifier.tradeStatIds.map((id) => statResolver(id)).find(Boolean)
+    const canonicalText = usableLocalizedText(modifier.text) || usableLocalizedText(fallback?.canonicalText)
+    const localized = usableLocalizedText(canonicalText ? itemTranslations.statToChinese(canonicalText) : undefined)
+      || usableLocalizedText(fallback?.displayText)
+    const canonicalModifier = canonicalText ? { ...modifier, text: canonicalText } : modifier
+    return { ...canonicalModifier, ...(localized ? { localized: { 'zh-CN': localized } } : {}) }
   })
   return canonicalToLegacySnapshot(normalized, {
     ...normalized.view,
     modifiers,
     ...((name || baseType) ? { localized: { 'zh-CN': { name: name || normalized.view.name, baseType: baseType || normalized.view.baseType } } } : {}),
   }, request.realm)
+}
+
+async function savePriceCheckListing(ref: MarketDomListingRef) {
+  if (!marketViewManager) throw new Error('Market browser is unavailable')
+  const payload = await marketViewManager.fetchListing(ref)
+  const resolveStatText = await createMarketStatTextResolver(ref.realm)
+  const imported = normalizeMarketListing(
+    payload,
+    ref,
+    (text) => itemTranslations.toEnglish(text),
+    (text) => itemTranslations.statToEnglish(text),
+    resolveStatText,
+  )
+  const normalized = await pobItemBridge.normalize(imported.item.raw)
+  normalized.view.iconUrl = imported.item.iconUrl
+  normalized.view.localized = imported.item.localized
+  if (imported.source.display?.locale && imported.source.display.locale !== 'en') {
+    imported.source.display.modifiers?.forEach((displayText, index) => {
+      if (normalized.view.modifiers[index]) {
+        normalized.view.modifiers[index].localized = { [imported.source.display!.locale]: displayText }
+      }
+    })
+  }
+  const entry = equipmentLibrary.upsert(normalized, imported.source, { collectionRoot: 'market' })
+  notifyLibraryChanged()
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('market:sidebar-request', 'items')
+  return entry
 }
 
 if (hasSingleInstanceLock) void app.whenReady().then(async () => {
@@ -740,6 +953,46 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     event.sender.setZoomFactor(value)
     return event.sender.getZoomFactor()
   })
+  ipcMain.handle('pob2:restart-as-admin', async (event) => {
+    const fromMain = mainWindow?.webContents.id === event.sender.id
+    const fromPriceCheck = priceCheckWindowManager?.owns(event.sender.id) === true
+    if (!fromMain && !fromPriceCheck) throw new Error('Unauthorized administrator restart request')
+    if (process.platform !== 'win32') return { status: 'unsupported' as const }
+    if (processIsElevated(process.pid) === true) return { status: 'already-elevated' as const }
+
+    const argumentsList = process.argv.slice(1)
+    const argumentExpression = argumentsList.map(quotePowerShellArgument).join(', ')
+    // UAC launches the child with a refreshed environment. Explicitly carry
+    // the Vite renderer URL across so a development instance does not fall
+    // back to the packaged app:// renderer after elevation.
+    const rendererEnvironment = (['ELECTRON_RENDERER_URL', 'SUPERPOE_USER_DATA'] as const)
+      .filter((name) => Boolean(process.env[name]))
+      .map((name) => `$env:${name} = ${quotePowerShellArgument(process.env[name]!)}`)
+      .join('; ')
+    const command = [
+      rendererEnvironment,
+      `$arguments = @(${argumentExpression})`,
+      `Start-Process -FilePath ${quotePowerShellArgument(process.execPath)} -ArgumentList $arguments -WorkingDirectory ${quotePowerShellArgument(process.cwd())} -Verb RunAs`,
+    ].filter(Boolean).join('; ')
+    // Release the lock before creating the elevated process. If the old
+    // instance keeps it until after Start-Process returns, the new instance
+    // can start during that window, fail the single-instance check, and exit
+    // before the old process releases the lock.
+    app.releaseSingleInstanceLock()
+    try {
+      await execFileAsync('powershell.exe', ['-NoProfile', '-Command', command], { windowsHide: true })
+      setTimeout(() => app.quit(), 250)
+      return { status: 'started' as const }
+    } catch {
+      // UAC cancellation leaves the current process alive. Restore the lock
+      // so a cancelled elevation does not leave a second instance possible.
+      if (!app.requestSingleInstanceLock()) {
+        setTimeout(() => app.quit(), 250)
+        return { status: 'started' as const }
+      }
+      return { status: 'cancelled' as const }
+    }
+  })
   ipcMain.handle('pob2:set-app-context', (event, value: unknown) => {
     requireMainWindowSender(event)
     if (!value || typeof value !== 'object') throw new Error('Invalid application context')
@@ -771,7 +1024,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     return priceCheckCoordinator.open(input)
   })
   ipcMain.handle('price-check:get-state', (event) => {
-    if (!priceCheckWindowManager?.owns(event.sender.id) || !priceCheckCoordinator) throw new Error('Unauthorized price check sender')
+    if (!priceCheckWindowManager || (!priceCheckWindowManager.owns(event.sender.id) && !priceCheckWindowManager.ownsDetail(event.sender.id)) || !priceCheckCoordinator) throw new Error('Unauthorized price check sender')
     return priceCheckCoordinator.snapshot()
   })
   ipcMain.handle('price-check:search', async (event, value: unknown) => {
@@ -795,8 +1048,51 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     }
     return priceCheckCoordinator.visitHideout(value)
   })
+  ipcMain.handle('price-check:favorite', async (event, value: unknown) => {
+    const ownsPriceCheck = priceCheckWindowManager?.owns(event.sender.id) || priceCheckWindowManager?.ownsDetail(event.sender.id)
+    if (!ownsPriceCheck || !priceCheckCoordinator || typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value)) {
+      throw new Error('Invalid price check listing')
+    }
+    const reference = priceCheckCoordinator.listingReference(value)
+    const entry = await savePriceCheckListing(reference)
+    return { ok: true as const, entryId: entry.id }
+  })
+  ipcMain.handle('price-check:open-in-trade-center', (event, value: unknown) => {
+    if (!priceCheckWindowManager?.owns(event.sender.id) || typeof value !== 'string') throw new Error('Invalid trade page')
+    const url = new URL(value)
+    const realm = priceCheckCoordinator?.snapshot().realm || defaultRealm
+    const expectedHost = realm === 'cn' ? 'poe.game.qq.com' : 'www.pathofexile.com'
+    if (url.hostname !== expectedHost || !url.pathname.startsWith('/trade2/')) throw new Error('Invalid trade page')
+    if (!marketViewManager || !mainWindow || mainWindow.isDestroyed()) throw new Error('Trade center is unavailable')
+    marketViewManager.openSource(realm, url.toString())
+    // The checker normally restores game focus after hiding. During this
+    // navigation the destination is SuperPoE itself, so suppress that delayed
+    // game-focus callback or it will steal focus back from the trade center.
+    priceCheckWindowManager?.hide(false)
+    mainWindow.show()
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+    mainWindow.moveTop()
+    mainWindow.webContents.send('market:open-trade-center')
+  })
+  ipcMain.handle('price-check:show-detail', (event, value: unknown) => {
+    if (!priceCheckWindowManager?.owns(event.sender.id) || typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value)) {
+      throw new Error('Invalid price check listing')
+    }
+    priceCheckWindowManager.showDetail(value)
+  })
+  ipcMain.handle('price-check:hide-detail', (event) => {
+    if (!priceCheckWindowManager || (!priceCheckWindowManager.owns(event.sender.id) && !priceCheckWindowManager.ownsDetail(event.sender.id))) {
+      throw new Error('Unauthorized price check sender')
+    }
+    priceCheckWindowManager.hideDetail()
+  })
+  ipcMain.handle('price-check:get-detail-state', (event) => {
+    if (!priceCheckWindowManager?.ownsDetail(event.sender.id)) throw new Error('Unauthorized price check sender')
+    return priceCheckWindowManager.getDetailState()
+  })
   ipcMain.handle('price-check:hide', (event) => {
-    if (!priceCheckWindowManager?.owns(event.sender.id)) throw new Error('Unauthorized price check sender')
+    if (!priceCheckWindowManager || (!priceCheckWindowManager.owns(event.sender.id) && !priceCheckWindowManager.ownsDetail(event.sender.id))) throw new Error('Unauthorized price check sender')
     priceCheckWindowManager.hide()
   })
   ipcMain.handle('market:activate', (event, value: unknown) => {
@@ -987,11 +1283,13 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
         }
         if (!marketViewManager) throw new Error('Market browser is unavailable')
         const payload = await marketViewManager.fetchListing(ref)
+        const resolveStatText = await createMarketStatTextResolver(ref.realm)
         const imported = normalizeMarketListing(
           payload,
           ref,
           (text) => itemTranslations.toEnglish(text),
           (text) => itemTranslations.statToEnglish(text),
+          resolveStatText,
         )
         const normalized = await pobItemBridge.normalize(imported.item.raw)
         normalized.view.iconUrl = imported.item.iconUrl

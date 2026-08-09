@@ -862,6 +862,11 @@ svg { flex: 0 0 auto; }
 .item-display-stats .stat-lightning { color: #ffff77; }
 .item-display-stats .stat-chaos { color: #d02090; }
 .item-display-stats .stat-augmented { color: #8888ff; }
+.item-display-stats span { display: inline-flex; justify-content: center; gap: 5px; }
+.item-requirements { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 12px; padding: 6px 4px 3px; color: #c8c8c8; font-size: 10px; text-align: center; }
+.item-requirements span { display: inline-flex; gap: 4px; }
+.item-requirements label { color: #aaa395; }
+.item-requirements strong { color: #c8c8c8; font-weight: 500; }
 .item-metadata { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 12px; padding: 11px 4px; color: #77736c; font-size: 9px; }
 .item-metadata strong { color: inherit; font-weight: 500; }
 .item-metadata .requirement-augmented { color: #8888ff; }
@@ -3196,4 +3201,64 @@ svg { flex: 0 0 auto; }
 /* Balanced breathing room keeps the card close without touching the label. */
 .build-center-nav-tooltip {
   left: calc(100% + 6px);
+}
+
+/* Directory rows are one visual target; arrow/marker and title share the row surface. */
+.superpoe-app .equipment-tree-row {
+  width: 100%;
+  min-width: 0;
+}
+.superpoe-app .equipment-tree-all-row {
+  display: grid;
+  grid-template-columns: 28px minmax(0, 1fr);
+  align-items: center;
+  width: 100%;
+}
+.superpoe-app .equipment-tree-row > button,
+.superpoe-app .equipment-tree-row > .equipment-tree-all-name,
+.superpoe-app .equipment-tree-chevron,
+.superpoe-app .equipment-tree-name,
+.superpoe-app .trade-helper-folder > button:first-child,
+.superpoe-app .trade-helper-folder .folder-name {
+  border-color: transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.superpoe-app .equipment-tree-row > button::before,
+.superpoe-app .equipment-tree-row > .equipment-tree-all-name::before,
+.superpoe-app .equipment-tree-chevron::before,
+.superpoe-app .equipment-tree-name::before,
+.superpoe-app .trade-helper-folder > button:first-child::before,
+.superpoe-app .trade-helper-folder .folder-name::before {
+  content: none;
+}
+.superpoe-app .equipment-tree-row > button:hover,
+.superpoe-app .equipment-tree-chevron:hover,
+.superpoe-app .equipment-tree-name:hover,
+.superpoe-app .trade-helper-folder > button:first-child:hover,
+.superpoe-app .trade-helper-folder .folder-name:hover {
+  border-color: transparent;
+  background: transparent;
+  box-shadow: none;
+}
+.superpoe-app .equipment-tree-row:hover > .equipment-tree-chevron,
+.superpoe-app .equipment-tree-row:hover > .equipment-tree-leaf-marker,
+.superpoe-app .trade-helper-folder:hover > button:first-child {
+  color: #d3b979;
+}
+.superpoe-app .trade-helper-folder {
+  width: 100%;
+  background: transparent;
+}
+.superpoe-app .trade-helper-folder:hover {
+  background: rgba(55, 48, 35, .42);
+}
+
+/* Directory controls keep the shared pointer-following glass highlight. */
+.superpoe-app .equipment-tree-row > .equipment-tree-chevron::before,
+.superpoe-app .equipment-tree-row > .equipment-tree-name::before,
+.superpoe-app .trade-helper-folder > button:first-child::before,
+.superpoe-app .trade-helper-folder .folder-name::before {
+  content: "";
 }

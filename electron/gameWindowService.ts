@@ -33,6 +33,8 @@ class Win32GameWindowAdapter {
   private readonly FindWindowExW = this.user32.func('HWND __stdcall FindWindowExW(HWND, HWND, const char16_t *, const char16_t *)')
   private readonly GetForegroundWindow = this.user32.func('HWND __stdcall GetForegroundWindow()')
   private readonly GetWindowThreadProcessId = this.user32.func('uint32_t __stdcall GetWindowThreadProcessId(HWND, _Out_ uint32_t *)')
+  private readonly ShowWindow = this.user32.func('bool __stdcall ShowWindow(HWND, int)')
+  private readonly SetForegroundWindow = this.user32.func('bool __stdcall SetForegroundWindow(HWND)')
   private readonly GetWindowTextW = this.user32.func('int __stdcall GetWindowTextW(HWND, _Out_ char16_t *, int)')
   private readonly GetWindowRect = this.user32.func('bool __stdcall GetWindowRect(HWND, _Out_ RECT *)')
   private readonly OpenProcess = this.kernel32.func('HANDLE __stdcall OpenProcess(uint32_t, bool, uint32_t)')
@@ -43,6 +45,9 @@ class Win32GameWindowAdapter {
   find(): NativeWindowInfo | null {
     let cursor: unknown = null
     const foreground = this.GetForegroundWindow()
+    const foregroundPidOut: Array<number | null> = [null]
+    if (foreground) this.GetWindowThreadProcessId(foreground, foregroundPidOut)
+    let firstMatch: NativeWindowInfo | null = null
     for (let count = 0; count < 8; count += 1) {
       cursor = this.FindWindowExW(null, cursor, 'POEWindowClass', null)
       if (!cursor) break
@@ -52,16 +57,28 @@ class Win32GameWindowAdapter {
       const titleBuffer = Buffer.alloc(1_024)
       const titleLength = this.GetWindowTextW(cursor, titleBuffer, 512)
       const title = titleLength > 0 ? titleBuffer.subarray(0, titleLength * 2).toString('utf16le') : ''
-      return {
+      const info: NativeWindowInfo = {
         hwnd: cursor,
         pid,
         title,
         processPath: this.processPath(pid),
         bounds: this.windowBounds(cursor),
-        foreground: foreground && koffi.address(foreground) === koffi.address(cursor),
+        // Compare process IDs instead of HWND pointer addresses. Koffi may
+        // materialize equivalent HWND values as different JS objects.
+        foreground: foregroundPidOut[0] === pid,
       }
+      if (!firstMatch) firstMatch = info
+      if (info.foreground) return info
     }
-    return null
+    return firstMatch
+  }
+
+  focus(): boolean {
+    const window = this.find()
+    if (!window) return false
+    // SW_RESTORE also brings a minimized client back before assigning focus.
+    this.ShowWindow(window.hwnd, 9)
+    return Boolean(this.SetForegroundWindow(window.hwnd))
   }
 
   private processPath(pid: number): string | undefined {
@@ -114,6 +131,10 @@ export class GameWindowService extends EventEmitter {
 
   getState(): GameRuntimeState {
     return structuredClone(this.state)
+  }
+
+  focusGame(): boolean {
+    return this.adapter?.focus() === true
   }
 
   private check(): void {

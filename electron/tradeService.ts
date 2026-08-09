@@ -28,11 +28,29 @@ function clean(value: unknown): string {
 
 function normalizeTemplate(value: string): string {
   return value
+    // The Chinese advanced clipboard/catalog may include the Bonded label
+    // as presentation context. It is not part of the searchable stat text.
+    .replace(/^(?:bonded|羁绊|羈絆)\s*[:：]\s*/iu, '')
     .replace(/[-+]?\d+(?:\.\d+)?/g, (number) => number.startsWith('-') ? '-#' : '#')
     .replace(/\+(?=#)/g, '')
     .replace(/\s+/g, ' ')
     .trim()
     .toLocaleLowerCase()
+}
+
+function normalizeTemplateVariants(value: string): string[] {
+  const normalized = normalizeTemplate(value)
+  const variants = new Set([normalized])
+
+  // PoB's Chinese presentation uses "# 级技能", while the official CN
+  // catalog uses "等级 # 技能" for granted skills.
+  const grantedSkill = normalized.match(/^获得技能\s*[:：]\s*#\s*级\s*(.+)$/iu)
+  if (grantedSkill) variants.add(`获得技能: 等级 # ${grantedSkill[1]}`)
+
+  const catalogOrder = normalized.match(/^获得技能\s*[:：]\s*等级\s*#\s*(.+)$/iu)
+  if (catalogOrder) variants.add(`获得技能: # 级${catalogOrder[1]}`)
+
+  return [...variants]
 }
 
 function normalizeText(value: string): string {
@@ -139,9 +157,9 @@ export class TradeStatResolver {
     const sourceText = catalog.realm === 'cn'
       ? modifier.localized?.['zh-CN']?.displayText || modifier.original.displayText
       : modifier.original.displayText
-    const template = normalizeTemplate(sourceText)
+    const templates = normalizeTemplateVariants(sourceText)
     const directMatches: TradeStatMatch[] = catalog.entries
-      .filter((entry) => normalizeTemplate(entry.text) === template)
+      .filter((entry) => templates.includes(normalizeTemplate(entry.text)))
       .map((entry) => ({ entry, queryStatId: entry.id }))
     const optionMatches: TradeStatMatch[] = catalog.entries.flatMap((entry) => (entry.option?.options || []).flatMap((option) => (
       normalizeText(entry.text.replace('#', option.text)) === normalizeText(sourceText)
@@ -248,6 +266,8 @@ export function createPriceCheckDraft(item: LibraryItemSnapshot, realm: MarketRe
       return {
         id: modifier.id,
         group: modifier.group,
+        sourceTags: modifier.sourceTags,
+        affixKind: modifier.affixKind,
         lines: modifier.original.lines,
         localizedLines: modifier.localized?.['zh-CN']?.lines,
         searchable: resolutionIds(resolution).length > 0,

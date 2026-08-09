@@ -44,4 +44,51 @@ describe('PriceCheckCoordinator', () => {
     await coordinator.fetchPage(2)
     expect(coordinator.snapshot().listings.map((listing) => listing.id)).toEqual(['listing-10', 'listing-11'])
   })
+
+  it('keeps localized capture diagnostics while allowing recognized modifiers to load', async () => {
+    const coordinator = new PriceCheckCoordinator({
+      context: () => ({ realm: 'global', language: 'zh-rCN' }), prepare: async () => draft,
+      leagues: async () => [{ id: 'league', text: 'League' }], search: vi.fn(), fetch: vi.fn(), visitHideout: vi.fn(), changed: vi.fn(),
+    })
+    await coordinator.open({
+      source: { kind: 'raw', raw: 'item' },
+      captureWarnings: ['效果期间，每秒回复符文结界上限的 3.9 (2.5-5.0)%'],
+    })
+    expect(coordinator.snapshot().phase).toBe('configuring')
+    expect(coordinator.snapshot().captureWarnings).toEqual(['效果期间，每秒回复符文结界上限的 3.9 (2.5-5.0)%'])
+  })
+
+  it('recovers placeholder listing descriptions from official stat hashes', async () => {
+    const coordinator = new PriceCheckCoordinator({
+      context: () => ({ realm: 'cn', language: 'zh-rCN' }), prepare: async () => draft,
+      leagues: async () => [{ id: 'league', text: 'League' }], visitHideout: vi.fn(), changed: vi.fn(),
+      search: async () => ({ searchId: 'search', url: 'https://poe.game.qq.com/trade2/search/poe2/league/search', total: 1, resolvedModifierCount: 1, unresolvedModifierCount: 0, listingIds: ['listing'] }),
+      fetch: async () => ({ result: [{ id: 'listing', item: {
+        name: 'Mageblood', baseType: 'Utility Belt', explicitMods: ['?????? (??????-??????) 继承'],
+        extended: { hashes: { explicit: [['explicit.stat_264262054|4', [0]]] } },
+      }, listing: { price: { amount: 1, currency: 'divine' }, account: { name: 'Seller', online: {} } } }] }),
+      resolveListingStatText: async (_realm, id) => id === 'explicit.stat_264262054|4'
+        ? { displayText: '钻石 继承', canonicalText: 'Legacy of Diamond' }
+        : undefined,
+    })
+    await coordinator.open({ source: { kind: 'raw', raw: 'item' } })
+    await coordinator.search('league', { listedStatus: 'securable', useBaseType: true, modifiers: [] })
+    expect(coordinator.snapshot().listings[0].item.modifiers[0].text).toBe('Legacy of Diamond')
+  })
+
+  it('fills numeric values into canonical catalog templates for translated detail views', async () => {
+    const coordinator = new PriceCheckCoordinator({
+      context: () => ({ realm: 'cn', language: 'zh-rTW' }), prepare: async () => draft,
+      leagues: async () => [{ id: 'league', text: 'League' }], visitHideout: vi.fn(), changed: vi.fn(),
+      search: async () => ({ searchId: 'search', url: 'https://poe.game.qq.com/trade2/search/poe2/league/search', total: 1, resolvedModifierCount: 1, unresolvedModifierCount: 0, listingIds: ['listing'] }),
+      fetch: async () => ({ result: [{ id: 'listing', item: {
+        name: 'Mageblood', baseType: 'Utility Belt', explicitMods: ['+109 最大生命'],
+        extended: { hashes: { explicit: [['explicit.stat_life', [0]]] } },
+      }, listing: { price: { amount: 1, currency: 'divine' }, account: { name: 'Seller', online: {} } } }] }),
+      resolveListingStatText: async () => ({ displayText: '+109 最大生命', canonicalText: '+# to maximum Life' }),
+    })
+    await coordinator.open({ source: { kind: 'raw', raw: 'item' } })
+    await coordinator.search('league', { listedStatus: 'securable', useBaseType: true, modifiers: [] })
+    expect(coordinator.snapshot().listings[0].item.modifiers[0].text).toBe('+109 to maximum Life')
+  })
 })

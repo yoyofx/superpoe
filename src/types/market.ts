@@ -107,6 +107,8 @@ export interface LibraryItemSnapshot {
   rawText?: string
   localized?: Partial<Record<LibraryTextLocale, { name: string; baseType: string }>>
   tradeCategory?: string
+  properties?: CanonicalItemDisplayStat[]
+  requirements?: CanonicalItemDisplayStat[]
   modifiers: LibraryModifier[]
 }
 
@@ -129,6 +131,11 @@ export interface CanonicalItemModifierView {
   tradeValueNegated?: boolean
 }
 
+export interface CanonicalItemDisplayStat {
+  key: string
+  values: string[]
+}
+
 export interface CanonicalItemView {
   rarity: string
   name: string
@@ -141,6 +148,8 @@ export interface CanonicalItemView {
   iconUrl?: string
   localized?: Partial<Record<LibraryTextLocale, { name: string; baseType: string }>>
   tradeCategory?: string
+  properties?: CanonicalItemDisplayStat[]
+  requirements?: CanonicalItemDisplayStat[]
   modifiers: CanonicalItemModifierView[]
 }
 
@@ -487,6 +496,8 @@ export interface TradePriceCheckPrepareRequest {
 export interface TradePriceCheckModifier {
   id: string
   group: LibraryModifierGroup
+  sourceTags?: LibraryModifierTag[]
+  affixKind?: 'prefix' | 'suffix'
   lines: string[]
   localizedLines?: string[]
   searchable: boolean
@@ -541,6 +552,8 @@ export interface TradeSearchResult {
 export interface PriceCheckOpenRequest {
   source: TradePriceCheckTarget
   initialLeagueId?: string
+  /** Non-blocking diagnostics produced while importing a localized game item. */
+  captureWarnings?: string[]
 }
 
 export interface PriceCheckListingView {
@@ -556,6 +569,13 @@ export interface PriceCheckListingView {
   hideoutAvailable: boolean
 }
 
+export interface PriceCheckListingReference {
+  realm: MarketRealm
+  listingId: string
+  queryId: string
+  sourceUrl: string
+}
+
 export interface PriceCheckContextState {
   generation: number
   realm: MarketRealm
@@ -567,6 +587,8 @@ export interface PriceCheckContextState {
   search?: TradeSearchResult & { contextId: string; page: number; pageCount: number }
   listings: PriceCheckListingView[]
   error?: string
+  /** Localized item lines that were not safe to translate into PoB syntax. */
+  captureWarnings?: string[]
 }
 
 export interface PriceCheckSettings {

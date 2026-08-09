@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('pob2Desktop', {
   saveGameBuild: (payload: { content: string; fileName: string }) => ipcRenderer.invoke('pob2:save-game-build', payload),
   installGameBuild: (payload: { content: string; fileName: string }) => ipcRenderer.invoke('pob2:install-game-build', payload),
   setUiScale: (factor: number) => ipcRenderer.invoke('pob2:set-ui-scale', factor),
+  restartAsAdministrator: () => ipcRenderer.invoke('pob2:restart-as-admin') as Promise<{ status: 'started' | 'already-elevated' | 'cancelled' | 'unsupported' }>,
   setAppContext: (context: { defaultRealm: 'cn' | 'global'; language: 'en' | 'zh-rCN' | 'zh-rTW' | 'ko-KR'; priceCheckEnabled: boolean; priceCheckHotkey: string }) => ipcRenderer.invoke('pob2:set-app-context', context),
   initPobLua: () => ipcRenderer.invoke('pob2:lua-init'),
   calculatePobLua: (payload: import('../src/types/calc.js').SkillCalculationSelection & { xml: string }) => ipcRenderer.invoke('pob2:lua-calculate', payload),
@@ -91,6 +92,11 @@ contextBridge.exposeInMainWorld('pob2Market', {
     const handler = () => callback()
     ipcRenderer.on('market:open-monitoring', handler)
     return () => { ipcRenderer.removeListener('market:open-monitoring', handler) }
+  },
+  onOpenTradeCenter: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('market:open-trade-center', handler)
+    return () => { ipcRenderer.removeListener('market:open-trade-center', handler) }
   },
 })
 

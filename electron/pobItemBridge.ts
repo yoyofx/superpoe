@@ -34,11 +34,18 @@ export function canonicalToLegacySnapshot(normalized: NormalizedPobItem, view: C
     iconUrl: view.iconUrl,
     localized: view.localized,
     tradeCategory: view.tradeCategory,
+    properties: view.properties,
+    requirements: view.requirements,
     rawText: normalized.item.raw,
     modifiers: view.modifiers.map((modifier) => {
       const queryStatId = modifier.tradeStatIds.length === 1 ? modifier.tradeStatIds[0] : undefined
       const [baseStatId, optionId] = queryStatId?.split('|') || []
-      const valueMode = optionId ? 'fixed-option' : modifier.tradeValue == null ? 'presence' : 'numeric'
+      // ExtraSkill mods keep the granted level in the canonical text rather
+      // than returning it as tradeValue. The official skill stat is numeric,
+      // so preserve that level for the price-check Min/Max controls.
+      const grantedSkillLevel = modifier.text.match(/^Grants Skill:\s*Level\s+(\d+)/i)?.[1]
+      const inferredTradeValue = modifier.tradeValue ?? (grantedSkillLevel ? Number(grantedSkillLevel) : undefined)
+      const valueMode = optionId ? 'fixed-option' : inferredTradeValue == null ? 'presence' : 'numeric'
       return {
         id: modifier.id,
         displayOrder: modifier.displayOrder,
@@ -47,7 +54,7 @@ export function canonicalToLegacySnapshot(normalized: NormalizedPobItem, view: C
         original: { locale: 'en' as const, lines: [modifier.text], displayText: modifier.text },
         localized: modifier.localized ? Object.fromEntries(Object.entries(modifier.localized).map(([locale, text]) => [locale, { lines: [text], displayText: text }])) : undefined,
         valueMode,
-        currentValues: modifier.tradeValue == null ? [] : [modifier.tradeValueNegated ? -modifier.tradeValue : modifier.tradeValue],
+        currentValues: inferredTradeValue == null ? [] : [modifier.tradeValueNegated ? -inferredTradeValue : inferredTradeValue],
         tierRanges: [],
         tradeResolutions: realm ? [{
           realm,
