@@ -1,6 +1,7 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('pob2Desktop', {
+  getSystemLocale: () => ipcRenderer.sendSync('pob2:get-system-locale') as string,
   importWeGame: (url: string) => ipcRenderer.invoke('pob2:import-wegame', url),
   importPoeNinja: (url: string) => ipcRenderer.invoke('pob2:import-poe-ninja', url),
   openBuildFile: () => ipcRenderer.invoke('pob2:open-build-file'),

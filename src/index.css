@@ -628,7 +628,8 @@ svg { flex: 0 0 auto; }
 .trade-helper-rail:hover > svg:last-child { transform: translateX(-2px); }
 @media (prefers-reduced-motion: reduce) { .trade-helper-rail svg { transition: none; } }
 
-.monitoring-workspace { height: 100%; min-width: 0; display: grid; grid-template-rows: 42px minmax(0, 1fr); overflow: hidden; background: #0b0d0c; color: #aaa398; }
+.monitoring-workspace { position: relative; height: 100%; min-width: 0; display: grid; grid-template-rows: 42px minmax(0, 1fr); overflow: hidden; background: #0b0d0c; color: #aaa398; }
+.monitoring-notice { position: absolute; top: 50px; right: 14px; z-index: 5; max-width: min(460px, calc(100% - 28px)); padding: 9px 12px; border: 1px solid #8d7048; border-radius: 3px; background: #201d17; color: #e2c891; box-shadow: 0 8px 22px #0008; font-size: 11px; line-height: 1.45; }
 .monitoring-workspace.loading { place-items: center; align-content: center; gap: 8px; color: #8e8168; }
 .monitoring-toolbar { min-width: 0; display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-bottom: 1px solid #494033; background: #141612; }
 .monitoring-toolbar-controls { min-width: 0; display: flex; align-items: center; gap: 6px; }
@@ -1360,7 +1361,7 @@ svg { flex: 0 0 auto; }
 }
 
 .workspace-empty,
-.center-empty-state { position: relative; isolation: isolate; background-color: #0b0d0c; }
+.center-empty-state { position: relative; isolation: isolate; background-color: transparent; }
 .workspace-empty::before,
 .center-empty-state::before { content: ""; position: absolute; z-index: -1; width: min(720px, 88%); height: 180px; background: url('/assets/ui/workbench/empty-bg-Db1Ulifn.png') center / 100% 100% no-repeat; opacity: .64; }
 

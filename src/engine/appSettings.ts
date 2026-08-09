@@ -27,11 +27,11 @@ function getDefaultAppSettings(): AppSettings {
   return {
     defaultRealm: mapSystemRealm(),
     confirmUnsavedExit: true,
-    uiScalePercent: DEFAULT_UI_SCALE_PERCENT,
-    updateChannel: 'release',
+    uiScalePercent: 120,
+    updateChannel: 'dev',
     updateCheckIntervalMinutes: 60,
     proxyDomains: [],
-    priceCheckEnabled: false,
+    priceCheckEnabled: true,
     priceCheckHotkey: 'Ctrl+D',
   }
 }
@@ -51,17 +51,18 @@ export function loadAppSettings(storage: SettingsStorage | undefined = typeof lo
   if (!storage) return getDefaultAppSettings()
   try {
     const parsed = JSON.parse(storage.getItem(APP_SETTINGS_STORAGE_KEY) || '{}') as Partial<AppSettings>
+    const defaults = getDefaultAppSettings()
     return {
-      defaultRealm: parsed.defaultRealm === 'cn' ? 'cn' : 'global',
+      defaultRealm: parsed.defaultRealm === 'cn' || parsed.defaultRealm === 'global' ? parsed.defaultRealm : defaults.defaultRealm,
       confirmUnsavedExit: parsed.confirmUnsavedExit !== false,
-      uiScalePercent: normalizeUiScalePercent(parsed.uiScalePercent),
-      updateChannel: parsed.updateChannel === 'dev' ? 'dev' : 'release',
-      updateCheckIntervalMinutes: typeof parsed.updateCheckIntervalMinutes === 'number' && parsed.updateCheckIntervalMinutes >= 10 ? parsed.updateCheckIntervalMinutes : 60,
+      uiScalePercent: parsed.uiScalePercent === undefined ? defaults.uiScalePercent : normalizeUiScalePercent(parsed.uiScalePercent),
+      updateChannel: parsed.updateChannel === 'dev' ? 'dev' : parsed.updateChannel === 'release' ? 'release' : defaults.updateChannel,
+      updateCheckIntervalMinutes: typeof parsed.updateCheckIntervalMinutes === 'number' && parsed.updateCheckIntervalMinutes >= 10 ? parsed.updateCheckIntervalMinutes : defaults.updateCheckIntervalMinutes,
       proxyDomains: Array.isArray(parsed.proxyDomains)
         ? parsed.proxyDomains.filter((d): d is string => typeof d === 'string' && d.trim().length > 0).map((d) => d.trim().replace(/\/+$/, ''))
         : [],
-      priceCheckEnabled: parsed.priceCheckEnabled === true,
-      priceCheckHotkey: typeof parsed.priceCheckHotkey === 'string' && parsed.priceCheckHotkey.trim() ? parsed.priceCheckHotkey.trim().slice(0, 64) : 'Ctrl+D',
+      priceCheckEnabled: typeof parsed.priceCheckEnabled === 'boolean' ? parsed.priceCheckEnabled : defaults.priceCheckEnabled,
+      priceCheckHotkey: typeof parsed.priceCheckHotkey === 'string' && parsed.priceCheckHotkey.trim() ? parsed.priceCheckHotkey.trim().slice(0, 64) : defaults.priceCheckHotkey,
     }
   } catch {
     return getDefaultAppSettings()

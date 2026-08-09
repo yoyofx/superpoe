@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b0d0e" />
+    <meta name="description" content="SuperPoE2 是面向 Path of Exile 2 的构筑规划、计算与交易工作台。" />
+    <title>SuperPoE2 · Path of Building 2 工作台</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="site-shell">
+      <header class="site-header" data-header>
+        <a class="brand" href="#top" aria-label="SuperPoE2 home">
+          <img src="./assets/superpoe2-app-icon.png" alt="" />
+          <span class="brand-copy"><strong>SuperPoE2</strong><small>BUILD WORKBENCH</small></span>
+        </a>
+        <button class="mobile-toggle" type="button" aria-label="Open navigation" aria-expanded="false" data-menu-toggle><span></span><span></span></button>
+        <nav class="site-nav" data-nav>
+          <a href="#capabilities" data-i18n="nav.capabilities">能力</a>
+          <a href="#workflow" data-i18n="nav.workflow">工作流</a>
+          <a href="#download" data-i18n="nav.download">下载</a>
+          <button class="language-switch" type="button" data-language-toggle>EN</button>
+        </nav>
+      </header>
+
+      <main id="top">
+        <section class="hero" aria-labelledby="hero-title">
+          <div class="hero-media" role="img" aria-label="SuperPoE2 构筑中心实际运行界面"></div>
+          <div class="hero-shade"></div>
+          <div class="hero-content page-width">
+            <div class="hero-lockup">
+              <img class="hero-logo" src="./assets/superpoe2-app-icon.png" alt="SuperPoE2" />
+              <div class="hero-copy">
+                <div class="eyebrow"><span class="eyebrow-line"></span><span data-i18n="hero.eyebrow">PATH OF EXILE 2 · BUILD WORKBENCH</span></div>
+                <h1 id="hero-title" data-i18n="hero.title">把每一次构筑<br /><em>变成可验证的决定。</em></h1>
+                <p class="hero-lede" data-i18n="hero.lede">SuperPoE2 把 PoB2 计算、装备分析、技能 DPS 与集市工作流放在同一个安静、快速的桌面工作台里。</p>
+                <div class="hero-actions">
+                  <a class="button button-primary" href="https://pan.baidu.com/s/17g4Nw91V8aetOCmo0Z4RIw?pwd=8i61" target="_blank" rel="noreferrer" data-i18n="hero.primary">获取 SuperPoE2 <span>↗</span></a>
+                  <a class="button button-quiet" href="#capabilities" data-i18n="hero.secondary">查看能力 <span>→</span></a>
+                </div>
+                <div class="hero-meta"><span><i class="status-dot"></i><span data-i18n="hero.status">本地运行已就绪</span></span><span class="meta-separator"></span><span data-i18n="hero.platforms">Windows · macOS</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="evidence-rail" aria-hidden="true">
+            <span class="rail-label">BUILD / EVIDENCE</span>
+            <span class="rail-node active"><i></i><b>01</b><em>INPUT</em></span>
+            <span class="rail-node"><i></i><b>02</b><em>MODEL</em></span>
+            <span class="rail-node"><i></i><b>03</b><em>RESULT</em></span>
+          </div>
+          <div class="hero-scroll" aria-hidden="true"><span>SCROLL TO EXPLORE</span><i></i></div>
+        </section>
+
+        <section class="signal-strip">
+          <div class="page-width signal-grid">
+            <div><strong>01</strong><span data-i18n="signals.one">同一份构筑事实</span></div>
+            <div><strong>02</strong><span data-i18n="signals.two">本地 PoB2 语义计算</span></div>
+            <div><strong>03</strong><span data-i18n="signals.three">面向重复操作优化</span></div>
+            <div><strong>04</strong><span data-i18n="signals.four">不把数据交给云端</span></div>
+          </div>
+        </section>
+
+        <section class="intro-band page-width" id="capabilities">
+          <div class="section-kicker"><span>CAPABILITIES</span><span>SUPERPOE / 02</span></div>
+          <div class="intro-grid">
+            <h2 data-i18n="capabilities.title">从构筑想法，到<br /><span>知道为什么。</span></h2>
+            <div><p class="intro-copy" data-i18n="capabilities.copy">装备、技能、天赋和配置不再是分散的页面。每一次调整都能回到同一个构筑对象，给出可追溯的计算结果。</p><a class="text-link" href="#workflow" data-i18n="capabilities.link">了解完整工作流 <span>→</span></a></div>
+          </div>
+        </section>
+
+        <section class="capability-list page-width">
+          <article class="capability capability-wide reveal">
+            <div class="capability-copy"><div class="feature-index">01 / BUILD</div><h3 data-i18n="feature.build.title">构筑中心与导入构筑</h3><p data-i18n="feature.build.copy">目录化管理本地构筑。导入 PoB Code、WeGame 分享或 poe.ninja 角色，保留来源，随时回到上一次决定。</p><ul><li data-i18n="feature.build.point1">最近打开与我的构筑</li><li data-i18n="feature.build.point2">导入预览，确认后替换或新建</li><li data-i18n="feature.build.point3">武器组、天赋与配置同步</li></ul></div>
+            <div class="feature-visual screenshot-duo"><div class="screen-duo"><figure class="screen-tile"><div class="screen-frame"><img src="./assets/build-center-page.png" alt="SuperPoE2 构筑中心" loading="lazy" /></div><figcaption data-i18n="visual.build.center">构筑中心</figcaption></figure><figure class="screen-tile"><div class="screen-frame"><img src="./assets/build-import-page.png" alt="SuperPoE2 导入构筑" loading="lazy" /></div><figcaption data-i18n="visual.build.import">统一导入</figcaption></figure></div></div>
+          </article>
+
+          <article class="capability capability-split reveal">
+            <div class="capability-copy"><div class="feature-index">02 / CALCULATE</div><h3 data-i18n="feature.calc.title">装备页面与技能计算</h3><p data-i18n="feature.calc.copy">从人物面板、装备槽和武器组，到基底、点伤、increased、gain 与 more，所有结果都回到当前构筑和实际技能。</p><a class="text-link" href="#workflow" data-i18n="feature.calc.link">查看计算路径 <span>→</span></a></div>
+            <div class="feature-visual equipment-visual"><div class="equipment-frame"><img src="./assets/equipment-page.png" alt="SuperPoE2 装备页面，包含人物面板、装备槽和武器组" loading="lazy" /><span class="equipment-tag">EQUIPMENT / LIVE</span></div><div class="equipment-note"><span data-i18n="visual.equipment.panel">人物面板</span><span data-i18n="visual.equipment.tabs">攻击 / 防御 / 人物</span><span data-i18n="visual.equipment.weapon">武器组 I / II</span><span class="equipment-note-ok" data-i18n="visual.equipment.status">汇总已同步</span></div></div>
+          </article>
+
+          <article class="capability capability-split reverse reveal">
+            <div class="capability-copy"><div class="feature-index">03 / SKILLS</div><h3 data-i18n="feature.skill.title">技能与伤害计算</h3><p data-i18n="feature.skill.copy">按武器组查看技能，支持有效 DPS 排序，并展开点伤、提高、额外获得、总增益和等级成长等详细来源。</p><a class="text-link" href="#workflow" data-i18n="feature.skill.link">查看计算细节 <span>→</span></a></div>
+            <div class="feature-visual screenshot-single"><div class="screen-frame"><img src="./assets/skill-dps-page.png" alt="SuperPoE2 技能与 DPS 计算" loading="lazy" /><span class="equipment-tag">SKILL / DPS</span></div><div class="screen-note"><span data-i18n="visual.skill.dps">技能 DPS</span><span data-i18n="visual.skill.sources">伤害来源可追溯</span></div></div>
+          </article>
+
+          <article class="capability capability-split reveal">
+            <div class="capability-copy"><div class="feature-index">04 / MARKET</div><h3 data-i18n="feature.market.title">集市查价与收藏</h3><p data-i18n="feature.market.copy">复制游戏内装备，快速形成查询条件。查看价格、收藏候选，保存搜索并跳转到交易中心继续寻找。</p><a class="text-link" href="#workflow" data-i18n="feature.market.link">查看集市工作流 <span>→</span></a></div>
+            <div class="feature-visual screenshot-single"><div class="screen-frame"><img src="./assets/market-page.png" alt="SuperPoE2 集市查价与收藏" loading="lazy" /><span class="equipment-tag">MARKET / SEARCH</span></div><div class="screen-note"><span data-i18n="visual.market.search">搜索与价格</span><span data-i18n="visual.market.favorites">装备收藏</span></div></div>
+          </article>
+
+          <article class="capability capability-split reverse reveal">
+            <div class="capability-copy"><div class="feature-index">05 / PASSIVES</div><h3 data-i18n="feature.passive.title">天赋树管理</h3><p data-i18n="feature.passive.copy">用真实 PoB2 树数据规划路径，搜索节点、切换武器组、查看升华，并把分配结果带进计算。</p><a class="text-link" href="#workflow" data-i18n="feature.passive.link">规划你的路径 <span>→</span></a></div>
+            <div class="feature-visual screenshot-single"><div class="screen-frame"><img src="./assets/passive-tree-page.png" alt="SuperPoE2 天赋树管理" loading="lazy" /><span class="equipment-tag">PASSIVES / TREE</span></div><div class="screen-note"><span data-i18n="visual.passive.search">节点搜索</span><span data-i18n="visual.passive.weapon">武器组路径</span></div></div>
+          </article>
+
+          <article class="capability capability-split reveal">
+            <div class="capability-copy"><div class="feature-index">06 / MONITOR</div><h3 data-i18n="feature.monitor.title">价格实时监控</h3><p data-i18n="feature.monitor.copy">保存购买目标，实时获取挂单并在游戏窗口中提醒。发现目标后可直接查看装备并跳转购买。</p><a class="text-link" href="#workflow" data-i18n="feature.monitor.link">了解监控流程 <span>→</span></a></div>
+            <div class="feature-visual screenshot-duo monitor-duo"><div class="screen-duo"><figure class="screen-tile"><div class="screen-frame"><img src="./assets/monitoring-page.png" alt="SuperPoE2 价格实时监控面板" loading="lazy" /></div><figcaption data-i18n="visual.monitor.targets">购买目标</figcaption></figure><figure class="screen-tile"><div class="screen-frame"><img src="./assets/monitoring-game-page.jpg" alt="游戏内实时监控发现装备并跳转购买" loading="lazy" /><span class="equipment-tag">GAME / BUY</span></div><figcaption data-i18n="visual.monitor.purchase">游戏内跳转购买</figcaption></figure></div></div>
+          </article>
+
+          <article class="capability capability-split reverse reveal">
+            <div class="capability-copy"><div class="feature-index">07 / CURRENCY</div><h3 data-i18n="feature.currency.title">通货行情</h3><p data-i18n="feature.currency.copy">按分类浏览通货价格，查看当前价、神圣石折算、时段参考、变化趋势和数据来源。</p><a class="text-link" href="#workflow" data-i18n="feature.currency.link">查看行情数据 <span>→</span></a></div>
+            <div class="feature-visual screenshot-single"><div class="screen-frame"><img src="./assets/currency-page.png" alt="SuperPoE2 通货行情" loading="lazy" /><span class="equipment-tag">MARKET / CURRENCY</span></div><div class="screen-note"><span data-i18n="visual.currency.price">当前价格</span><span data-i18n="visual.currency.history">时段参考</span></div></div>
+          </article>
+
+          <article class="capability capability-split reverse reveal">
+            <div class="capability-copy"><div class="feature-index">08 / LOCAL FIRST</div><h3 data-i18n="feature.local.title">本地、可恢复、可追溯</h3><p data-i18n="feature.local.copy">核心数据保存在本地。PoB2 LuaJIT sidecar 优先常驻运行，构筑文件、设置和备份都能明确找到。</p><ul><li data-i18n="feature.local.point1">不把构筑上传到云端</li><li data-i18n="feature.local.point2">Windows 与 macOS 原生运行</li><li data-i18n="feature.local.point3">上游 Lua 文件保持只读来源</li></ul></div>
+            <div class="feature-visual runtime-visual"><div class="runtime-window"><div class="runtime-title"><span>SUPERPOE RUNTIME</span><span class="runtime-state"><i></i> READY</span></div><div class="runtime-row"><span>PoB2 semantics</span><strong>READY</strong></div><div class="runtime-row"><span>LuaJIT sidecar</span><strong>RESIDENT</strong></div><div class="runtime-row"><span>Build snapshot</span><strong>SYNCED</strong></div><div class="runtime-log">&gt; calculation complete<br /><b>&gt; result accepted</b></div></div></div>
+          </article>
+        </section>
+
+        <section class="workflow-band" id="workflow">
+          <div class="page-width">
+            <div class="section-kicker"><span>WORKFLOW</span><span>FROM IDEA TO ANSWER</span></div>
+            <div class="workflow-head"><h2 data-i18n="workflow.title">四步，把猜测<br /><span>变成依据。</span></h2><p data-i18n="workflow.copy">SuperPoE2 把重复的核对工作交给计算，把关键的选择留给你。</p></div>
+            <div class="workflow-steps">
+              <div class="workflow-step"><span>01</span><h3 data-i18n="workflow.step1.title">导入</h3><p data-i18n="workflow.step1.copy">PoB Code、WeGame 分享或本地构筑文件。</p></div>
+              <div class="workflow-step"><span>02</span><h3 data-i18n="workflow.step2.title">拆解</h3><p data-i18n="workflow.step2.copy">装备、天赋、技能与配置进入同一对象。</p></div>
+              <div class="workflow-step"><span>03</span><h3 data-i18n="workflow.step3.title">计算</h3><p data-i18n="workflow.step3.copy">PoB2 LuaJIT 运行时给出可复核结果。</p></div>
+              <div class="workflow-step"><span>04</span><h3 data-i18n="workflow.step4.title">行动</h3><p data-i18n="workflow.step4.copy">比较升级方向，或直接去集市寻找它。</p></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="product-shot page-width reveal">
+          <div class="shot-caption"><span class="feature-index">A CLOSER LOOK</span><h2 data-i18n="shot.title">所有数字，<br /><span>回到你的构筑。</span></h2><p data-i18n="shot.copy">真实运行界面，不是营销模型。每一处数据都来自当前构筑和对应的 PoB2 计算语义。</p></div>
+          <div class="shot-frame"><img src="./assets/superpoe2-live-screenshot.png" alt="SuperPoE2 构筑中心真实运行界面" loading="lazy" /><span class="shot-label">LIVE BUILD CENTER</span></div>
+        </section>
+
+        <section class="download-band" id="download">
+          <div class="page-width download-grid">
+            <div><div class="section-kicker"><span>GET STARTED</span><span>LOCAL DESKTOP APP</span></div><h2 data-i18n="download.title">下一套构筑，<br /><span>从这里开始。</span></h2><p data-i18n="download.copy">Windows 与 macOS 持续构建。安装后即可离线使用核心计算与构筑管理。</p></div>
+            <div class="download-actions"><a class="button button-primary" href="https://pan.baidu.com/s/17g4Nw91V8aetOCmo0Z4RIw?pwd=8i61" target="_blank" rel="noreferrer" data-i18n="download.primary">下载 SuperPoE2 <span>↗</span></a><a class="button button-outline" href="#workflow" data-i18n="download.secondary">查看运行流程 <span>↓</span></a><div class="platform-note"><span>WINDOWS · X64</span><span>MACOS · APPLE SILICON</span></div></div>
+          </div>
+        </section>
+      </main>
+
+      <footer class="site-footer"><div class="page-width footer-inner"><div class="footer-brand"><img src="./assets/superpoe2-app-icon.png" alt="" /><span>SuperPoE2</span></div><p data-i18n="footer.tagline">为 Path of Exile 2 构筑玩家制作。</p><div class="footer-links"><span data-i18n="footer.platforms">Windows · macOS</span><span>© <span data-year></span> SuperPoE2</span></div></div></footer>
+    </div>
+    <div class="lightbox" data-lightbox hidden aria-hidden="true">
+      <button class="lightbox-close" type="button" data-lightbox-close title="关闭图片预览" aria-label="关闭图片预览">×</button>
+      <div class="lightbox-shell" data-lightbox-shell>
+        <img class="lightbox-image" data-lightbox-image alt="" />
+        <div class="lightbox-caption" data-lightbox-caption></div>
+      </div>
+    </div>
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

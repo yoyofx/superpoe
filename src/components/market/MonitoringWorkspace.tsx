@@ -26,7 +26,7 @@ export function MonitoringWorkspace() {
   const [snapshot, setSnapshot] = useState<MarketMonitoringSnapshot | null>(null)
   const [selectedTargetId, setSelectedTargetId] = useState('all')
   const [selectedOpportunityId, setSelectedOpportunityId] = useState<string>()
-  const [, setMessage] = useState<string>()
+  const [message, setMessage] = useState<string>()
 
   useEffect(() => {
     let active = true
@@ -70,6 +70,7 @@ export function MonitoringWorkspace() {
         <button className="monitoring-overlay-preview" onClick={() => void previewOverlay()} title={l('Show the monitoring overlay; use a test item when monitoring is inactive', '查看当前实时监控置顶提醒；没有启用监控时显示测试装备', '查看目前即時監控置頂提醒；未啟用監控時顯示測試裝備', '현재 모니터링 오버레이를 표시하며 비활성 상태에서는 테스트 아이템을 사용합니다')} aria-label={l('View overlay', '查看置顶提醒', '查看置頂提醒', '오버레이 보기')}><PanelTop />{l('View overlay', '查看置顶提醒', '查看置頂提醒', '오버레이 보기')}</button>
       </div>
     </header>
+    {message && <div className="monitoring-notice" role="status">{message}</div>}
     <div className="monitoring-layout">
       <aside className="target-pane">
         <header><strong>{l('Purchase targets', '购买目标', '購買目標', '구매 대상')}</strong><small>{l(`${armed}/${MAX_ACTIVE_PURCHASE_TARGETS}`, `监控 ${armed}/${MAX_ACTIVE_PURCHASE_TARGETS}`, `監控 ${armed}/${MAX_ACTIVE_PURCHASE_TARGETS}`, `모니터링 ${armed}/${MAX_ACTIVE_PURCHASE_TARGETS}`)}</small></header>
@@ -86,7 +87,7 @@ export function MonitoringWorkspace() {
           </div>
           <OpportunityDetail opportunity={selected} target={snapshot.purchaseTargets.find((target) => target.id === selected?.targetId)} language={lang} onAttempt={(id) => void run(async () => {
             const result = await bridge!.attemptMonitorOpportunity(id)
-            if (result !== 'attempted') throw new Error(result === 'game-offline' ? l('The game is not online', '游戏未在线，请登录角色后再试', '遊戲未在線，請登入角色後再試', '게임이 온라인 상태가 아닙니다') : result === 'unavailable' ? l('The listing may be unavailable', '挂单可能已经失效', '掛單可能已失效', '매물을 사용할 수 없을 수 있습니다') : l('Request failed', '请求失败，请检查登录状态', '請求失敗，請檢查登入狀態', '요청 실패'))
+            if (result !== 'attempted') throw new Error(result === 'game-offline' ? l('The game is not online', '游戏未在线，请登录角色后再试', '遊戲未在線，請登入角色後再試', '게임이 온라인 상태가 아닙니다') : result === 'unavailable' ? l('The listing may be unavailable', '挂单可能已经失效', '掛單可能已失效', '매물을 사용할 수 없을 수 있습니다') : result === 'login-required' ? l('Trade login is required', '交易站登录已失效，请重新登录', '交易站登入已失效，請重新登入', '거래소 로그인이 필요합니다') : result === 'rate-limited' ? l('Too many requests; try again shortly', '请求过于频繁，请稍后重试', '請求過於頻繁，請稍後重試', '요청이 너무 많습니다. 잠시 후 다시 시도하세요') : l('Request failed', '请求失败，请检查登录状态', '請求失敗，請檢查登入狀態', '요청 실패'))
           }, l('Hideout request sent', '已发送藏身处请求，不代表购买成功', '已傳送藏身處請求，不代表購買成功', '은신처 요청을 보냈습니다'))}/>
         </div>
       </section>

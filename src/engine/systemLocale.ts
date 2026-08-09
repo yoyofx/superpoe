@@ -6,6 +6,16 @@ function normalizeLocale(locale: string | undefined): string {
 }
 
 export function getSystemLocale(): string {
+  // Electron's navigator.language can reflect the app locale (often en-US)
+  // instead of the operating system region. Prefer the main-process locale
+  // when the desktop preload exposes it, while keeping browser/dev fallback.
+  try {
+    const desktop = (globalThis as { pob2Desktop?: { getSystemLocale?: () => unknown } }).pob2Desktop
+    const electronLocale = desktop?.getSystemLocale?.()
+    if (typeof electronLocale === 'string' && electronLocale.trim()) return electronLocale
+  } catch {
+    // Browser-only environments do not expose the desktop bridge.
+  }
   if (typeof navigator !== 'undefined' && typeof navigator.language === 'string') return navigator.language
   try {
     return Intl.DateTimeFormat().resolvedOptions().locale

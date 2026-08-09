@@ -45,6 +45,7 @@ declare global {
       onDetailState?(callback: (value: { state?: import('@/types/market').PriceCheckContextState; listingId?: string }) => void): () => void
     }
     pob2Desktop?: {
+      getSystemLocale(): string
       importWeGame(url: string): Promise<{ code: string; sourceUrl: string }>
       importPoeNinja(url: string): Promise<{ code: string; sourceUrl: string; suggestedName: string }>
       openBuildFile(): Promise<{ canceled: boolean; filePath?: string; content?: string }>
