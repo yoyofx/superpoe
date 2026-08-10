@@ -38,7 +38,29 @@ WeGame URL -> PoB Code ------+--> 完整 PoB2 XML --> PobBuildObject
 对象结构对齐 PoB2 [`xml.lua`](../public/pob-lua/xml.lua) 的可执行定义：每个元素包含元素名、字符串属性和有序子节点；子节点可以是元素或文本。
 
 ```ts
-type PobXmlNode = PobXmlElement | string
+type PobXmlNode = PobXmlElement | PobXmlText | PobXmlComment | PobXmlCdata | PobXmlInstruction
+
+interface PobXmlText {
+  kind: 'text'
+  value: string
+}
+
+interface PobXmlComment {
+  kind: 'comment'
+  value: string
+}
+
+interface PobXmlCdata {
+  kind: 'cdata'
+  value: string
+}
+
+interface PobXmlInstruction {
+  kind: 'instruction'
+  name: string
+  attributes: Record<string, string>
+  children: PobXmlNode[]
+}
 
 interface PobXmlElement {
   elem: string

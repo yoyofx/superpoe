@@ -111,7 +111,7 @@ export function getBuildCharacterLevel(code?: string | null): number | null {
   }
 }
 
-function encodeXmlToCode(xml: string): string {
+export function encodeXmlToCode(xml: string): string {
   const deflated = deflate(new TextEncoder().encode(xml))
   return btoa(bytesToBinary(deflated)).replace(/\+/g, '-').replace(/\//g, '_')
 }

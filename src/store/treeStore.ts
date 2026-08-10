@@ -11,6 +11,7 @@ import { LANGUAGE_OPTIONS, getLocalizedSearchText, loadTranslations, type Langua
 import { decodeBuildCode, encodeBuildCode, getBuildActiveWeaponSet, getBuildCharacterLevel, getEncodeClassPayload } from '@/engine/buildCode'
 import { calculateBuild, rankSkillsByEffectiveDps } from '@/engine/pobLuaClient'
 import { clearPersistedImportedBuild, getInitialImportedBuildCode } from '@/engine/buildPersistence'
+import { createActiveBuildSession, type ActiveBuildSession } from '@/engine/pobBuildSession'
 import { DEFAULT_BUILD_REALM, inferBuildRealm } from '@/engine/buildRealm'
 import { getRenderTreePoint, getSelectedAscendancyProjection } from '@/engine/treeRenderShared'
 import { parseTreeDataResource } from '@/engine/treeDataResource'
@@ -812,6 +813,22 @@ interface TreeStore {
 
 
 let calculationRequestId = 0
+let activeBuildSession: ActiveBuildSession | null = null
+
+export function getActiveBuildSession(): ActiveBuildSession | null {
+  return activeBuildSession
+}
+
+function replaceActiveBuildSession(buildId: string | null, code: string | null | undefined): void {
+  activeBuildSession?.dispose()
+  activeBuildSession = null
+  if (!code?.trim()) return
+  try {
+    activeBuildSession = createActiveBuildSession(buildId, code)
+  } catch {
+    // Keep the existing Code compatibility path available for malformed legacy data.
+  }
+}
 
 const DEFAULT_CALCULATION_PROFILE: LocalCalculationProfile = { id: 'default', name: 'Default', values: {} }
 
@@ -1785,6 +1802,9 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       rebuilt.allocatedNodes,
       options.nodeAttributeSelections,
     )
+    if (options.importedBuildCode !== undefined) {
+      replaceActiveBuildSession(null, options.importedBuildCode || null)
+    }
     set({
       selectedClassId,
       selectedAscendancyId,
@@ -1821,6 +1841,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   clearAllocatedNodes: () => {
     clearPersistedImportedBuild(localStorage)
+    replaceActiveBuildSession(null, null)
     set({
       allocatedNodes: new Set(),
       availableNodes: new Set(),
@@ -2573,6 +2594,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       build.nodeAttributeSelections || {},
     )
     const config = normalizeCalculationProfiles(build.calculationProfiles, build.activeCalculationProfileId)
+    replaceActiveBuildSession(build.id, build.importedBuildCode || null)
     set({
       allocatedNodes: rebuilt.allocatedNodes,
       availableNodes: rebuilt.availableNodes,
@@ -2675,3 +2697,5 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 }))
+
+replaceActiveBuildSession(null, useTreeStore.getState().importedBuildCode)
