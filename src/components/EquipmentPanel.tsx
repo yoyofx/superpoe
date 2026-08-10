@@ -2,13 +2,12 @@ import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMem
 import { createPortal } from 'react-dom'
 import { Bookmark, Check, ChevronDown, ChevronRight, Clipboard, PackageOpen, PanelRightOpen, Search, Upload, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
-import { decodeCodeToXml } from '@/engine/buildCode'
 import {
   type EquipmentAffixCategory,
   type EquipmentAffixSemanticGroup,
   type EquipmentAffixSummary,
 } from '@/engine/equipmentAffixes'
-import { parseEquipmentXml } from '@/engine/equipment'
+import { parseEquipmentCode, parseEquipmentObject } from '@/engine/equipment'
 import { aggregateEquipmentSemantics, type EquipmentSemanticView } from '@/engine/equipmentSemantics'
 import { deriveItemDisplayRequirements, deriveItemDisplayStats, deriveWeaponComparisonStats } from '@/engine/itemDisplayStats'
 import { loadItemBaseData, resolveItemBaseData, type ItemBaseData } from '@/engine/itemBaseData'
@@ -22,7 +21,7 @@ import {
 import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { LANGUAGE_LOCALES, uiText, type UiMessage } from '@/i18n/uiLocale'
-import { useTreeStore } from '@/store/treeStore'
+import { getActiveBuildSession, useTreeStore } from '@/store/treeStore'
 import type { EquipmentItem, EquipmentSet, EquipmentSlot } from '@/types/equipment'
 import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
 import type { CalcResult } from '@/types/calc'
@@ -830,7 +829,10 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
 
   const equipment = useMemo(() => {
     if (!importedBuildCode) return null
-    try { return parseEquipmentXml(decodeCodeToXml(importedBuildCode)) } catch { return null }
+    try {
+      const session = getActiveBuildSession()
+      return session ? parseEquipmentObject(session.object) : parseEquipmentCode(importedBuildCode)
+    } catch { return null }
   }, [importedBuildCode])
   const activeSetId = selectedSetId || equipment?.activeItemSetId
   const activeSet = equipment?.itemSets.find((set) => set.id === activeSetId) || equipment?.itemSets[0]

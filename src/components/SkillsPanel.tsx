@@ -10,8 +10,7 @@ import {
 import { ArrowDownWideNarrow, Info, LoaderCircle, PanelRightOpen, RotateCcw, Sparkles, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import { GemTooltip, type GemTooltipTarget } from '@/components/GemTooltip'
-import { decodeCodeToXml } from '@/engine/buildCode'
-import { getImportedCalculationMode } from '@/engine/calculationConfig'
+import { getImportedCalculationModeFromCode, getImportedCalculationModeFromObject } from '@/engine/calculationConfig'
 import {
   getLocalizedSkillDescription,
   getLocalizedSkillName,
@@ -22,12 +21,12 @@ import {
   resolveSkillCatalogName,
   type SkillCatalog,
 } from '@/engine/skillCatalog'
-import { parseSkillsXml } from '@/engine/skills'
+import { parseSkillsCode, parseSkillsObject } from '@/engine/skills'
 import { translateCalculationStat, translateCalculationTerm, translateCalculationText } from '@/i18n/calculationTranslations'
 import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { formatUiNumber, uiText, type UiMessage } from '@/i18n/uiLocale'
-import { useTreeStore } from '@/store/treeStore'
+import { getActiveBuildSession, useTreeStore } from '@/store/treeStore'
 import type { CalcResult, SkillCalculationDetails, SkillCalculationMode, SkillLevelReference } from '@/types/calc'
 
 const SKILL_PANEL_WIDTH = 1540
@@ -716,17 +715,12 @@ export function SkillsPanel() {
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [inspectorOpen])
 
-  const buildXml = useMemo(() => {
-    if (!importedBuildCode) return ''
-    try {
-      return decodeCodeToXml(importedBuildCode)
-    } catch {
-      return ''
-    }
-  }, [importedBuildCode])
-  const skills = useMemo(() => buildXml
-    ? parseSkillsXml(buildXml)
-    : { activeSkillSetId: '', activeGroupId: '', groups: [] }, [buildXml])
+  const session = getActiveBuildSession()
+  const skills = useMemo(() => importedBuildCode
+    ? session
+      ? parseSkillsObject(session.object)
+      : parseSkillsCode(importedBuildCode)
+    : { activeSkillSetId: '', activeGroupId: '', groups: [] }, [importedBuildCode, session])
   const orderedGroups = useMemo(() => {
     if (!dpsRanking) return skills.groups
     const originalIndex = new Map(skills.groups.map((group, index) => [group.id, index]))
@@ -774,8 +768,14 @@ export function SkillsPanel() {
   }, [importedBuildCode, weaponSet, allocatedNodes, calculationProfiles, activeCalculationProfileId])
 
   useEffect(() => {
-    if (buildXml) setCalcMode(getImportedCalculationMode(buildXml))
-  }, [buildXml])
+    if (!importedBuildCode) {
+      setCalcMode('EFFECTIVE')
+      return
+    }
+    setCalcMode(session
+      ? getImportedCalculationModeFromObject(session.object)
+      : getImportedCalculationModeFromCode(importedBuildCode))
+  }, [importedBuildCode, session])
   const selected = skills.groups.find((group) => group.id === selectedId)
     || skills.groups.find((group) => group.id === skills.activeGroupId)
     || skills.groups[0]

@@ -1,4 +1,6 @@
 import { XMLParser } from 'fast-xml-parser'
+import { decodeCodeToXml } from '@/engine/buildCode'
+import type { PobBuildObject } from '@/engine/pobBuildObject'
 
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (value == null) return []
@@ -56,4 +58,12 @@ export function parseSkillsXml(xml: string): BuildSkills {
   })).filter((group) => group.gems.length > 0)
   const activeGroupId = String(build?.Build?.mainSocketGroup ?? groups[0]?.id ?? '')
   return { activeSkillSetId: activeId, activeGroupId, groups }
+}
+
+export function parseSkillsObject(object: PobBuildObject): BuildSkills {
+  return parseSkillsXml(object.toXml())
+}
+
+export function parseSkillsCode(code: string): BuildSkills {
+  return parseSkillsXml(decodeCodeToXml(code))
 }

@@ -1,4 +1,6 @@
 import { XMLParser } from 'fast-xml-parser'
+import { decodeCodeToXml } from '@/engine/buildCode'
+import type { PobBuildObject } from '@/engine/pobBuildObject'
 import type { EquipmentData, EquipmentItem, EquipmentModifier, EquipmentModifierGroup, EquipmentSet } from '@/types/equipment'
 
 function asArray<T>(value: T | T[] | undefined): T[] {
@@ -94,4 +96,12 @@ export function parseEquipmentXml(xml: string): EquipmentData | null {
     itemSets,
     activeItemSetId: String(itemsNode.activeItemSet ?? itemSets[0]?.id ?? ''),
   }
+}
+
+export function parseEquipmentObject(object: PobBuildObject): EquipmentData | null {
+  return parseEquipmentXml(object.toXml())
+}
+
+export function parseEquipmentCode(code: string): EquipmentData | null {
+  return parseEquipmentXml(decodeCodeToXml(code))
 }
