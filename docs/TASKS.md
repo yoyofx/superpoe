@@ -1,8 +1,8 @@
 # SuperPoE2 当前任务看板
 
 > 状态：项目已进入 Electron 桌面工作台阶段，主流程包含 PixiJS 天赋树、PoB Code、装备/技能分析、配置计算、交易中心和实时监控。
-> 当前重点：扩大 PoB/LuaJIT parity 覆盖、完善装备/技能编辑和文件级保存，同时继续验收双区服交易与通货行情数据源。
-> 最后更新：2026-08-01
+> 当前重点：扩大 PoB/LuaJIT parity 覆盖、完善装备/技能编辑和工作台可靠性，同时继续验收双区服交易与通货行情数据源。
+> 最后更新：2026-08-10
 
 ---
 
@@ -34,7 +34,7 @@
 | 属性节点 | [x] | 支持 Str/Dex/Int 属性节点选择、显示和导入导出 |
 | PoB code 导入 | [x] | 前端解码 PoB2 build code，恢复节点、职业、升华、武器组、属性覆盖 |
 | PoB code 导出 | [x] | 前端生成 PoB2 build XML 和 export code，可替换导入 build 的 Tree 段 |
-| 保存/读取 | [~] | 当前构筑库仍由 localStorage 保存；`.spoe` 原生文件的打开、保存副本、校验和系统文件关联已接入，后续迁移内部构筑库目录 |
+| 保存/读取 | [~] | 当前构筑库继续由 localStorage 保存；`.spoe` 原生文件的打开、保存副本、校验和系统文件关联已接入，内部构筑库不迁移为文件目录 |
 | URL 分享 | [x] | 支持 URL hash 分享当前天赋树状态 |
 | i18n 框架 | [x] | `useTranslation` 框架和基础 en/zh 文案已接入 |
 | 原生 PoB 计算 | [x] | Electron 优先使用常驻 LuaJIT sidecar，失败时回退到 Wasmoon worker |
@@ -48,7 +48,6 @@
 | 优先级 | 任务 | 状态 | 说明 |
 |--------|------|------|------|
 | P0 | 扩大 LuaJIT/PoB parity fixtures | [~] | 关键技能、装备和召唤物已有测试；仍需覆盖更多职业、Config、持续伤害和触发场景 |
-| P0 | 文件级构筑保存与自动草稿 | [ ] | 当前主流程仍以 localStorage 为主，需按 [`persistent-storage-design.md`](./persistent-storage-design.md) 迁移到 Electron `userData` 并提供版本保护、草稿与损坏恢复 |
 | P1 | 双区服交易长时验收 | [~] | 需要真实登录分区验证 DOM Adapter、Live 重连、限流、DPI、多显示器和断网回退 |
 | P1 | 通货行情真实数据源验收 | [~] | 需要验证国服/国际服当前赛季选择、缓存新鲜度和异常报价 |
 

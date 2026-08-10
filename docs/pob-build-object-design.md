@@ -1,7 +1,7 @@
 # SuperPoE2 统一 PoB 构筑内存对象设计
 
 > 状态：方案已确认，作为后续构筑状态收敛的实现基线
-> 更新日期：2026-08-07
+> 更新日期：2026-08-10
 > 替代方案：[`build-document-m2-m4-implementation-plan.md`](./build-document-m2-m4-implementation-plan.md)（已作废）
 
 ## 1. 结论
@@ -116,9 +116,40 @@ SuperPoE2 在自有 Item Bridge 中暴露 `parseItem`、`normalizeItem`、`valid
 
 ## 4. 生命周期与边界
 
+### 4.0 当前构筑会话与对象所有权
+
+`PobBuildObject` 是当前激活构筑的运行时单例，生命周期覆盖整个 BD 编辑会话，但不是跨构筑、跨窗口或跨进程的全局单例。它只存在于 renderer 的 `ActiveBuildSession` 中，由根级 Store/Session 管理，不能由装备页、技能页或其他页面各自创建。
+
+```ts
+interface ActiveBuildSession {
+  buildId: string | null
+  object: PobBuildObject
+  dirty: boolean
+  revision: number
+  dispose(): void
+}
+```
+
+存储边界必须保持清晰：
+
+- `PobBuildObject` 和 XML AST 只存在于当前会话内存，不写入 `localStorage`、`.spoe` 或 Electron 主进程全局变量。
+- 当前构筑的持久化载荷仍是 `BuildRecord.pob.code`；构筑中心继续使用现有 `localStorage`，用户明确保存的 `.spoe` 继续保存完整 PoB Code 和校验信息。
+- `BuildRecord` 的名称、来源、标签、目录和时间等应用元数据与 `PobBuildObject` 分离，不混入 XML AST。
+- LuaJIT sidecar/Worker 只接收对象生成的不可变 XML snapshot，不持有 renderer 的对象引用。
+
+生命周期规则：
+
+1. 加载或导入 BD 时，先处理旧会话的未保存状态，再释放旧对象，解码 XML 并只创建一个新的 `PobBuildObject`。
+2. 切换页面、装备组或技能组时保持同一对象；所有页面通过 selector/accessor 读取它。
+3. 编辑命令只修改当前对象并递增会话 `revision`；持久化 revision 与对象 revision 分开维护。
+4. 切换到其他 BD、清空当前 BD 或关闭 renderer 时调用 `dispose()`，释放 XML AST、访问器缓存和派生视图；常驻 Lua runtime 可以继续运行，但不得保留旧构筑引用。
+5. 计算请求携带对象 revision；对象被替换或释放后，旧计算结果不得回写当前 UI。
+
+如果未来支持多个 renderer 窗口，每个窗口拥有独立 `ActiveBuildSession`；不在 Electron 主进程建立跨窗口共享的可变构筑对象。
+
 ### 4.1 单次加载
 
-- PoB Code 解压为 XML 后只创建一次 `PobBuildObject`。
+- PoB Code 解压为 XML 后，在当前 `ActiveBuildSession` 中只创建一次 `PobBuildObject`。
 - WeGame 先转换为 PoB Code，再走相同加载入口。
 - 打开 SuperPoE 原生构筑文件时验证 `BuildRecord`，读取其中的完整 PoB 载荷，再走相同加载入口；这是原生文件打开，不属于外部格式导入。
 - 页面不得直接调用 `decodeCodeToXml()`、`fast-xml-parser` 或维护页面级 XML 缓存。
