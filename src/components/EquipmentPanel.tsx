@@ -1,6 +1,6 @@
 import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { Bookmark, Check, ChevronDown, ChevronRight, Clipboard, PackageOpen, PanelRightOpen, Search, Upload, X } from 'lucide-react'
+import { ArrowLeftRight, Bookmark, Check, ChevronDown, ChevronRight, Clipboard, LoaderCircle, PackageOpen, PanelRightOpen, Search, Upload, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import {
   type EquipmentAffixCategory,
@@ -24,6 +24,7 @@ import { LANGUAGE_LOCALES, uiText, type UiMessage } from '@/i18n/uiLocale'
 import { getActiveBuildSession, useTreeStore } from '@/store/treeStore'
 import type { EquipmentItem, EquipmentSet, EquipmentSlot } from '@/types/equipment'
 import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
+import type { EquipmentLibraryEntry } from '@/types/market'
 import type { CalcResult } from '@/types/calc'
 import { inspectEquipment } from '@/engine/pobLuaClient'
 import {
@@ -564,7 +565,7 @@ function SocketedRunes({
   )
 }
 
-function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketedItems, onSave, onPriceCheck, onClose }: { item: EquipmentItem; base?: ItemBaseData; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; onSave: () => Promise<void>; onPriceCheck: () => void; onClose: () => void }) {
+function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketedItems, onSave, onPriceCheck, onReplace, onClose }: { item: EquipmentItem; base?: ItemBaseData; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; onSave: () => Promise<void>; onPriceCheck: () => void; onReplace?: () => void; onClose: () => void }) {
   const { t, lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
@@ -637,6 +638,15 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
           <Search />
           <span>{l('Price check', '查价', '查價', '가격 확인')}</span>
         </button>
+        {onReplace && <button
+          type="button"
+          className="equipment-copy-pob"
+          onClick={onReplace}
+          title={l('Replace this slot from the equipment library', '从装备仓库替换当前槽位', '從裝備倉庫替換目前插槽', '장비 보관함에서 현재 슬롯 교체')}
+        >
+          <ArrowLeftRight />
+          <span>{l('Replace slot', '替换槽位', '替換插槽', '슬롯 교체')}</span>
+        </button>}
         <button
           type="button"
           className={`equipment-copy-pob${copyState === 'error' ? ' copy-error' : ''}`}
@@ -788,13 +798,16 @@ function usePaperDollSize() {
 export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string | null; realm?: 'cn' | 'global' }) {
   const { t, lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
-  const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
+  const pobBuildRevision = useTreeStore((state) => state.pobBuildRevision)
+  const getActivePobCode = useTreeStore((state) => state.getActivePobCode)
   const calcResult = useTreeStore((state) => state.calcResult)
   const calcLoading = useTreeStore((state) => state.calcLoading)
   const calcError = useTreeStore((state) => state.calcError)
   const runCalculation = useTreeStore((state) => state.runCalculation)
   const weaponSet = useTreeStore((state) => state.activeWeaponSet)
   const setWeaponSet = useTreeStore((state) => state.setActiveWeaponSet)
+  const setActiveItemSet = useTreeStore((state) => state.setActiveItemSet)
+  const replaceEquipmentSlotWithRaw = useTreeStore((state) => state.replaceEquipmentSlotWithRaw)
   const [itemIconIndex, setItemIconIndex] = useState<ItemIconIndex | null>(null)
   const [runeDetails, setRuneDetails] = useState<RuneDetailIndex | null>(null)
   const [itemBases, setItemBases] = useState<Record<string, ItemBaseData>>({})
@@ -807,8 +820,13 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const [semanticView, setSemanticView] = useState<EquipmentSidebarView>('character')
   const [semanticsById, setSemanticsById] = useState<Record<string, EquipmentItemSemantics>>({})
   const [semanticsLoading, setSemanticsLoading] = useState(false)
+  const [replacementEntries, setReplacementEntries] = useState<EquipmentLibraryEntry[]>([])
+  const [replacementOpen, setReplacementOpen] = useState(false)
+  const [replacementLoading, setReplacementLoading] = useState(false)
+  const [replacementError, setReplacementError] = useState<string | null>(null)
   const { hostRef, size: paperDollSize } = usePaperDollSize()
   const lastCalculationSelection = useRef<string | null>(null)
+  const activePobCode = useMemo(() => getActivePobCode() || '', [getActivePobCode, pobBuildRevision])
 
   useEffect(() => {
     let mounted = true
@@ -828,12 +846,12 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   }, [inspectorOpen])
 
   const equipment = useMemo(() => {
-    if (!importedBuildCode) return null
+    if (!activePobCode) return null
     try {
       const session = getActiveBuildSession()
-      return session ? parseEquipmentObject(session.object) : parseEquipmentCode(importedBuildCode)
+      return session ? parseEquipmentObject(session.object) : parseEquipmentCode(activePobCode)
     } catch { return null }
-  }, [importedBuildCode])
+  }, [activePobCode, pobBuildRevision])
   const activeSetId = selectedSetId || equipment?.activeItemSetId
   const activeSet = equipment?.itemSets.find((set) => set.id === activeSetId) || equipment?.itemSets[0]
 
@@ -843,12 +861,12 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   }), [activeSet?.id, weaponSet, runCalculation])
 
   useEffect(() => {
-    if (semanticView !== 'character' || !importedBuildCode || !activeSet || calcLoading) return
-    const selection = `${importedBuildCode}:${activeSet.id}:${weaponSet}`
+    if (semanticView !== 'character' || !activePobCode || !activeSet || calcLoading) return
+    const selection = `${activePobCode}:${pobBuildRevision}:${activeSet.id}:${weaponSet}`
     if (lastCalculationSelection.current === selection) return
     lastCalculationSelection.current = selection
     void calculateCharacter()
-  }, [semanticView, importedBuildCode, activeSet?.id, weaponSet, calcLoading, calculateCharacter])
+  }, [semanticView, activePobCode, pobBuildRevision, activeSet?.id, weaponSet, calcLoading, calculateCharacter])
 
   const activeSlotNames = new Set(getActivePaperDollSlots(weaponSet).map((slot) => slot.slotName))
   const equipped = activeSet?.slots.filter((slot) => activeSlotNames.has(slot.name) && slot.itemId) || []
@@ -938,13 +956,41 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   }, [activeSet?.id])
 
   const handleSelectSet = useCallback((setId: string) => {
+    setActiveItemSet(setId)
     setSelectedSetId(setId)
     setSelectedId(null)
-  }, [])
+  }, [setActiveItemSet])
   const handleSelectItem = useCallback((itemId: string) => {
     setSelectedId(itemId)
     setInspectorOpen(true)
   }, [])
+
+  const openReplacementPicker = useCallback(async () => {
+    if (!activeSet || !selectedSlotName || !window.pob2Market) return
+    setReplacementOpen(true)
+    setReplacementLoading(true)
+    setReplacementError(null)
+    try {
+      const entries = await window.pob2Market.listLibrary({ sourceKind: 'all', includeArchived: false })
+      setReplacementEntries(entries.filter((entry) => Boolean(entry.item.raw)))
+    } catch (reason) {
+      setReplacementError(reason instanceof Error ? reason.message : String(reason))
+    } finally {
+      setReplacementLoading(false)
+    }
+  }, [activeSet, selectedSlotName])
+
+  const replaceSelectedSlot = useCallback((entry: EquipmentLibraryEntry) => {
+    if (!activeSet || !selectedSlotName || !entry.item.raw) return
+    try {
+      const replacementId = replaceEquipmentSlotWithRaw(activeSet.id, selectedSlotName, entry.item.raw)
+      setSelectedId(replacementId)
+      setReplacementOpen(false)
+      setReplacementError(null)
+    } catch (reason) {
+      setReplacementError(reason instanceof Error ? reason.message : String(reason))
+    }
+  }, [activeSet, replaceEquipmentSlotWithRaw, selectedSlotName])
   const handleToggleCategory = useCallback((group: EquipmentAffixGroup) => {
     setCollapsedCategories((current) => {
       const next = new Set(current)
@@ -1098,8 +1144,30 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
         socketedItems={selectedSlotName ? socketedItemsForSlot(selectedSlotName) : []}
         onSave={() => saveItem(selected, selectedSlotName)}
         onPriceCheck={() => { void window.superpoePriceCheck?.open({ source: { kind: 'raw', raw: selected.raw } }) }}
+        onReplace={selectedSlotName ? () => { void openReplacementPicker() } : undefined}
         onClose={() => setInspectorOpen(false)}
       />}
+      {replacementOpen && createPortal(<div className="modal-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget && !replacementLoading) setReplacementOpen(false) }}>
+        <section className="workflow-dialog equipment-replace-dialog" role="dialog" aria-modal="true" aria-labelledby="equipment-replace-title">
+          <header className="dialog-header">
+            <div><span>{l('Equipment library', '装备仓库', '裝備倉庫', '장비 라이브러리')}</span><h2 id="equipment-replace-title">{l('Replace current slot', '替换当前槽位', '替換目前插槽', '현재 슬롯 교체')}</h2></div>
+            <button className="icon-command" disabled={replacementLoading} onClick={() => setReplacementOpen(false)} aria-label={l('Close', '关闭', '關閉', '닫기')}><X /></button>
+          </header>
+          <div className="dialog-body equipment-replace-body">
+            {replacementLoading && <div className="equipment-replace-state"><LoaderCircle className="spinning" />{l('Loading equipment library...', '正在读取装备仓库...', '正在讀取裝備倉庫...', '장비 보관함 불러오는 중...')}</div>}
+            {!replacementLoading && replacementError && <div className="equipment-replace-state error">{replacementError}</div>}
+            {!replacementLoading && !replacementError && !replacementEntries.length && <div className="equipment-replace-state">{l('No equipment with PoB Raw is available.', '仓库中没有可用的 PoB 装备。', '倉庫中沒有可用的 PoB 裝備。', '사용 가능한 PoB 장비가 없습니다.')}</div>}
+            {!replacementLoading && !replacementError && replacementEntries.length > 0 && <div className="equipment-replace-list">
+              {replacementEntries.map((entry) => <button key={entry.id} type="button" className="equipment-replace-option" onClick={() => replaceSelectedSlot(entry)}>
+                <span className="equipment-replace-option-icon">{entry.view.iconUrl ? <img src={entry.view.iconUrl} alt="" /> : <PackageOpen />}</span>
+                <span className="equipment-replace-option-copy"><strong>{entry.view.name || entry.view.baseType || entry.id}</strong><small>{entry.view.baseType || entry.id}</small></span>
+                <ArrowLeftRight />
+              </button>)}
+            </div>}
+          </div>
+          <footer className="dialog-footer"><span>{selectedSlotName || ''}</span><button className="secondary-command" disabled={replacementLoading} onClick={() => setReplacementOpen(false)}>{l('Cancel', '取消', '取消', '취소')}</button></footer>
+        </section>
+      </div>, document.body)}
     </section>
   )
 }

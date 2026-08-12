@@ -179,3 +179,43 @@ export function getPobXmlElementAtPath(root: PobXmlElement, path: number[]): Pob
   }
   return current
 }
+
+export interface PobXmlElementSelector {
+  elem: string
+  attributes?: Record<string, string>
+}
+
+function matchesSelector(element: PobXmlElement, selector: PobXmlElementSelector): boolean {
+  if (element.elem !== selector.elem) return false
+  return Object.entries(selector.attributes || {}).every(([name, value]) => element.attrib[name] === value)
+}
+
+/** Find elements without turning the XML tree into a second, lossy model. */
+export function findPobXmlElements(root: PobXmlElement, selector: PobXmlElementSelector): PobXmlElement[] {
+  const result: PobXmlElement[] = []
+  const visit = (node: PobXmlElement) => {
+    if (matchesSelector(node, selector)) result.push(node)
+    for (const child of node.children) {
+      if (child.kind === 'element') visit(child)
+    }
+  }
+  visit(root)
+  return result
+}
+
+/** Return only direct element children. PoB sections use ordered children as
+ * part of their semantics, so callers should not flatten descendants. */
+export function getPobXmlDirectChildren(element: PobXmlElement, elem?: string): PobXmlElement[] {
+  return element.children.filter((child): child is PobXmlElement => (
+    child.kind === 'element' && (elem == null || child.elem === elem)
+  ))
+}
+
+export function replacePobXmlElementText(element: PobXmlElement, value: string): boolean {
+  const current = element.children.length === 1 && element.children[0]?.kind === 'text'
+    ? element.children[0].value
+    : element.children.map((child) => child.kind === 'text' || child.kind === 'cdata' ? child.value : '').join('')
+  if (current === value && element.children.length === 1 && element.children[0]?.kind === 'text') return false
+  element.children = [{ kind: 'text', value }]
+  return true
+}

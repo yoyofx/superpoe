@@ -2,7 +2,7 @@
 
 > 状态：项目已进入 Electron 桌面工作台阶段，主流程包含 PixiJS 天赋树、PoB Code、装备/技能分析、配置计算、交易中心和实时监控。
 > 当前重点：扩大 PoB/LuaJIT parity 覆盖、完善装备/技能编辑和工作台可靠性，同时继续验收双区服交易与通货行情数据源。
-> 最后更新：2026-08-10
+> 最后更新：2026-08-11
 
 ---
 
@@ -10,7 +10,7 @@
 
 - 主渲染层：默认使用 PixiJS 8 / WebGL 2D 渲染天赋树；旧 `TreeCanvas` 仍保留为 fallback 和对照实现。
 - 数据与资源：`public/data/tree-web-{version}.json`、`public/assets/`、`public/pob-lua/` 均作为 Electron renderer 运行时资源提交。
-- Build code：PoB2 导入/导出已在前端 `src/engine/buildCode.ts` 完成，不再需要 Fastify 编解码接口。
+- Build code：PoB2 导入/导出已在前端完成；当前构筑保存、导出和计算优先读取 `PobBuildObject` 的最新 Code/XML，`buildCode.ts` 仅保留新建构筑和旧数据兼容投影。
 - 计算：桌面端优先通过 `PobLuaService` 调用常驻 LuaJIT sidecar；原生 runtime 缺失或失败时，Web Worker + wasmoon Lua 5.4 WASM 继续提供 fallback。
 - 计算 UI：装备面板、技能 DPS/来源详情、召唤物结果和本地计算配置方案已接入；更完整的编辑和 parity 覆盖仍在推进。
 - 交易：官方集市、统一装备仓库、搜索收藏、Live 购买目标、机会中心和通货行情已接入交易中心；真实登录、限流和长时运行验收仍需继续。
@@ -33,7 +33,7 @@
 | 武器组 | [x] | 支持 auto / weapon set 1 / weapon set 2，并导出到 build XML |
 | 属性节点 | [x] | 支持 Str/Dex/Int 属性节点选择、显示和导入导出 |
 | PoB code 导入 | [x] | 前端解码 PoB2 build code，恢复节点、职业、升华、武器组、属性覆盖 |
-| PoB code 导出 | [x] | 前端生成 PoB2 build XML 和 export code，可替换导入 build 的 Tree 段 |
+| PoB code 导出 | [~] | 已可从对象直接导出最新 XML/Code；新建构筑和天赋迁移完成前仍保留 Tree 投影兼容路径 |
 | 保存/读取 | [~] | 当前构筑库继续由 localStorage 保存；`.spoe` 原生文件的打开、保存副本、校验和系统文件关联已接入，内部构筑库不迁移为文件目录 |
 | URL 分享 | [x] | 支持 URL hash 分享当前天赋树状态 |
 | i18n 框架 | [x] | `useTranslation` 框架和基础 en/zh 文案已接入 |
@@ -78,12 +78,13 @@
 
 | 任务 | 状态 | 说明 |
 |------|------|------|
-| 技能编辑 UI | [ ] | 当前技能分析为只读；后续支持技能组、主技能、辅助宝石和等级品质编辑 |
-| 物品编辑 UI | [ ] | 当前装备分析为只读；后续支持装备槽、物品导入、基础编辑和对计算结果的影响 |
+| 技能编辑 UI | [x] | 默认只读；详情编辑模式支持技能组启用/完整 DPS、主技能组、主技能与辅助宝石的等级、品质和启用状态 |
+| 物品编辑 UI | [~] | 已支持 ItemSet/武器组切换、槽位替换和 canonical Item Raw 写回；词缀/孔位细粒度编辑仍待完善 |
 | 配置面板 | [x] | 已提供本地配置方案、翻译和参与计算的核心条件；继续扩展覆盖面 |
 | 计算详情 | [x] | 已展示技能 DPS、伤害链、点伤、暴击、速度和主要来源；继续补齐更多 breakdown |
-| 多 spec 完整 UI | [ ] | 当前 store 有框架，仍需完整 SpecSelector / Compare UI |
-| 专精效果完整数据 | [ ] | 当前已有框架，完整 masteryEffects 仍需从数据源补齐 |
+| 多 spec 完整 UI | [~] | 对象已提供全部 Spec/activeSpec accessor 和 activeSpec 切换命令；Store 可恢复并切换已有 Spec，完整 SpecSelector / Compare UI 仍未接入 |
+| 天赋珠宝对象读写 | [x] | active Spec 的 `<Sockets>` 已有对象 accessor、按节点更新命令和 tooltip/Pixi 读取路径 |
+| 专精效果完整数据 | [x] | `PobBuildObject` 读取/写入 active Spec 的 `masteryEffects`；Store 选择专精效果时通过对象命令同步，未识别 XML 内容保持不变 |
 | 外部网络功能 | [~] | 官方集市、交易仓库、Live 监控、通货行情与统一查价窗口已接入；构筑提升对比仍按 M6 推进 |
 | 移动端适配 | [ ] | 当前主要面向桌面视口，后续再做响应式工具布局 |
 

@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { getAttributeNodeDisplay } from '@/engine/attributeNodes'
 import { getLocalizedNodeDisplay, translateGameText } from '@/i18n/translationLoader'
-import { decodeBuildCode } from '@/engine/buildCode'
 import { useTreeStore } from '@/store/treeStore'
 
 const HOVER_OFFSET = 14
@@ -35,20 +34,16 @@ export function NodeTooltip() {
   const mouseX = useTreeStore((s) => s.mouseX)
   const mouseY = useTreeStore((s) => s.mouseY)
   const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
-  const importedBuildCode = useTreeStore((s) => s.importedBuildCode)
+  const getActivePobTreeJewelItems = useTreeStore((s) => s.getActivePobTreeJewelItems)
+  const pobBuildRevision = useTreeStore((s) => s.pobBuildRevision)
   const language = useTreeStore((s) => s.language)
   const [headerArtFailed, setHeaderArtFailed] = useState(false)
   useTreeStore((s) => s.translationRevision)
 
   const pos = useMemo(() => clampTooltip(mouseX, mouseY), [mouseX, mouseY])
   const passiveJewels = useMemo(() => {
-    if (!importedBuildCode) return {}
-    try {
-      return decodeBuildCode(importedBuildCode).nodeJewels
-    } catch {
-      return {}
-    }
-  }, [importedBuildCode])
+    return getActivePobTreeJewelItems()
+  }, [getActivePobTreeJewelItems, pobBuildRevision])
   const nodeId = hoveredNodeId || ''
   const node = nodeId && treeData ? treeData.nodes[nodeId] : undefined
   const prefix = headerPrefix(node?.type || 'Normal', node?.ascendancyName)

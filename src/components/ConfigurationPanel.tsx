@@ -117,7 +117,8 @@ function ConfigControl({
 export function ConfigurationPanel() {
   const { lang, t } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
-  const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
+  const pobBuildRevision = useTreeStore((state) => state.pobBuildRevision)
+  const getActivePobCode = useTreeStore((state) => state.getActivePobCode)
   const allocatedNodes = useTreeStore((state) => state.allocatedNodes)
   const activeWeaponSet = useTreeStore((state) => state.activeWeaponSet)
   const profiles = useTreeStore((state) => state.calculationProfiles)
@@ -138,19 +139,20 @@ export function ConfigurationPanel() {
   const lastCalculationKey = useRef('')
   const activeProfile = profiles.find((profile) => profile.id === activeProfileId) || profiles[0]
   const overrides = activeProfile?.values || {}
+  const activePobCode = useMemo(() => getActivePobCode() || '', [getActivePobCode, pobBuildRevision])
   const profileName = activeProfile?.id === 'default' && activeProfile.name === 'Default'
     ? l('Default', '默认', '預設', '기본')
     : activeProfile?.name || ''
-  const calculationKey = `${importedBuildCode || ''}:${activeWeaponSet}:${activeProfileId}:${JSON.stringify(overrides)}:${retryNonce}`
+  const calculationKey = `${activePobCode}:${pobBuildRevision}:${activeWeaponSet}:${activeProfileId}:${JSON.stringify(overrides)}:${retryNonce}`
 
   useEffect(() => {
-    if (!importedBuildCode || !allocatedNodes.size || loading || lastCalculationKey.current === calculationKey) return
+    if (!activePobCode || !allocatedNodes.size || loading || lastCalculationKey.current === calculationKey) return
     const timer = window.setTimeout(() => {
       lastCalculationKey.current = calculationKey
       void runCalculation({ weaponSet: activeWeaponSet, includeConfig: true })
     }, snapshot ? 160 : 0)
     return () => window.clearTimeout(timer)
-  }, [activeWeaponSet, allocatedNodes.size, calculationKey, importedBuildCode, loading, runCalculation, snapshot])
+  }, [activePobCode, activeWeaponSet, allocatedNodes.size, calculationKey, loading, pobBuildRevision, runCalculation, snapshot])
 
   const localizedOptions = useMemo(() => (snapshot?.options || [])
     .map((option) => localizeCalculationConfigOption(option, lang)), [lang, snapshot?.options, t])
@@ -173,7 +175,7 @@ export function ConfigurationPanel() {
   })).filter((section) => section.options.length), [filtered, snapshot?.sections])
   const definitionUnavailable = !loading && !snapshot && lastCalculationKey.current === calculationKey
 
-  if (!importedBuildCode || !allocatedNodes.size) {
+  if (!activePobCode || !allocatedNodes.size) {
     return <section className="configuration-empty">
       <SlidersHorizontal />
       <h2>{l('No build to configure', '没有可配置的构筑', '沒有可設定的構築', '설정할 빌드가 없습니다')}</h2>

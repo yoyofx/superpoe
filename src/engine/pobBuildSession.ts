@@ -6,6 +6,7 @@ export interface ActiveBuildSession {
   readonly dirty: boolean
   readonly revision: number
   apply(command: PobBuildCommand): PobBuildChange
+  restoreXml(xml: string): PobBuildChange
   dispose(): void
 }
 
@@ -31,7 +32,14 @@ class ActiveBuildSessionImpl implements ActiveBuildSession {
   apply(command: PobBuildCommand): PobBuildChange {
     this.assertActive()
     const change = this.object.apply(command)
-    if (change.changed) this.isDirty = true
+    if (change.changed) this.isDirty = this.object.dirty
+    return change
+  }
+
+  restoreXml(xml: string): PobBuildChange {
+    this.assertActive()
+    const change = this.object.restoreXml(xml)
+    if (change.changed) this.isDirty = this.object.dirty
     return change
   }
 

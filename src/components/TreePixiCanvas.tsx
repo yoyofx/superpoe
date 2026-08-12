@@ -21,7 +21,7 @@ import {
   type AllocMode,
 } from '@/engine/passiveAllocation'
 import { getSpriteLoader } from '@/engine/spriteLoader'
-import { decodeBuildCode, type NodeJewels } from '@/engine/buildCode'
+import type { NodeJewels } from '@/engine/buildCode'
 import { loadItemIconIndex, resolveItemIconName, type ItemIconIndex } from '@/engine/itemIcons'
 import type { SpriteInfo } from '@/engine/spriteLoader'
 import {
@@ -253,20 +253,16 @@ export function TreePixiCanvas() {
   const weaponSetMode = useTreeStore((s) => s.weaponSetMode)
   const nodeWeaponSets = useTreeStore((s) => s.nodeWeaponSets)
   const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
-  const importedBuildCode = useTreeStore((s) => s.importedBuildCode)
+  const getActivePobTreeJewelItems = useTreeStore((s) => s.getActivePobTreeJewelItems)
+  const pobBuildRevision = useTreeStore((s) => s.pobBuildRevision)
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
   const allocatedNodes = useTreeStore((s) => s.allocatedNodes)
   const availableNodes = useTreeStore((s) => s.availableNodes)
   const previewNodeId = treeEditMode ? hoveredNodeId : null
   const passiveJewels = useMemo(() => {
-    if (!importedBuildCode) return {} as NodeJewels
-    try {
-      return decodeBuildCode(importedBuildCode).nodeJewels
-    } catch {
-      return {} as NodeJewels
-    }
-  }, [importedBuildCode])
+    return getActivePobTreeJewelItems() as NodeJewels
+  }, [getActivePobTreeJewelItems, pobBuildRevision])
   const previewCacheScope = [
     treeVersion,
     selectedClassId,

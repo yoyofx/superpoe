@@ -82,7 +82,8 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
   const redoStack = useTreeStore((state) => state.redoStack)
   const treeData = useTreeStore((state) => state.treeData)
   const buildRealm = useTreeStore((state) => state.buildRealm)
-  const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
+  const pobBuildRevision = useTreeStore((state) => state.pobBuildRevision)
+  const getActivePobCode = useTreeStore((state) => state.getActivePobCode)
   const setZoom = useTreeStore((state) => state.setZoom)
   const setBuildRealm = useTreeStore((state) => state.setBuildRealm)
   const selectClass = useTreeStore((state) => state.selectClass)
@@ -125,9 +126,10 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
     currentAscendancy?.background?.image || currentClass?.background?.image,
   )
   const characterLevel = useMemo(() => {
-    if (!importedBuildCode) return '1'
-    return String(getBuildCharacterLevel(importedBuildCode) || '--')
-  }, [importedBuildCode])
+    const code = getActivePobCode()
+    if (!code) return '1'
+    return String(getBuildCharacterLevel(code) || '--')
+  }, [getActivePobCode, pobBuildRevision])
   const viewLabels = useMemo(() => ({
     passive: uiText(lang, 'Passive', '天赋', '天賦', '패시브'),
     equipment: uiText(lang, 'Equipment', '装备', '裝備', '장비'),

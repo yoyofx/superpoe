@@ -85,6 +85,8 @@ export default function App() {
   const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
   const treeVersion = useTreeStore((s) => s.treeVersion)
   const importedBuildCode = useTreeStore((s) => s.importedBuildCode)
+  const pobBuildRevision = useTreeStore((s) => s.pobBuildRevision)
+  const getActivePobCode = useTreeStore((s) => s.getActivePobCode)
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
   const encodeToHash = useTreeStore((s) => s.encodeToHash)
@@ -102,6 +104,10 @@ export default function App() {
   const calculationProfiles = useTreeStore((s) => s.calculationProfiles)
   const activeCalculationProfileId = useTreeStore((s) => s.activeCalculationProfileId)
 
+  const activePobCode = useMemo(() => {
+    return getActivePobCode() || ''
+  }, [getActivePobCode, importedBuildCode, pobBuildRevision])
+
   const buildSignature = useMemo(() => JSON.stringify({
     nodes: [...allocatedNodes].sort(),
     nodeWeaponSets,
@@ -112,7 +118,8 @@ export default function App() {
     buildRealm,
     calculationProfiles,
     activeCalculationProfileId,
-  }), [allocatedNodes, nodeWeaponSets, nodeAttributeSelections, treeVersion, selectedClassId, selectedAscendancyId, buildRealm, calculationProfiles, activeCalculationProfileId])
+    pobCode: activePobCode,
+  }), [allocatedNodes, nodeWeaponSets, nodeAttributeSelections, treeVersion, selectedClassId, selectedAscendancyId, buildRealm, calculationProfiles, activeCalculationProfileId, activePobCode])
 
   useEffect(() => {
     loadSavedBuilds()
@@ -315,6 +322,7 @@ export default function App() {
       buildRealm: state.buildRealm,
       calculationProfiles: state.calculationProfiles,
       activeCalculationProfileId: state.activeCalculationProfileId,
+      pobCode: state.getActivePobCode() || '',
     })
     setSaveStatus('saved')
   }, [])
@@ -450,18 +458,21 @@ export default function App() {
   }, [activeBuildId, buildName, buildSource, buildSourceUrl, lang, markClean, saveBuild])
 
   const createCurrentNativeBuildFile = useCallback(async (id: string, timestamp: string, revision: number) => {
-    const state = useTreeStore.getState()
-    const existing = state.savedBuilds.find((build) => build.id === id)
-    const classPayload = getEncodeClassPayload(state.treeData || undefined, state.selectedClassId, state.selectedAscendancyId)
-    const encoded = encodeBuildCode({
-      nodes: [...state.allocatedNodes],
-      nodeWeaponSets: state.nodeWeaponSets,
-      nodeAttributeSelections: state.nodeAttributeSelections,
-      treeVersion: state.treeVersion,
-      baseCode: state.importedBuildCode || undefined,
-      useSecondWeaponSet: state.activeWeaponSet === 2,
-      ...classPayload,
-    })
+      const state = useTreeStore.getState()
+      const existing = state.savedBuilds.find((build) => build.id === id)
+      const baseCode = state.getActivePobCode()
+      const activeXml = state.getActivePobXml()
+      const classPayload = getEncodeClassPayload(state.treeData || undefined, state.selectedClassId, state.selectedAscendancyId)
+      const encoded = baseCode && activeXml
+        ? { code: baseCode, xml: activeXml }
+        : encodeBuildCode({
+          nodes: [...state.allocatedNodes],
+          nodeWeaponSets: state.nodeWeaponSets,
+          nodeAttributeSelections: state.nodeAttributeSelections,
+          treeVersion: state.treeVersion,
+          useSecondWeaponSet: state.activeWeaponSet === 2,
+          ...classPayload,
+        })
     return createSuperPoeBuildFile({
       id,
       name: buildName.trim() || l('Untitled build', '未命名构筑', '未命名構築', '이름 없는 빌드'),

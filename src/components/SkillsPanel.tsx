@@ -7,7 +7,7 @@ import {
   type CSSProperties,
   type MouseEvent,
 } from 'react'
-import { ArrowDownWideNarrow, Info, LoaderCircle, PanelRightOpen, RotateCcw, Sparkles, X } from 'lucide-react'
+import { ArrowDownWideNarrow, Check, Info, LoaderCircle, PanelRightOpen, Pencil, RotateCcw, Sparkles, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import { GemTooltip, type GemTooltipTarget } from '@/components/GemTooltip'
 import { getImportedCalculationModeFromCode, getImportedCalculationModeFromObject } from '@/engine/calculationConfig'
@@ -58,6 +58,72 @@ const DAMAGE_TYPE_LABELS: Record<'all' | 'physical' | 'lightning' | 'cold' | 'fi
 
 type SpecificDamageType = Exclude<keyof typeof DAMAGE_TYPE_LABELS, 'all'>
 type DamageBucket = 'added' | 'increased' | 'gain' | 'more' | 'levels'
+
+function SkillGemEditor({
+  gem,
+  language,
+  onChange,
+}: {
+  gem: NonNullable<ReturnType<typeof parseSkillsObject>['groups']>[number]['gems'][number]
+  language: Language
+  onChange: (attributes: Record<string, string>) => void
+}) {
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
+  const [level, setLevel] = useState(String(gem.level))
+  const [quality, setQuality] = useState(String(gem.quality))
+
+  useEffect(() => {
+    setLevel(String(gem.level))
+    setQuality(String(gem.quality))
+  }, [gem.level, gem.quality])
+
+  const commitNumber = (value: string, key: 'level' | 'quality', minimum: number, maximum: number, fallback: number) => {
+    const parsed = Number(value)
+    const next = Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, Math.round(parsed))) : fallback
+    const nextValue = String(next)
+    if (key === 'level') setLevel(nextValue)
+    else setQuality(nextValue)
+    if (next !== (key === 'level' ? gem.level : gem.quality)) onChange({ [key]: nextValue })
+  }
+
+  return <div className="skill-gem-editor" onClick={(event) => event.stopPropagation()} onMouseEnter={(event) => event.stopPropagation()}>
+    <label title={l('Gem level', '宝石等级', '寶石等級', '젬 레벨')}>
+      <span>Lv</span>
+      <input
+        type="number"
+        min="1"
+        max="40"
+        value={level}
+        aria-label={l('Gem level', '宝石等级', '寶石等級', '젬 레벨')}
+        onChange={(event) => setLevel(event.target.value)}
+        onBlur={() => commitNumber(level, 'level', 1, 40, gem.level)}
+        onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+      />
+    </label>
+    <label title={l('Gem quality', '宝石品质', '寶石品質', '젬 퀄리티')}>
+      <input
+        type="number"
+        min="0"
+        max="100"
+        value={quality}
+        aria-label={l('Gem quality', '宝石品质', '寶石品質', '젬 퀄리티')}
+        onChange={(event) => setQuality(event.target.value)}
+        onBlur={() => commitNumber(quality, 'quality', 0, 100, gem.quality)}
+        onKeyDown={(event) => { if (event.key === 'Enter') event.currentTarget.blur() }}
+      />
+      <span>%</span>
+    </label>
+    <label className="skill-gem-enabled" title={l('Enable gem', '启用宝石', '啟用寶石', '젬 활성화')}>
+      <input
+        type="checkbox"
+        checked={gem.enabled}
+        aria-label={l('Enable gem', '启用宝石', '啟用寶石', '젬 활성화')}
+        onChange={(event) => onChange({ enabled: String(event.target.checked) })}
+      />
+      <Check aria-hidden="true" />
+    </label>
+  </div>
+}
 
 function formatCalculationValue(value: number | undefined, decimals: number, language: Language): string {
   if (!Number.isFinite(value)) return '-'
@@ -671,7 +737,8 @@ function useSkillPanelSize(enabled: boolean) {
 export function SkillsPanel() {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
-  const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
+  const pobBuildRevision = useTreeStore((state) => state.pobBuildRevision)
+  const getActivePobCode = useTreeStore((state) => state.getActivePobCode)
   const weaponSet = useTreeStore((state) => state.activeWeaponSet)
   const setWeaponSet = useTreeStore((state) => state.setActiveWeaponSet)
   const calcResult = useTreeStore((state) => state.calcResult)
@@ -679,11 +746,16 @@ export function SkillsPanel() {
   const calcError = useTreeStore((state) => state.calcError)
   const runCalculation = useTreeStore((state) => state.runCalculation)
   const rankSkillsByDps = useTreeStore((state) => state.rankSkillsByDps)
+  const updateSkillGem = useTreeStore((state) => state.updateSkillGem)
+  const updateSkillGroup = useTreeStore((state) => state.updateSkillGroup)
+  const setActiveSkillSet = useTreeStore((state) => state.setActiveSkillSet)
+  const setMainSocketGroup = useTreeStore((state) => state.setMainSocketGroup)
   const allocatedNodes = useTreeStore((state) => state.allocatedNodes)
   const calculationProfiles = useTreeStore((state) => state.calculationProfiles)
   const activeCalculationProfileId = useTreeStore((state) => state.activeCalculationProfileId)
   const [selectedId, setSelectedId] = useState('')
   const [inspectorOpen, setInspectorOpen] = useState(true)
+  const [skillEditMode, setSkillEditMode] = useState(false)
   const [inspectorPage, setInspectorPage] = useState<'overview' | 'calculation'>('overview')
   const [calcMode, setCalcMode] = useState<SkillCalculationMode>('EFFECTIVE')
   const [skillCalculationSelection, setSkillCalculationSelection] = useState<{
@@ -699,6 +771,7 @@ export function SkillsPanel() {
   const [rankingLoading, setRankingLoading] = useState(false)
   const [rankingError, setRankingError] = useState('')
   const rankingRequestId = useRef(0)
+  const activePobCode = useMemo(() => getActivePobCode() || '', [getActivePobCode, pobBuildRevision])
 
   useEffect(() => {
     let mounted = true
@@ -716,11 +789,11 @@ export function SkillsPanel() {
   }, [inspectorOpen])
 
   const session = getActiveBuildSession()
-  const skills = useMemo(() => importedBuildCode
+  const skills = useMemo(() => activePobCode
     ? session
       ? parseSkillsObject(session.object)
-      : parseSkillsCode(importedBuildCode)
-    : { activeSkillSetId: '', activeGroupId: '', groups: [] }, [importedBuildCode, session])
+      : parseSkillsCode(activePobCode)
+    : { activeSkillSetId: '', skillSets: [], activeGroupId: '', groups: [] }, [activePobCode, pobBuildRevision, session])
   const orderedGroups = useMemo(() => {
     if (!dpsRanking) return skills.groups
     const originalIndex = new Map(skills.groups.map((group, index) => [group.id, index]))
@@ -765,20 +838,23 @@ export function SkillsPanel() {
 
   useEffect(() => {
     restoreSkillOrder()
-  }, [importedBuildCode, weaponSet, allocatedNodes, calculationProfiles, activeCalculationProfileId])
+  }, [activePobCode, pobBuildRevision, weaponSet, allocatedNodes, calculationProfiles, activeCalculationProfileId])
 
   useEffect(() => {
-    if (!importedBuildCode) {
+    if (!activePobCode) {
       setCalcMode('EFFECTIVE')
       return
     }
     setCalcMode(session
       ? getImportedCalculationModeFromObject(session.object)
-      : getImportedCalculationModeFromCode(importedBuildCode))
-  }, [importedBuildCode, session])
+      : getImportedCalculationModeFromCode(activePobCode))
+  }, [activePobCode, pobBuildRevision, session])
   const selected = skills.groups.find((group) => group.id === selectedId)
     || skills.groups.find((group) => group.id === skills.activeGroupId)
     || skills.groups[0]
+  useEffect(() => {
+    setSkillEditMode(false)
+  }, [activePobCode, selected?.id])
   const { hostRef, size: panelSize } = useSkillPanelSize(Boolean(selected))
   const activeSkillIndex = selected && skillCalculationSelection.groupId === selected.id
     ? skillCalculationSelection.activeSkillIndex
@@ -793,12 +869,12 @@ export function SkillsPanel() {
     ? skillCalculationSelection.minionStatSetIndex
     : undefined
   const calculationKey = selected
-    ? `${importedBuildCode}:${weaponSet}:${selected.id}:${calcMode}:${activeSkillIndex || ''}:${statSetIndex || ''}:${minionSkillIndex || ''}:${minionStatSetIndex || ''}`
+    ? `${activePobCode}:${pobBuildRevision}:${weaponSet}:${selected.id}:${calcMode}:${activeSkillIndex || ''}:${statSetIndex || ''}:${minionSkillIndex || ''}:${minionStatSetIndex || ''}`
     : ''
   const lastCalculationKey = useRef('')
 
   useEffect(() => {
-    if (!selected || !importedBuildCode || calcLoading || lastCalculationKey.current === calculationKey) return
+    if (!selected || !activePobCode || calcLoading || lastCalculationKey.current === calculationKey) return
     lastCalculationKey.current = calculationKey
     void runCalculation({
       weaponSet,
@@ -809,7 +885,7 @@ export function SkillsPanel() {
       minionSkillIndex,
       minionStatSetIndex,
     })
-  }, [selected?.id, importedBuildCode, weaponSet, calcMode, activeSkillIndex, statSetIndex, minionSkillIndex, minionStatSetIndex, calcLoading, calculationKey, runCalculation])
+  }, [selected?.id, activePobCode, pobBuildRevision, weaponSet, calcMode, activeSkillIndex, statSetIndex, minionSkillIndex, minionStatSetIndex, calcLoading, calculationKey, runCalculation])
 
   const selectedCalculation = !calcLoading && lastCalculationKey.current === calculationKey ? calcResult : null
   const calculationDetails = selectedCalculation?.SkillDetails
@@ -819,6 +895,14 @@ export function SkillsPanel() {
     gem: NonNullable<typeof selected>['gems'][number],
     detail: ReturnType<typeof resolveSkillCatalogEntry>,
   ) => setTooltip({ gem, detail, x: event.clientX, y: event.clientY })
+
+  const selectedSkillIndex = selected ? Math.max(0, Number(selected.id) - 1) : 0
+  const updateSelectedGem = (gemIndex: number, attributes: Record<string, string>) => {
+    updateSkillGem(skills.activeSkillSetId, selectedSkillIndex, gemIndex, attributes)
+  }
+  const updateSelectedGroup = (attributes: Record<string, string>) => {
+    updateSkillGroup(skills.activeSkillSetId, selectedSkillIndex, attributes)
+  }
 
   if (!selected) {
     return <section className="workspace-empty">
@@ -832,6 +916,15 @@ export function SkillsPanel() {
     <div className="skill-groups-stage">
       <header>
         <div className="skill-groups-header-actions">
+          {skills.skillSets.length > 1 && <select
+            className="skill-set-select"
+            value={skills.activeSkillSetId}
+            onChange={(event) => setActiveSkillSet(event.target.value)}
+            aria-label={l('Skill set', '技能组方案', '技能組方案', '스킬 세트')}
+            title={l('Active skill set', '当前技能组方案', '目前技能組方案', '활성 스킬 세트')}
+          >
+            {skills.skillSets.map((skillSet) => <option key={skillSet.id} value={skillSet.id}>{skillSet.title}</option>)}
+          </select>}
           <label>{l('Weapon set', '武器组', '武器組', '무기 세트')}</label>
           <div className="skill-weapon-set-control" role="group" aria-label={l('Weapon set', '武器组', '武器組', '무기 세트')}>
             {([1, 2] as const).map((value) => <button
@@ -967,6 +1060,17 @@ export function SkillsPanel() {
         </div>
         <button
           type="button"
+          className="skill-edit-toggle"
+          onClick={() => setSkillEditMode((value) => !value)}
+          title={skillEditMode
+            ? l('Finish skill editing', '完成技能编辑', '完成技能編輯', '스킬 편집 완료')
+            : l('Edit skill setup', '编辑技能配置', '編輯技能配置', '스킬 설정 편집')}
+          aria-label={skillEditMode
+            ? l('Finish skill editing', '完成技能编辑', '完成技能編輯', '스킬 편집 완료')
+            : l('Edit skill setup', '编辑技能配置', '編輯技能配置', '스킬 설정 편집')}
+        >{skillEditMode ? <Check /> : <Pencil />}</button>
+        <button
+          type="button"
           className="skill-inspector-close"
           onClick={() => setInspectorOpen(false)}
           title={l('Close skill details', '关闭技能详情', '關閉技能詳情', '스킬 상세 정보 닫기')}
@@ -1033,6 +1137,40 @@ export function SkillsPanel() {
           {!!tags.length && <div className="skill-tags">
             {tags.map((tag) => <span key={tag}>{tag}</span>)}
           </div>}
+          {skillEditMode && <div className="skill-group-settings">
+            <label>
+              <input
+                type="checkbox"
+                checked={selected.enabled}
+                onChange={(event) => updateSelectedGroup({ enabled: String(event.target.checked) })}
+              />
+              <span>{l('Skill group enabled', '启用技能组', '啟用技能組', '스킬 그룹 활성화')}</span>
+            </label>
+            <label>
+              <input
+                type="checkbox"
+                checked={selected.includeInFullDps}
+                onChange={(event) => updateSelectedGroup({ includeInFullDPS: String(event.target.checked) })}
+              />
+              <span>{l('Include in full DPS', '计入完整 DPS', '計入完整 DPS', '전체 DPS에 포함')}</span>
+            </label>
+            <button
+              type="button"
+              className={skills.activeGroupId === selected.id ? 'active' : ''}
+              onClick={() => setMainSocketGroup(selected.id)}
+              disabled={skills.activeGroupId === selected.id}
+            >{skills.activeGroupId === selected.id
+              ? l('Main skill group', '当前主技能组', '目前主技能組', '주 스킬 그룹')
+              : l('Set as main skill', '设为主技能', '設為主技能', '주 스킬로 설정')}</button>
+          </div>}
+          {skillEditMode && <section className="skill-gem-settings">
+            <h3>{l('Skill gem settings', '技能宝石设置', '技能寶石設定', '스킬 젬 설정')}</h3>
+            <SkillGemEditor
+              gem={mainGem}
+              language={lang}
+              onChange={(attributes) => updateSelectedGem(0, attributes)}
+            />
+          </section>}
           <dl>
             <div><dt>{l('Gem level', '宝石等级', '寶石等級', '젬 레벨')}</dt><dd>{mainGem.level}</dd></div>
             <div><dt>{l('Effective level', '实际等级', '實際等級', '유효 레벨')}</dt><dd>{calcLoading ? '...' : (selectedCalculation?.SkillLevel ?? '-')}</dd></div>
@@ -1061,7 +1199,13 @@ export function SkillsPanel() {
                   {effectLines.map((line) => <li key={line}>{line}</li>)}
                 </ul>}
               </div>
-              <small>Lv. {gem.level}</small>
+              {skillEditMode
+                ? <SkillGemEditor
+                    gem={gem}
+                    language={lang}
+                    onChange={(attributes) => updateSelectedGem(index + 1, attributes)}
+                  />
+                : <small>Lv. {gem.level}</small>}
             </div>
           })}</div>
         </section>

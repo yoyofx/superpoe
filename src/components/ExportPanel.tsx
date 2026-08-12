@@ -76,8 +76,11 @@ export function ExportPanel({ embedded = false, buildName = 'SuperPoE2 Build', s
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
   const treeData = useTreeStore((s) => s.treeData)
-  const importedBuildCode = useTreeStore((s) => s.importedBuildCode)
+  const pobBuildRevision = useTreeStore((s) => s.pobBuildRevision)
+  const getActivePobCode = useTreeStore((s) => s.getActivePobCode)
   const nodeCount = allocatedNodes.size
+
+  const currentBuildCode = getActivePobCode()
 
   const handlePobExport = useCallback(async () => {
     if (nodeCount === 0) return
@@ -85,22 +88,25 @@ export function ExportPanel({ embedded = false, buildName = 'SuperPoE2 Build', s
     setError(null)
     setCode('')
     try {
-      const classPayload = getEncodeClassPayload(treeData, selectedClassId, selectedAscendancyId)
-      const result = encodeBuildCode({
-        nodes: [...allocatedNodes],
-        nodeWeaponSets,
-        nodeAttributeSelections,
-        treeVersion,
-        baseCode: importedBuildCode || undefined,
-        ...classPayload,
-      })
-      setCode(result.code || '')
+      if (currentBuildCode) {
+        setCode(currentBuildCode)
+      } else {
+        const classPayload = getEncodeClassPayload(treeData, selectedClassId, selectedAscendancyId)
+        const result = encodeBuildCode({
+          nodes: [...allocatedNodes],
+          nodeWeaponSets,
+          nodeAttributeSelections,
+          treeVersion,
+          ...classPayload,
+        })
+        setCode(result.code || '')
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoading(false)
     }
-  }, [allocatedNodes, importedBuildCode, nodeAttributeSelections, nodeCount, nodeWeaponSets, selectedAscendancyId, selectedClassId, treeData, treeVersion])
+  }, [allocatedNodes, currentBuildCode, nodeAttributeSelections, nodeCount, nodeWeaponSets, selectedAscendancyId, selectedClassId, treeData, treeVersion, pobBuildRevision])
 
   const handlePlannerGenerate = useCallback(async () => {
     if (!treeData) return
@@ -118,7 +124,7 @@ export function ExportPanel({ embedded = false, buildName = 'SuperPoE2 Build', s
         allocatedNodes,
         nodeWeaponSets,
         nodeAttributeSelections,
-        importedBuildCode,
+        importedBuildCode: currentBuildCode,
         language: lang,
       }))
       setShowCompatibilityDetails(false)
@@ -128,7 +134,7 @@ export function ExportPanel({ embedded = false, buildName = 'SuperPoE2 Build', s
     } finally {
       setLoading(false)
     }
-  }, [allocatedNodes, buildName, importedBuildCode, lang, nodeAttributeSelections, nodeWeaponSets, selectedAscendancyId, selectedClassId, sourceUrl, treeData, treeVersion])
+  }, [allocatedNodes, buildName, currentBuildCode, lang, nodeAttributeSelections, nodeWeaponSets, selectedAscendancyId, selectedClassId, sourceUrl, treeData, treeVersion, pobBuildRevision])
 
   const handleCopy = useCallback(async () => {
     if (!code) return
