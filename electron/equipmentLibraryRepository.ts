@@ -177,6 +177,21 @@ function deriveItemView(item: CanonicalEquipmentItem): CanonicalItemView {
   const implicitAt = lines.findIndex((line) => /^Implicits:\s*\d+/i.test(line))
   const implicitCount = implicitAt >= 0 ? Number(lines[implicitAt].match(/\d+/)?.[0] || 0) : 0
   const modifierLines = implicitAt >= 0 ? lines.slice(implicitAt + 1).filter((line) => !/^(?:Mirrored|Sanctified|Twice Corrupted|Corrupted)$/i.test(line)) : []
+  const supportByGroup = new Map<string, Array<{ text: string; supported: boolean }>>()
+  for (const snapshot of Array.isArray(item.modifierSupport) ? item.modifierSupport : []) {
+    const group = supportByGroup.get(snapshot.group) || []
+    group.push({ text: snapshot.text, supported: snapshot.supported })
+    supportByGroup.set(snapshot.group, group)
+  }
+  const supportCursor = new Map<string, number>()
+  const supportFor = (group: string, text: string) => {
+    const candidates = supportByGroup.get(group) || []
+    const cursor = supportCursor.get(group) || 0
+    const exactIndex = candidates.findIndex((candidate, index) => index >= cursor && candidate.text === text)
+    const index = exactIndex >= 0 ? exactIndex : cursor
+    supportCursor.set(group, index + 1)
+    return candidates[index]
+  }
   const properties = [
     stat('Armour', 'Armour:'),
     stat('Evasion', 'Evasion:'),
@@ -195,17 +210,22 @@ function deriveItemView(item: CanonicalEquipmentItem): CanonicalItemView {
     ...(lines.find((line) => line.startsWith('Sockets:'))?.slice(8).trim() ? { sockets: lines.find((line) => line.startsWith('Sockets:'))!.slice(8).trim() } : {}),
     ...(properties.length ? { properties } : {}),
     ...(requirements.length ? { requirements } : {}),
+    normalizationKnown: Array.isArray(item.modifierSupport),
     corrupted: lines.some((line) => /^(?:Twice Corrupted|Corrupted)$/i.test(line)),
     identified: true,
+    ...(item.tradeCategory ? { tradeCategory: item.tradeCategory } : {}),
     modifiers: modifierLines.map((rawLine, index) => {
       const tags = [...rawLine.matchAll(/\{([^}:,]+)(?::[^}]*)?\}/g)].map((match) => match[1].toLowerCase())
       const group = tags.includes('rune') ? 'rune' : tags.includes('enchant') ? 'enchant' : index < implicitCount ? 'implicit' : 'explicit'
+      const text = rawLine.replace(/\{[^}]+\}/g, '').trim()
+      const support = supportFor(group, text)
       return {
         id: `${group}-${index}`,
         displayOrder: index,
         group,
         sourceTags: tags.filter((tag): tag is CanonicalItemView['modifiers'][number]['sourceTags'][number] => ['rune', 'enchant', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated', 'mutated', 'corrupted'].includes(tag)),
-        text: rawLine.replace(/\{[^}]+\}/g, '').trim(),
+        text,
+        ...(support ? { unsupported: !support.supported } : {}),
         tradeStatIds: [],
       }
     }),

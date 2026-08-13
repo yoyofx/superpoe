@@ -69,10 +69,17 @@ describe('passiveAllocation', () => {
     expect(result.availableNodes.size).toBeGreaterThan(0)
   })
 
-  it('deallocates dependents that no longer reach a root', () => {
+  it('keeps imported dependent nodes when one node is explicitly removed', () => {
     const data = tree({ root: node('root', ['a'], { type: 'ClassStart' }), a: node('a', ['b']), b: node('b', []) })
     const result = deallocateNode(ctx(data), new Set(['a', 'b']), {}, 'a')
-    expect([...result.allocatedNodes]).toEqual([])
+    expect([...result.allocatedNodes]).toEqual(['b'])
+  })
+
+  it('removes only the selected node weapon-set assignment', () => {
+    const data = tree({ root: node('root', ['a'], { type: 'ClassStart' }), a: node('a', ['b']), b: node('b', []) })
+    const result = deallocateNode(ctx(data), new Set(['a', 'b']), { a: 1, b: 2 }, 'a')
+    expect([...result.allocatedNodes]).toEqual(['b'])
+    expect(result.nodeWeaponSets).toEqual({ b: 2 })
   })
 
   it('stores weapon set modes only for ordinary nodes', () => {

@@ -75,6 +75,7 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
   const [leagueId, setLeagueId] = useState('')
   const [tooltip, setTooltip] = useState<TooltipPosition | null>(null)
+  const tooltipHideTimerRef = useRef<number | null>(null)
   const [floatingDetail, setFloatingDetail] = useState<FloatingDetailPosition | null>(null)
   const dragRef = useRef<DragState | null>(null)
   const directoryResizeRef = useRef<DirectoryResizeState | null>(null)
@@ -133,6 +134,27 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
     setTooltip(null)
     setCopyPobState('idle')
   }, [selectedEntry?.id])
+
+  const cancelTooltipHide = () => {
+    if (tooltipHideTimerRef.current == null) return
+    window.clearTimeout(tooltipHideTimerRef.current)
+    tooltipHideTimerRef.current = null
+  }
+
+  const hideTooltip = () => {
+    cancelTooltipHide()
+    setTooltip(null)
+  }
+
+  const scheduleTooltipHide = () => {
+    cancelTooltipHide()
+    tooltipHideTimerRef.current = window.setTimeout(() => {
+      tooltipHideTimerRef.current = null
+      setTooltip(null)
+    }, 260)
+  }
+
+  useEffect(() => () => cancelTooltipHide(), [])
 
   const run = async (operation: () => Promise<unknown>, success?: string) => {
     setBusy(true)
@@ -217,6 +239,7 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
 
   const showTooltip = (event: ReactMouseEvent<HTMLElement> | ReactFocusEvent<HTMLElement>, entry: EquipmentLibraryEntry) => {
     if (floatingDetail) return
+    cancelTooltipHide()
     const rect = event.currentTarget.getBoundingClientRect()
     const width = 326
     const height = Math.min(360, Math.max(0, window.innerHeight - 20))
@@ -329,9 +352,9 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
       className={`library-item-card${selectedEntry?.id === entry.id ? ' selected' : ''}`}
       key={entry.id}
       onMouseEnter={(event) => showTooltip(event, entry)}
-      onMouseLeave={() => setTooltip(null)}
+      onMouseLeave={scheduleTooltipHide}
       onFocus={(event) => showTooltip(event, entry)}
-      onBlur={() => setTooltip(null)}
+      onBlur={scheduleTooltipHide}
     >
       <button className="library-item-card-main" onClick={(event) => handleCardClick(event, entry)} aria-pressed={selectedEntry?.id === entry.id}>
         <span className="library-item-card-icon">{entry.view.iconUrl ? <img src={entry.view.iconUrl} alt="" /> : <FileText />}</span>
@@ -423,7 +446,7 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
         </div>
       </section>
     </div>
-    {tooltipEntry && tooltip && <div className="library-item-tooltip library-item-inspector-tooltip" role="tooltip" style={{ left: tooltip.left, top: tooltip.top }}>{renderItemInspector(tooltipEntry)}</div>}
+    {tooltipEntry && tooltip && <div className="library-item-tooltip library-item-inspector-tooltip" role="tooltip" style={{ left: tooltip.left, top: tooltip.top }} onMouseEnter={cancelTooltipHide} onMouseLeave={hideTooltip}>{renderItemInspector(tooltipEntry)}</div>}
     {floatingDetail && floatingEntry && createPortal(<div className="library-item-floating equipment-inspector equipment-inspector-floating" style={{ left: floatingDetail.left, top: floatingDetail.top }}>
       {renderItemInspector(floatingEntry, true)}
     </div>, document.body)}

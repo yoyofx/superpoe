@@ -36,6 +36,7 @@ import { uiText } from '@/i18n/uiLocale'
 
 const TreePixiCanvas = lazy(() => import('@/components/TreePixiCanvas').then((module) => ({ default: module.TreePixiCanvas })))
 const NodeTooltip = lazy(() => import('@/components/NodeTooltip').then((module) => ({ default: module.NodeTooltip })))
+const JewelSocketPanel = lazy(() => import('@/components/JewelSocketPanel').then((module) => ({ default: module.JewelSocketPanel })))
 const EquipmentPanel = lazy(() => import('@/components/EquipmentPanel').then((module) => ({ default: module.EquipmentPanel })))
 const SkillsWorkspace = lazy(() => import('@/components/SkillsWorkspace').then((module) => ({ default: module.SkillsWorkspace })))
 const MarketShell = lazy(() => import('@/components/market/MarketShell').then((module) => ({ default: module.MarketShell })))
@@ -53,7 +54,10 @@ export default function App() {
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const hashLoadedRef = useRef(false)
   const cleanSignatureRef = useRef('')
-  const [screen, setScreen] = useState<'center' | 'utilities' | 'about' | 'library' | 'editor' | 'trade'>('center')
+  type AppScreen = 'center' | 'utilities' | 'about' | 'library' | 'editor' | 'trade'
+  type LibraryReturnScreen = Exclude<AppScreen, 'library'>
+  const [screen, setScreen] = useState<AppScreen>('center')
+  const [libraryReturnScreen, setLibraryReturnScreen] = useState<LibraryReturnScreen>('center')
   const [activeView, setActiveView] = useState<WorkspaceView>('equipment')
   const [marketWorkspace, setMarketWorkspace] = useState<MarketWorkspaceView>('market')
   const [tradeReturnScreen, setTradeReturnScreen] = useState<'center' | 'editor' | 'library'>('center')
@@ -640,28 +644,33 @@ export default function App() {
   const nativeBuildConflict = nativeBuildCandidate
     ? savedBuilds.find((build) => build.id === nativeBuildCandidate.parsed.envelope.data.id)
     : undefined
+  const openLibrary = (returnScreen: LibraryReturnScreen) => {
+    setLibraryReturnScreen(returnScreen)
+    setScreen('library')
+  }
   const tradeSuspended = settingsOpen || importOpen || newBuildOpen || leaveConfirmOpen || Boolean(nativeBuildCandidate)
 
   return (
     <div className={`superpoe-app${screen === 'library' ? ' library-screen' : ''}`}>
       {screen === 'center'
-        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onOpenFile={() => void handleOpenNativeBuildFile()} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onCheckForUpdate={(build) => void handleCheckBuildUpdate(build)} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onLibrary={() => setScreen('library')} onUtilities={() => setScreen('utilities')} onAbout={() => setScreen('about')} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} />
+        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onOpenFile={() => void handleOpenNativeBuildFile()} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onCheckForUpdate={(build) => void handleCheckBuildUpdate(build)} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onLibrary={() => openLibrary('center')} onUtilities={() => setScreen('utilities')} onAbout={() => setScreen('about')} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} />
         : screen === 'utilities'
-          ? <UtilityCenter onCenter={() => setScreen('center')} onLibrary={() => setScreen('library')} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onAbout={() => setScreen('about')} onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} />
+          ? <UtilityCenter onCenter={() => setScreen('center')} onLibrary={() => openLibrary('utilities')} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onAbout={() => setScreen('about')} onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} />
           : screen === 'about'
-            ? <AboutPage onCenter={() => setScreen('center')} onLibrary={() => setScreen('library')} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onUtilities={() => setScreen('utilities')} />
+            ? <AboutPage onCenter={() => setScreen('center')} onLibrary={() => openLibrary('about')} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onUtilities={() => setScreen('utilities')} />
           : screen === 'library'
-            ? <EquipmentLibraryPage realm={appSettings.defaultRealm} onCenter={() => setScreen('center')} onSettings={() => setSettingsOpen(true)} />
+            ? <EquipmentLibraryPage realm={appSettings.defaultRealm} onBack={() => setScreen(libraryReturnScreen)} onSettings={() => setSettingsOpen(true)} />
         : screen === 'trade'
-          ? <Suspense fallback={<WorkspaceLoading language={lang} />}><MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onSettings={() => setSettingsOpen(true)} /></Suspense>
+          ? <Suspense fallback={<WorkspaceLoading language={lang} />}><MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onLibrary={() => openLibrary('trade')} onSettings={() => setSettingsOpen(true)} /></Suspense>
           : <>
-      <Toolbar activeView={activeView} onViewChange={setActiveView} onTradeCenter={() => { setTradeReturnScreen('editor'); setScreen('trade') }} monitoring={monitoring} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} onSaveCopy={() => void handleSaveCopy()} onSettings={() => setSettingsOpen(true)} />
+      <Toolbar activeView={activeView} onViewChange={setActiveView} onTradeCenter={() => { setTradeReturnScreen('editor'); setScreen('trade') }} monitoring={monitoring} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onLibrary={() => openLibrary('editor')} onImport={() => setImportOpen(true)} onSave={handleSave} onSaveCopy={() => void handleSaveCopy()} onSettings={() => setSettingsOpen(true)} />
       <main className="workspace-view">
         {!treeData ? <WorkspaceLoading language={lang} error={error} /> : <Suspense fallback={<WorkspaceLoading language={lang} />}>
         {activeView === 'passive' && (
           <section className="passive-workspace">
             <TreePixiCanvas />
             <NodeTooltip />
+            <JewelSocketPanel />
           </section>
         )}
         {activeView === 'equipment' && <EquipmentPanel buildId={activeBuildId} realm={appSettings.defaultRealm} />}

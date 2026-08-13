@@ -18,6 +18,7 @@ interface Props {
   selection: EquipmentCollectionSelection
   allLabel?: string
   labels: { collapse: string; expand: string; newFolder: string; rename: string; delete: string }
+  readOnly?: boolean
   onSelect: (selection: EquipmentCollectionSelection) => void
   onCreate: (root: EquipmentCollectionRoot, name: string, parentId?: string) => Promise<void>
   onRename: (folderId: string, name: string) => Promise<void>
@@ -28,7 +29,7 @@ interface Props {
 type Editor = { mode: 'create'; root: EquipmentCollectionRoot; parentId?: string; name: string }
   | { mode: 'rename'; folderId: string; name: string }
 
-export function EquipmentCollectionTree({ roots, folders, entries, selection, allLabel, labels, onSelect, onCreate, onRename, onDelete, onToggle }: Props) {
+export function EquipmentCollectionTree({ roots, folders, entries, selection, allLabel, labels, readOnly = false, onSelect, onCreate, onRename, onDelete, onToggle }: Props) {
   const [editor, setEditor] = useState<Editor | null>(null)
   const [busy, setBusy] = useState(false)
   const [collapsedRoots, setCollapsedRoots] = useState<Set<EquipmentCollectionRoot>>(() => new Set())
@@ -41,8 +42,8 @@ export function EquipmentCollectionTree({ roots, folders, entries, selection, al
     if (!editor?.name.trim()) return
     setBusy(true)
     try {
-      if (editor.mode === 'create') await onCreate(editor.root, editor.name.trim(), editor.parentId)
-      else await onRename(editor.folderId, editor.name.trim())
+      if (editor.mode === 'create') await onCreate?.(editor.root, editor.name.trim(), editor.parentId)
+      else await onRename?.(editor.folderId, editor.name.trim())
       setEditor(null)
     } finally {
       setBusy(false)
@@ -50,6 +51,7 @@ export function EquipmentCollectionTree({ roots, folders, entries, selection, al
   }
 
   const beginCreate = () => {
+    if (readOnly) return
     if (selection.kind !== 'root') return
     setEditor({
       mode: 'create',
@@ -85,12 +87,12 @@ export function EquipmentCollectionTree({ roots, folders, entries, selection, al
   }
 
   return <div className="equipment-collection-tree">
-    <div className="equipment-tree-toolbar">
+    {!readOnly && <div className="equipment-tree-toolbar">
       <button disabled={selection.kind !== 'root' || busy} onClick={beginCreate} title={labels.newFolder} aria-label={labels.newFolder}><FolderPlus /></button>
       <button disabled={!selectedFolder} onClick={() => selectedFolder && setEditor({ mode: 'rename', folderId: selectedFolder.id, name: selectedFolder.name })} title={labels.rename}><Pencil /></button>
       <button className="danger" disabled={!selectedFolder || busy} onClick={() => selectedFolder && void onDelete(selectedFolder)} title={labels.delete}><Trash2 /></button>
-    </div>
-    {editor && <div className="equipment-tree-editor">
+    </div>}
+    {!readOnly && editor && <div className="equipment-tree-editor">
       <input autoFocus value={editor.name} onChange={(event) => setEditor({ ...editor, name: event.target.value })} onKeyDown={(event) => { if (event.key === 'Enter') void submit(); if (event.key === 'Escape') setEditor(null) }} />
       <button disabled={busy || !editor.name.trim()} onClick={() => void submit()}><Save /></button>
       <button disabled={busy} onClick={() => setEditor(null)}><X /></button>

@@ -106,8 +106,33 @@ function normalizeKey(value: string): string {
   return value.trim()
 }
 
-export function normalizeDisplayTags(value: string): string {
+/**
+ * Some PoB item/stat payloads contain HTML entities because they originated
+ * from a web-facing item renderer. Decode them before dictionary lookup so
+ * `Sorceress&apos;s` matches the catalog's `Sorceress's` entry.
+ */
+export function decodeDisplayEntities(value: string): string {
+  const named: Record<string, string> = {
+    amp: '&',
+    apos: "'",
+    gt: '>',
+    hellip: '…',
+    lt: '<',
+    mdash: '—',
+    nbsp: ' ',
+    ndash: '–',
+    quot: '"',
+  }
   return value
+    .replace(/&([a-z]+);/gi, (match, name: string) => named[name.toLowerCase()] ?? match)
+    .replace(/&#(x[\da-f]+|\d+);/gi, (match, code: string) => {
+      const value = code.toLowerCase().startsWith('x') ? Number.parseInt(code.slice(1), 16) : Number.parseInt(code, 10)
+      return Number.isFinite(value) && value >= 0 && value <= 0x10ffff ? String.fromCodePoint(value) : match
+    })
+}
+
+export function normalizeDisplayTags(value: string): string {
+  return decodeDisplayEntities(value)
     // PoB stat descriptions use markup such as [Attack|攻击] and
     // <colour>{...}. Keep the localized label and remove the internal key
     // and formatting wrapper before text reaches the user-facing UI.
@@ -261,6 +286,8 @@ function addTranslationEntry(
 }
 
 function translateText(value: string, language: Language): string {
+  const decodedValue = decodeDisplayEntities(value)
+  if (decodedValue !== value) return translateText(decodedValue, language)
   if (language === 'en') return value
   const key = normalizeKey(value)
   const canCache = loadedLanguages.has(language)

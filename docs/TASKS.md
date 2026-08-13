@@ -83,7 +83,7 @@
 | 配置面板 | [x] | 已提供本地配置方案、翻译和参与计算的核心条件；继续扩展覆盖面 |
 | 计算详情 | [x] | 已展示技能 DPS、伤害链、点伤、暴击、速度和主要来源；继续补齐更多 breakdown |
 | 多 spec 完整 UI | [~] | 对象已提供全部 Spec/activeSpec accessor 和 activeSpec 切换命令；Store 可恢复并切换已有 Spec，完整 SpecSelector / Compare UI 仍未接入 |
-| 天赋珠宝对象读写 | [x] | active Spec 的 `<Sockets>` 已有对象 accessor、按节点更新命令和 tooltip/Pixi 读取路径 |
+| 天赋珠宝对象读写 | [x] | active Spec 的 `<Sockets>` 已有对象 accessor、按节点更新命令和 tooltip/Pixi 读取路径；已分配珠宝孔可从装备仓库绑定、替换和解除，绑定 Raw 由 PoB 类别识别且保留旧 Item |
 | 专精效果完整数据 | [x] | `PobBuildObject` 读取/写入 active Spec 的 `masteryEffects`；Store 选择专精效果时通过对象命令同步，未识别 XML 内容保持不变 |
 | 外部网络功能 | [~] | 官方集市、交易仓库、Live 监控、通货行情与统一查价窗口已接入；构筑提升对比仍按 M6 推进 |
 | 移动端适配 | [ ] | 当前主要面向桌面视口，后续再做响应式工具布局 |

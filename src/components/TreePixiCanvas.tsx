@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type MouseEvent } from 'react'
 import {
   Application,
   Container,
@@ -12,6 +12,7 @@ import { screenToTree } from '@/engine/coordinate'
 import { getAttributeNodeDisplay } from '@/engine/attributeNodes'
 import { getConnectorState } from '@/engine/connectorSprites'
 import {
+  getEffectiveAllocationPath,
   getImplicitRootIds,
   getNodeAllocMode,
   getPreviewPath,
@@ -20,6 +21,7 @@ import {
   WEAPON_SET_COLORS,
   type AllocMode,
 } from '@/engine/passiveAllocation'
+import type { AttributeSelection } from '@/engine/attributeNodes'
 import { getSpriteLoader } from '@/engine/spriteLoader'
 import type { NodeJewels } from '@/engine/buildCode'
 import { loadItemIconIndex, resolveItemIconName, type ItemIconIndex } from '@/engine/itemIcons'
@@ -44,6 +46,8 @@ import {
 } from '@/engine/treeRenderShared'
 import { useTreeStore } from '@/store/treeStore'
 import type { TreeConnectorQuad, TreeNode } from '@/types/tree'
+import { useTranslation } from '@/i18n/useTranslation'
+import { uiText } from '@/i18n/uiLocale'
 
 const FALLBACK_VERSION = '0_4'
 const ORBIT_SPRITE_NODE_TYPES = new Set(['Notable', 'Keystone', 'ClassStart', 'AscendClassStart'])
@@ -67,6 +71,12 @@ interface NodeHit {
   x: number
   y: number
   radius: number
+}
+
+interface AttributeAllocationMenu {
+  nodeId: string
+  left: number
+  top: number
 }
 
 function hitGridKey(x: number, y: number): string {
@@ -215,6 +225,7 @@ function updateWorldTransform(app: Application, worldLayer: Container, offsetX: 
 }
 
 export function TreePixiCanvas() {
+  const { lang } = useTranslation()
   const hostRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<Application | null>(null)
   const worldLayerRef = useRef<Container | null>(null)
@@ -240,6 +251,7 @@ export function TreePixiCanvas() {
   const [resizeTick, setResizeTick] = useState(0)
   const [nodeRenderRevision, setNodeRenderRevision] = useState(0)
   const [itemIconIndex, setItemIconIndex] = useState<ItemIconIndex | null>(null)
+  const [attributeAllocationMenu, setAttributeAllocationMenu] = useState<AttributeAllocationMenu | null>(null)
 
   const treeData = useTreeStore((s) => s.treeData)
   const treeVersion = useTreeStore((s) => s.treeVersion)
@@ -276,6 +288,7 @@ export function TreePixiCanvas() {
   const panBy = useTreeStore((s) => s.panBy)
   const zoomAt = useTreeStore((s) => s.zoomAt)
   const toggleNode = useTreeStore((s) => s.toggleNode)
+  const allocateNodeWithAttribute = useTreeStore((s) => s.allocateNodeWithAttribute)
   const cycleAttributeNode = useTreeStore((s) => s.cycleAttributeNode)
 
   useEffect(() => {
@@ -698,6 +711,9 @@ export function TreePixiCanvas() {
         if (isAvailable) {
           overlayGraphics.circle(sx, sy, sr + 1).stroke({ color: 0x4ADE80, width: 2.5 })
         }
+        if ((node.isJewelSocket || node.type === 'JewelSocket' || node.type === 'Socket') && isAllocated && !passiveJewels[id]) {
+          overlayGraphics.circle(sx, sy, sr + 3).stroke({ color: 0xF59E0B, width: 2.2, alpha: 0.95 })
+        }
         overlayLayer.addChild(overlayGraphics)
       }
 
@@ -993,9 +1009,33 @@ export function TreePixiCanvas() {
       isDragging.current = false
       if (moved) return
     }
-    if (hoveredNodeId && treeEditMode) toggleNode(hoveredNodeId)
+    if (hoveredNodeId && (treeEditMode || treeData?.nodes[hoveredNodeId]?.isJewelSocket || treeData?.nodes[hoveredNodeId]?.type === 'JewelSocket' || treeData?.nodes[hoveredNodeId]?.type === 'Socket')) {
+      const targetNode = treeData?.nodes[hoveredNodeId]
+      const state = useTreeStore.getState()
+      const isJewelSocket = Boolean(targetNode && (targetNode.isJewelSocket || targetNode.type === 'JewelSocket' || targetNode.type === 'Socket'))
+      if (isJewelSocket) {
+        // Jewel assignment is intentionally separate from passive allocation.
+        // Clicking a socket only selects it for the binding panel.
+      } else if (targetNode && !state.allocatedNodes.has(hoveredNodeId) && treeData) {
+        const path = getEffectiveAllocationPath(
+          { treeData, selectedClassId, selectedAscendancyId },
+          state.allocatedNodes,
+          state.nodeWeaponSets,
+          hoveredNodeId,
+          state.weaponSetMode,
+        )
+        const hasAttributeNode = path?.nodes.some((id) => !state.allocatedNodes.has(id) && treeData.nodes[id]?.isAttribute)
+        if (hasAttributeNode) {
+          setAttributeAllocationMenu({ nodeId: hoveredNodeId, left: e.clientX, top: e.clientY })
+        } else {
+          toggleNode(hoveredNodeId)
+        }
+      } else {
+        toggleNode(hoveredNodeId)
+      }
+    }
     setSelectedNode(hoveredNodeId)
-  }, [hoveredNodeId, setSelectedNode, toggleNode, treeEditMode])
+  }, [hoveredNodeId, selectedAscendancyId, selectedClassId, setSelectedNode, toggleNode, treeData, treeEditMode])
 
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -1014,10 +1054,38 @@ export function TreePixiCanvas() {
     setHoveredNode(null)
   }, [setHoveredNode])
 
-  const handleSearchMarkerClick = useCallback((id: string) => {
-    if (treeEditMode) toggleNode(id)
+  const chooseAttributeForAllocation = useCallback((selection: AttributeSelection) => {
+    if (!attributeAllocationMenu) return
+    allocateNodeWithAttribute(attributeAllocationMenu.nodeId, selection)
+    setAttributeAllocationMenu(null)
+  }, [allocateNodeWithAttribute, attributeAllocationMenu])
+
+  const handleSearchMarkerClick = useCallback((event: MouseEvent, id: string) => {
+    if (treeEditMode && treeData) {
+      const state = useTreeStore.getState()
+      const targetNode = treeData.nodes[id]
+      const isJewelSocket = Boolean(targetNode && (targetNode.isJewelSocket || targetNode.type === 'JewelSocket' || targetNode.type === 'Socket'))
+      if (isJewelSocket) {
+        // Selection is enough; jewel binding is handled by the detail panel.
+      } else if (targetNode && !state.allocatedNodes.has(id)) {
+        const path = getEffectiveAllocationPath(
+          { treeData, selectedClassId, selectedAscendancyId },
+          state.allocatedNodes,
+          state.nodeWeaponSets,
+          id,
+          state.weaponSetMode,
+        )
+        if (path?.nodes.some((nodeId) => !state.allocatedNodes.has(nodeId) && treeData.nodes[nodeId]?.isAttribute)) {
+          setAttributeAllocationMenu({ nodeId: id, left: event.clientX, top: event.clientY })
+        } else {
+          toggleNode(id)
+        }
+      } else {
+        toggleNode(id)
+      }
+    }
     setSelectedNode(id)
-  }, [setSelectedNode, toggleNode, treeEditMode])
+  }, [selectedAscendancyId, selectedClassId, setSelectedNode, toggleNode, treeData, treeEditMode])
 
   const searchProjection = treeData
     ? getSelectedAscendancyProjection(treeData, selectedClassId, selectedAscendancyId)
@@ -1066,11 +1134,36 @@ export function TreePixiCanvas() {
                 left: marker.left - size / 2,
                 top: marker.top - size / 2,
               }}
-              onClick={() => handleSearchMarkerClick(marker.id)}
+              onClick={(event) => handleSearchMarkerClick(event, marker.id)}
             />
           )
         })}
       </div>
+      {attributeAllocationMenu && (
+        <div
+          className="pointer-events-auto fixed z-50 min-w-40 rounded-md border border-[#806b4a] bg-[#100f0c]/[.98] p-1.5 text-sm text-[#eee4ca] shadow-2xl"
+          style={{ left: Math.min(attributeAllocationMenu.left + 10, window.innerWidth - 180), top: Math.min(attributeAllocationMenu.top + 10, window.innerHeight - 150) }}
+          role="menu"
+          onMouseDown={(event) => event.stopPropagation()}
+        >
+          <div className="px-2 pb-1 text-[11px] uppercase tracking-wide text-[#a99a7d]">{uiText(lang, 'Choose attribute', '选择属性', '選擇屬性', '속성 선택')}</div>
+          {([
+            [1, `${uiText(lang, 'Strength', '力量', '力量', '힘')} +5`],
+            [2, `${uiText(lang, 'Dexterity', '敏捷', '敏捷', '민첩')} +5`],
+            [3, `${uiText(lang, 'Intelligence', '智慧', '智慧', '지능')} +5`],
+          ] as Array<[AttributeSelection, string]>).map(([selection, label]) => (
+            <button
+              key={selection}
+              type="button"
+              className="block w-full rounded px-2 py-1.5 text-left hover:bg-[#806b4a]/35"
+              onClick={() => chooseAttributeForAllocation(selection)}
+            >
+              {label}
+            </button>
+          ))}
+          <button type="button" className="mt-1 block w-full rounded border-t border-[#3e3429] px-2 py-1.5 text-left text-[#a99a7d] hover:bg-[#806b4a]/20" onClick={() => setAttributeAllocationMenu(null)}>{uiText(lang, 'Cancel', '取消', '取消', '취소')}</button>
+        </div>
+      )}
     </>
   )
 }

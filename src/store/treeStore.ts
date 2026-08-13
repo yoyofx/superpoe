@@ -21,6 +21,7 @@ import { resolveTreeAscendancy, resolveTreeClass } from '@/engine/treeClassResol
 import {
   cleanAttributeSelections,
   nextAttributeSelection,
+  type AttributeSelection,
   type NodeAttributeSelections,
 } from '@/engine/attributeNodes'
 import {
@@ -115,6 +116,8 @@ interface Snapshot {
   availableNodes: string[]
   nodeWeaponSets: NodeWeaponSets
   nodeAttributeSelections: NodeAttributeSelections
+  /** Canonical PoB XML at the point this tree snapshot was captured. */
+  pobXml?: string | null
 }
 
 const MAX_UNDO = 50
@@ -149,11 +152,18 @@ function snapshotFromState(
   nodeWeaponSets: NodeWeaponSets,
   nodeAttributeSelections: NodeAttributeSelections,
 ): Snapshot {
+  let pobXml: string | null = null
+  try {
+    pobXml = activeBuildSession?.object.snapshot().xml || null
+  } catch {
+    // Tree editing remains available for legacy builds without a live object.
+  }
   return {
     allocatedNodes: [...allocatedNodes],
     availableNodes: [...availableNodes],
     nodeWeaponSets: { ...nodeWeaponSets },
     nodeAttributeSelections: { ...nodeAttributeSelections },
+    pobXml,
   }
 }
 
@@ -257,6 +267,10 @@ interface TreeStore {
   getActivePobTreeSpecStates: () => { activeSpecIndex: number; specs: PobTreeState[] } | null
   /** Returns passive jewel records referenced by the active Tree Spec. */
   getActivePobTreeJewelItems: () => import('@/engine/buildCode').NodeJewels
+  /** Returns the exact Raw and Item id referenced by a passive jewel socket. */
+  getActivePobTreeJewelRaw: (nodeId: string) => { itemId: string; raw: string } | null
+  /** Stable id used when saving items from an unsaved in-memory build. */
+  getActiveBuildLibraryId: () => string
 
 
 
@@ -659,6 +673,7 @@ interface TreeStore {
 
 
   toggleNode: (id: string) => void
+  allocateNodeWithAttribute: (id: string, selection: AttributeSelection) => void
   cycleAttributeNode: (id: string) => void
   setTreeEditMode: (enabled: boolean) => void
   setWeaponSetMode: (mode: 0 | 1 | 2) => void
@@ -667,6 +682,8 @@ interface TreeStore {
   setEquipmentSlotItem: (itemSetId: string, slotName: string, itemId: string) => void
   replaceEquipmentSlotWithRaw: (itemSetId: string, slotName: string, raw: string) => string | null
   replaceEquipmentItemRaw: (itemId: string, raw: string) => void
+  bindTreeJewelRaw: (nodeId: string, raw: string) => void
+  unbindTreeJewel: (nodeId: string) => void
   updateSkillGem: (
     skillSetId: string,
     skillIndex: number,
@@ -846,6 +863,7 @@ interface TreeStore {
 
 let calculationRequestId = 0
 let activeBuildSession: ActiveBuildSession | null = null
+let activeUnsavedBuildLibraryId = `unsaved-${globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`
 
 export function getActiveBuildSession(): ActiveBuildSession | null {
   return activeBuildSession
@@ -854,6 +872,7 @@ export function getActiveBuildSession(): ActiveBuildSession | null {
 function replaceActiveBuildSession(buildId: string | null, code: string | null | undefined): void {
   activeBuildSession?.dispose()
   activeBuildSession = null
+  activeUnsavedBuildLibraryId = buildId || `unsaved-${globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`
   if (!code?.trim()) return
   try {
     activeBuildSession = createActiveBuildSession(buildId, code)
@@ -2128,6 +2147,44 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     get().applyPobBuildCommand({ type: 'replace-item-raw', itemId, raw, section: 'items' })
   },
 
+  bindTreeJewelRaw: (nodeId, raw) => {
+    const state = get()
+    const node = state.treeData?.nodes[nodeId]
+    if (!node || (!node.isJewelSocket && node.type !== 'JewelSocket' && node.type !== 'Socket')) return
+    if (!state.allocatedNodes.has(nodeId)) return
+    const snap = snapshotFromState(
+      state.allocatedNodes,
+      state.availableNodes,
+      state.nodeWeaponSets,
+      state.nodeAttributeSelections,
+    )
+    const change = get().applyPobBuildCommand({ type: 'bind-tree-jewel-raw', nodeId, raw, section: 'tree' })
+    if (!change?.changed) return
+    set((current) => ({
+      undoStack: [...current.undoStack.slice(-MAX_UNDO + 1), snap],
+      redoStack: [],
+    }))
+  },
+
+  unbindTreeJewel: (nodeId) => {
+    const state = get()
+    const node = state.treeData?.nodes[nodeId]
+    if (!node || (!node.isJewelSocket && node.type !== 'JewelSocket' && node.type !== 'Socket')) return
+    if (!state.allocatedNodes.has(nodeId)) return
+    const snap = snapshotFromState(
+      state.allocatedNodes,
+      state.availableNodes,
+      state.nodeWeaponSets,
+      state.nodeAttributeSelections,
+    )
+    const change = get().applyPobBuildCommand({ type: 'set-tree-jewel-socket', nodeId, section: 'tree' })
+    if (!change?.changed) return
+    set((current) => ({
+      undoStack: [...current.undoStack.slice(-MAX_UNDO + 1), snap],
+      redoStack: [],
+    }))
+  },
+
   updateSkillGem: (skillSetId, skillIndex, gemIndex, attributes) => {
     get().applyPobBuildCommand({ type: 'update-skill-gem', skillSetId, skillIndex, gemIndex, attributes, section: 'skills' })
   },
@@ -2181,6 +2238,42 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     syncTreeObjectFromStore(get)
   },
 
+  allocateNodeWithAttribute: (id: string, selection: AttributeSelection) => {
+    const state = get()
+    const ctx = getAllocationContext(state)
+    if (!ctx || ![1, 2, 3].includes(selection) || state.allocatedNodes.has(id)) return
+
+    const allocated = new Set(state.allocatedNodes)
+    const snap = snapshotFromState(allocated, state.availableNodes, state.nodeWeaponSets, state.nodeAttributeSelections)
+    const next = allocateNode(ctx, allocated, state.nodeWeaponSets, id, state.weaponSetMode)
+    const nextAttributeSelections = defaultAttributeSelections(
+      ctx.treeData,
+      next.allocatedNodes,
+      state.nodeAttributeSelections,
+    )
+    for (const nodeId of next.allocatedNodes) {
+      if (!allocated.has(nodeId) && ctx.treeData.nodes[nodeId]?.isAttribute) {
+        nextAttributeSelections[nodeId] = selection
+      }
+    }
+
+    const changed = next.allocatedNodes.size !== state.allocatedNodes.size
+      || next.availableNodes.size !== state.availableNodes.size
+      || JSON.stringify(next.nodeWeaponSets) !== JSON.stringify(state.nodeWeaponSets)
+      || JSON.stringify(nextAttributeSelections) !== JSON.stringify(state.nodeAttributeSelections)
+    if (!changed) return
+
+    set((s) => ({
+      allocatedNodes: next.allocatedNodes,
+      availableNodes: next.availableNodes,
+      nodeWeaponSets: next.nodeWeaponSets,
+      nodeAttributeSelections: nextAttributeSelections,
+      undoStack: [...s.undoStack.slice(-MAX_UNDO + 1), snap],
+      redoStack: [],
+    }))
+    syncTreeObjectFromStore(get)
+  },
+
   cycleAttributeNode: (id: string) => {
     const state = get()
     const ctx = getAllocationContext(state)
@@ -2211,15 +2304,20 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     if (undoStack.length === 0) return
     const snap = undoStack[undoStack.length - 1]
     const curSnap = snapshotFromState(allocatedNodes, availableNodes, nodeWeaponSets, nodeAttributeSelections)
+    let restoredRevision = get().pobBuildRevision
+    if (snap.pobXml !== undefined && activeBuildSession && snap.pobXml !== null) {
+      restoredRevision = activeBuildSession.restoreXml(snap.pobXml).revision
+    }
     set({
       allocatedNodes: new Set(snap.allocatedNodes),
       availableNodes: new Set(snap.availableNodes),
       nodeWeaponSets: { ...snap.nodeWeaponSets },
       nodeAttributeSelections: { ...snap.nodeAttributeSelections },
+      pobBuildRevision: restoredRevision,
       undoStack: undoStack.slice(0, -1),
       redoStack: [...get().redoStack, curSnap],
     })
-    syncTreeObjectFromStore(get)
+    if (typeof snap.pobXml !== 'string') syncTreeObjectFromStore(get)
   },
 
   redo: () => {
@@ -2227,15 +2325,20 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     if (redoStack.length === 0) return
     const snap = redoStack[redoStack.length - 1]
     const curSnap = snapshotFromState(allocatedNodes, availableNodes, nodeWeaponSets, nodeAttributeSelections)
+    let restoredRevision = get().pobBuildRevision
+    if (snap.pobXml !== undefined && activeBuildSession && snap.pobXml !== null) {
+      restoredRevision = activeBuildSession.restoreXml(snap.pobXml).revision
+    }
     set({
       allocatedNodes: new Set(snap.allocatedNodes),
       availableNodes: new Set(snap.availableNodes),
       nodeWeaponSets: { ...snap.nodeWeaponSets },
       nodeAttributeSelections: { ...snap.nodeAttributeSelections },
+      pobBuildRevision: restoredRevision,
       redoStack: redoStack.slice(0, -1),
       undoStack: [...get().undoStack, curSnap],
     })
-    syncTreeObjectFromStore(get)
+    if (typeof snap.pobXml !== 'string') syncTreeObjectFromStore(get)
   },
 
   getAllocatedIds: () => [...get().allocatedNodes],
@@ -2678,6 +2781,14 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       return {}
     }
   },
+  getActivePobTreeJewelRaw: (nodeId) => {
+    try {
+      return activeBuildSession?.object.getPassiveJewelRaw(nodeId) || null
+    } catch {
+      return null
+    }
+  },
+  getActiveBuildLibraryId: () => activeBuildSession?.buildId || activeUnsavedBuildLibraryId,
 
   applyPobBuildCommand: (command) => {
     if (!activeBuildSession) return null
@@ -2828,6 +2939,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     const now = new Date().toISOString()
     const existing = id ? savedBuilds.find((item) => item.id === id) : undefined
     const buildId = existing?.id || id || (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2))
+    activeUnsavedBuildLibraryId = buildId
     const build: SavedBuild = {
       id: buildId,
       name,

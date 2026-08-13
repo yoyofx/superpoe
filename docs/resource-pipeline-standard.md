@@ -57,6 +57,25 @@ WeGame 是构筑导入来源，不是全局资源事实来源。导入结果携�
 
 `docs/design/references/wegame-poe2/` 只用于设计研究，除非明确纳入生成管线，否则不是运行时资源。
 
+### 3.5 来源、脚本与产物对应关系
+
+下面的映射是资源管线的唯一维护入口。新增或替换上游时，必须同时更新本表和对应脚本的来源常量；不能在 `public/` 中直接修改生成结果。
+
+| 来源 | 读取入口 | 负责内容 | 生成产物 | 运行时用途 |
+| --- | --- | --- | --- | --- |
+| PoB2 `Data/Bases`、`Data/Uniques`、`Data/ModRunes.lua`、`Data/Gems.lua` | `scripts/sync_poe2db_item_icons.py`、`scripts/build_item_base_data.py` | 作为装备底材、传奇、镶嵌物和技能的规范 ID、分类及覆盖校验来源 | `public/data/item-bases.json`、`public/data/item-icons.json` 等 | 装备识别、名称/底材匹配和图标索引的规范基础 |
+| PoB2 `Data/Gems.lua`、`Data/Skills/*.lua` | `scripts/build_skill_catalog.py`、`scripts/build_rune_details.py` | 技能、辅助宝石、装备授予技能的 ID、标签、描述和计算相关定义 | `public/data/skill-catalog.json`、`public/data/rune-details.json` | 技能面板、宝石 tooltip 和装备授予技能显示；不使用 PoE2DB 覆盖计算语义 |
+| PoeCharm2 `Data/Translate/{zh-rCN,zh-rTW,ko-KR}` | `scripts/sync_poecharm_translations.py` / `npm run pipeline:translations` | 通用界面和游戏词条翻译 | `public/data/Translate/`、`public/data/translation-files.json` | 当前语言的显示与搜索回退 |
+| PoE2DB 物品/技能公开目录页 | `scripts/sync_poe2db_item_icons.py` | 装备、珠宝、药剂、咒符、技能和辅助宝石的图片 URL；部分用户可见名称/描述 | `public/assets/items/poe2db/`、`public/assets/skills/poe2db/`、`public/data/item-icons.json`、`public/data/skill-icons.json` | 本地图片和缺失用户描述的补充；运行时不请求网站 |
+| PoE2DB `cn/tw/kr` 实体页 | `scripts/sync_poe2db_item_icons.py`、`scripts/build_skill_catalog.py` | 装备授予技能及技能/宝石的本地化名称和描述 | `public/data/skill-icons.json`、`public/data/skill-catalog.json`、`public/data/rune-details.json` | 当前语言的结构化 tooltip；按 PoB `skillId` 关联 |
+| PoE2DB Rune/Soul Core/Idol/Congealed Mist 页面 | `scripts/build_rune_details.py` | 镶嵌物名称的简体、繁体本地化 | `public/data/rune-details.json` | 镶嵌物槽位和装备详情显示 |
+| PoE2DB 被动树规划器接口 `data/passive-skill-tree/{version}/data_us.json` | `scripts/sync_build_planner_passives.py` | PoB 数字节点 ID 到官方规划器字符串 ID 的映射 | `public/data/build-planner-passives-{version}.json` | 天赋树规划器交互和节点跳转；不提供天赋计算数值 |
+| PoE2DB 图片 CDN `cdn.poe2db.tw/image/` | `scripts/sync_poe2db_item_icons.py` | 已由目录页解析出的图片二进制 | `public/assets/items/poe2db/`、`public/assets/skills/poe2db/` | 离线显示图片；CDN 不是独立的语义或 ID 来源 |
+
+其中，`scripts/build_skill_catalog.py` 和 `scripts/build_rune_details.py` 是合并步骤：它们以 PoB2 定义为主，再附加 PoE2DB 的图标或本地化字段。`public/data/resource-manifest.json` 记录生成时间、上游提交、统计、警告以及每个本地文件的 hash；PoE2DB 没有可固定的 Git commit，因此以访问地址、生成时间和生成产物 hash 作为版本审计依据。
+
+管线访问 PoE2DB 的网络范围仅限资源刷新阶段：普通 `npm run build`、Electron 启动和所有用户运行时页面均只读取已提交的 `public/` 文件。`.cache/poe2db/` 只用于生成阶段缓存，不能作为运行时资源目录，也不得提交到仓库。
+
 ## 4. 不可变边界
 
 - `upstreams/` 下的仓库视为只读 checkout，不在 SuperPoE2 中直接修改。

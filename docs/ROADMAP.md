@@ -55,7 +55,7 @@ SuperPoE2 的目标不是只展示天赋树，而是形成一套可以长期维�
 | 属性节点 | 已完成 | 支持 Strength、Dexterity、Intelligence 导入、显示和右键切换 |
 | 搜索 | 已完成 | 支持英文与当前翻译文本搜索、数量、定位、高亮和回车循环 |
 | Tooltip | 已完成 | 使用 DOM 浮层和原版风格 header 资源，不阻塞 Pixi 交互 |
-| 珠宝 | 可用，待完善 | 从 `PobBuildObject` active Spec 读取 `<Sockets>` 和 Item 记录并显示图形；珠宝半径、影响节点和完整词缀效果仍需补齐 |
+| 珠宝 | 可用，待完善 | 从 `PobBuildObject` active Spec 读取 `<Sockets>` 和 Item 记录并显示图形；已分配孔可从装备仓库绑定、替换和解除 PoB 识别的 Jewel；珠宝半径、影响节点和完整词缀效果仍需补齐 |
 
 ### 3.3 构筑数据、外部导入与原生文件
 

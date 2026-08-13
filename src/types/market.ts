@@ -76,6 +76,8 @@ export interface LibraryModifier {
   displayOrder: number
   group: LibraryModifierGroup
   sourceTags: LibraryModifierTag[]
+  /** True when PoB retained no parsed modifiers for this line. */
+  unsupported?: boolean
   affixKind?: 'prefix' | 'suffix'
   original: {
     locale: LibraryTextLocale
@@ -115,8 +117,18 @@ export interface LibraryItemSnapshot {
 export interface CanonicalEquipmentItem {
   format: 'pob2-item'
   raw: string
+  /** Per-modifier support captured by the existing PoB normalization pass. */
+  modifierSupport?: CanonicalModifierSupportSnapshot[]
+  /** PoB TradeQueryGenerator category captured during normalization. */
+  tradeCategory?: string
   pobVersion?: string
   gameDataVersion?: string
+}
+
+export interface CanonicalModifierSupportSnapshot {
+  group: LibraryModifierGroup
+  text: string
+  supported: boolean
 }
 
 export interface CanonicalItemModifierView {
@@ -125,6 +137,8 @@ export interface CanonicalItemModifierView {
   group: LibraryModifierGroup
   sourceTags: LibraryModifierTag[]
   text: string
+  /** True when PoB retained no parsed modifiers for this line. */
+  unsupported?: boolean
   localized?: Partial<Record<LibraryTextLocale, string>>
   tradeStatIds: string[]
   tradeValue?: number
@@ -150,6 +164,8 @@ export interface CanonicalItemView {
   tradeCategory?: string
   properties?: CanonicalItemDisplayStat[]
   requirements?: CanonicalItemDisplayStat[]
+  /** False/undefined for legacy entries that predate support snapshots. */
+  normalizationKnown?: boolean
   modifiers: CanonicalItemModifierView[]
 }
 

@@ -14,12 +14,51 @@ interface EquipmentItemInspectorProps {
   headerProps?: Omit<HTMLAttributes<HTMLElement>, 'className'>
 }
 
+export function translateEquipmentItemName(value: string, rarity: string, language: Language): string {
+  const translated = translateGameText(value, language)
+  if (translated !== value || language === 'en' || rarity.toUpperCase() !== 'RARE') return translated
+  const parts = value.split(/(\s+)/)
+  const translatedParts = parts.map((part, index) => {
+    if (/^\s+$/.test(part)) return part
+    const direct = translateGameText(part, language)
+    if (direct !== part) return direct
+    // Affix word catalogs intentionally retain a leading/trailing space so
+    // they can be composed into rare names. Try that presentation form when
+    // the standalone token has no dictionary entry.
+    if (index > 0) {
+      const prefixed = translateGameText(` ${part}`, language).trim()
+      if (prefixed !== part) return prefixed
+    }
+    const suffixed = translateGameText(`${part} `, language).trim()
+    return suffixed !== part ? suffixed : part
+  })
+  return translatedParts.some((part, index) => part !== parts[index]) ? translatedParts.join('').replace(/\s+/g, '') : translated
+}
+
 export function equipmentItemName(view: CanonicalItemView, language: Language): string {
-  return language === 'zh-rCN' ? view.localized?.['zh-CN']?.name || translateGameText(view.name, language) : translateGameText(view.name, language)
+  const localized = language === 'zh-rCN' ? view.localized?.['zh-CN']?.name : undefined
+  if (localized && localized !== view.name) return localized
+  return translateEquipmentItemName(view.name, view.rarity, language)
 }
 
 export function equipmentItemBaseType(view: CanonicalItemView, language: Language): string {
-  return language === 'zh-rCN' ? view.localized?.['zh-CN']?.baseType || translateGameText(view.baseType, language) : translateGameText(view.baseType, language)
+  const localized = language === 'zh-rCN' ? view.localized?.['zh-CN']?.baseType : undefined
+  return localized && localized !== view.baseType ? localized : translateGameText(view.baseType, language)
+}
+
+export function equipmentRarityLabel(rarity: string, language: Language): string {
+  const normalized = rarity.toUpperCase()
+  return normalized === 'UNIQUE'
+    ? uiText(language, 'Unique', '传奇', '傳奇', '고유')
+    : normalized === 'RARE'
+      ? uiText(language, 'Rare', '稀有', '稀有', '희귀')
+      : normalized === 'MAGIC'
+        ? uiText(language, 'Magic', '魔法', '魔法', '마법')
+        : normalized === 'NORMAL'
+          ? uiText(language, 'Normal', '普通', '普通', '일반')
+          : normalized === 'RELIC'
+            ? uiText(language, 'Relic', '遗产', '遺產', '유물')
+            : rarity
 }
 
 function modifierText(modifier: CanonicalItemModifierView, language: Language): string {
@@ -95,10 +134,15 @@ export function EquipmentItemInspector({ view, language, sourceLabels = [], pric
       <div className="item-modifiers">
         {modifierGroups.map(({ group, entries }) => <section className={`modifier-group modifier-${group}`} key={group}>{entries.map((modifier) => {
           const styleTag = modifier.sourceTags.find((tag) => ['crafted', 'fractured', 'mutated', 'rune', 'enchant'].includes(tag))
-          return <p key={modifier.id} className={styleTag ? `mod-${styleTag}` : ''}>{modifierText(modifier, language)}</p>
+          return <p key={modifier.id} className={[styleTag ? `mod-${styleTag}` : '', modifier.unsupported ? 'item-modifier-unsupported' : ''].filter(Boolean).join(' ')}>
+            {modifierText(modifier, language)}{modifier.unsupported && <em>unsupported</em>}
+          </p>
         })}</section>)}
         {!modifierGroups.length && <p>{l('No modifier snapshot', '暂无词条快照', '暫無詞綴快照', '속성 스냅샷 없음')}</p>}
       </div>
+      {view.normalizationKnown === false && <div className="library-item-normalization-unknown">
+        {l('Support status unavailable for this saved item', '此仓库装备尚未规范化，暂无法判断词缀支持状态', '此倉庫裝備尚未規範化，暫無法判斷詞綴支援狀態', '이 저장된 아이템은 아직 정규화되지 않아 속성 지원 상태를 알 수 없습니다')}
+      </div>}
       {(tags.length > 0 || note) && <div className="library-item-inspector-notes">{tags.length > 0 && <span>{tags.join(' · ')}</span>}{note && <p>{note}</p>}</div>}
     </div>
   </>

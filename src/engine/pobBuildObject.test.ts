@@ -210,6 +210,15 @@ describe('PobBuildObject', () => {
     expect(object.getTreeSpecStates().activeSpecIndex).toBe(2)
   })
 
+  it('reads the exact Raw text for a passive jewel socket', () => {
+    const raw = 'Rarity: UNIQUE\nStored Jewel\nCrimson Jewel\nImplicits: 0\n+10 to maximum Life'
+    const object = PobBuildObject.fromXml(`<?xml version="1.0"?><PathOfBuilding2><Items><Item id="12">${raw}</Item></Items><Tree activeSpec="1"><Spec treeVersion="0_5" nodes="100"><Sockets><Socket nodeId="100" itemId="12"/></Sockets></Spec></Tree></PathOfBuilding2>`)
+
+    expect(object.getItemRaw('12')).toBe(raw)
+    expect(object.getPassiveJewelRaw('100')).toEqual({ itemId: '12', raw })
+    expect(object.getPassiveJewelRaw('missing')).toBeNull()
+  })
+
   it('switches active Tree Spec without rewriting either Spec', () => {
     const object = PobBuildObject.fromXml('<?xml version="1.0"?><PathOfBuilding2><Tree activeSpec="1"><Spec treeVersion="0_5" nodes="100"><Unknown value="one"/></Spec><Spec treeVersion="0_5" nodes="200"><Unknown value="two"/></Spec></Tree></PathOfBuilding2>')
     expect(object.apply({ type: 'set-active-tree-spec', specIndex: 2, section: 'tree' })).toEqual({ changed: true, revision: 1, sections: ['tree'] })
@@ -234,6 +243,22 @@ describe('PobBuildObject', () => {
     expect(object.getTreeState().jewelSockets).toEqual({ '100': '13', '300': '15' })
     expect(object.apply({ type: 'set-tree-jewel-socket', nodeId: '100', section: 'tree' }).changed).toBe(true)
     expect(object.getTreeState().jewelSockets).toEqual({ '300': '15' })
+  })
+
+  it('adds a raw jewel item and binds it without dropping existing XML content', () => {
+    const object = PobBuildObject.fromXml('<?xml version="1.0"?><PathOfBuilding2><Items><Item id="2">Rarity: RARE\nOld Jewel\nCrimson Jewel\nImplicits: 0</Item><ItemSet id="1"><Slot name="Weapon 1" itemId="2"/></ItemSet></Items><Tree activeSpec="1"><Spec treeVersion="0_5" nodes="100"/></Tree><Unknown value="keep"/></PathOfBuilding2>')
+
+    expect(object.apply({
+      type: 'bind-tree-jewel-raw',
+      nodeId: '100',
+      raw: 'Rarity: UNIQUE\nNew Jewel\nCrimson Jewel\nImplicits: 0\n+10% to all Resistances',
+      section: 'tree',
+    }).changed).toBe(true)
+    const xml = object.toXml()
+    expect(xml).toContain('<Item id="3">Rarity: UNIQUE\nNew Jewel\nCrimson Jewel\nImplicits: 0\n+10% to all Resistances</Item>')
+    expect(xml).toContain('<Socket nodeId="100" itemId="3"></Socket>')
+    expect(xml).toContain('<Item id="2">Rarity: RARE\nOld Jewel\nCrimson Jewel\nImplicits: 0</Item>')
+    expect(xml).toContain('<Unknown value="keep"></Unknown>')
   })
 
   it('restores XML snapshots and recalculates dirty state', () => {

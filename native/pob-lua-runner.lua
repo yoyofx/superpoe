@@ -147,11 +147,13 @@ local function normalizeItem(payload)
 	addRequirement("Dexterity", itemRequirements.dexMod or itemRequirements.dex)
 	addRequirement("Intelligence", itemRequirements.intMod or itemRequirements.int)
 	local modifiers = {}
+	local modifierSupport = {}
 	local displayOrder = 0
 	local function appendModifiers(lines, group)
 		for _, modLine in ipairs(lines or {}) do
 			local text = StripEscapes(modLine.line or ""):gsub("^%s+", ""):gsub("%s+$", "")
 			if text ~= "" then
+				local supported = not modLine.extra and modLine.modList ~= nil and #modLine.modList > 0
 				local tradeIds = {}
 				local optionTradeId, tradeValue = tradeHelpers.findTradeIdOption(text, group)
 				local shouldNegate = false
@@ -174,9 +176,15 @@ local function normalizeItem(payload)
 					group = group,
 					sourceTags = sourceTags,
 					text = text,
+					unsupported = not supported,
 					tradeStatIds = tradeIds or {},
 					tradeValue = safeNum(tradeValue),
 					tradeValueNegated = shouldNegate or false,
+				})
+				table.insert(modifierSupport, {
+					group = group,
+					text = text,
+					supported = supported,
 				})
 				displayOrder = displayOrder + 1
 			end
@@ -212,6 +220,8 @@ local function normalizeItem(payload)
 		item = {
 			format = "pob2-item",
 			raw = item:BuildRaw(),
+			modifierSupport = modifierSupport,
+			tradeCategory = tradeCategory,
 		},
 		view = {
 			rarity = item.rarity or "NORMAL",
@@ -224,6 +234,7 @@ local function normalizeItem(payload)
 			requirements = requirements,
 			corrupted = item.corrupted or false,
 			identified = not item.unidentified,
+			normalizationKnown = true,
 			tradeCategory = tradeCategory,
 			modifiers = modifiers,
 		},

@@ -1055,7 +1055,10 @@ local function inspectItem(raw)
       local entry = {
         text = tostring(modLine.line or modLine.extra or ""),
         group = group.name,
-        parsed = not modLine.extra and modLine.modList ~= nil,
+        -- Empty mod lists are PoB's "Not supported in PoB yet" lines. Keep
+        -- the original text so the UI can expose them without adding them to
+        -- the calculation.
+        parsed = not modLine.extra and modLine.modList ~= nil and #modLine.modList > 0,
         modifiers = {},
       }
       for _, mod in ipairs(modLine.modList or {}) do

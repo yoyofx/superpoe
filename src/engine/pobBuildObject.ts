@@ -62,6 +62,7 @@ export type PobBuildCommand =
   | { type: 'set-main-socket-group'; groupId: string; section?: string }
   | { type: 'set-active-tree-spec'; specIndex: number; section?: string }
   | { type: 'set-tree-jewel-socket'; nodeId: string; itemId?: string; section?: string }
+  | { type: 'bind-tree-jewel-raw'; nodeId: string; raw: string; section?: string }
   | { type: 'replace-tree-state'; state: PobTreeState; section?: string }
 
 export interface PobBuildChange {
@@ -164,6 +165,8 @@ export class PobBuildObject {
       changed = this.setActiveTreeSpec(command.specIndex)
     } else if (command.type === 'set-tree-jewel-socket') {
       changed = this.setTreeJewelSocket(command.nodeId, command.itemId)
+    } else if (command.type === 'bind-tree-jewel-raw') {
+      changed = this.bindTreeJewelRaw(command.nodeId, command.raw)
     } else if (command.type === 'replace-tree-state') {
       changed = this.replaceTreeState(command.state)
     }
@@ -238,6 +241,30 @@ export class PobBuildObject {
     } catch {
       return {}
     }
+  }
+
+  /** Read the exact Raw text for an Item kept in the canonical XML object. */
+  getItemRaw(itemId: string): string | null {
+    this.assertActive()
+    const normalizedId = itemId.trim()
+    if (!normalizedId) return null
+    const items = getPobXmlDirectChildren(this.document.root, 'Items')
+    if (items.length !== 1) return null
+    const item = getPobXmlDirectChildren(items[0], 'Item').find((entry) => entry.attrib.id === normalizedId)
+    if (!item) return null
+    const raw = item.children
+      .map((child) => child.kind === 'text' || child.kind === 'cdata' ? child.value : '')
+      .join('')
+      .trim()
+    return raw || null
+  }
+
+  /** Read the Raw text referenced by a passive jewel socket. */
+  getPassiveJewelRaw(nodeId: string): { itemId: string; raw: string } | null {
+    const itemId = this.getTreeState().jewelSockets?.[nodeId.trim()]
+    if (!itemId) return null
+    const raw = this.getItemRaw(itemId)
+    return raw ? { itemId, raw } : null
   }
 
   restoreXml(xml: string, section = 'all'): PobBuildChange {
@@ -598,6 +625,36 @@ export class PobBuildObject {
       spec.children.push(sockets)
     }
     sockets.children.push({ kind: 'element', elem: 'Socket', attrib: { nodeId, itemId }, children: [] })
+    return true
+  }
+
+  /** Add a library item to Items and bind its new id to a passive jewel socket. */
+  private bindTreeJewelRaw(nodeId: string, raw: string): boolean {
+    const normalizedRaw = raw.trim()
+    if (!nodeId.trim()) throw new Error('Tree jewel socket node id is required')
+    if (!normalizedRaw) throw new Error('Jewel Raw cannot be empty')
+    if (!this.getTreeState().nodes.includes(nodeId)) throw new Error('Tree jewel socket must be allocated before binding')
+    const itemsSections = getPobXmlDirectChildren(this.document.root, 'Items')
+    if (itemsSections.length !== 1) throw new Error(`PoB XML contains ${itemsSections.length} Items sections; expected exactly one`)
+    const items = itemsSections[0]
+    const itemNodes = getPobXmlDirectChildren(items, 'Item')
+    const usedIds = new Set(itemNodes.map((item) => item.attrib.id).filter(Boolean))
+    let nextNumericId = itemNodes.reduce((max, item) => {
+      const value = Number(item.attrib.id)
+      return Number.isInteger(value) && value > max ? value : max
+    }, 0) + 1
+    while (usedIds.has(String(nextNumericId))) nextNumericId += 1
+    const itemId = String(nextNumericId)
+    const newItem: PobXmlElement = {
+      kind: 'element',
+      elem: 'Item',
+      attrib: { id: itemId },
+      children: [{ kind: 'text', value: normalizedRaw }],
+    }
+    const firstItemSetIndex = items.children.findIndex((child) => child.kind === 'element' && child.elem === 'ItemSet')
+    if (firstItemSetIndex < 0) items.children.push(newItem)
+    else items.children.splice(firstItemSetIndex, 0, newItem)
+    this.setTreeJewelSocket(nodeId, itemId)
     return true
   }
 

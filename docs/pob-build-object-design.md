@@ -190,7 +190,7 @@ interface ActiveBuildSession {
 - undo/redo 保存可逆 XML patch 或命令逆操作，不保存另一份领域对象。
 - 派生视图按 `revision + section` 缓存；revision 变化后只使相关视图失效。
 
-天赋树迁移采用渐进方式：Store 仍负责 Pixi 分配算法和交互状态，但节点、武器组节点、属性覆盖、专精效果和被动珠宝插槽的写入统一通过 `PobBuildObject` 命令完成。对象 accessor 从 active `<Spec>` 读取最新状态，Tree tooltip/渲染使用对象解析出的珠宝记录；Store 不再从旧 `importedBuildCode` 直接读取珠宝。
+天赋树迁移采用渐进方式：Store 仍负责 Pixi 分配算法和交互状态，但节点、武器组节点、属性覆盖、专精效果和被动珠宝插槽的写入统一通过 `PobBuildObject` 命令完成。对象 accessor 从 active `<Spec>` 读取最新状态，Tree tooltip/渲染使用对象解析出的珠宝记录；Store 不再从旧 `importedBuildCode` 直接读取珠宝。前端的 `allocatedNodes` 是无损编辑投影：导入 XML 中的节点全部保留并绘制，取消节点时只移除用户明确点击的节点，不按前端连通性自动删除其它节点。PoB Lua 负责最终有效起点、孤立节点、特殊珠宝和计算语义，前端不复制这套完整规则。
 当前产品只使用一套活动天赋方案；对象仍会保留 XML 中的其它 Spec，但不提供多 Spec UI。配置、装备、技能页面已统一通过 Store 的 active-object getter 读取，`importedBuildCode` 仅保留为持久化载荷和对象不可用时的兼容 fallback，不再作为页面运行时权威。
 
 ### 4.3 计算
@@ -278,7 +278,9 @@ interface BuildRecord {
 - [x] 技能页在多 SkillSet 构筑中提供 active SkillSet 选择，并以对象命令触发重新读取和计算。
 - [x] ItemSet/武器组切换和 Tree 计算投影保留未选中的 ItemSet、插槽引用以及全部 ConfigSet；对象专项测试覆盖 activeConfigSet 不被改写。
 - [x] 将天赋节点分配、武器组节点、属性节点、天赋珠宝和专精效果迁移为对象命令；产品当前只使用一套活动 Spec。
+- [x] 天赋珠宝绑定已接入对象命令：仅允许已分配的珠宝孔操作；装备仓库中由 PoB 标准化类别确认的 Jewel 可绑定、替换和解除，绑定时新增 Item 并保留旧 Item/未知 XML 内容。
 - [x] 页面运行时不再直接依赖 `importedBuildCode`；正常构筑通过 active `PobBuildObject` getter 读取，旧 Code 仅作为加载失败时的兼容 fallback。
+- [x] 天赋树导入和编辑遵循无损投影边界：保留并绘制 XML 节点，显式取消只移除目标节点，最终有效性和计算交由 PoB Lua。
 
 ### 待完善（暂缓）
 

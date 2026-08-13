@@ -17,7 +17,10 @@ export class PobItemBridge {
     if (!result.success || !result.item || !result.view) {
       throw new Error(result.error || 'PoB Item normalization failed')
     }
-    return { item: result.item, view: result.view }
+    return {
+      item: { ...result.item, tradeCategory: result.view.tradeCategory },
+      view: { ...result.view, normalizationKnown: Array.isArray(result.item.modifierSupport) },
+    }
   }
 }
 
@@ -51,6 +54,7 @@ export function canonicalToLegacySnapshot(normalized: NormalizedPobItem, view: C
         displayOrder: modifier.displayOrder,
         group: modifier.group,
         sourceTags: modifier.sourceTags,
+        ...(modifier.unsupported !== undefined ? { unsupported: modifier.unsupported } : {}),
         original: { locale: 'en' as const, lines: [modifier.text], displayText: modifier.text },
         localized: modifier.localized ? Object.fromEntries(Object.entries(modifier.localized).map(([locale, text]) => [locale, { lines: [text], displayText: text }])) : undefined,
         valueMode,

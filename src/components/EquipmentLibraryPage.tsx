@@ -8,11 +8,11 @@ import { uiText } from '@/i18n/uiLocale'
 
 interface EquipmentLibraryPageProps {
   realm: BuildRealm
-  onCenter: () => void
+  onBack: () => void
   onSettings: () => void
 }
 
-export function EquipmentLibraryPage({ realm, onCenter, onSettings }: EquipmentLibraryPageProps) {
+export function EquipmentLibraryPage({ realm, onBack, onSettings }: EquipmentLibraryPageProps) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   return <>
@@ -23,7 +23,7 @@ export function EquipmentLibraryPage({ realm, onCenter, onSettings }: EquipmentL
           <span><strong>{SUPERPOE_NAME}</strong><small>{SUPERPOE_VERSION_LABEL}</small></span>
         </div>
         <div className="market-shell-title">
-          <button className="icon-command compact" onClick={onCenter} title={l('Back to build center', '返回构筑中心', '返回構築中心', '빌드 센터로 돌아가기')} aria-label={l('Back to build center', '返回构筑中心', '返回構築中心', '빌드 센터로 돌아가기')}><ArrowLeft /></button>
+          <button className="icon-command compact" onClick={onBack} title={l('Back to previous page', '返回上一页', '返回上一頁', '이전 페이지로 돌아가기')} aria-label={l('Back to previous page', '返回上一页', '返回上一頁', '이전 페이지로 돌아가기')}><ArrowLeft /></button>
           <span><strong>{l('Equipment Library', '装备仓库', '裝備倉庫', '장비 라이브러리')}</strong><small>{l('Market favorites, build imports, and custom items', '集市收藏、构筑导入与自定义装备', '市集收藏、構築匯入與自訂裝備', '거래소 즐겨찾기, 빌드 가져오기 및 사용자 지정 장비')}</small></span>
         </div>
         <div className="command-actions">

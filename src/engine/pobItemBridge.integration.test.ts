@@ -34,6 +34,11 @@ describe('native PoB item bridge', () => {
       text: '+100 to maximum Life',
       tradeStatIds: ['explicit.stat_3299347043'],
       tradeValue: 100,
+      unsupported: false,
     })
+    expect(response.data.item.modifierSupport).toEqual(expect.arrayContaining([
+      expect.objectContaining({ text: '+100 to maximum Life', supported: true }),
+      expect.objectContaining({ text: '+35% to Fire Resistance', supported: true }),
+    ]))
   })
 })

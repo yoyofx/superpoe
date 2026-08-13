@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { getGrantedSkillInfo } from '@/i18n/grantedSkills'
 import {
   LANGUAGE_OPTIONS,
+  decodeDisplayEntities,
   getLocalizedNodeDisplay,
   getLocalizedSearchText,
   isTranslationLoaded,
@@ -103,6 +104,12 @@ afterEach(() => {
 })
 
 describe('translationLoader', () => {
+  it('decodes web-rendered item entities before translation lookup', () => {
+    expect(decodeDisplayEntities('Sorceress&apos;s &amp; Warrior&#39;s')).toBe("Sorceress's & Warrior's")
+    expect(normalizeDisplayTags('Can Allocate Passive Skills from the Sorceress&apos;s starting point'))
+      .toBe("Can Allocate Passive Skills from the Sorceress's starting point")
+  })
+
   it('removes PoB internal display tags while preserving localized labels', () => {
     expect(normalizeDisplayTags('[Attack|攻击]速度提高 8%')).toBe('攻击速度提高 8%')
     expect(normalizeDisplayTags('[ShamanOnlyMods|羁绊]： [Projectile|投射物]伤害提高 20%')).toBe('羁绊：投射物伤害提高 20%')

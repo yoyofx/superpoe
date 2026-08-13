@@ -1,4 +1,4 @@
-import { ArrowLeft, BellRing, Coins, Settings, Store } from 'lucide-react'
+import { Archive, ArrowLeft, BellRing, Coins, Settings, Store } from 'lucide-react'
 import { MarketPanel } from '@/components/market/MarketPanel'
 import { MonitoringWorkspace } from '@/components/market/MonitoringWorkspace'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
@@ -20,9 +20,10 @@ interface MarketShellProps {
   backTarget: 'center' | 'editor' | 'library'
   buildName?: string
   onBack: () => void
+  onLibrary: () => void
   onSettings: () => void
 }
-export function MarketShell({ realm, suspended, view, onViewChange, monitoring, backTarget, buildName, onBack, onSettings }: MarketShellProps) {
+export function MarketShell({ realm, suspended, view, onViewChange, monitoring, backTarget, buildName, onBack, onLibrary, onSettings }: MarketShellProps) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const armedCount = monitoring?.purchaseTargets.filter((target) => target.status === 'armed').length || 0
@@ -46,6 +47,7 @@ export function MarketShell({ realm, suspended, view, onViewChange, monitoring, 
           <span><strong>{l('Trade Center', '交易中心', '交易中心', '거래 센터')}</strong><small>{l('Market, library, currency prices, and live monitoring', '集市、装备仓库、通货行情与实时监控', '市集、裝備倉庫、通貨行情與即時監控', '거래소, 장비 라이브러리, 화폐 시세 및 실시간 모니터링')}</small></span>
         </div>
         <div className="command-actions">
+          <button className="secondary-command toolbar-library-command" onClick={onLibrary} title={l('Open equipment library', '打开装备仓库', '開啟裝備倉庫', '장비 라이브러리 열기')} aria-label={l('Open equipment library', '打开装备仓库', '開啟裝備倉庫', '장비 라이브러리 열기')}><Archive /><span>{l('Equipment library', '装备仓库', '裝備倉庫', '장비 라이브러리')}</span></button>
           <GameRuntimeIndicator />
           <button className="icon-command" onClick={onSettings} title={l('Global settings', '全局设置', '全域設定', '전역 설정')} aria-label={l('Global settings', '全局设置', '全域設定', '전역 설정')}><Settings /></button>
         </div>
