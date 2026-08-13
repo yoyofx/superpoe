@@ -8,6 +8,8 @@
 
 ## 当前状态
 
+装备兼容规则的独立维护清单：[`pob-item-compatibility.md`](./pob-item-compatibility.md)。当前只维护已确认的 7 条 WeGame 输入差异，不因单个新样本临时扩展规则。
+
 - 主渲染层：默认使用 PixiJS 8 / WebGL 2D 渲染天赋树；旧 `TreeCanvas` 仍保留为 fallback 和对照实现。
 - 数据与资源：`public/data/tree-web-{version}.json`、`public/assets/`、`public/pob-lua/` 均作为 Electron renderer 运行时资源提交。
 - Build code：PoB2 导入/导出已在前端完成；当前构筑保存、导出和计算优先读取 `PobBuildObject` 的最新 Code/XML，`buildCode.ts` 仅保留新建构筑和旧数据兼容投影。
@@ -40,6 +42,7 @@
 | 原生 PoB 计算 | [x] | Electron 优先使用常驻 LuaJIT sidecar，失败时回退到 Wasmoon worker |
 | 计算配置/详情 | [x] | 本地配置方案、翻译、伤害来源、breakdown 和技能 DPS 详情已接入 |
 | 交易中心与监控 | [~] | 官方集市、装备仓库、Live 监控、机会中心和通货行情已接入，真实区服和长时 smoke test 待完成 |
+| WeGame 装备兼容 | [x] | 7 条已确认词条规则集中规范化；仅作用于 Item，Prefix Effect 由项目 bridge 解析，不修改上游 Lua |
 
 ---
 

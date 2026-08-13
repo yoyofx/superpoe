@@ -13,6 +13,7 @@ import { EquipmentLibraryPage } from '@/components/EquipmentLibraryPage'
 import { NewBuildDialog, type NewBuildInput } from '@/components/NewBuildDialog'
 import { UnifiedImportDialog, type ImportConfirmation } from '@/components/UnifiedImportDialog'
 import { importPobBuildCode } from '@/engine/importPobBuildCode'
+import { normalizePobBuildCodeResult } from '@/engine/pobItemCompatibility'
 import { requestPoe2dbImport } from '@/engine/poe2dbImport'
 import { requestPoeNinjaImport } from '@/engine/poeNinjaImport'
 import type { SavedBuild } from '@/types/tree'
@@ -359,14 +360,26 @@ export default function App() {
         ? await requestPoeNinjaImport(build.sourceUrl)
         : await requestPoe2dbImport(build.sourceUrl)
       if (requestId !== buildUpdateRequestRef.current) return
+      const previousCompatibility = build.importedBuildCode
+        ? normalizePobBuildCodeResult(build.importedBuildCode)
+        : { changed: false, matchedRules: [] as string[] }
       const diff = compareBuildCodes(build.importedBuildCode || '', result.code)
-      if (!diff.hasChanges) {
+      const compatibilityMigration = previousCompatibility.changed
+      const updateDiff = compatibilityMigration && !diff.hasChanges
+        ? {
+          ...diff,
+          other: { ...diff.other, changed: diff.other.changed + 1 },
+          total: diff.total + 1,
+          hasChanges: true,
+        }
+        : diff
+      if (!updateDiff.hasChanges) {
         setBuildUpdateTarget(null)
         setSaveNotice({ type: 'success', message: l('Build is already up to date', '构筑已是最新版本', '構築已是最新版本', '빌드가 최신 버전입니다') })
         return
       }
       setBuildUpdateCode(result.code)
-      setBuildUpdateDiff(diff)
+      setBuildUpdateDiff(updateDiff)
     } catch (reason) {
       if (requestId !== buildUpdateRequestRef.current) return
       setBuildUpdateTarget(null)

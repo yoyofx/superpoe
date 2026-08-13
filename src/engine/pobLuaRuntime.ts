@@ -146,9 +146,26 @@ export function installBuildHelpers(engine: LuaEngine) {
         local normalizedLine = line
         if type(normalizedLine) == "string" then
           normalizedLine = normalizedLine:gsub(
-            "^(Fire|Cold|Lightning|Chaos) Resistance is ([%+%-]?[%d%.]+)%%$",
-            "%2%% to %1 Resistance"
+            "^(%a+) Resistance is ([%+%-]?[%d%.]+)%%$",
+            function(element, value)
+              if element == "Fire" or element == "Cold" or element == "Lightning" or element == "Chaos" then
+                return value .. "% to " .. element .. " Resistance"
+              end
+              return element .. " Resistance is " .. value .. "%"
+            end
           )
+          normalizedLine = normalizedLine:gsub(
+            "^([%+%-]?[%d%.]+) to maximum Runic Ward$",
+            "%1 to maximum Ward"
+          )
+          normalizedLine = normalizedLine:gsub(
+            "^(%d+[%d%.]*)%% increased Runic Ward$",
+            "%1%% increased Ward"
+          )
+          local prefixEffect = normalizedLine:match("^(%d+[%d%.]*)%% increased Effect of Prefixes$")
+          if prefixEffect then
+            return { modLib.createMod("LocalPrefixEffect", "INC", tonumber(prefixEffect)) }, nil
+          end
         end
         local mods, extra = nativeParseMod(normalizedLine, ...)
         if type(extra) == "string" and not extra:find("%S") then

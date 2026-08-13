@@ -1,4 +1,5 @@
 import { PobBuildObject, type PobBuildChange, type PobBuildCommand } from '@/engine/pobBuildObject'
+import { normalizePobBuildCode } from '@/engine/pobItemCompatibility'
 
 export interface ActiveBuildSession {
   readonly buildId: string | null
@@ -55,7 +56,7 @@ class ActiveBuildSessionImpl implements ActiveBuildSession {
 }
 
 export function createActiveBuildSession(buildId: string | null, code: string): ActiveBuildSession {
-  return new ActiveBuildSessionImpl(buildId, PobBuildObject.fromCode(code))
+  return new ActiveBuildSessionImpl(buildId, PobBuildObject.fromCode(normalizePobBuildCode(code)))
 }
 
 export function createActiveBuildSessionFromXml(buildId: string | null, xml: string): ActiveBuildSession {

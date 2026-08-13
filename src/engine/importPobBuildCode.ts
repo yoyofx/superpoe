@@ -1,4 +1,5 @@
 import { decodeBuildCode } from '@/engine/buildCode'
+import { normalizePobBuildCode } from '@/engine/pobItemCompatibility'
 import { useTreeStore } from '@/store/treeStore'
 
 export interface ImportedPobBuild {
@@ -8,7 +9,7 @@ export interface ImportedPobBuild {
 
 /** Import any complete PoB code through the single store boundary. */
 export async function importPobBuildCode(code: string, options: { allowEmptyTree?: boolean } = {}): Promise<ImportedPobBuild> {
-  const trimmed = code.trim()
+  const trimmed = normalizePobBuildCode(code.trim())
   if (!trimmed) throw new Error('Missing PoB build code')
 
   const data = decodeBuildCode(trimmed)

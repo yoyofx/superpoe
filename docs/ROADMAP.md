@@ -13,7 +13,7 @@ SuperPoE2 的目标不是只展示天赋树，而是形成一套可以长期维�
 4. 在本地可靠管理构筑，并通过用户明确操作的原生文件提供备份、恢复和跨设备传递能力。
 5. 随 PoB2 与 PoeCharm2 上游更新，一键生成新版本运行资源。
 
-本文描述产品能力和交付顺序。工程历史与细粒度任务继续记录在 [TASKS.md](./TASKS.md)；早期 WASM 迁移方案保留在 [pob-wasm-frontend-migration-plan.md](./pob-wasm-frontend-migration-plan.md)，当前运行时以 [pob-lua-runtime.md](./pob-lua-runtime.md) 为准。
+本文描述产品能力和交付顺序。工程历史与细粒度任务继续记录在 [TASKS.md](./TASKS.md)；早期 WASM 迁移方案保留在 [pob-wasm-frontend-migration-plan.md](./pob-wasm-frontend-migration-plan.md)，当前运行时以 [pob-lua-runtime.md](./pob-lua-runtime.md) 为准。WeGame 装备兼容规则单独维护在 [pob-item-compatibility.md](./pob-item-compatibility.md)。
 
 ## 2. 状态定义
 

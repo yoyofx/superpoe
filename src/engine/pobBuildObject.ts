@@ -1,4 +1,5 @@
 import { decodeBuildCode, decodeCodeToXml, encodeXmlToCode, type NodeJewels } from '@/engine/buildCode'
+import { normalizePobBuildXml } from '@/engine/pobItemCompatibility'
 import {
   clonePobXmlDocument,
   findPobXmlElements,
@@ -100,7 +101,8 @@ export class PobBuildObject {
   }
 
   static fromXml(xml: string): PobBuildObject {
-    return new PobBuildObject(parsePobXml(xml), xml)
+    const normalizedXml = normalizePobBuildXml(xml).xml
+    return new PobBuildObject(parsePobXml(normalizedXml), normalizedXml)
   }
 
   static fromCode(code: string): PobBuildObject {

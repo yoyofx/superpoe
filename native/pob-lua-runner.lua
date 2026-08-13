@@ -65,10 +65,36 @@ local function safeNum(value)
 end
 
 local function normalizeXml(xmlText)
-	return xmlText:gsub(
-		"(Fire|Cold|Lightning|Chaos) Resistance is ([%+%-]?[%d%.]+)%%",
-		"%2%% to %1 Resistance"
-	)
+	return xmlText:gsub("(<Item%f[%s>][^>]*>)(.-)(</Item>)", function(open, body, close)
+		body = body:gsub(
+			"(%a+) Resistance is ([%+%-]?[%d%.]+)%%",
+			function(element, value)
+				if element == "Fire" or element == "Cold" or element == "Lightning" or element == "Chaos" then
+					return value .. "% to " .. element .. " Resistance"
+				end
+				return element .. " Resistance is " .. value .. "%"
+			end
+		)
+		body = body:gsub("([%+%-]?[%d%.]+) to maximum Runic Ward", "%1 to maximum Ward")
+		body = body:gsub("(%d+[%d%.]*)%% increased Runic Ward", "%1%% increased Ward")
+		return open .. body .. close
+	end)
+end
+
+-- Project-owned compatibility for the seven known WeGame item lines. The
+-- upstream PoB Lua bundle remains untouched; only this runner adapts input.
+if modLib and type(modLib.parseMod) == "function" and not modLib.__superpoeItemCompatibility then
+	local nativeParseMod = modLib.parseMod
+	modLib.parseMod = function(line, ...)
+		if type(line) == "string" then
+			local prefixEffect = line:match("^(%d+[%d%.]*)%% increased Effect of Prefixes$")
+			if prefixEffect then
+				return { modLib.createMod("LocalPrefixEffect", "INC", tonumber(prefixEffect)) }, nil
+			end
+		end
+		return nativeParseMod(line, ...)
+	end
+	modLib.__superpoeItemCompatibility = true
 end
 
 local function scalar(value)

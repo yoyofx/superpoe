@@ -249,6 +249,9 @@ interface BuildRecord {
 
 迁移期间允许旧 selector 适配统一对象，但禁止建立新的第二权威数据源。
 
+装备输入兼容的具体规则、WeGame 来源样本、规范化边界和后续维护模板见
+[`pob-item-compatibility.md`](./pob-item-compatibility.md)。兼容层属于项目自有适配代码，不能通过修改上游 Lua 文件来实现。
+
 ## 7. 执行任务清单
 
 > 这份清单是 `PobBuildObject` 改造的唯一进度记录。只有代码、测试和保存/导出验证都完成后，任务才能标记为已完成；聊天中的讨论不替代清单状态。
@@ -281,6 +284,7 @@ interface BuildRecord {
 - [x] 天赋珠宝绑定已接入对象命令：仅允许已分配的珠宝孔操作；装备仓库中由 PoB 标准化类别确认的 Jewel 可绑定、替换和解除，绑定时新增 Item 并保留旧 Item/未知 XML 内容。
 - [x] 页面运行时不再直接依赖 `importedBuildCode`；正常构筑通过 active `PobBuildObject` getter 读取，旧 Code 仅作为加载失败时的兼容 fallback。
 - [x] 天赋树导入和编辑遵循无损投影边界：保留并绘制 XML 节点，显式取消只移除目标节点，最终有效性和计算交由 PoB Lua。
+- [x] WeGame 已确认的 7 类装备词条兼容规则已集中在 Item 入口，并覆盖显示、保存、导出和 Lua 计算路径。
 
 ### 待完善（暂缓）
 
