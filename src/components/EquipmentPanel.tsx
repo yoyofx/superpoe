@@ -894,6 +894,7 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const calculateCharacter = useCallback(() => runCalculation({
     itemSetId: activeSet?.id,
     weaponSet,
+    characterOnly: true,
   }), [activeSet?.id, weaponSet, runCalculation])
 
   useEffect(() => {

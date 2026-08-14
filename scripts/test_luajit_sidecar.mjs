@@ -142,6 +142,17 @@ lines.on('line', (line) => {
   if (skillDetails.skillType === 'attack' && skillDetails.skillDamage?.length) {
     throw new Error(`Attack skill incorrectly exported spell base damage: ${JSON.stringify(skillDetails.skillDamage)}`)
   }
+  if (!Array.isArray(skillDetails.gainTotals) || !Array.isArray(skillDetails.conversionTotals)) {
+    throw new Error(`Missing authoritative damage transfer tables: ${JSON.stringify(skillDetails)}`)
+  }
+  const typedDamage = (skillDetails.damageTypes || []).filter((entry) => entry.type !== 'all' && Number.isFinite(entry.finalAverage))
+  if (typedDamage.length && Number.isFinite(skillDetails.averageHit)) {
+    const typedAverage = typedDamage.reduce((sum, entry) => sum + entry.finalAverage, 0)
+    const tolerance = Math.max(0.1, Math.abs(skillDetails.averageHit) * 1e-6)
+    if (Math.abs(typedAverage - skillDetails.averageHit) > tolerance) {
+      throw new Error(`Damage type averages do not match AverageHit: ${typedAverage} != ${skillDetails.averageHit}`)
+    }
+  }
   calculationData = data
   const groupIds = Array.from({ length: (xml.match(/<Skill(?:\s|>)/g) || []).length }, (_, index) => String(index + 1))
   child.stdin.write(`${JSON.stringify({ id: 2, type: 'rankSkills', payload: { xml, groupIds } })}\n`)

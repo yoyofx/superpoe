@@ -793,6 +793,7 @@ interface TreeStore {
   runCalculation: (selection?: {
     itemSetId?: string
     weaponSet?: 1 | 2
+    characterOnly?: boolean
     skillGroupId?: string
     calcMode?: SkillCalculationMode
     activeSkillIndex?: number
@@ -2635,6 +2636,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
         actor: selection?.actor,
         minionSkillIndex: selection?.minionSkillIndex,
         minionStatSetIndex: selection?.minionStatSetIndex,
+        characterOnly: selection?.characterOnly,
         configOverrides: calculationProfile?.values || {},
         includeConfig: selection?.includeConfig,
       })
@@ -2729,6 +2731,13 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
+    } finally {
+      // A stale result must still release its own loading state. A newer
+      // request owns the flag once the request id changes, so the older one
+      // must not clear it.
+      if (requestId === calculationRequestId && get().calcLoading) {
+        set({ calcLoading: false })
+      }
     }
 
 

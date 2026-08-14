@@ -166,6 +166,7 @@ export class PobLuaService {
 
   async calculate(input: {
     xml: string
+    characterOnly?: boolean
     skillGroupId?: string
     calcMode?: 'UNBUFFED' | 'BUFFED' | 'COMBAT' | 'EFFECTIVE'
     activeSkillIndex?: number

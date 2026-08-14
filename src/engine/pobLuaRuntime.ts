@@ -293,6 +293,8 @@ if not xmlText or xmlText == "" then
   return { success = false, error = "Empty XML input" }
 end
 
+local characterOnly = __pobCharacterOnly == true
+
 xmlText = xmlText:gsub(
   "(Fire|Cold|Lightning|Chaos) Resistance is ([%+%-]?[%d%.]+)%%",
   "%2%% to %1 Resistance"
@@ -318,11 +320,25 @@ local calcOk, calcErr = pcall(function()
   if not calcsTab then
     error("calcs tab not available")
   end
-  if __pobConfigOverridesJson and __pobConfigOverridesJson ~= "" and build.configTab then
-    local overrides = require("dkjson").decode(__pobConfigOverridesJson)
+  local overrides = {}
+  if __pobConfigOverridesJson and __pobConfigOverridesJson ~= "" then
+    overrides = require("dkjson").decode(__pobConfigOverridesJson) or {}
+  end
+  local hasOverrides = next(overrides) ~= nil
+  if hasOverrides and build.configTab then
     local configSet = build.configTab.configSets[build.configTab.activeConfigSetId]
     for key, value in pairs(overrides or {}) do configSet.input[key] = value end
     build.configTab:BuildModList()
+  end
+
+  -- Loading a build already runs BuildOutput() in PoB's BUILD mode. The
+  -- character panel only reads the MAIN output, so reuse that result when no
+  -- configuration override was requested instead of calculating MAIN + CALCS
+  -- and every Full DPS skill a second time.
+  local mainSocketGroup = tonumber(build.mainSocketGroup) or 1
+  if characterOnly and not hasOverrides and calcsTab.mainEnv
+    and (tonumber(calcsTab.input.skill_number) or 1) == mainSocketGroup then
+    return calcsTab.mainEnv
   end
   local validModes = { UNBUFFED = true, BUFFED = true, COMBAT = true, EFFECTIVE = true }
   if validModes[__pobCalcMode] then
@@ -515,7 +531,7 @@ local function readConfigSnapshot()
   return snapshot
 end
 
-if output.SkillDPS and #output.SkillDPS > 0 then
+if not characterOnly and output.SkillDPS and #output.SkillDPS > 0 then
   data.SkillDPS = {}
   for _, skill in ipairs(output.SkillDPS) do
     table.insert(data.SkillDPS, {
@@ -528,6 +544,7 @@ if output.SkillDPS and #output.SkillDPS > 0 then
   end
 end
 
+if not characterOnly then
 local playerMainSkill = mainSkill
 if playerMainSkill and playerMainSkill.activeEffect then
   local calcsTab = build.calcsTab
@@ -571,6 +588,9 @@ if playerMainSkill and playerMainSkill.activeEffect then
     skillDamage = {},
     weaponDamage = {},
     gains = {},
+    gainTotals = {},
+    conversions = {},
+    conversionTotals = {},
     effects = { aurasAndBuffs = {}, combatBuffs = {}, cursesAndDebuffs = {} },
     averageHit = safeNum(actorOutput.AverageHit),
     speed = safeNum(actorOutput.Speed),
@@ -786,6 +806,17 @@ if playerMainSkill and playerMainSkill.activeEffect then
       })
     end
   end
+  local function addConversionModifiers(fromType, toType, stat)
+    for _, entry in ipairs(modList:Tabulate("BASE", cfg, stat)) do
+      table.insert(details.conversions, {
+        fromType = fromType,
+        toType = toType,
+        stat = entry.mod.name,
+        value = safeNum(entry.value) or 0,
+        source = StripEscapes(entry.mod.source or "Unknown"),
+      })
+    end
+  end
   details.averageHitBreakdown = copyLines(sourceBreakdown.AverageHit)
   details.dpsFormula = copyLines(detailActor.breakdown and detailActor.breakdown.TotalDPS)
   details.effects.aurasAndBuffs = splitList(actorOutput.BuffList)
@@ -809,28 +840,96 @@ if playerMainSkill and playerMainSkill.activeEffect then
   })
   addModifiers("increased", "all", "INC", { "Damage" })
   addModifiers("more", "all", "MORE", { "Damage" })
-  for _, toType in ipairs({ "physical", "lightning", "cold", "fire", "chaos" }) do
+  local damageTypeKeys = { "physical", "lightning", "cold", "fire", "chaos" }
+  for _, toType in ipairs(damageTypeKeys) do
     local toTitle = toType:sub(1, 1):upper() .. toType:sub(2)
+    addGainModifiers("all", toType, "DamageAs" .. toTitle)
     addGainModifiers("all", toType, "DamageGainAs" .. toTitle)
+    addGainModifiers("all", toType, "SkillDamageGainAs" .. toTitle)
+    addGainModifiers("elemental", toType, "SkillElementalDamageGainAs" .. toTitle)
+    addGainModifiers("nonChaos", toType, "NonChaosDamageAs" .. toTitle)
+    addGainModifiers("nonChaos", toType, "NonChaosDamageGainAs" .. toTitle)
+    addGainModifiers("nonChaos", toType, "SkillNonChaosDamageGainAs" .. toTitle)
     addGainModifiers("elemental", toType, "ElementalDamageGainAs" .. toTitle)
-    for _, fromType in ipairs({ "physical", "lightning", "cold", "fire", "chaos" }) do
+    addConversionModifiers("all", toType, "SkillDamageConvertTo" .. toTitle)
+    addConversionModifiers("all", toType, "DamageConvertTo" .. toTitle)
+    for _, fromType in ipairs(damageTypeKeys) do
       local fromTitle = fromType:sub(1, 1):upper() .. fromType:sub(2)
+      addGainModifiers(fromType, toType, fromTitle .. "DamageAs" .. toTitle)
       addGainModifiers(fromType, toType, fromTitle .. "DamageGainAs" .. toTitle)
+      addGainModifiers(fromType, toType, "Skill" .. fromTitle .. "DamageGainAs" .. toTitle)
+      addConversionModifiers(fromType, toType, "Skill" .. fromTitle .. "DamageConvertTo" .. toTitle)
+      addConversionModifiers(fromType, toType, fromTitle .. "DamageConvertTo" .. toTitle)
+      if fromType ~= "chaos" then
+        addConversionModifiers(fromType, toType, "NonChaosDamageConvertTo" .. toTitle)
+      end
+      if fromType == "lightning" or fromType == "cold" or fromType == "fire" then
+        addGainModifiers(fromType, toType, "ElementalDamageAs" .. toTitle)
+        addConversionModifiers(fromType, toType, "ElementalDamageConvertTo" .. toTitle)
+      end
     end
   end
   addGainModifiers("all", "random", "DamageGainAsRandom")
-  for _, damageType in ipairs({ "physical", "lightning", "cold", "fire", "chaos" }) do
+  addGainModifiers("physical", "random", "PhysicalDamageGainAsRandom")
+  addGainModifiers("physical", "random", "PhysicalDamageGainAsColdOrLightning")
+  local randomGainMods = {}
+  for _, entry in ipairs(details.gains) do
+    if entry.stat == "DamageGainAsRandom" or entry.stat == "PhysicalDamageGainAsRandom" or entry.stat == "PhysicalDamageGainAsColdOrLightning" then
+      table.insert(randomGainMods, entry)
+    end
+  end
+  if #randomGainMods > 0 then
+    local filteredGains = {}
+    for _, entry in ipairs(details.gains) do
+      local derived = false
+      for _, randomEntry in ipairs(randomGainMods) do
+        local prefix = randomEntry.stat == "DamageGainAsRandom" and "DamageGainAs" or "PhysicalDamageGainAs"
+        local isDerivedName = entry.stat == prefix .. "Fire" or entry.stat == prefix .. "Cold" or entry.stat == prefix .. "Lightning"
+        local sameValue = math.abs(entry.value - randomEntry.value) < 0.0001 or math.abs(entry.value * 3 - randomEntry.value) < 0.0001
+        if entry.source == randomEntry.source and isDerivedName and sameValue then derived = true break end
+      end
+      if not derived then table.insert(filteredGains, entry) end
+    end
+    details.gains = filteredGains
+  end
+  local gainTable = mainSkill.gainTable or {}
+  local conversionTable = mainSkill.conversionTable or {}
+  for _, fromType in ipairs(damageTypeKeys) do
+    local fromTitle = fromType:sub(1, 1):upper() .. fromType:sub(2)
+    for _, toType in ipairs(damageTypeKeys) do
+      local toTitle = toType:sub(1, 1):upper() .. toType:sub(2)
+      local gain = safeNum(gainTable[fromTitle] and gainTable[fromTitle][toTitle]) or 0
+      local conversion = safeNum(conversionTable[fromTitle] and conversionTable[fromTitle][toTitle]) or 0
+      if gain ~= 0 then table.insert(details.gainTotals, { fromType = fromType, toType = toType, value = gain * 100 }) end
+      if conversion ~= 0 then table.insert(details.conversionTotals, { fromType = fromType, toType = toType, value = conversion * 100 }) end
+    end
+  end
+  for _, damageType in ipairs(damageTypeKeys) do
     local title = damageType:sub(1, 1):upper() .. damageType:sub(2)
     local names = damageNames[damageType]
-    local more = modList:More(cfg, unpack(names))
+    local more = modList:More(cfg, "Damage", unpack(names))
+    local moreMin = modList:More(cfg, "Min" .. title .. "Damage")
+    local moreMax = modList:More(cfg, "Max" .. title .. "Damage")
+    local nonCritAverage = safeNum(sourceOutput[title .. "HitAverage"])
+    local critAverage = safeNum(sourceOutput[title .. "CritAverage"])
+    local critChance = (safeNum(sourceOutput.CritChance or actorOutput.CritChance) or 0) / 100
+    local finalAverage
+    if nonCritAverage ~= nil or critAverage ~= nil then
+      finalAverage = (nonCritAverage or 0) * (1 - critChance) + (critAverage or 0) * critChance
+    end
     table.insert(details.damageTypes, {
       type = damageType,
       addedMin = safeNum(modList:Sum("BASE", cfg, title .. "Min")),
       addedMax = safeNum(modList:Sum("BASE", cfg, title .. "Max")),
-      increased = safeNum(modList:Sum("INC", cfg, unpack(names))) or 0,
+      increased = safeNum(modList:Sum("INC", cfg, "Damage", unpack(names))) or 0,
       more = safeNum((more - 1) * 100) or 0,
+      moreMin = safeNum((moreMin - 1) * 100) or 0,
+      moreMax = safeNum((moreMax - 1) * 100) or 0,
       hitMin = safeNum(sourceOutput[title .. "Min"]),
       hitMax = safeNum(sourceOutput[title .. "Max"]),
+      nonCritAverage = nonCritAverage,
+      critAverage = critAverage,
+      finalAverage = finalAverage,
       effectiveMultiplier = safeNum(sourceOutput[title .. "EffMult"]),
       breakdown = copyLines(sourceBreakdown[title]),
       effectiveBreakdown = copyLines(sourceBreakdown[title .. "EffMult"]),
@@ -839,8 +938,10 @@ if playerMainSkill and playerMainSkill.activeEffect then
     addModifiers("addedMax", damageType, "BASE", { title .. "Max" })
     addModifiers("increased", damageType, "INC", names)
     addModifiers("more", damageType, "MORE", names)
+    addModifiers("more", damageType, "MORE", { "Min" .. title .. "Damage", "Max" .. title .. "Damage" })
   end
   data.SkillDetails = details
+end
 end
 
 if __pobIncludeConfig then data.CalculationConfig = readConfigSnapshot() end
@@ -1228,6 +1329,7 @@ export function calculateWithLuaEngine(engine: LuaEngine, xml: string, selection
     engine.global.set('__pobActor', selection.actor)
     engine.global.set('__pobMinionSkillIndex', selection.minionSkillIndex)
     engine.global.set('__pobMinionStatSetIndex', selection.minionStatSetIndex)
+    engine.global.set('__pobCharacterOnly', selection.characterOnly == true)
     engine.global.set('__pobConfigOverridesJson', JSON.stringify(selection.configOverrides || {}))
     engine.global.set('__pobIncludeConfig', selection.includeConfig || false)
     return detachLuaValue(engine.doStringSync(CALCULATION_SCRIPT)) as CalcApiResponse
@@ -1246,6 +1348,7 @@ export function calculateWithLuaEngine(engine: LuaEngine, xml: string, selection
       engine.global.set('__pobActor', undefined)
       engine.global.set('__pobMinionSkillIndex', undefined)
       engine.global.set('__pobMinionStatSetIndex', undefined)
+      engine.global.set('__pobCharacterOnly', undefined)
       engine.global.set('__pobConfigOverridesJson', undefined)
       engine.global.set('__pobIncludeConfig', undefined)
     } catch {

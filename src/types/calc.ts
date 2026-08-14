@@ -69,6 +69,8 @@ export interface CalcResult {
 export type SkillCalculationMode = 'UNBUFFED' | 'BUFFED' | 'COMBAT' | 'EFFECTIVE'
 
 export interface SkillCalculationSelection {
+  /** Character equipment panels only need the MAIN output already built while loading the XML. */
+  characterOnly?: boolean
   skillGroupId?: string
   calcMode?: SkillCalculationMode
   activeSkillIndex?: number
@@ -151,7 +153,12 @@ export interface SkillDamageBreakdown {
   hitMin?: number
   hitMax?: number
   averageHit?: number
+  nonCritAverage?: number
+  critAverage?: number
+  finalAverage?: number
   effectiveMultiplier?: number
+  moreMin?: number
+  moreMax?: number
   breakdown?: string[]
   effectiveBreakdown?: string[]
 }
@@ -164,13 +171,24 @@ export interface SkillModifierContribution {
   source: string
 }
 
-export type SkillDamageSourceType = SkillDamageBreakdown['type'] | 'elemental'
+export type SkillDamageSourceType = SkillDamageBreakdown['type'] | 'elemental' | 'nonChaos'
 
 export interface SkillGainContribution {
   fromType: SkillDamageSourceType
   toType: SkillDamageBreakdown['type'] | 'random'
   stat: string
   value: number
+  source: string
+}
+
+export interface SkillDamageTransferTotal {
+  fromType: Exclude<SkillDamageBreakdown['type'], 'all'>
+  toType: Exclude<SkillDamageBreakdown['type'], 'all'>
+  value: number
+}
+
+export interface SkillConversionContribution extends SkillDamageTransferTotal {
+  stat: string
   source: string
 }
 
@@ -260,6 +278,9 @@ export interface SkillCalculationDetails {
   skillDamage?: SkillBaseDamageContribution[]
   weaponDamage?: SkillWeaponDamageContribution[]
   gains?: SkillGainContribution[]
+  gainTotals?: SkillDamageTransferTotal[]
+  conversions?: SkillConversionContribution[]
+  conversionTotals?: SkillDamageTransferTotal[]
   effects?: SkillEffectSummary
   levelReferenceCurrent?: number
   levelReferences?: SkillLevelReference[]
