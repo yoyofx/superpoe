@@ -27,8 +27,10 @@ const ITEM_FILES = [
   'Uniques.txt.csv',
   'Items_Gems.txt.csv',
   'Gems_data.txt.csv',
+  'ItemsTab.csv',
 ]
 const STAT_FILES = ['statDescriptions.csv', 'Query_Mod.csv']
+const NODE_NAME_FILES = ['tree_dn.csv']
 const RARE_NAME_FILES = ['stats_words_suffix.csv', 'stats_words_prefix.csv']
 interface ReverseTemplate {
   pattern: RegExp
@@ -85,7 +87,8 @@ function statLineVariants(value: string): string[] {
     // Bonded/羁绊 is a presentation prefix used by the advanced clipboard
     // format. The PoB stat catalog contains the reusable stat without it.
     .replace(/^(?:Bonded|羁绊|羈絆)\s*[:：]\s*/iu, '')
-  return contextFree && contextFree !== normalized ? [normalized, contextFree] : [normalized]
+  const variants = contextFree && contextFree !== normalized ? [normalized, contextFree] : [normalized]
+  return [...new Set(variants)]
 }
 
 function parseCsvRows(text: string): string[][] {
@@ -193,6 +196,21 @@ export class ItemTranslationIndex {
         }
       }
     }
+    // Anoint and jewel enchantments refer to passive names (for example
+    // "Efficient Inscriptions" and "Paragon").  Keep these names in the
+    // same data-driven catalog used by the passive-tree renderer so compound
+    // stat templates can translate their captured parameter.
+    for (const fileName of NODE_NAME_FILES) {
+      const filePath = path.join(root, fileName)
+      if (!existsSync(filePath)) continue
+      for (const row of parseCsvRows(readFileSync(filePath, 'utf8'))) {
+        const english = row[0]?.trim()
+        const chinese = row[1]?.trim()
+        if (!english || !chinese || english === chinese) continue
+        if (!this.englishToCn.has(english)) this.englishToCn.set(english, chinese)
+        if (!this.cnToEnglish.has(chinese)) this.cnToEnglish.set(chinese, english)
+      }
+    }
     for (const fileName of RARE_NAME_FILES) {
       const filePath = path.join(root, fileName)
       if (!existsSync(filePath)) continue
@@ -281,6 +299,15 @@ export class ItemTranslationIndex {
 
     const normalized = variants[0]
 
+    // Advanced item copy shortens generic added-damage lines by omitting the
+    // word "基础". Resolve this grammar before the structured fallback so it
+    // works for every item and all elemental/physical damage types.
+    const addedDamage = normalized.match(/^附加\s+(-?\d+(?:\.\d+)?)\s*-\s*(-?\d+(?:\.\d+)?)\s*(物理|火焰|冰霜|冰冷|闪电|閃電|混沌)(?:伤害|傷害)$/u)
+    if (addedDamage) {
+      const damageType: Record<string, string> = { 物理: 'Physical', 火焰: 'Fire', 冰霜: 'Cold', 冰冷: 'Cold', 闪电: 'Lightning', 閃電: 'Lightning', 混沌: 'Chaos' }
+      return `Adds ${addedDamage[1]} to ${addedDamage[2]} ${damageType[addedDamage[3]]} Damage`
+    }
+
     // The advanced Chinese copy format uses a localized label for granted skills,
     // while PoB's canonical item format always uses "Grants Skill".
     const grantedSkill = normalized.match(/^(?:获得技能|獲得技能)\s*[:：]\s*(?:等级|等級)?\s*(?:(\d+)\s*(?:级|級)?\s*)?(.+)$/u)
@@ -288,6 +315,8 @@ export class ItemTranslationIndex {
       const skillName = this.toEnglish(grantedSkill[2])
       if (skillName) return `Grants Skill: ${grantedSkill[1] ? `Level ${grantedSkill[1]} ` : ''}${skillName}`
     }
+    const structured = this.translateStructuredStat(normalized, 'toEnglish')
+    if (structured) return structured
     return undefined
   }
 
@@ -300,5 +329,19 @@ export class ItemTranslationIndex {
     }
     return this.englishStatToCn.get(normalized)
       || this.translateStatTemplate(normalized, this.cnStatTemplates, (captured) => this.toChinese(captured))
+      || this.translateStructuredStat(normalized, 'toChinese')
+  }
+
+  private translateStructuredStat(value: string, direction: 'toEnglish' | 'toChinese'): string | undefined {
+    const match = value.match(/^(.+?)(\s*[:：]\s*)(.+)$/)
+    if (!match) return undefined
+    const prefix = direction === 'toEnglish'
+      ? this.cnStatToEnglish.get(match[1].trim()) || this.cnToEnglish.get(match[1].trim())
+      : this.englishStatToCn.get(match[1].trim()) || this.englishToCn.get(match[1].trim())
+    if (!prefix) return undefined
+    const translatedValue = direction === 'toEnglish'
+      ? this.cnStatToEnglish.get(match[3].trim()) || this.cnToEnglish.get(match[3].trim()) || match[3]
+      : this.englishStatToCn.get(match[3].trim()) || this.englishToCn.get(match[3].trim()) || match[3]
+    return `${prefix}${match[2]}${translatedValue}`
   }
 }

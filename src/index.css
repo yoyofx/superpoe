@@ -38,6 +38,14 @@ svg { flex: 0 0 auto; }
 .workspace-loading small { max-width: 560px; color: #b86961; }
 .workspace-loading.error svg { color: #c66c62; animation: none; }
 .workbench-header { position: relative; z-index: 60; min-width: 0; border-bottom: 1px solid #5a503b; background: rgba(9, 11, 11, .98); box-shadow: 0 8px 24px rgba(0, 0, 0, .38); }
+.workbench-header::before { content: ""; position: absolute; z-index: 0; inset: 0; pointer-events: none; background: linear-gradient(108deg, transparent 0%, transparent 36%, rgba(255, 221, 147, .045) 43%, rgba(255, 221, 147, .24) 50%, rgba(255, 221, 147, .045) 57%, transparent 64%, transparent 100%); background-size: 230% 100%; animation: workbench-header-shimmer 4s linear infinite; }
+.workbench-header::after { content: ""; position: absolute; z-index: 0; left: 0; right: 0; bottom: 0; height: 1px; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(211, 174, 94, .45), transparent); opacity: .7; }
+.app-command-bar,
+.workspace-tabs-bar { position: relative; z-index: 1; }
+@keyframes workbench-header-shimmer { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .workbench-header::before { animation: none; }
+}
 .app-command-bar { height: 52px; display: grid; grid-template-columns: 210px minmax(180px, 1fr) max-content; border-bottom: 1px solid #302f2a; }
 
 .app-brand { display: flex; align-items: center; gap: 10px; padding: 0 16px; border-right: 1px solid #35332d; }
@@ -191,6 +199,14 @@ svg { flex: 0 0 auto; }
 .zoom-control svg { width: 13px; height: 13px; margin: auto; }
 
 .command-popover { position: fixed; z-index: 90; top: 58px; right: 14px; width: min(390px, calc(100vw - 28px)); }
+.export-mode-switch { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 2px; margin-bottom: 12px; padding: 2px; border: 1px solid #464238; background: #11130f; }
+.export-mode-switch .export-mode-button { min-width: 0; height: 32px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 8px; border: 1px solid transparent; border-radius: 2px; background: transparent; color: #8c877d; font-size: 11px; cursor: pointer; }
+.export-mode-switch .export-mode-button:hover:not(:disabled) { border-color: #6d5a39; background: linear-gradient(180deg, #30291e 0%, #1d1913 100%); color: #e2c88e; }
+.export-mode-switch .export-mode-button.active,
+.export-mode-switch .export-mode-button[aria-selected="true"] { border-color: #8c7243; background: linear-gradient(180deg, #3b3020 0%, #201910 100%); box-shadow: inset 0 1px rgba(255, 225, 166, .08), 0 0 10px rgba(194, 156, 82, .12); color: #ead7a0; }
+.export-mode-switch .export-mode-button.active:hover:not(:disabled),
+.export-mode-switch .export-mode-button[aria-selected="true"]:hover:not(:disabled) { border-color: #b28d50; background: linear-gradient(180deg, #493a25 0%, #282014 100%); color: #ffe1a3; }
+.export-mode-switch .export-mode-button svg { width: 15px; height: 15px; color: currentColor; }
 .native-file-menu { padding: 4px; border: 1px solid #4a4538; background: #141613; box-shadow: 0 12px 30px rgba(0, 0, 0, .72); }
 .native-file-menu > button { width: 100%; min-height: 48px; display: flex; align-items: center; gap: 10px; padding: 7px 10px; border: 0; background: transparent; color: #b8b1a3; text-align: left; cursor: pointer; }
 .native-file-menu > button:hover:not(:disabled) { background: #20211d; color: #e1d5bb; }
@@ -1034,6 +1050,13 @@ svg { flex: 0 0 auto; }
 .row-menu button:hover { background: #20211d; color: #d4cab5; }
 .row-menu button.danger { color: #c96d68; }
 .row-menu svg { width: 12px; height: 12px; }
+.equipment-context-menu { position: fixed; z-index: 1300; width: 236px; padding: 4px; overflow: hidden; isolation: isolate; border: 1px solid #6c5a3d; background: linear-gradient(180deg, #25231d 0%, #121411 100%); box-shadow: 0 12px 28px rgba(0, 0, 0, .78), inset 0 1px rgba(255, 224, 161, .05), 0 0 14px rgba(190, 151, 74, .12); }
+.equipment-context-menu::before { content: ""; position: absolute; z-index: -1; inset: 1px; pointer-events: none; background: linear-gradient(110deg, transparent 0%, transparent 39%, rgba(255, 221, 147, .04) 45%, rgba(255, 221, 147, .2) 50%, rgba(255, 221, 147, .04) 55%, transparent 61%, transparent 100%); background-size: 230% 100%; animation: equipment-context-shimmer 3.6s linear infinite; }
+@keyframes equipment-context-shimmer { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+.equipment-context-menu button { position: relative; z-index: 1; width: 100%; min-height: 34px; display: flex; align-items: center; gap: 9px; padding: 0 9px; border: 1px solid transparent; border-radius: 0; background: transparent; color: #b8b1a3; font-size: 11px; text-align: left; cursor: pointer; }
+.equipment-context-menu button:hover:not(:disabled) { border-color: #77613c; background: linear-gradient(90deg, rgba(112, 87, 43, .48), rgba(53, 43, 28, .3)); color: #f0d0a0; }
+.equipment-context-menu button:focus-visible { outline: 1px solid #d1b676; outline-offset: -2px; }
+.equipment-context-menu svg { width: 15px; height: 15px; color: #c4a667; }
 .table-empty { padding: 28px; color: #6d6961; font-size: 11px; text-align: center; }
 .build-pagination { min-height: 42px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 10px 0 13px; border-top: 1px solid #34312b; background: #111310; color: #716d65; font-size: 9px; }
 .build-pagination > div { display: flex; align-items: center; gap: 8px; }
@@ -3120,12 +3143,77 @@ svg { flex: 0 0 auto; }
 .superpoe-app .equipment-affix-sources button:hover {
   border-color: transparent;
   background: transparent;
+  background-image: none;
+  box-shadow: none;
+}
+.superpoe-app .paper-doll-slot::before,
+.superpoe-app .paper-doll-slot::after,
+.superpoe-app .paper-doll-slot:hover::before,
+.superpoe-app .paper-doll-slot:hover::after {
+  content: none;
+  background: transparent;
   box-shadow: none;
 }
 .superpoe-app .paper-doll-slot:disabled {
   border-color: transparent;
   background: transparent;
+  background-image: none;
   box-shadow: none;
+}
+
+/* Slot art is part of the paper-doll background, not a hover surface. Keep
+ * only the item image zoom and keep the body/belt hit targets self-contained. */
+.superpoe-app .paper-doll-frame .paper-doll-slot,
+.superpoe-app .paper-doll-frame .paper-doll-slot:hover:not(:disabled),
+.superpoe-app .paper-doll-frame .paper-doll-slot:focus-visible {
+  background: transparent !important;
+  background-image: none !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+.superpoe-app .paper-doll-frame .paper-doll-slot.slot-body-armour,
+.superpoe-app .paper-doll-frame .paper-doll-slot.slot-belt {
+  /* Keep the hit target aligned with the native frame. The image can still
+   * scale inside it, but must not spill into the belt or neighboring slots. */
+  overflow: hidden;
+}
+.superpoe-app .paper-doll-frame .paper-doll-slot:hover:not(:disabled)::before,
+.superpoe-app .paper-doll-frame .paper-doll-slot:hover:not(:disabled)::after,
+.superpoe-app .paper-doll-frame .paper-doll-slot::before,
+.superpoe-app .paper-doll-frame .paper-doll-slot::after {
+  content: none !important;
+  display: none !important;
+  opacity: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+.superpoe-app .paper-doll-frame .paper-doll-slot .slot-item-image {
+  pointer-events: none;
+}
+
+/* This rule intentionally lives after the shared button material rules. A
+ * paper-doll slot is a transparent hit target; only its item image animates. */
+.superpoe-app .paper-doll-frame > button.paper-doll-slot,
+.superpoe-app .paper-doll-frame > button.paper-doll-slot:hover:not(:disabled),
+.superpoe-app .paper-doll-frame > button.paper-doll-slot:active:not(:disabled),
+.superpoe-app .paper-doll-frame > button.paper-doll-slot:focus-visible {
+  border: 0 !important;
+  border-color: transparent !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+}
+.superpoe-app .paper-doll-frame > button.paper-doll-slot::before,
+.superpoe-app .paper-doll-frame > button.paper-doll-slot::after,
+.superpoe-app .paper-doll-frame > button.paper-doll-slot:hover::before,
+.superpoe-app .paper-doll-frame > button.paper-doll-slot:hover::after,
+.superpoe-app .paper-doll-frame > button.paper-doll-slot:active::before,
+.superpoe-app .paper-doll-frame > button.paper-doll-slot:active::after {
+  content: none !important;
+  display: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 /* Pointer-following glass highlight for command surfaces. */
@@ -3398,6 +3486,29 @@ svg { flex: 0 0 auto; }
   border-radius: 0;
   background: transparent;
   box-shadow: none;
+}
+
+/* The paper-doll context menu is a command menu, but its items should keep
+ * the compact menu surface instead of inheriting the global button material. */
+.superpoe-app .equipment-context-menu button,
+.superpoe-app .equipment-context-menu button:hover:not(:disabled) {
+  min-height: 34px;
+  border: 1px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.superpoe-app .equipment-context-menu button:hover:not(:disabled) {
+  border-color: #77613c;
+  background: linear-gradient(90deg, rgba(112, 87, 43, .48), rgba(53, 43, 28, .3));
+  color: #f0d0a0;
+}
+.superpoe-app .equipment-context-menu button::before,
+.superpoe-app .equipment-context-menu button:hover::before {
+  content: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  .equipment-context-menu::before { animation: none; }
 }
 .superpoe-app .equipment-tree-row > button::before,
 .superpoe-app .equipment-tree-row > .equipment-tree-all-name::before,

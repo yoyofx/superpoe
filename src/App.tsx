@@ -177,6 +177,11 @@ export default function App() {
       if (!(event.target instanceof Element)) return
       const button = event.target.closest('button')
       if (!(button instanceof HTMLButtonElement) || !root.contains(button)) return
+      if (button.matches('.paper-doll-slot, .paper-doll-weapon-set-control')) {
+        clearButtonPointer(activeButton)
+        activeButton = null
+        return
+      }
       if (activeButton !== button) {
         clearButtonPointer(activeButton)
         activeButton = button

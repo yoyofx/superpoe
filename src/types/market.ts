@@ -109,6 +109,8 @@ export interface LibraryItemSnapshot {
   rawText?: string
   localized?: Partial<Record<LibraryTextLocale, { name: string; baseType: string }>>
   tradeCategory?: string
+  /** Canonical PoE item class used for context-sensitive trade stat resolution. */
+  itemClass?: string
   properties?: CanonicalItemDisplayStat[]
   requirements?: CanonicalItemDisplayStat[]
   modifiers: LibraryModifier[]
@@ -117,12 +119,44 @@ export interface LibraryItemSnapshot {
 export interface CanonicalEquipmentItem {
   format: 'pob2-item'
   raw: string
+  /** Stable Lua-normalized modifier projection used after repository restart. */
+  modifierSnapshots?: CanonicalItemModifierView[]
+  /** Lossless evidence captured when the item originated from game clipboard text. */
+  parseEvidence?: ItemParseEvidence
   /** Per-modifier support captured by the existing PoB normalization pass. */
   modifierSupport?: CanonicalModifierSupportSnapshot[]
   /** PoB TradeQueryGenerator category captured during normalization. */
   tradeCategory?: string
+  /** Canonical PoE item class captured by the source adapter. */
+  itemClass?: string
   pobVersion?: string
   gameDataVersion?: string
+  /** Versioned authority used to resolve persisted trade stat IDs. */
+  tradeDataVersion?: string
+}
+
+export interface ParsedItemModifierEvidence {
+  displayOrder: number
+  group: LibraryModifierGroup
+  sourceTags: LibraryModifierTag[]
+  original: LibraryLocalizedText & { locale: LibraryTextLocale }
+  canonicalText?: string
+  currentValues: number[]
+  tierRanges: Array<{ min: number; max: number }>
+  queryStatId?: string
+  candidateStatIds: string[]
+  status: 'resolved' | 'ambiguous' | 'unresolved'
+}
+
+export interface ItemParseEvidence {
+  parser: 'xiletrade-compatible'
+  schemaVersion: 1
+  upstreamCommit: string
+  parsedAt: string
+  locale: LibraryTextLocale
+  originalText: string
+  itemClass?: string
+  modifiers: ParsedItemModifierEvidence[]
 }
 
 export interface CanonicalModifierSupportSnapshot {
@@ -162,6 +196,8 @@ export interface CanonicalItemView {
   iconUrl?: string
   localized?: Partial<Record<LibraryTextLocale, { name: string; baseType: string }>>
   tradeCategory?: string
+  /** Canonical PoE item class used by the Xiletrade-compatible matcher. */
+  itemClass?: string
   properties?: CanonicalItemDisplayStat[]
   requirements?: CanonicalItemDisplayStat[]
   /** False/undefined for legacy entries that predate support snapshots. */

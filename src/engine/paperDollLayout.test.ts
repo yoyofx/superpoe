@@ -61,6 +61,12 @@ describe('paper doll layout', () => {
     expect(PAPER_DOLL_SLOTS.find((slot) => slot.slotName === 'Flask 2')?.rect).toEqual({
       x: 1024, y: 883, width: 108, height: 224,
     })
+    expect(PAPER_DOLL_SLOTS.find((slot) => slot.slotName === 'Body Armour')?.rect).toEqual({
+      x: 654, y: 348, width: 257, height: 350,
+    })
+    expect(PAPER_DOLL_SLOTS.find((slot) => slot.slotName === 'Belt')?.rect).toEqual({
+      x: 654, y: 737, width: 257, height: 109,
+    })
     expect(PAPER_DOLL_SLOTS.slice(14, 17).map((slot) => [slot.slotName, slot.rect.x])).toEqual([
       ['Charm 1', 598], ['Charm 2', 722], ['Charm 3', 846],
     ])

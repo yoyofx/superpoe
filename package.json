@@ -50,6 +50,7 @@
     "pipeline:manifest": "python scripts/build_resource_manifest.py",
     "pipeline:rune-details": "python scripts/build_rune_details.py",
     "pipeline:item-bases": "python scripts/build_item_base_data.py",
+    "pipeline:xiletrade": "node scripts/build_xiletrade_parser_catalog.mjs",
     "pipeline:all": "node scripts/run_pipeline_all.mjs"
   },
   "build": {

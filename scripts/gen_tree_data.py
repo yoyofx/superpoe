@@ -571,6 +571,16 @@ def generate(
             if node.get(key):
                 node_data[key] = True
 
+        # Keep PoB's dynamic passive-socket metadata.  Voices/Sinister
+        # sockets are granted by item modifiers at runtime and therefore do
+        # not appear in the normal Spec node list.  The renderer and editor
+        # use these fields to resolve their canonical socket identity without
+        # changing the upstream Lua data.
+        for key in ["aliasPassiveSocket", "sinister", "noRadius"]:
+            value = node.get(key)
+            if value:
+                node_data[key] = value
+
         nodes[skill_id] = node_data
 
     # ---- Fill in-edges ----

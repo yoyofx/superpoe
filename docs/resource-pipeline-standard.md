@@ -51,7 +51,31 @@ PoE2DB 数据与 PoB 冲突时：
 2. PoB 缺少图片时才使用 PoE2DB 图片。
 3. PoB 缺少用户可见描述时才使用 PoE2DB 描述，并在 manifest 中记录来源。
 
-### 3.4 WeGame
+### 3.4 Xiletrade
+
+目录：`upstreams/Xiletrade/`
+
+来源：[maxensas/xiletrade](https://github.com/maxensas/xiletrade)
+
+Xiletrade 是装备剪贴板结构解析、词缀消歧和多语言 PoE2 查询目录的行为与数据上游。只允许通过项目管线读取其版本化 Git checkout；应用运行时只读取提交到 `public/data/xiletrade/` 的校验产物，不直接遍历上游仓库。
+
+使用边界：
+
+1. 只同步 PoE2 的 `*Two.json` 与 `ParsingRules.json`，不带 `Two` 的 PoE1 数据不进入产物。
+2. 输入来自 `src/Xiletrade.Library/Data/Lang/`；旧的 `Xiletrade/Data/` 目录不是 Library 运行数据，禁止作为管线来源。
+3. SuperPoE 用 TypeScript 独立实现所需行为，不加载 Xiletrade 程序集、不引入 sidecar，也不修改上游文件。
+4. `FiltersTwo.json` 是四种游戏语言解析、statId 和查询投影的版本化事实来源；官方 Trade API 负责联赛、Search 与 Fetch。
+5. 任何运行时产物必须记录 Xiletrade commit 和全部输入文件 SHA-256。
+
+当前运行时目录由 `npm run pipeline:xiletrade` 生成：
+
+- 输入：`upstreams/Xiletrade/src/Xiletrade.Library/Data/Lang/{en-US,zh-CN,zh-TW,ko-KR}/` 下的 `FiltersTwo/ItemsTwo/CurrencyTwo/BasesTwo/ModsTwo/WordsTwo/ParsingRules`。
+- 输出：`public/data/xiletrade/<locale>/` 和 `public/data/xiletrade/manifest.json`。
+- `FiltersTwo` 与 `ParsingRules` 直接参与运行时解析；其他文件保留给物品识别和后续消歧，不能手工编辑产物。
+- `manifest.json` 记录生成时的 Xiletrade commit 和各语言各文件 SHA-256；升级上游后必须重新生成并运行四语言 fixture。
+- `/data/leagues`、Search 与 Fetch 仍由目标区服官方接口实时提供。
+
+### 3.5 WeGame
 
 WeGame 是构筑导入来源，不是全局资源事实来源。导入结果携带的精确图片 URL 仅可用于该构筑的即时显示或进入离线缓存，不得反向覆盖全局装备、技能或翻译目录。
 
@@ -66,6 +90,7 @@ WeGame 是构筑导入来源，不是全局资源事实来源。导入结果携�
 | PoB2 `Data/Bases`、`Data/Uniques`、`Data/ModRunes.lua`、`Data/Gems.lua` | `scripts/sync_poe2db_item_icons.py`、`scripts/build_item_base_data.py` | 作为装备底材、传奇、镶嵌物和技能的规范 ID、分类及覆盖校验来源 | `public/data/item-bases.json`、`public/data/item-icons.json` 等 | 装备识别、名称/底材匹配和图标索引的规范基础 |
 | PoB2 `Data/Gems.lua`、`Data/Skills/*.lua` | `scripts/build_skill_catalog.py`、`scripts/build_rune_details.py` | 技能、辅助宝石、装备授予技能的 ID、标签、描述和计算相关定义 | `public/data/skill-catalog.json`、`public/data/rune-details.json` | 技能面板、宝石 tooltip 和装备授予技能显示；不使用 PoE2DB 覆盖计算语义 |
 | PoeCharm2 `Data/Translate/{zh-rCN,zh-rTW,ko-KR}` | `scripts/sync_poecharm_translations.py` / `npm run pipeline:translations` | 通用界面和游戏词条翻译 | `public/data/Translate/`、`public/data/translation-files.json` | 当前语言的显示与搜索回退 |
+| Xiletrade Library `FiltersTwo/ItemsTwo/CurrencyTwo/BasesTwo/ModsTwo/WordsTwo/ParsingRules` | `scripts/build_xiletrade_parser_catalog.mjs` | 四语言装备剪贴板解析、词缀模板、statId 和查询投影 | `public/data/xiletrade/` | 装备仓库查价、快捷键查价和游戏文本自定义装备共享 |
 | PoE2DB 物品/技能公开目录页 | `scripts/sync_poe2db_item_icons.py` | 装备、珠宝、药剂、咒符、技能和辅助宝石的图片 URL；部分用户可见名称/描述 | `public/assets/items/poe2db/`、`public/assets/skills/poe2db/`、`public/data/item-icons.json`、`public/data/skill-icons.json` | 本地图片和缺失用户描述的补充；运行时不请求网站 |
 | PoE2DB `cn/tw/kr` 实体页 | `scripts/sync_poe2db_item_icons.py`、`scripts/build_skill_catalog.py` | 装备授予技能及技能/宝石的本地化名称和描述 | `public/data/skill-icons.json`、`public/data/skill-catalog.json`、`public/data/rune-details.json` | 当前语言的结构化 tooltip；按 PoB `skillId` 关联 |
 | PoE2DB Rune/Soul Core/Idol/Congealed Mist 页面 | `scripts/build_rune_details.py` | 镶嵌物名称的简体、繁体本地化 | `public/data/rune-details.json` | 镶嵌物槽位和装备详情显示 |
@@ -220,7 +245,7 @@ npm run pipeline:all -- 0_5
 
 当前实现中，以下部分已经符合：
 
-- 两个 `upstreams` 仓库按本地只读 checkout 管理并被 Git 忽略。
+- 三个 `upstreams` 仓库按本地只读 checkout 管理并被 Git 忽略。
 - `public/` 运行资源随仓库提交，桌面应用运行不要求资源管线依赖。
 - PoE2DB 图片下载到本地，技能和物品显示不使用运行时热链。
 - 天赋树、翻译、装备底材、技能图标和 Lua bundle 均已有独立生成步骤。

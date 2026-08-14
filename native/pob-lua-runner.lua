@@ -81,7 +81,7 @@ local function normalizeXml(xmlText)
 	end)
 end
 
--- Project-owned compatibility for the seven known WeGame item lines. The
+-- Project-owned compatibility for the known WeGame item lines. The
 -- upstream PoB Lua bundle remains untouched; only this runner adapts input.
 if modLib and type(modLib.parseMod) == "function" and not modLib.__superpoeItemCompatibility then
 	local nativeParseMod = modLib.parseMod
@@ -90,6 +90,10 @@ if modLib and type(modLib.parseMod) == "function" and not modLib.__superpoeItemC
 			local prefixEffect = line:match("^(%d+[%d%.]*)%% increased Effect of Prefixes$")
 			if prefixEffect then
 				return { modLib.createMod("LocalPrefixEffect", "INC", tonumber(prefixEffect)) }, nil
+			end
+			local suffixEffect = line:match("^(%d+[%d%.]*)%% increased Effect of Suffixes$")
+			if suffixEffect then
+				return { modLib.createMod("LocalSuffixEffect", "INC", tonumber(suffixEffect)) }, nil
 			end
 		end
 		return nativeParseMod(line, ...)
@@ -131,7 +135,6 @@ local function normalizeItem(payload)
 	if not item or not item.baseName then
 		return { success = false, error = "PoB Item base type was not recognized" }
 	end
-	local tradeHelpers = LoadModule("Classes/TradeHelpers")
 	local properties = {}
 	local requirements = {}
 	local armourData = item.armourData or {}
@@ -180,18 +183,6 @@ local function normalizeItem(payload)
 			local text = StripEscapes(modLine.line or ""):gsub("^%s+", ""):gsub("%s+$", "")
 			if text ~= "" then
 				local supported = not modLine.extra and modLine.modList ~= nil and #modLine.modList > 0
-				local tradeIds = {}
-				local optionTradeId, tradeValue = tradeHelpers.findTradeIdOption(text, group)
-				local shouldNegate = false
-				if optionTradeId then
-					table.insert(tradeIds, optionTradeId)
-				else
-					local hashes
-					hashes, tradeValue, shouldNegate = tradeHelpers.findTradeHash(text)
-					for _, hash in ipairs(hashes or {}) do
-						table.insert(tradeIds, string.format("%s.stat_%s", group, hash))
-					end
-				end
 				local sourceTags = {}
 				for _, tag in ipairs({ "rune", "enchant", "fractured", "crafted", "desecrated", "mutated", "corrupted" }) do
 					if modLine[tag] then table.insert(sourceTags, tag) end
@@ -203,9 +194,7 @@ local function normalizeItem(payload)
 					sourceTags = sourceTags,
 					text = text,
 					unsupported = not supported,
-					tradeStatIds = tradeIds or {},
-					tradeValue = safeNum(tradeValue),
-					tradeValueNegated = shouldNegate or false,
+					tradeStatIds = {},
 				})
 				table.insert(modifierSupport, {
 					group = group,
@@ -221,19 +210,6 @@ local function normalizeItem(payload)
 	appendModifiers(item.implicitModLines, "implicit")
 	appendModifiers(item.explicitModLines, "explicit")
 	local itemType = item.type or (item.base and item.base.type)
-	local categorySlot
-	if itemType == "Body Armour" then categorySlot = "Body Armour"
-	elseif itemType == "Helmet" then categorySlot = "Helmet"
-	elseif itemType == "Gloves" then categorySlot = "Gloves"
-	elseif itemType == "Boots" then categorySlot = "Boots"
-	elseif itemType == "Amulet" then categorySlot = "Amulet"
-	elseif itemType == "Ring" then categorySlot = "Ring 1"
-	elseif itemType == "Belt" then categorySlot = "Belt"
-	elseif itemType == "Jewel" then categorySlot = "Jewel 1"
-	elseif itemType and itemType:find("Flask") then categorySlot = itemType == "Mana Flask" and "Flask 2" or "Flask 1"
-	elseif itemType == "Charm" then categorySlot = "Charm 1"
-	elseif itemType then categorySlot = "Weapon 1" end
-	local tradeCategory = categorySlot and tradeHelpers.getTradeCategory(categorySlot, item) or nil
 	local socketParts = {}
 	for line in raw:gmatch("[^\r\n]+") do
 		local socketLine = line:match("^Sockets:%s*(.+)$")
@@ -247,7 +223,7 @@ local function normalizeItem(payload)
 			format = "pob2-item",
 			raw = item:BuildRaw(),
 			modifierSupport = modifierSupport,
-			tradeCategory = tradeCategory,
+			itemClass = itemType,
 		},
 		view = {
 			rarity = item.rarity or "NORMAL",
@@ -261,7 +237,7 @@ local function normalizeItem(payload)
 			corrupted = item.corrupted or false,
 			identified = not item.unidentified,
 			normalizationKnown = true,
-			tradeCategory = tradeCategory,
+			itemClass = itemType,
 			modifiers = modifiers,
 		},
 	}

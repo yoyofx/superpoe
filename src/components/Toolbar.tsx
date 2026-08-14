@@ -139,7 +139,7 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
   }, [realmMenuOpen])
 
   useEffect(() => {
-    if (activeMenu !== 'file') return
+    if (!activeMenu) return
     const closeOnOutsidePointer = (event: PointerEvent) => {
       const target = event.target as Node
       if (!fileMenuRef.current?.contains(target) && !filePopoverRef.current?.contains(target)) setActiveMenu(null)

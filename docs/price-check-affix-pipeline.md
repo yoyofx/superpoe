@@ -1,7 +1,7 @@
 # 查价词缀到交易请求的处理链路
 
 > 状态：设计与实现对照文档
-> 更新日期：2026-08-08
+> 更新日期：2026-08-14
 > 适用项目：`D:\sources\superpoe`
 > 外部参考：`D:\sources\Poe2PriceGui`
 > 关联设计：[price-check-design.md](./price-check-design.md)
@@ -25,8 +25,8 @@
 其中：
 
 - 原始文本和结构化词缀是装备观察结果；
-- PoB2 Lua 的英文 mod 语义是 SuperPoE 的 canonical 来源；
-- 官方 `/data/stats` 是当前区服的可查询能力目录和校验来源；
+- Xiletrade Library `FiltersTwo` 的同 statId 四语言条目负责本地化文本到查询语义的投影；
+- PoB2 Lua 验证生成后的 PoB Raw 并负责装备显示与计算，不识别本地化游戏剪贴板；
 - `stat ID` 只表示本次区服/版本下的查询方式，不能作为装备永久身份；
 - 不确定或有歧义的词缀不能静默提交为一个看似确定的 ID。
 
@@ -173,47 +173,60 @@
 
 ## 3. SuperPoE 当前实现对照
 
-当前 SuperPoE 已经采用更适合长期维护的分层：
+当前 SuperPoE 的三入口统一分层为：
 
 ```text
-剪贴板 / PoB item raw
-  -> electron/pobItemBridge.ts
-  -> LuaJIT sidecar normalizeItem
-  -> CanonicalItemView.modifiers
-       (group, sourceTags, tradeStatIds, tradeValue, localized)
+游戏剪贴板 / 仓库 snapshot
+  -> XiletradeDataCatalog + XiletradeModifierMatcher
+  -> statId、来源、当前值、tier 范围和英文 PoB Raw
+  -> PoB Lua normalizeItem 验证与计算
+  -> CanonicalItemView / parseEvidence
   -> electron/tradeService.ts
-  -> TradeReferenceDataCache（官方 /data/stats）
-  -> TradeStatResolver
   -> buildTradeQuery
   -> OfficialTradeProvider.search
 ```
 
 ### 3.1 解析和规范化
 
-`PobItemBridge.normalize` 不使用前端正则重建物品语义，而是调用 PoB Lua 的 `Item` 解析。Lua 负责：
+游戏复制文本先按 Xiletrade 的行为解析，PoB Raw 生成后再调用 PoB Lua 的 `Item` 解析。Lua 负责：
 
 - 物品底材/物品类型和基础属性；
 - `enchant`、`rune`、`implicit`、`explicit` 分组；
 - 每条 mod 的语义、作用域、受益对象、wrapper 和关键字；
-- PoB 的 Trade Hash / stat descriptor；
-- 当前数值和固定选项。
+- 当前数值和装备计算语义。
 
-返回的 `CanonicalItemView.modifiers` 已包含 `tradeStatIds` 和 `tradeValue`。这使装备展示、计算和查价共享同一个解析结果，避免另外维护 Xiletrade 式的正则词缀表。
+Lua runner 不调用 `TradeHelpers.findTradeHash()`、`findTradeIdOption()` 或 `getTradeCategory()`。`PobItemBridge` 把 Lua 返回的结构化词缀交给 Xiletrade matcher，补充 `tradeStatIds`、`tradeValue`、物品分类和 `tradeDataVersion`。PoB Lua 仍是展示与计算权威，但不再是交易 ID 权威。
 
-### 3.2 官方 catalog 解析
+### 3.2 Xiletrade 内置 catalog 解析
 
-`TradeReferenceDataCache` 按 `cn/global` 缓存官方 `/data/stats`，保存抓取时间和 payload hash。`TradeStatResolver`：
+`XiletradeDataCatalog` 从随应用发布的四语言 `FiltersTwo.json` 加载同一上游版本。`XiletradeModifierMatcher`：
 
 1. 按目标 realm 选择本地化显示文本；
 2. 把数字归一化为 `#`；
 3. 先做官方模板精确匹配；
 4. 根据 `sourceTags`/group 限定 `explicit`、`implicit`、`enchant`、`rune` 等 scope；
 5. 处理 `entry.option.options`，生成 `statId|optionId`；
-6. 保存 `resolved / ambiguous / unresolved` 状态、候选 ID、catalog hash 和时间。
+6. 按 Xiletrade `ModFilter.cs` 的物品上下文规则消歧 local/global、武器、护甲、珠宝及特殊传奇词缀；
+7. 保存 `resolved / ambiguous / unresolved` 状态和候选 ID。
 
-这一步是“官方 catalog 校验/补全”，不是重新解析 PoB 的装备语义。
+这一步是统一 statId 投影，不调用远程 Stats 接口。仓库用 `tradeDataVersion: xiletrade:<commit>` 标记投影版本；旧记录启动时迁移一次，同版本后续启动直接使用快照。
 
-### 3.3 查询构建
+### 3.3 本地化剪贴板的 statId 优先路径
+
+游戏中文剪贴板可能使用旧版词条句式，例如 `冰霜抗性 +10%` 或 `法术暴击率提高 16%`。这类文本不再依赖逐条硬编码翻译：
+
+```text
+本地化词条
+  -> 当前语言 Xiletrade FiltersTwo 模板匹配
+  -> 得到 statId / optionId
+  -> 用同一 statId 从 global catalog 取 canonical English 模板
+  -> 填入当前数值，生成 PoB Raw
+  -> Lua normalizeItem 负责最终语义和计算
+```
+
+该路径由 `XiletradeModifierMatcher` 共享于游戏复制、自定义装备导入和已有装备查价；简中、繁中、韩文和英文均按本语言 `FiltersTwo` 定位，再用同 statId 的英文模板生成 PoB Raw。名称/底材仍可使用项目翻译目录补全，但词缀不会静默回退到旧的近似匹配器。
+
+### 3.4 查询构建
 
 `buildTradeQuery` 只把用户选择的、已解析的词缀加入 `stats`：
 
@@ -233,13 +246,13 @@ IPC 只把已验证的查询条件传入主进程。session、缓存路径和原
 
 | 能力 | Poe2PriceGui / Xiletrade | SuperPoE 当前设计 |
 | --- | --- | --- |
-| 词缀语义来源 | 本地 `FiltersTwo.json`、`ParsingRules.json` 和 C# 规则 | PoB2 Lua Item + Trade Hash |
-| 中文显示解析 | 本地语言过滤器先解析，再拿英文文本 | Lua 先生成英文 canonical，官方 catalog 按 realm 校验 |
-| 模糊匹配 | 有 Levenshtein fallback | 当前以精确模板和 scope 匹配为主，歧义保留候选 |
+| 词缀语义来源 | 本地 `FiltersTwo.json`、`ParsingRules.json` 和 C# 规则 | 同版本生成数据 + TypeScript 复刻必要规则；PoB Lua 负责展示与计算 |
+| 中文显示解析 | 本地语言过滤器先解析，再拿英文文本 | 四语言 catalog 先定位 statId，再以 global 同 ID 生成 PoB Raw |
+| 模糊匹配 | 上游部分旧路径有 Levenshtein fallback | 不使用模糊匹配；精确模板、scope 和物品上下文消歧 |
 | 词缀 ID | `FilterResultEntrie.ID`，直接进入 `ItemFilter` | `tradeStatIds`/运行时 resolution，不作为装备身份 |
-| tier 范围 | `ItemModifier.ParseTierValues` 提取括号范围 | PoB canonical current value；用户在查价窗口设置范围 |
+| tier 范围 | `ItemModifier.ParseTierValues` 提取括号范围 | parser 保留当前值和 tier range；用户在查价窗口设置范围 |
 | 符文/固有属性 | UI 层显式过滤部分 `TierKind` 为空行 | 由 modifier group/sourceTags 和可查询 catalog 决定 |
-| 区服数据 | 本地语言目录与网关配置 | 每个 realm 独立官方 `/data/stats`、items、filters、session |
+| 区服数据 | 本地语言目录与网关配置 | Xiletrade 四语言生成目录 + 每个 realm 独立官方联赛/Search/Fetch/session |
 | 失败策略 | 未匹配词缀可能从 ModList 消失或标记错误 | unresolved/ambiguous 可见，必要时由用户确认或回退底材查询 |
 
 ## 5. SuperPoE 的实现边界和后续要求
@@ -247,12 +260,13 @@ IPC 只把已验证的查询条件传入主进程。session、缓存路径和原
 ### 必须保持
 
 1. `CanonicalEquipmentItem`/`CanonicalItemView` 是装备事实来源；查价不能创建第二份装备模型。
-2. PoB Lua 是 mod 语义和 Trade Hash 的唯一来源；TypeScript 只做请求组合、范围变换和校验。
-3. 官方 `/data/stats` 只做当前区服能力目录和可用性验证；缓存可删除、可重建，并记录 payload hash。
+2. PoB Lua 负责 canonical Item 的结构、展示和计算；Xiletrade TypeScript matcher 是 statId 与交易分类的唯一解析入口。
+3. 官方 listing `extended.hashes` 是已上架装备的权威 statId；收藏 listing 时必须合并回 canonical snapshot，不能被 Lua 结果覆盖。
 4. 每个词缀保留原始行、localized 行、group/sourceTags、当前值、候选 stat ID 和解析状态，便于诊断和用户确认。
 5. 未解析或有歧义的词缀不能默认提交一个猜测 ID；UI 应明确显示“未解析/多个候选”。
 6. 查询生成必须区分 numeric、presence、fixed-option，并统一处理负值范围。
 7. Search、Fetch、listing 归一化和仓库入库继续走同一个 OfficialTradeProvider；不能由装备页、市场页、查价浮层各自实现一份映射。
+8. 跨区服查询先校验快照 statId 是否存在于目标 catalog；只有缺失或歧义时才重新投影，禁止普遍二次文本匹配。
 
 ### 需要补强的测试
 
@@ -267,6 +281,21 @@ IPC 只把已验证的查询条件传入主进程。session、缓存路径和原
 - 官方 catalog 过期、请求失败和缓存 hash 变化后的重新解析；
 - 原始文本、canonical item 和 trade query 的日志脱敏。
 
-## 6. 结论
+## 6. Xiletrade 统一解析链（2026-08-14）
 
-Poe2PriceGui 的查价流程可以作为行为参考，尤其是“词缀来源分组、数字模板化、option、数值范围和结构化过滤器”的概念。但 SuperPoE 不应把 Xiletrade 的 C# 词缀表或本地 `FiltersTwo.json` 变成第二套事实来源。当前应继续让 PoB2 Lua 产生 canonical mod/Trade Hash，使用官方 catalog 验证目标区服能否查询，再由统一 query builder 生成最终 JSON；只有在 Lua 无法解析、官方 catalog 发生歧义时，才把候选和证据交给用户，而不是用静默正则猜测。
+Poe2PriceGui/Xiletrade 的词缀来源分组、数字模板化、local stat 消歧、负值、多行词缀、`— 数值不可调整` 尾注剥离和结构化过滤器是本地化游戏文本解析的行为基准。SuperPoE 用 TypeScript 独立实现对应流程，不加载其 C# 程序集、不使用 sidecar，也不修改上游文件。游戏本地化文本统一进入 `electron/xiletradeItemParser.ts`：
+
+```text
+高级游戏复制文本
+  -> 按 -------- 分区并逐行推进 descriptor
+  -> 识别 rune/implicit/crafted/fractured/desecrated
+  -> 分离当前值与 tier range
+  -> 应用 Xiletrade ParsingRules
+  -> 当前语言 FiltersTwo 匹配
+  -> 相同 statId 的 global 英文模板生成 PoB Raw
+  -> PoB Lua 验证和计算
+```
+
+游戏快捷键查价、游戏文本添加自定义装备和装备仓库查价共享这条解析链。仓库持久化 `parseEvidence` 和 Lua `modifierSnapshots`，因此重启后直接从已保存 snapshot 生成 Trade Projection，不再重新翻译 Raw 或重新调用 Lua。无法投影到 PoB 的本地化行仍以 `unsupported` 原文保留；多个同文 statId 保留为候选，不能静默选择第一个。
+
+当前验证基线为 Xiletrade commit `c16c145f30aced5aa667456dd5f6897a2af3af3b`。`scripts/build_xiletrade_parser_catalog.mjs` 从 Library 的真实运行数据生成 `public/data/xiletrade/`，并在 manifest 记录实际 Git commit 与每个输入文件 SHA-256。官方接口只负责联赛、Search 和 Fetch，不再承担剪贴板词缀识别。

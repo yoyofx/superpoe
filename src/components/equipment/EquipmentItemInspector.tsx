@@ -36,14 +36,14 @@ export function translateEquipmentItemName(value: string, rarity: string, langua
 }
 
 export function equipmentItemName(view: CanonicalItemView, language: Language): string {
-  const localized = language === 'zh-rCN' ? view.localized?.['zh-CN']?.name : undefined
-  if (localized && localized !== view.name) return localized
+  const localized = language.startsWith('zh-rCN') ? view.localized?.['zh-CN']?.name : undefined
+  if (localized && !/(?:\?{2,}|\uFFFD)/u.test(localized) && localized !== view.name) return localized
   return translateEquipmentItemName(view.name, view.rarity, language)
 }
 
 export function equipmentItemBaseType(view: CanonicalItemView, language: Language): string {
-  const localized = language === 'zh-rCN' ? view.localized?.['zh-CN']?.baseType : undefined
-  return localized && localized !== view.baseType ? localized : translateGameText(view.baseType, language)
+  const localized = language.startsWith('zh-rCN') ? view.localized?.['zh-CN']?.baseType : undefined
+  return localized && !/(?:\?{2,}|\uFFFD)/u.test(localized) && localized !== view.baseType ? localized : translateGameText(view.baseType, language)
 }
 
 export function equipmentRarityLabel(rarity: string, language: Language): string {
@@ -62,7 +62,12 @@ export function equipmentRarityLabel(rarity: string, language: Language): string
 }
 
 function modifierText(modifier: CanonicalItemModifierView, language: Language): string {
-  const translated = language === 'zh-rCN' ? modifier.localized?.['zh-CN'] || translateGameText(modifier.text, language) : translateGameText(modifier.text, language)
+  const localized = modifier.localized?.['zh-CN']
+  const usableLocalized = localized && !/(?:\?{2,}|\uFFFD)/u.test(localized) ? localized : undefined
+  const simplifiedChinese = language.endsWith('CN')
+  const translated = simplifiedChinese && usableLocalized
+    ? usableLocalized
+    : translateGameText(modifier.text, language)
   return normalizeDisplayTags(translated)
 }
 

@@ -6,6 +6,7 @@ import { EquipmentItemInspector, equipmentItemBaseType, equipmentItemName } from
 import { EquipmentCollectionTree, type EquipmentCollectionSelection } from './EquipmentCollectionTree'
 import { useTranslation } from '@/i18n/useTranslation'
 import { uiText, type UiMessage } from '@/i18n/uiLocale'
+import { fitsEquipmentLibrarySlot, isEquipmentLibraryJewel } from '@/engine/equipmentLibrarySlot'
 
 export type EquipmentLibraryPickerMode = 'equipment' | 'jewel'
 
@@ -24,30 +25,6 @@ const ROOTS: Array<{ id: EquipmentCollectionRoot; label: UiMessage }> = [
   { id: 'build', label: { en: 'Build imports', 'zh-rCN': '构筑导入', 'zh-rTW': '構築匯入', 'ko-KR': '빌드 가져오기' } },
   { id: 'custom', label: { en: 'Custom', 'zh-rCN': '自定义', 'zh-rTW': '自訂', 'ko-KR': '사용자 지정' } },
 ]
-
-function isJewel(entry: EquipmentLibraryEntry): boolean {
-  return /^jewel(?:\.|$)/i.test(entry.view.tradeCategory || '')
-}
-
-function fitsEquipmentSlot(entry: EquipmentLibraryEntry, slot: string | undefined): boolean {
-  if (!slot) return !isJewel(entry)
-  const category = entry.view.tradeCategory?.toLowerCase() || ''
-  if (slot.toLowerCase().includes('jewel socket')) return isJewel(entry)
-  if (isJewel(entry)) return false
-  if (!category) return true
-  const normalizedSlot = slot.toLowerCase()
-  if (normalizedSlot.includes('weapon')) return category.startsWith('weapon.')
-  if (normalizedSlot.includes('helmet')) return category === 'armour.helmet'
-  if (normalizedSlot.includes('glove')) return category === 'armour.gloves'
-  if (normalizedSlot.includes('body') || normalizedSlot.includes('chest')) return category === 'armour.chest'
-  if (normalizedSlot.includes('boot')) return category === 'armour.boots'
-  if (normalizedSlot.includes('ring')) return category === 'jewellery.ring'
-  if (normalizedSlot.includes('amulet')) return category === 'jewellery.amulet'
-  if (normalizedSlot.includes('belt')) return category === 'jewellery.belt'
-  if (normalizedSlot.includes('charm')) return category.startsWith('jewellery.charm')
-  if (normalizedSlot.includes('flask')) return category.startsWith('flask.')
-  return true
-}
 
 function folderPath(folder: EquipmentLibraryFolder, folders: EquipmentLibraryFolder[]): string {
   const names = [folder.name]
@@ -113,8 +90,8 @@ export function EquipmentLibraryPicker({ mode, title, subtitle, currentSlot, onC
   }, [])
 
   const compatibleEntries = useMemo(() => entries.filter((entry) => {
-    if (mode === 'jewel' && !isJewel(entry)) return false
-    if (mode === 'equipment' && !fitsEquipmentSlot(entry, currentSlot)) return false
+    if (mode === 'jewel' && !isEquipmentLibraryJewel(entry)) return false
+    if (mode === 'equipment' && !fitsEquipmentLibrarySlot(entry, currentSlot)) return false
     return filterEntry ? filterEntry(entry) : true
   }), [currentSlot, entries, filterEntry, mode])
 
@@ -193,7 +170,7 @@ export function EquipmentLibraryPicker({ mode, title, subtitle, currentSlot, onC
       </div>
       <div className="library-workspace-commandbar equipment-picker-commandbar">
         <div className="library-workspace-command-leading"><label className="library-workspace-search"><Search /><input autoFocus value={query} onChange={(event) => setQuery(event.target.value)} placeholder={mode === 'jewel' ? l('Search jewel name, base, or modifier', '搜索珠宝名称、底材或词条', '搜尋珠寶名稱、基底或詞綴', '주얼 이름, 베이스 또는 속성 검색') : l('Search item name, base, or modifier', '搜索装备名称、底材或词条', '搜尋裝備名稱、基底或詞綴', '아이템 이름, 베이스 또는 속성 검색')} /></label><span className="library-workspace-result-count">{l(`${visibleEntries.length} items`, `${visibleEntries.length} 件`, `${visibleEntries.length} 件`, `${visibleEntries.length}개`)}</span></div>
-        <div className="library-workspace-command-actions">{selected && <div className="library-workspace-selection-actions"><button type="button" className="primary" onClick={() => onSelect(selected)}><Check /><span>{mode === 'jewel' ? l('Bind jewel', '绑定珠宝', '綁定珠寶', '주얼 장착') : l('Use equipment', '使用装备', '使用裝備', '장비 사용')}</span></button></div>}</div>
+        <div className="library-workspace-command-actions">{selected && <div className="library-workspace-selection-actions"><button type="button" className="primary" onClick={() => onSelect(selected)}><Check /><span>{mode === 'jewel' ? l('Bind jewel', '绑定珠宝', '綁定珠寶', '주얼 장착') : l('Change equipment', '更换装备', '更換裝備', '장비 변경')}</span></button></div>}</div>
       </div>
       <div className="library-workspace-layout equipment-picker-layout">
         <aside className="library-workspace-directory"><header><strong>{l('Library categories', '仓库分类', '倉庫分類', '라이브러리 분류')}</strong><span>{folders.length}</span></header><EquipmentCollectionTree roots={ROOTS.map((root) => ({ id: root.id, label: root.label[lang] }))} folders={folders} entries={compatibleEntries} selection={selection} readOnly allLabel={mode === 'jewel' ? l('All jewels', '全部珠宝', '全部珠寶', '모든 주얼') : l('All equipment', '全部装备', '全部裝備', '모든 장비')} labels={{ collapse: l('Collapse', '折叠', '收合', '접기'), expand: l('Expand', '展开', '展開', '펼치기'), newFolder: '', rename: '', delete: '' }} onSelect={selectDirectory} onCreate={async () => undefined} onRename={async () => undefined} onDelete={async () => undefined} onToggle={async (folder) => { await window.pob2Market?.updateFolder({ id: folder.id, expanded: !folder.expanded }); await load() }} /></aside>
@@ -203,10 +180,6 @@ export function EquipmentLibraryPicker({ mode, title, subtitle, currentSlot, onC
       {tooltipEntry && tooltip && <div className="library-item-tooltip library-item-inspector-tooltip" role="tooltip" style={{ left: tooltip.left, top: tooltip.top }} onMouseEnter={cancelTooltipHide} onMouseLeave={hideTooltip}><EquipmentItemInspector view={tooltipEntry.view} language={lang} /></div>}
     </section>
   </div>, document.body)
-}
-
-export function isEquipmentLibraryJewel(entry: EquipmentLibraryEntry): boolean {
-  return isJewel(entry)
 }
 
 export function equipmentLibraryFolderPath(folder: EquipmentLibraryFolder, folders: EquipmentLibraryFolder[]): string {

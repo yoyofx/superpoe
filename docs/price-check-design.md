@@ -1,7 +1,7 @@
 # SuperPoE2 统一交易、装备仓库与国服/国际服查价详细设计
 
 > 状态：统一 PriceCheck 第一阶段已实现；独立置顶窗口、三类装备来源、Search/Fetch 价格列表与游戏热键已接通；构筑提升对比仍属 M6 后续阶段
-> 更新日期：2026-08-07
+> 更新日期：2026-08-14
 > 适用项目：`D:\sources\superpoe`
 > 目标平台：Electron 桌面端，支持 Windows 与 macOS Apple Silicon
 > 关联路线图：`docs/ROADMAP.md` 中 M0“集市、统一装备仓库与共享交易基础”和 M6“游戏内查价器与构筑提升浮层”
@@ -21,16 +21,16 @@
 以下事项已确认，不再作为实现选项：
 
 1. 国服与国际服在同一版本内实现，使用统一领域模型和分区服适配器。
-2. 不依赖 Xiletrade 的代码、模型或数据文件。
-3. PoB2 `stat_descriptions.lua`、`HashStats()`、`TradeHelpers.lua` 和 `TradeSiteStats.lua` 负责 canonical Item 的英文词条与 Trade Hash 语义，不维护第二套手工映射。
+2. 本地化游戏文本按 Xiletrade 的 section/descriptor/ParsingRules 行为独立实现；只读上游用于生成可追溯规则产物，不加载其 C# 程序集或静态 Stats 快照。
+3. PoB2 Lua 负责验证生成后的 canonical Item 并参与计算，不负责猜测本地化游戏文本。
 4. 对应区服官方 `/data/stats` 负责验证目标市场当前接受的 Stat/option；它是市场能力目录，不是装备语义或仓库词缀的事实来源。
 5. `/data/stats` 响应允许保存到用户目录作为可删除、可重建的运行时缓存，不进入 canonical item，也不持久化为逐词条 resolution。
 6. 国服搜索、Stats、赛季和 Fetch 必须全部走国服接口；国际服同理，禁止跨区服拼接数据。
-7. PoB Lua 负责 Item 解析、规范化、英文 stat descriptor 和 Trade Hash；中文 listing/剪贴板 adapter 负责提供官方 Stat ID、实际值和来源证据，不能建立另一套装备权威。
+7. 本地化剪贴板 adapter 负责结构解析并提供官方 Stat ID、实际值和来源证据；PoB Lua 验证其 PoB Raw 投影。两者都不是独立装备权威。
 8. 查价器不维护独立区服选项；国服或国际服统一由项目全局设置 `AppSettings.defaultRealm` 决定。
 9. 名称/基底和结构化过滤器同样只使用对应区服官方 `/data/items`、`/data/filters`；现有英文 PoB 基底数据不作为国服交易名称来源。
 10. 仓库装备是持久化主体；市场收藏、PoB 导入、装备界面收藏、手工录入和查价记录是可并存的来源，不建立独立收藏表。
-11. 仓库、集市和查价器共用唯一 PoB2 Item Bridge。Stat ID 在市场导入阶段是本地化词条转英文 descriptor 的证据，查询阶段从 PoB `modLine` 动态生成，不随 canonical item 持久化。
+11. 仓库、集市和查价器共用唯一解析链与 PoB2 Item Bridge。游戏文本解析证据、Stat ID 候选和 Lua 规范化 modifier snapshot 随 canonical item 持久化，后续查价直接读取快照。
 12. 市场 listing 经官方 Fetch 取得可信数据后才能入库；DOM 注入只发送 `realm + queryId + listingId + sourceUrl`。
 13. PoB 构筑、Global/CN listing、装备收藏和自定义文本都转换为规范化英文 PoB2 Item Raw；上游 Trade DTO 和旧 `LibraryItemSnapshot` 不能直接进入构筑模型。
 14. PriceCheck 始终是独立业务模块和独立目录，不属于 Market。PriceCheck 只依赖共享的 `trade`、`library` 基础设施；Market 与 PriceCheck 禁止互相导入组件、状态、IPC 或业务协调器。
@@ -83,7 +83,7 @@
 6. parser 输出结构化 `ParsedTradeItem`。
 7. renderer 在独立查价窗口显示物品和可搜索条件。
 8. 用户勾选词缀、调整范围并点击搜索。
-9. 主进程通过 PoB2 Item Bridge 从英文 `modLine` 动态生成 Stat ID，并用目标 realm 官方 Stats catalog 校验后调用 Search API。
+9. 主进程使用 parser/Item Bridge 已生成的 Xiletrade Stat ID 构建查询；跨区服时只对目标 catalog 中缺失或歧义的 ID 重新投影，然后调用 Search API。
 10. 主进程 Fetch 第一页详情，将脱敏后的结果返回 renderer。
 11. 用户可翻页、返回修改条件、打开官方交易页或复制私聊文本。
 
@@ -445,25 +445,23 @@ export type TradeErrorCode =
 
 ## 9. 官方参考数据下载与缓存
 
-### 9.1 唯一数据来源
+### 9.1 数据权威边界
 
-Stat catalog 只允许来自：
+当前实现按用途拆分权威来源：
 
-```text
-CN     https://poe.game.qq.com/api/trade2/data/stats
-Global https://www.pathofexile.com/api/trade2/data/stats
-```
+- 随应用发布的 Xiletrade `FiltersTwo/ParsingRules/BasesTwo/ItemsTwo/ModsTwo/WordsTwo` 生成数据负责四语言剪贴板解析、statId、物品分类和上下文消歧。
+- PoB2 Lua 负责 canonical Item 结构、展示属性和计算，不调用 `TradeHelpers` 生成查价 ID。
+- 官方 listing 的 `extended.hashes` 是该挂单实际 statId 的权威来源，收藏时合并回快照。
+- 目标区服官方接口负责联赛、Search、Fetch 和会话；不得把国服 session 或 listing 数据与国际服混用。
 
 明确禁止：
 
-- 读取 PoB `TradeSiteStats.lua` 作为运行时 fallback。
-- 复制 Xiletrade `FiltersTwo.json`。
-- 在源码中维护大规模 Stat ID 映射。
-- 国服失败后改用国际服 Stats，反之亦然。
+- 读取 PoB `TradeSiteStats.lua` 或 `TradeHelpers.lua` 作为查价 fallback。
+- 在业务代码中维护第二套大规模 Stat ID 文本映射。
+- 对每次查询再运行一遍通用文本 resolver。
+- 国服请求失败后改用国际服接口，反之亦然。
 
-少量由官方语义无法表达的解析规则可以进入 parser，但不得用它们伪造 Stat catalog。
-
-物品、结构化过滤器和静态数据同样只读取相同 realm profile 下的官方 `/data/items`、`/data/filters`、`/data/static`，不读取 Xiletrade 或其他第三方镜像作为 fallback。
+本文后续历史章节如仍描述“官方 Stats 文本匹配”或“PoB Trade Hash”为主要解析路径，均由本节和第 2 节的当前决策取代。
 
 ### 9.2 缓存目录
 
@@ -650,7 +648,7 @@ Electron 本身不提供可靠的系统级按键注入。实现前必须做独�
 
 ### 12.1 原则
 
-解析器只提取交易搜索需要的信息，不复制 PoB 的完整计算语义，也不模拟 Xiletrade 的全部物品类型体系。
+解析器只提取交易搜索和 PoB Raw 投影需要的信息，不复制 PoB 的完整计算语义。结构行为对齐 Xiletrade，但只实现本项目需要的 PoE2 装备入口。
 
 解析器输入是原始剪贴板文本，输出是：
 
@@ -1025,6 +1023,11 @@ HEADER
 6. `被腐化`、`引路石掉落` 后仍可能出现由单独分隔线包围的外观说明。解析器需要 `COSMETIC_OR_NOTE` 状态，不能假设掉落来源一定是全文最后一行。
 7. `使用 ... 造型` 和括号内的 Shift 操作提示只进入 `cosmeticText`。它们不得成为 unresolved modifier，也不应作为普通解析警告。
 8. 面板能量护盾 `191` 与词缀 `能量护盾提高 92%` 分开保存；不得从最终面板值反推基础防御或词缀范围。
+
+9. 查价与自定义装备导入都保留无法投影的原始行：查价通过 `captureWarnings` 提示，自定义装备以 `unsupported` 词缀持久化。任何入口都不能静默丢弃原文或把未知词缀猜成其他 Stat。
+10. 游戏复制文本中的 `品质`、`插槽`、`需求等级`、`仅限`、`范围` 等 PoB 元数据写回 canonical Raw；基础面板伤害、防御和暴击汇总只用于展示，不能当作词缀追加。
+11. 中文 `???` 或 Unicode 替换字符不是有效本地化结果。持久化和渲染层均过滤这类值并回退到 canonical English 文本或数据字典翻译。
+12. `{基底属性}` 归入 implicit，`{强化}`/`{腐化强化}` 归入 enchant；`亵渎的`、`破碎的`、`打造的` 等来源标记转为 PoB line tags，保留组合来源。
 
 ## 13. Stat 模板规范化与匹配
 
@@ -1515,7 +1518,7 @@ CI 不依赖实时官方接口，使用脱敏响应 fixture 和 mock fetch。发
 - live API 不进入 CI 必要条件。
 - 主进程网络与 renderer UI 解耦。
 - 不修改 `public/pob-lua` 生成产物来实现查价逻辑。
-- 不引入 Xiletrade。
+- Xiletrade 上游保持只读，运行产物记录 commit 与输入 hash，不修改或运行其 C# 代码。
 - Windows 打包版完成游戏内捕获；macOS 构建不因 Windows 原生依赖失败，并明确报告能力不可用。
 
 ## 23. 风险与应对

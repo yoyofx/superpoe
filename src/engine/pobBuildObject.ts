@@ -63,7 +63,7 @@ export type PobBuildCommand =
   | { type: 'set-main-socket-group'; groupId: string; section?: string }
   | { type: 'set-active-tree-spec'; specIndex: number; section?: string }
   | { type: 'set-tree-jewel-socket'; nodeId: string; itemId?: string; section?: string }
-  | { type: 'bind-tree-jewel-raw'; nodeId: string; raw: string; section?: string }
+  | { type: 'bind-tree-jewel-raw'; nodeId: string; raw: string; dynamic?: boolean; section?: string }
   | { type: 'replace-tree-state'; state: PobTreeState; section?: string }
 
 export interface PobBuildChange {
@@ -168,7 +168,7 @@ export class PobBuildObject {
     } else if (command.type === 'set-tree-jewel-socket') {
       changed = this.setTreeJewelSocket(command.nodeId, command.itemId)
     } else if (command.type === 'bind-tree-jewel-raw') {
-      changed = this.bindTreeJewelRaw(command.nodeId, command.raw)
+      changed = this.bindTreeJewelRaw(command.nodeId, command.raw, command.dynamic === true)
     } else if (command.type === 'replace-tree-state') {
       changed = this.replaceTreeState(command.state)
     }
@@ -631,11 +631,14 @@ export class PobBuildObject {
   }
 
   /** Add a library item to Items and bind its new id to a passive jewel socket. */
-  private bindTreeJewelRaw(nodeId: string, raw: string): boolean {
+  private bindTreeJewelRaw(nodeId: string, raw: string, dynamic = false): boolean {
     const normalizedRaw = raw.trim()
     if (!nodeId.trim()) throw new Error('Tree jewel socket node id is required')
     if (!normalizedRaw) throw new Error('Jewel Raw cannot be empty')
-    if (!this.getTreeState().nodes.includes(nodeId)) throw new Error('Tree jewel socket must be allocated before binding')
+    if (!this.getTreeState().nodes.includes(nodeId)) {
+      const hasVoicesGrant = /Allocates\s+[1-5]\s+Sinister\s+Jewel\s+sockets?/i.test(this.toXml())
+      if (!dynamic || !hasVoicesGrant) throw new Error('Tree jewel socket must be allocated before binding')
+    }
     const itemsSections = getPobXmlDirectChildren(this.document.root, 'Items')
     if (itemsSections.length !== 1) throw new Error(`PoB XML contains ${itemsSections.length} Items sections; expected exactly one`)
     const items = itemsSections[0]

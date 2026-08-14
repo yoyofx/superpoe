@@ -9,8 +9,8 @@ import {
 } from '@/engine/pobItemCompatibility'
 
 describe('PoB item compatibility normalization', () => {
-  it('documents and normalizes exactly the seven observed WeGame rules', () => {
-    expect(POB_ITEM_COMPATIBILITY_RULES).toHaveLength(7)
+  it('documents and normalizes the observed WeGame rules', () => {
+    expect(POB_ITEM_COMPATIBILITY_RULES).toHaveLength(8)
 
     const raw = [
       'Rarity: RARE',
@@ -24,6 +24,7 @@ describe('PoB item compatibility normalization', () => {
       '+985 to maximum Runic Ward',
       '{rune}40% increased Runic Ward',
       '46% increased Effect of Prefixes',
+      '43% increased Effect of Suffixes',
     ].join('\n')
 
     const result = normalizePobItemRaw(raw)
@@ -37,6 +38,7 @@ describe('PoB item compatibility normalization', () => {
       'legacy-maximum-runic-ward',
       'legacy-increased-runic-ward',
       'prefix-effect-parser-bridge',
+      'suffix-effect-parser-bridge',
     ])
     expect(result.raw).toContain('{crafted}+23% to Fire Resistance')
     expect(result.raw).toContain('{enchant}{rune}-5% to Cold Resistance')
@@ -47,6 +49,7 @@ describe('PoB item compatibility normalization', () => {
     // The prefix-effect line is parsed by the project-owned Lua bridge and
     // remains unchanged in the canonical Item Raw.
     expect(result.raw).toContain('46% increased Effect of Prefixes')
+    expect(result.raw).toContain('43% increased Effect of Suffixes')
   })
 
   it('preserves markers, line endings, and non-item XML content', () => {

@@ -1,7 +1,7 @@
 import { decodeCodeToXml, encodeXmlToCode } from '@/engine/buildCode'
 
 /**
- * The seven item lines observed in WeGame exports that need PoB compatibility
+ * The item lines observed in WeGame exports that need PoB compatibility
  * handling. Keep this list intentionally narrow and evidence based.
  */
 export const POB_ITEM_COMPATIBILITY_RULES = [
@@ -12,6 +12,7 @@ export const POB_ITEM_COMPATIBILITY_RULES = [
   { id: 'legacy-maximum-runic-ward', source: '+X to maximum Runic Ward', target: '+X to maximum Ward' },
   { id: 'legacy-increased-runic-ward', source: 'X% increased Runic Ward', target: 'X% increased Ward' },
   { id: 'prefix-effect-parser-bridge', source: 'X% increased Effect of Prefixes', target: 'Lua LocalPrefixEffect bridge' },
+  { id: 'suffix-effect-parser-bridge', source: 'X% increased Effect of Suffixes', target: 'Lua LocalSuffixEffect bridge' },
 ] as const
 
 export type PobItemCompatibilityRuleId = typeof POB_ITEM_COMPATIBILITY_RULES[number]['id']
@@ -49,6 +50,9 @@ function normalizeItemLine(line: string): { line: string; rule?: PobItemCompatib
   // generic entry for the stat descriptor.
   if (/^\d+(?:\.\d+)?% increased Effect of Prefixes$/.test(body)) {
     return { line, rule: 'prefix-effect-parser-bridge' }
+  }
+  if (/^\d+(?:\.\d+)?% increased Effect of Suffixes$/.test(body)) {
+    return { line, rule: 'suffix-effect-parser-bridge' }
   }
   return { line }
 }

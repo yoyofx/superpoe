@@ -1,4 +1,4 @@
-import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { ArrowLeftRight, Bookmark, Check, ChevronDown, ChevronRight, Clipboard, PackageOpen, PanelRightOpen, Search, Upload, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
@@ -109,6 +109,13 @@ function itemClassLabel(item: EquipmentItem, base: ItemBaseData | undefined, lan
 
 type EquipmentAffixGroup = 'attack' | 'defence' | 'life' | 'mana' | 'resistances' | 'defenceOther' | 'attributes' | 'important' | 'other' | EquipmentAffixSemanticGroup
 type EquipmentSidebarView = EquipmentSemanticView | 'character'
+
+interface EquipmentContextMenuState {
+  itemId: string
+  slotName: string
+  left: number
+  top: number
+}
 
 const AFFIX_CATEGORY_ORDER: EquipmentAffixCategory[] = [
   'addedDamage',
@@ -650,10 +657,10 @@ function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotNam
           type="button"
           className="equipment-copy-pob"
           onClick={onReplace}
-          title={l('Replace this slot from the equipment library', '从装备仓库替换当前槽位', '從裝備倉庫替換目前插槽', '장비 보관함에서 현재 슬롯 교체')}
+          title={l('Change this equipment from the equipment library', '从装备仓库更换当前装备', '從裝備倉庫更換目前裝備', '장비 보관함에서 현재 장비 변경')}
         >
           <ArrowLeftRight />
-          <span>{l('Replace slot', '替换槽位', '替換插槽', '슬롯 교체')}</span>
+          <span>{l('Change equipment', '更换装备', '更換裝備', '장비 변경')}</span>
         </button>}
         <button
           type="button"
@@ -736,6 +743,7 @@ function PaperDollSlot({
   selected,
   activeWeaponSet,
   onSelect,
+  onContextMenu,
   onSelectSocketedItem,
 }: {
   layout: PaperDollSlotLayout
@@ -747,6 +755,7 @@ function PaperDollSlot({
   selected: boolean
   activeWeaponSet: 1 | 2
   onSelect: () => void
+  onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void
   onSelectSocketedItem: (item: EquipmentItem) => void
 }) {
   const { t, lang } = useTranslation()
@@ -763,10 +772,11 @@ function PaperDollSlot({
   return (
     <button
       onClick={onSelect}
+      onContextMenu={onContextMenu}
       disabled={!item && !layout.weaponSet}
       title={item ? undefined : `${slotLabel}${setLabel}`}
       aria-label={item ? `${slotLabel}${setLabel}: ${itemName}` : `${slotLabel}${setLabel}`}
-      className={`paper-doll-slot ${weaponClass} ${rarityClass} ${selected ? 'selected' : ''}`}
+      className={`paper-doll-slot slot-${slotName.toLowerCase().replace(/\s+/g, '-')} ${weaponClass} ${rarityClass} ${selected ? 'selected' : ''}`}
       style={paperDollRectStyle(layout.rect)}
     >
       {item && <FallbackImage
@@ -831,6 +841,7 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const [semanticsById, setSemanticsById] = useState<Record<string, EquipmentItemSemantics>>({})
   const [semanticsLoading, setSemanticsLoading] = useState(false)
   const [replacementOpen, setReplacementOpen] = useState(false)
+  const [contextMenu, setContextMenu] = useState<EquipmentContextMenuState | null>(null)
   const { hostRef, size: paperDollSize } = usePaperDollSize()
   const lastCalculationSelection = useRef<string | null>(null)
   const activePobCode = useMemo(() => getActivePobCode() || '', [getActivePobCode, pobBuildRevision])
@@ -851,6 +862,24 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
     window.addEventListener('keydown', closeOnEscape)
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [inspectorOpen])
+
+  useEffect(() => {
+    if (!contextMenu) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Element && target.closest('.equipment-context-menu')) return
+      setContextMenu(null)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setContextMenu(null)
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [contextMenu])
 
   const equipment = useMemo(() => {
     if (!activePobCode) return null
@@ -970,6 +999,19 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const handleSelectItem = useCallback((itemId: string) => {
     setSelectedId(itemId)
     setInspectorOpen(true)
+  }, [])
+
+  const handleItemContextMenu = useCallback((event: MouseEvent<HTMLButtonElement>, itemId: string, slotName: string) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const menuWidth = 236
+    const menuHeight = 190
+    setContextMenu({
+      itemId,
+      slotName,
+      left: Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8)),
+      top: Math.max(8, Math.min(event.clientY, window.innerHeight - menuHeight - 8)),
+    })
   }, [])
 
   const replaceSelectedSlot = useCallback((entry: EquipmentLibraryEntry) => {
@@ -1118,6 +1160,11 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
                   if (slot.weaponSet) setWeaponSet(slot.weaponSet)
                   if (item) handleSelectItem(item.id)
                 }}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  if (slot.weaponSet) setWeaponSet(slot.weaponSet)
+                  if (item) handleItemContextMenu(event, item.id, slot.slotName)
+                }}
                 onSelectSocketedItem={(socketedItem) => handleSelectItem(socketedItem.id)}
               />
             })}
@@ -1141,11 +1188,48 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
       />}
       {replacementOpen && <EquipmentLibraryPicker
         mode={selectedSlotName?.toLowerCase().includes('jewel socket') ? 'jewel' : 'equipment'}
-        title={{ en: 'Replace current equipment', 'zh-rCN': '替换当前装备', 'zh-rTW': '替換目前裝備', 'ko-KR': '현재 장비 교체' }}
+        title={{ en: 'Change equipment', 'zh-rCN': '更换装备', 'zh-rTW': '更換裝備', 'ko-KR': '장비 변경' }}
         currentSlot={selectedSlotName}
         onClose={() => setReplacementOpen(false)}
         onSelect={replaceSelectedSlot}
       />}
+      {contextMenu && (() => {
+        const contextItem = equipment?.itemsById[contextMenu.itemId]
+        if (!contextItem) return null
+        const contextSlotName = contextMenu.slotName
+        const closeContextMenu = () => setContextMenu(null)
+        const saveFromContextMenu = () => {
+          closeContextMenu()
+          void saveItem(contextItem, contextSlotName).catch((reason) => console.error('Failed to save equipment item', reason))
+        }
+        const priceCheckFromContextMenu = () => {
+          closeContextMenu()
+          void window.superpoePriceCheck?.open({ source: { kind: 'raw', raw: contextItem.raw } })
+        }
+        const replaceFromContextMenu = () => {
+          setSelectedId(contextItem.id)
+          setReplacementOpen(true)
+          closeContextMenu()
+        }
+        const copyFromContextMenu = () => {
+          closeContextMenu()
+          void navigator.clipboard.writeText(contextItem.raw).catch((reason) => console.error('Failed to copy PoB item', reason))
+        }
+        return createPortal(
+          <div
+            className="equipment-context-menu"
+            style={{ left: contextMenu.left, top: contextMenu.top }}
+            role="menu"
+            aria-label={l('Equipment actions', '装备操作', '裝備操作', '장비 작업')}
+          >
+            <button type="button" role="menuitem" onClick={saveFromContextMenu}><Bookmark /><span>{l('Save to library', '收藏到仓库', '收藏至倉庫', '보관함에 저장')}</span></button>
+            <button type="button" role="menuitem" onClick={priceCheckFromContextMenu}><Search /><span>{l('Price check', '查价', '查價', '가격 확인')}</span></button>
+            <button type="button" role="menuitem" onClick={replaceFromContextMenu}><ArrowLeftRight /><span>{l('Change equipment', '更换装备', '更換裝備', '장비 변경')}</span></button>
+            <button type="button" role="menuitem" onClick={copyFromContextMenu}><Clipboard /><span>{l('Copy PoB item', '复制 PoB 词条', '複製 PoB 詞綴', 'PoB 아이템 복사')}</span></button>
+          </div>,
+          document.body,
+        )
+      })()}
     </section>
   )
 }

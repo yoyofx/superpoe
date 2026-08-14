@@ -3,7 +3,7 @@
 > 状态：已实施，按真实 WeGame 导入样本维护
 > 更新日期：2026-08-13
 
-本文记录国服 WeGame 构筑导出中已经确认、且会影响 PoB2 解析或计算的 7 类装备词条。它是装备兼容层的维护清单，不是新的装备数据源，也不替代 PoB2 上游定义。
+本文记录国服 WeGame 构筑导出中已经确认、且会影响 PoB2 解析或计算的 8 类装备词条。它是装备兼容层的维护清单，不是新的装备数据源，也不替代 PoB2 上游定义。
 
 ## 1. 规则清单
 
@@ -16,12 +16,13 @@
 | 5 | `+X to maximum Runic Ward` | `+X to maximum Ward` | `Ward / BASE` | Item Raw 规范化 |
 | 6 | `X% increased Runic Ward` | `X% increased Ward` | `Ward / INC` | Item Raw 规范化 |
 | 7 | `X% increased Effect of Prefixes` | 保留原文 | `LocalPrefixEffect / INC` | 项目自有 Lua bridge 解析 |
+| 8 | `X% increased Effect of Suffixes` | 保留原文 | `LocalSuffixEffect / INC` | 项目自有 Lua bridge 解析 |
 
-其中 `X` 可以是整数、小数或带正负号的数值；已有的 `{crafted}`、`{rune}`、`{enchant}`、`{fractured}`、`{desecrated}` 等 marker 必须原样保留。第 7 条不能改写成一个新的用户可见词条，必须由 bridge 生成 PoB modifier，才能参与前缀效果计算。
+其中 `X` 可以是整数、小数或带正负号的数值；已有的 `{crafted}`、`{rune}`、`{enchant}`、`{fractured}`、`{desecrated}` 等 marker 必须原样保留。第 7、8 条不能改写成新的用户可见词条，必须由 bridge 生成 PoB modifier，才能分别参与前缀和后缀效果计算。
 
 ## 2. 来源和问题背景
 
-PoB2 的 Item Raw 通常使用标准 modifier 文本。部分国服 WeGame 导出把四种抗性写成 `Resistance is` 句式，并把 Runic Ward 写成不被当前解析入口稳定识别的旧句式。`Effect of Prefixes` 在数据目录中有贸易和描述定义，但通用 Item modifier parser 没有直接的泛化入口。
+PoB2 的 Item Raw 通常使用标准 modifier 文本。部分国服 WeGame 导出把四种抗性写成 `Resistance is` 句式，并把 Runic Ward 写成不被当前解析入口稳定识别的旧句式。`Effect of Prefixes` 与 `Effect of Suffixes` 在数据目录中有贸易和描述定义，但通用 Item modifier parser 没有直接的泛化入口。
 
 兼容层只处理已确认的 WeGame 输入差异：
 
@@ -37,11 +38,11 @@ PoB2 的 Item Raw 通常使用标准 modifier 文本。部分国服 WeGame 导�
 
 ### 3.2 计算和显示共用同一边界
 
-构筑加载时先把规范化后的 Item Raw 放入 `PobBuildObject`。装备显示、保存、导出和 Lua 计算都从这个对象的最新 XML snapshot 读取。第 7 条由浏览器 Wasmoon bridge 和 LuaJIT sidecar bridge 使用相同的 `LocalPrefixEffect / INC` 语义解析。
+构筑加载时先把规范化后的 Item Raw 放入 `PobBuildObject`。装备显示、保存、导出和 Lua 计算都从这个对象的最新 XML snapshot 读取。第 7、8 条由浏览器 Wasmoon bridge 和 LuaJIT sidecar bridge 分别使用 `LocalPrefixEffect / INC` 与 `LocalSuffixEffect / INC` 语义解析。
 
 ### 3.3 幂等和无损
 
-规范化必须幂等：同一份输入重复处理不能继续改变文本。只允许改变表中的 6 类文本格式；第 7 条保持 Raw 原文。未触及的 XML 属性、节点顺序、Item ID、ItemSet 引用和其它未知字段必须原样保留。
+规范化必须幂等：同一份输入重复处理不能继续改变文本。只允许改变表中的 6 类文本格式；第 7、8 条保持 Raw 原文。未触及的 XML 属性、节点顺序、Item ID、ItemSet 引用和其它未知字段必须原样保留。
 
 ## 4. 历史 BD 和 Provider 更新
 

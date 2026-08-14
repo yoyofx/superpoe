@@ -14,6 +14,7 @@ import { clearPersistedImportedBuild, getInitialImportedBuildCode } from '@/engi
 import { createActiveBuildSession, type ActiveBuildSession } from '@/engine/pobBuildSession'
 import type { PobBuildChange, PobBuildCommand, PobTreeState } from '@/engine/pobBuildObject'
 import { parseEquipmentObject } from '@/engine/equipment'
+import { getSinisterJewelSocketIds } from '@/engine/sinisterJewelSockets'
 import { DEFAULT_BUILD_REALM, inferBuildRealm } from '@/engine/buildRealm'
 import { getRenderTreePoint, getSelectedAscendancyProjection } from '@/engine/treeRenderShared'
 import { parseTreeDataResource } from '@/engine/treeDataResource'
@@ -2151,14 +2152,15 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     const state = get()
     const node = state.treeData?.nodes[nodeId]
     if (!node || (!node.isJewelSocket && node.type !== 'JewelSocket' && node.type !== 'Socket')) return
-    if (!state.allocatedNodes.has(nodeId)) return
+    const dynamicSinisterSocket = getSinisterJewelSocketIds(state.treeData || undefined, state.getActivePobXml()).has(nodeId)
+    if (!state.allocatedNodes.has(nodeId) && !dynamicSinisterSocket) return
     const snap = snapshotFromState(
       state.allocatedNodes,
       state.availableNodes,
       state.nodeWeaponSets,
       state.nodeAttributeSelections,
     )
-    const change = get().applyPobBuildCommand({ type: 'bind-tree-jewel-raw', nodeId, raw, section: 'tree' })
+    const change = get().applyPobBuildCommand({ type: 'bind-tree-jewel-raw', nodeId, raw, dynamic: dynamicSinisterSocket, section: 'tree' })
     if (!change?.changed) return
     set((current) => ({
       undoStack: [...current.undoStack.slice(-MAX_UNDO + 1), snap],
@@ -2170,7 +2172,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     const state = get()
     const node = state.treeData?.nodes[nodeId]
     if (!node || (!node.isJewelSocket && node.type !== 'JewelSocket' && node.type !== 'Socket')) return
-    if (!state.allocatedNodes.has(nodeId)) return
+    const dynamicSinisterSocket = getSinisterJewelSocketIds(state.treeData || undefined, state.getActivePobXml()).has(nodeId)
+    if (!state.allocatedNodes.has(nodeId) && !dynamicSinisterSocket) return
     const snap = snapshotFromState(
       state.allocatedNodes,
       state.availableNodes,

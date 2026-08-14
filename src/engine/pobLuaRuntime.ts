@@ -166,6 +166,10 @@ export function installBuildHelpers(engine: LuaEngine) {
           if prefixEffect then
             return { modLib.createMod("LocalPrefixEffect", "INC", tonumber(prefixEffect)) }, nil
           end
+          local suffixEffect = normalizedLine:match("^(%d+[%d%.]*)%% increased Effect of Suffixes$")
+          if suffixEffect then
+            return { modLib.createMod("LocalSuffixEffect", "INC", tonumber(suffixEffect)) }, nil
+          end
         end
         local mods, extra = nativeParseMod(normalizedLine, ...)
         if type(extra) == "string" and not extra:find("%S") then

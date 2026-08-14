@@ -233,11 +233,15 @@ function addTemplate(
   templates.push(template)
 }
 
-function applyTemplate(template: TranslationTemplate, source: string): string | null {
+function applyTemplate(
+  template: TranslationTemplate,
+  source: string,
+  translateValue?: (value: string) => string,
+): string | null {
   const match = source.match(template.pattern)
   if (!match) return null
 
-  const values = match.slice(1)
+  const values = match.slice(1).map((value) => translateValue?.(value) ?? value)
   let nextHash = 0
   return template.translated
     .replace(/\{(\d+)\}/g, (_, index: string) => values[Number(index)] ?? '')
@@ -285,7 +289,17 @@ function addTranslationEntry(
   }
 }
 
-function translateText(value: string, language: Language): string {
+function translateStructuredPrefix(value: string, language: Language, depth: number): string | null {
+  if (depth >= 4) return null
+  const match = value.match(/^(.+?)(\s*[:：]\s*)(.+)$/)
+  if (!match) return null
+  const translatedPrefix = translateText(match[1], language, depth + 1)
+  if (translatedPrefix === match[1]) return null
+  const translatedValue = translateText(match[3], language, depth + 1)
+  return `${translatedPrefix}${match[2]}${translatedValue}`
+}
+
+function translateText(value: string, language: Language, depth = 0): string {
   const decodedValue = decodeDisplayEntities(value)
   if (decodedValue !== value) return translateText(decodedValue, language)
   if (language === 'en') return value
@@ -318,9 +332,16 @@ function translateText(value: string, language: Language): string {
 
   const templates = templateDictionaries.get(language) || []
   for (const template of templates) {
-    const translated = applyTemplate(template, key)
+    const translated = applyTemplate(
+      template,
+      key,
+      depth < 4 ? (captured) => translateText(captured, language, depth + 1) : undefined,
+    )
     if (translated) return remember(translated)
   }
+
+  const structured = translateStructuredPrefix(key, language, depth)
+  if (structured) return remember(structured)
 
   if (key.includes('\n')) {
     const lines = key.split('\n')

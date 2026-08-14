@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type {
   CanonicalItemDisplayStat, LibraryModifierGroup, LibraryModifierTag, MarketRealm, PriceCheckContextState, PriceCheckListingReference, PriceCheckListingView, PriceCheckOpenRequest,
-  TradePriceCheckCriteria, TradePriceCheckDraft, TradeSearchResult,
+  TradePriceCheckCriteria, TradePriceCheckDraft, TradeSearchResult, LibraryItemSnapshot,
 } from '../../src/types/market.js'
 import type { MarketStatTextResolution } from '../marketListing.js'
 
@@ -9,9 +9,9 @@ type SearchOutput = TradeSearchResult & { listingIds: string[] }
 
 interface CoordinatorServices {
   context: () => { realm: MarketRealm; language: PriceCheckContextState['language'] }
-  prepare: (realm: MarketRealm, source: PriceCheckOpenRequest['source']) => Promise<TradePriceCheckDraft>
+  prepare: (realm: MarketRealm, source: PriceCheckOpenRequest['source']) => Promise<{ draft: TradePriceCheckDraft; item: LibraryItemSnapshot }>
   leagues: (realm: MarketRealm) => Promise<Array<{ id: string; text: string }>>
-  search: (realm: MarketRealm, source: PriceCheckOpenRequest['source'], leagueId: string, criteria: TradePriceCheckCriteria) => Promise<SearchOutput>
+  search: (realm: MarketRealm, item: LibraryItemSnapshot, leagueId: string, criteria: TradePriceCheckCriteria) => Promise<SearchOutput>
   fetch: (realm: MarketRealm, ids: string[], searchId: string) => Promise<unknown>
   resolveListingStatText?: (realm: MarketRealm, queryStatId: string) => Promise<MarketStatTextResolution | undefined>
   resolveListingItemText?: (realm: MarketRealm, value: string) => { canonicalText?: string }
@@ -78,13 +78,29 @@ function hasPlaceholderText(value: string): boolean {
   return /(?:\?{2,}|\uFFFD)/u.test(value)
 }
 
+function directStatId(value: unknown): string | undefined {
+  const hash = text(record(value).hash)
+  return hash?.replace(/^stat\.(?=(?:explicit|implicit|enchant|rune|fractured|crafted|desecrated)\.)/, '')
+}
+
+function comparableStatTemplate(value: string, realm: MarketRealm): string {
+  return value
+    .replace(/\[([^|\]]+)\|([^\]]+)\]/g, (_match, global: string, cn: string) => realm === 'cn' ? cn : global)
+    .replace(/[-+]?\d+(?:\.\d+)?/g, '#')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase()
+}
+
 function fillStatTemplate(template: string, source: string): string {
   const values = [...source.matchAll(/[-+]?\d+(?:\.\d+)?%?/g)].map((match) => match[0])
   let next = 0
   return template.replace(/#|\{(\d+)\}/g, (_match, index: string | undefined, offset: number) => {
     let value = values[index == null ? next++ : Number(index)]
     const preceding = template[offset - 1]
+    const following = template[offset + 1]
     if (value && (preceding === '+' || preceding === '-') && value.startsWith(preceding)) value = value.slice(1)
+    if (value && following === '%' && value.endsWith('%')) value = value.slice(0, -1)
     return value ?? _match
   })
 }
@@ -116,37 +132,49 @@ async function listingView(
     return values.flatMap((raw, index) => {
       const rawLine = typeof raw === 'string' ? text(raw) : text(record(raw).text) || text(record(raw).description)
       const canonicalGroup: LibraryModifierGroup = group === 'enchant' || group === 'rune' || group === 'implicit' ? group : 'explicit'
+      const indexedStatIds = hashesByIndex(hashGroups[group]).get(index) || []
+      const statIds = [...new Set([directStatId(raw), ...indexedStatIds].filter((id): id is string => Boolean(id)))]
       return rawLine ? [{
         id: `${group}-${index}`,
         displayOrder: displayOrder++,
         group: canonicalGroup,
         sourceTags: [group as LibraryModifierTag],
         text: rawLine,
-        tradeStatIds: [] as string[],
+        ...(realm === 'cn' && !hasPlaceholderText(rawLine) ? { localized: { 'zh-CN': rawLine } } : {}),
+        tradeStatIds: statIds,
       }] : []
     })
   })
-  // Resolve placeholder descriptions asynchronously without changing the
-  // listing schema. The hashes are index-based, so rebuild only affected
-  // modifier text while retaining the API order.
+  // Official listing text is authoritative for display. Catalog text may
+  // supply canonical English only when its localized template matches the
+  // listing line; one stat ID can have multiple context-dependent templates.
   if (resolveListingStatText) {
     const resolvedModifiers = await Promise.all(modifiers.map(async (modifier) => {
       const [group, indexText] = modifier.id.split('-')
       const index = Number(indexText)
-      const hashes = hashesByIndex(hashGroups[group])
-      for (const queryStatId of hashes.get(index) || []) {
+      const rawValues = Array.isArray(item[`${group}Mods`]) ? item[`${group}Mods`] as unknown[] : []
+      const statIds = [...new Set([
+        directStatId(rawValues[index]),
+        ...(hashesByIndex(hashGroups[group]).get(index) || []),
+      ].filter((id): id is string => Boolean(id)))]
+      for (const queryStatId of statIds) {
         const resolved = await resolveListingStatText(realm, queryStatId)
         if (resolved) {
+          const placeholder = hasPlaceholderText(modifier.text)
+          const displayMatches = resolved.displayText
+            ? comparableStatTemplate(resolved.displayText, realm) === comparableStatTemplate(modifier.text, realm)
+            : false
+          if (!placeholder && !displayMatches) continue
           const canonicalText = resolved.canonicalText && !hasPlaceholderText(resolved.canonicalText)
             ? fillStatTemplate(resolved.canonicalText, modifier.text)
             : modifier.text
           const displayText = resolved.displayText && !hasPlaceholderText(resolved.displayText)
-            ? fillStatTemplate(resolved.displayText, modifier.text)
+            ? (placeholder ? fillStatTemplate(resolved.displayText, modifier.text) : modifier.text)
             : undefined
           return {
             ...modifier,
             text: canonicalText,
-            tradeStatIds: [queryStatId],
+            tradeStatIds: statIds,
             ...(displayText
               ? { localized: { 'zh-CN': displayText } }
               : {}),
@@ -196,6 +224,7 @@ async function listingView(
 export class PriceCheckCoordinator {
   private generation = 0
   private source?: PriceCheckOpenRequest['source']
+  private preparedItem?: LibraryItemSnapshot
   private searchContext?: SearchContext
   private state: PriceCheckContextState
 
@@ -209,6 +238,7 @@ export class PriceCheckCoordinator {
   async open(request: PriceCheckOpenRequest): Promise<PriceCheckContextState> {
     const generation = ++this.generation
     this.source = structuredClone(request.source)
+    this.preparedItem = undefined
     this.searchContext = undefined
     const context = this.services.context()
     this.set({
@@ -221,12 +251,13 @@ export class PriceCheckCoordinator {
       ...(request.captureWarnings?.length ? { captureWarnings: [...new Set(request.captureWarnings)].slice(0, 20) } : {}),
     })
     try {
-      const [draft, leagues] = await Promise.all([
+      const [prepared, leagues] = await Promise.all([
         this.services.prepare(context.realm, request.source),
         this.services.leagues(context.realm),
       ])
       if (generation !== this.generation) return this.snapshot()
-      this.set({ ...this.state, phase: 'configuring', draft, leagues })
+      this.preparedItem = prepared.item
+      this.set({ ...this.state, phase: 'configuring', draft: prepared.draft, leagues })
     } catch (error) {
       if (generation === this.generation) this.fail(error)
     }
@@ -234,12 +265,12 @@ export class PriceCheckCoordinator {
   }
 
   async search(leagueId: string, criteria: TradePriceCheckCriteria): Promise<PriceCheckContextState> {
-    if (!this.source) throw new Error('No price check item is active')
+    if (!this.source || !this.preparedItem) throw new Error('No price check item is active')
     const generation = this.generation
     const { realm } = this.state
     this.set({ ...this.state, phase: 'searching', listings: [], search: undefined, error: undefined })
     try {
-      const result = await this.services.search(realm, this.source, leagueId, criteria)
+      const result = await this.services.search(realm, this.preparedItem, leagueId, criteria)
       if (generation !== this.generation) return this.snapshot()
       const { listingIds, ...search } = result
       this.searchContext = { id: randomUUID(), generation, realm, search, ids: listingIds }

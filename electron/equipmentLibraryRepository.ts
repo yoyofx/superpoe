@@ -201,6 +201,52 @@ function deriveItemView(item: CanonicalEquipmentItem): CanonicalItemView {
     stat('CharmSlots', 'Charm Slots:'),
   ].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
   const requirements = [stat('Level', 'LevelReq:')].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+  const parserEvidence = item.parseEvidence?.modifiers || []
+  const consumedEvidence = new Set<number>()
+  const modifiers: CanonicalItemView['modifiers'] = modifierLines.map((rawLine, index) => {
+    const tags = [...rawLine.matchAll(/\{([^}:,]+)(?::[^}]*)?\}/g)].map((match) => match[1].toLowerCase())
+    const group = tags.includes('rune') ? 'rune' : tags.includes('enchant') ? 'enchant' : index < implicitCount ? 'implicit' : 'explicit'
+    const text = rawLine.replace(/\{[^}]+\}/g, '').trim()
+    const support = supportFor(group, text)
+    const evidenceIndex = parserEvidence.findIndex((candidate, candidateIndex) => (
+      !consumedEvidence.has(candidateIndex) && candidate.canonicalText === text && candidate.group === group
+    ))
+    const evidence = evidenceIndex >= 0 ? parserEvidence[evidenceIndex] : undefined
+    if (evidenceIndex >= 0) consumedEvidence.add(evidenceIndex)
+    return {
+      id: `${group}-${index}`,
+      displayOrder: index,
+      group,
+      sourceTags: evidence?.sourceTags || tags.filter((tag): tag is CanonicalItemView['modifiers'][number]['sourceTags'][number] => ['rune', 'enchant', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated', 'mutated', 'corrupted'].includes(tag)),
+      text,
+      ...(support ? { unsupported: !support.supported } : {}),
+      ...(evidence ? { localized: { [evidence.original.locale]: evidence.original.displayText } } : {}),
+      tradeStatIds: evidence?.queryStatId ? [evidence.queryStatId] : evidence?.candidateStatIds || [],
+      ...(evidence?.currentValues[0] != null ? { tradeValue: evidence.currentValues[0] } : {}),
+    }
+  })
+  if (Array.isArray(item.modifierSnapshots)) {
+    modifiers.splice(0, modifiers.length, ...structuredClone(item.modifierSnapshots))
+  }
+  for (let index = 0; index < parserEvidence.length; index += 1) {
+    if (consumedEvidence.has(index)) continue
+    const evidence = parserEvidence[index]
+    const projectedLines = evidence.canonicalText?.split('\n').map((line) => line.trim()).filter(Boolean) || []
+    if (evidence.canonicalText && modifiers.some((modifier) => (
+      modifier.text === evidence.canonicalText || projectedLines.includes(modifier.text)
+    ))) continue
+    modifiers.push({
+      id: `unsupported-${evidence.displayOrder}`,
+      displayOrder: modifiers.length,
+      group: evidence.group,
+      sourceTags: evidence.sourceTags,
+      text: evidence.canonicalText || evidence.original.displayText,
+      unsupported: true,
+      localized: { [evidence.original.locale]: evidence.original.displayText },
+      tradeStatIds: evidence.queryStatId ? [evidence.queryStatId] : evidence.candidateStatIds,
+      ...(evidence.currentValues[0] != null ? { tradeValue: evidence.currentValues[0] } : {}),
+    })
+  }
   return {
     rarity,
     name: title,
@@ -214,22 +260,14 @@ function deriveItemView(item: CanonicalEquipmentItem): CanonicalItemView {
     corrupted: lines.some((line) => /^(?:Twice Corrupted|Corrupted)$/i.test(line)),
     identified: true,
     ...(item.tradeCategory ? { tradeCategory: item.tradeCategory } : {}),
-    modifiers: modifierLines.map((rawLine, index) => {
-      const tags = [...rawLine.matchAll(/\{([^}:,]+)(?::[^}]*)?\}/g)].map((match) => match[1].toLowerCase())
-      const group = tags.includes('rune') ? 'rune' : tags.includes('enchant') ? 'enchant' : index < implicitCount ? 'implicit' : 'explicit'
-      const text = rawLine.replace(/\{[^}]+\}/g, '').trim()
-      const support = supportFor(group, text)
-      return {
-        id: `${group}-${index}`,
-        displayOrder: index,
-        group,
-        sourceTags: tags.filter((tag): tag is CanonicalItemView['modifiers'][number]['sourceTags'][number] => ['rune', 'enchant', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated', 'mutated', 'corrupted'].includes(tag)),
-        text,
-        ...(support ? { unsupported: !support.supported } : {}),
-        tradeStatIds: [],
-      }
-    }),
+    ...(item.itemClass ? { itemClass: item.itemClass } : {}),
+    modifiers,
   }
+}
+
+function usableLocalizedText(value: string | undefined): string | undefined {
+  if (!value || /(?:\?{2,}|\uFFFD)/u.test(value)) return undefined
+  return value
 }
 
 function isPersistedLibraryEntry(value: unknown): value is PersistedEquipmentLibraryEntry {
@@ -248,9 +286,19 @@ function hydrateEntry(entry: PersistedEquipmentLibraryEntry): EquipmentLibraryEn
   const localizedDisplay = displays.find((display) => display.locale !== 'en' && display.locale !== 'unknown')
   if (iconDisplay?.iconUrl) view.iconUrl = iconDisplay.iconUrl
   if (localizedDisplay) {
-      view.localized = { [localizedDisplay.locale]: { name: localizedDisplay.name, baseType: localizedDisplay.baseType } }
+      const localizedName = usableLocalizedText(localizedDisplay.name)
+      const localizedBaseType = usableLocalizedText(localizedDisplay.baseType)
+      if (localizedName || localizedBaseType) {
+        view.localized = {
+          [localizedDisplay.locale]: {
+            name: localizedName || view.name,
+            baseType: localizedBaseType || view.baseType,
+          },
+        }
+      }
       localizedDisplay.modifiers?.forEach((text, index) => {
-        if (view.modifiers[index]) view.modifiers[index].localized = { [localizedDisplay.locale]: text }
+        const usable = usableLocalizedText(text)
+        if (view.modifiers[index] && usable) view.modifiers[index].localized = { [localizedDisplay.locale]: usable }
       })
   }
   return { ...entry, view }
@@ -292,6 +340,7 @@ export class EquipmentLibraryRepository {
     target: { collectionRoot?: EquipmentCollectionRoot; folderId?: string } = {},
   ): EquipmentLibraryEntry {
     if (!isCanonicalItem(normalized.item)) throw new Error('Invalid canonical equipment item')
+    normalized.item.modifierSnapshots = structuredClone(normalized.view.modifiers)
     const fingerprint = fingerprintLibraryItem(normalized.item)
     const now = new Date().toISOString()
     let entry = this.entries.find((candidate) => candidate.sources.some((existing) => existing.sourceKey === source.sourceKey))
@@ -393,6 +442,7 @@ export class EquipmentLibraryRepository {
 
   updateItem(id: string, normalized: NormalizedPobItem, options: { touchUpdatedAt?: boolean } = {}): EquipmentLibraryEntry {
     if (!isCanonicalItem(normalized.item)) throw new Error('Invalid canonical equipment item')
+    normalized.item.modifierSnapshots = structuredClone(normalized.view.modifiers)
     const entry = this.entries.find((candidate) => candidate.id === id)
     if (!entry) throw new Error('Equipment library entry not found')
     entry.item = structuredClone(normalized.item)
@@ -675,6 +725,38 @@ export class EquipmentLibraryRepository {
     return { migrated, unresolved: this.unresolvedLegacyEntries.length }
   }
 
+  async migrateTradeData(bridge: PobItemBridge): Promise<{ migrated: number; unresolved: number }> {
+    const targetVersion = bridge.tradeDataVersion
+    if (!targetVersion) return { migrated: 0, unresolved: 0 }
+    let migrated = 0
+    let unresolved = 0
+    for (let index = 0; index < this.entries.length; index += 1) {
+      const entry = this.entries[index]
+      if (entry.item.tradeDataVersion === targetVersion) continue
+      try {
+        const normalized = await bridge.normalize(entry.item.raw)
+        normalized.view.iconUrl = entry.view.iconUrl
+        normalized.view.localized = entry.view.localized
+        normalized.view.modifiers.forEach((modifier, modifierIndex) => {
+          const localized = entry.view.modifiers[modifierIndex]?.localized
+          if (localized) modifier.localized = localized
+        })
+        normalized.item.modifierSnapshots = structuredClone(normalized.view.modifiers)
+        this.entries[index] = {
+          ...entry,
+          fingerprint: fingerprintLibraryItem(normalized.item),
+          item: normalized.item,
+          view: normalized.view,
+        }
+        migrated += 1
+      } catch {
+        unresolved += 1
+      }
+    }
+    if (migrated) this.save()
+    return { migrated, unresolved }
+  }
+
   async repairCorruptedMarketTitles(
     bridge: PobItemBridge,
     translateCnItem: (value: string) => string | undefined,
@@ -717,9 +799,9 @@ export class EquipmentLibraryRepository {
       const manualSources = entry.sources.filter((source) => source.kind === 'manual')
       if (!manualSources.length) continue
       const canonicalView = deriveItemView(entry.item)
-      const name = toChinese(canonicalView.name)
-      const baseType = toChinese(canonicalView.baseType)
-      const modifiers = canonicalView.modifiers.map((modifier) => statToChinese(modifier.text) || modifier.text)
+      const name = usableLocalizedText(toChinese(canonicalView.name))
+      const baseType = usableLocalizedText(toChinese(canonicalView.baseType))
+      const modifiers = canonicalView.modifiers.map((modifier) => usableLocalizedText(statToChinese(modifier.text)) || modifier.text)
       const hasLocalizedText = !!name || !!baseType || modifiers.some((text, modifierIndex) => text !== canonicalView.modifiers[modifierIndex].text)
       const iconUrl = resolveIcon(canonicalView.rarity, canonicalView.name, canonicalView.baseType)
       let changed = false

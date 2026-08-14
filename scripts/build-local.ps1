@@ -128,6 +128,9 @@ if (-not $SkipUpstreams) {
   Ensure-UpstreamRepo `
     -Url "https://github.com/Chuanhsing/PoeCharm2.git" `
     -Path (Join-Path $Root "upstreams\PoeCharm2")
+  Ensure-UpstreamRepo `
+    -Url "https://github.com/maxensas/xiletrade.git" `
+    -Path (Join-Path $Root "upstreams\Xiletrade")
 } else {
   Write-Step "Skipping upstreams (-SkipUpstreams)"
 }

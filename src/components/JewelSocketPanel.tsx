@@ -4,6 +4,7 @@ import type { EquipmentLibraryEntry } from '@/types/market'
 import { translateEquipmentItemName } from '@/components/equipment/EquipmentItemInspector'
 import { EquipmentLibraryPicker } from '@/components/equipment/EquipmentLibraryPicker'
 import { translateGameText } from '@/i18n/translationLoader'
+import { getSinisterJewelSocketIds } from '@/engine/sinisterJewelSockets'
 import { uiText } from '@/i18n/uiLocale'
 import { useTreeStore } from '@/store/treeStore'
 
@@ -13,6 +14,7 @@ export function JewelSocketPanel() {
   const allocatedNodes = useTreeStore((state) => state.allocatedNodes)
   const getActivePobTreeJewelItems = useTreeStore((state) => state.getActivePobTreeJewelItems)
   const getActivePobTreeJewelRaw = useTreeStore((state) => state.getActivePobTreeJewelRaw)
+  const getActivePobXml = useTreeStore((state) => state.getActivePobXml)
   const getActiveBuildLibraryId = useTreeStore((state) => state.getActiveBuildLibraryId)
   const bindTreeJewelRaw = useTreeStore((state) => state.bindTreeJewelRaw)
   const unbindTreeJewel = useTreeStore((state) => state.unbindTreeJewel)
@@ -27,7 +29,8 @@ export function JewelSocketPanel() {
   const node = selectedNodeId && treeData?.nodes[selectedNodeId]
   const isSocket = Boolean(node && (node.isJewelSocket || node.type === 'JewelSocket' || node.type === 'Socket'))
   const socketedJewel = selectedNodeId ? getActivePobTreeJewelItems()[selectedNodeId] : undefined
-  const allocated = Boolean(selectedNodeId && allocatedNodes.has(selectedNodeId))
+  const allocated = Boolean(selectedNodeId && (allocatedNodes.has(selectedNodeId)
+    || getSinisterJewelSocketIds(treeData || undefined, getActivePobXml()).has(selectedNodeId)))
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
 
   useEffect(() => {

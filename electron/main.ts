@@ -22,9 +22,9 @@ import type {
   EquipmentLibraryMetadataPatch, EquipmentLibrarySource, EquipmentTradeSearchRequest, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
   MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch, TradePriceCheckCriteria, TradePriceCheckPrepareRequest,
   TradePriceCheckSearchRequest,
-  PriceCheckOpenRequest,
+  PriceCheckOpenRequest, LibraryModifierGroup, LibraryItemSnapshot, TradeStatResolutionSnapshot,
 } from '../src/types/market.js'
-import { OfficialTradeProvider, TradeReferenceDataCache } from './tradeService.js'
+import { OfficialTradeProvider, TradeReferenceDataCache, type CatalogSnapshot } from './tradeService.js'
 import { GameWindowService } from './gameWindowService.js'
 import { MarketMonitoringCoordinator } from './marketMonitoring.js'
 import { OpportunityOverlayController } from './opportunityOverlay.js'
@@ -33,6 +33,8 @@ import { desktopText, isUiLanguage, type UiLanguage } from './uiLocale.js'
 import { PriceCheckCoordinator } from './priceCheck/PriceCheckCoordinator.js'
 import { PriceCheckWindowManager } from './priceCheck/PriceCheckWindowManager.js'
 import { GameClipboardService, processIsElevated } from './priceCheck/GameClipboardService.js'
+import { applyXiletradeParseEvidence, parseXiletradeItemText, type CanonicalStatContext, type CanonicalStatMatch, type XiletradeItemParseResult } from './xiletradeItemParser.js'
+import { XiletradeDataCatalog, XiletradeModifierMatcher } from './xiletradeDataCatalog.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
@@ -276,18 +278,23 @@ function registerPriceCheckHotkey(enabled: boolean, requestedHotkey: string): { 
       try {
         if (!priceCheckCoordinator || !priceCheckWindowManager) throw new Error('Price checker is unavailable')
         const clipboardText = await new GameClipboardService(() => gameWindowService).copyItem()
-        // Load the official stat catalog before parsing localized clipboard
-        // lines. This supplies runtime option translations without hardcoded
-        // per-affix mappings (and is cached for subsequent checks).
+        // All clipboard entry points use the vendored Xiletrade catalog. The
+        // official service is contacted only after the query is constructed.
         const clipboardLanguage = detectItemRawLanguage(clipboardText)
+        let canonicalizeStat: StatCanonicalizer | undefined
         if (clipboardLanguage === 'zh-rCN' || clipboardLanguage === 'zh-rTW' || clipboardLanguage === 'ko-KR') {
           await createMarketStatTextResolver('cn')
+          const bundle = await createMarketStatCatalog(clipboardLanguage === 'zh-rCN' ? 'cn' : 'global').catch(() => undefined)
+          if (bundle) canonicalizeStat = createStatCanonicalizer(clipboardLanguage, bundle)
         }
         await createMarketStatTextResolver(defaultRealm)
-        const parsed = gameClipboardToPobRaw(clipboardText)
+        const parsed = parseGameClipboardItem(clipboardText, { canonicalizeStat })
         priceCheckWindowManager.show()
         await priceCheckCoordinator.open({
-          source: { kind: 'raw', raw: parsed.raw },
+          // Keep the original clipboard payload as the coordinator source.
+          // prepare/search can then rebuild the same evidence-rich projection
+          // instead of losing localized text and stat IDs after the first pass.
+          source: { kind: 'raw', raw: clipboardText },
           ...(parsed.unresolved.length ? { captureWarnings: parsed.unresolved } : {}),
         })
       } catch (error) {
@@ -522,7 +529,12 @@ function createWindow(): BrowserWindow {
   marketViewManager = new MarketViewManager(window, (state) => {
     if (!window.isDestroyed()) window.webContents.send('market:state-changed', state)
   }, tradeCredentialStore)
-  tradeProvider = new OfficialTradeProvider(marketViewManager, new TradeReferenceDataCache(path.join(userDataPath, 'trade', 'reference')))
+  tradeProvider = new OfficialTradeProvider(
+    marketViewManager,
+    new TradeReferenceDataCache(path.join(userDataPath, 'trade', 'reference')),
+    async (realm) => (await createMarketStatCatalog(realm)).display,
+    projectTradeItemForRealm,
+  )
   priceCheckWindowManager = new PriceCheckWindowManager(
     priceCheckPreloadPath,
     rendererUrl,
@@ -536,15 +548,15 @@ function createWindow(): BrowserWindow {
     prepare: async (realm, source) => {
       if (!tradeProvider) throw new Error('Trade provider is unavailable')
       const item = await priceCheckSnapshot({ realm, target: source })
-      return (await tradeProvider.prepare(realm, item)).draft
+      const prepared = await tradeProvider.prepare(realm, item)
+      return { draft: prepared.draft, item: prepared.resolvedItem }
     },
     leagues: async (realm) => {
       if (!tradeProvider) throw new Error('Trade provider is unavailable')
       return tradeProvider.leagues(realm)
     },
-    search: async (realm, source, leagueId, criteria) => {
+    search: async (realm, item, leagueId, criteria) => {
       if (!tradeProvider) throw new Error('Trade provider is unavailable')
-      const item = await priceCheckSnapshot({ realm, target: source })
       const result = await tradeProvider.search(realm, leagueId, item, criteria)
       const { resolvedItem: _resolvedItem, ...response } = result
       return response
@@ -644,10 +656,16 @@ function createWindow(): BrowserWindow {
 let updateChannel: UpdateChannel = 'dev'
 let updateCheckIntervalMinutes = 60
 const pobLuaService = new PobLuaService()
-const pobItemBridge = new PobItemBridge(pobLuaService)
 const itemTranslations = new ItemTranslationIndex()
 const itemTranslationIndexes = new Map<ItemRawLanguage, ItemTranslationIndex>([['zh-rCN', itemTranslations]])
 const itemIcons = new ItemIconIndex()
+let xiletradeDataCatalog: XiletradeDataCatalog | undefined
+interface MarketStatCatalogBundle {
+  display: CatalogSnapshot
+  canonical: CatalogSnapshot
+}
+
+const marketStatCatalogPromises = new Map<MarketRealm, Promise<MarketStatCatalogBundle>>()
 const marketStatResolverPromises = new Map<MarketRealm, Promise<(queryStatId: string) => MarketStatTextResolution | undefined>>()
 
 function getItemTranslationIndex(language: ItemRawLanguage): ItemTranslationIndex {
@@ -666,6 +684,42 @@ function getItemTranslationIndex(language: ItemRawLanguage): ItemTranslationInde
   return index
 }
 
+function getXiletradeDataCatalog(): XiletradeDataCatalog {
+  if (!xiletradeDataCatalog) {
+    const root = path.join(app.getAppPath(), app.isPackaged ? 'dist' : 'public', 'data', 'xiletrade')
+    xiletradeDataCatalog = new XiletradeDataCatalog(root)
+  }
+  return xiletradeDataCatalog
+}
+
+const pobItemBridge = new PobItemBridge(pobLuaService, getXiletradeDataCatalog())
+
+/** Loads the display catalog and the canonical English catalog for a realm. */
+async function createMarketStatCatalog(realm: MarketRealm): Promise<MarketStatCatalogBundle> {
+  const existing = marketStatCatalogPromises.get(realm)
+  if (existing) return existing
+  const pending = (async () => {
+    const source = getXiletradeDataCatalog()
+    const display = source.get(realm === 'cn' ? 'zh-CN' : 'en-US')
+    const canonical = source.get('en-US')
+    const snapshot = (catalog: typeof display, targetRealm: MarketRealm): CatalogSnapshot => ({
+      realm: targetRealm,
+      fetchedAt: new Date(0).toISOString(),
+      payloadHash: `xiletrade:${catalog.upstreamCommit}:${catalog.locale}`,
+      entries: catalog.entries.map((entry) => ({
+        ...entry,
+        option: entry.option?.options?.length
+          ? { options: entry.option.options.map((option) => ({ id: String(option.id), text: option.text })) }
+          : undefined,
+      })),
+    })
+    return { display: snapshot(display, realm), canonical: snapshot(canonical, 'global') }
+  })()
+  marketStatCatalogPromises.set(realm, pending)
+  void pending.catch(() => { marketStatCatalogPromises.delete(realm) })
+  return pending
+}
+
 /**
  * Builds a stat-ID lookup from the official catalogs. CN entries are kept for
  * display while the global catalog supplies PoB's canonical English text.
@@ -676,11 +730,7 @@ async function createMarketStatTextResolver(realm: MarketRealm): Promise<(queryS
   const existing = marketStatResolverPromises.get(realm)
   if (existing) return existing
   const pending = (async () => {
-    const displayCatalog = await tradeProvider!.stats(realm)
-    let canonicalCatalog = displayCatalog
-    if (realm === 'cn') {
-      try { canonicalCatalog = await tradeProvider!.stats('global') } catch { /* CN catalog still provides a safe display fallback. */ }
-    }
+    const { display: displayCatalog, canonical: canonicalCatalog } = await createMarketStatCatalog(realm)
     const displayById = new Map(displayCatalog.entries.map((entry) => [entry.id, entry.text]))
     const canonicalById = new Map(canonicalCatalog.entries.map((entry) => [entry.id, entry.text]))
     if (realm === 'cn') {
@@ -700,6 +750,68 @@ async function createMarketStatTextResolver(realm: MarketRealm): Promise<(queryS
   return pending
 }
 
+type StatCanonicalizer = (value: string, group?: LibraryModifierGroup, context?: CanonicalStatContext, nextLine?: string) => CanonicalStatMatch | undefined
+
+function createStatCanonicalizer(
+  language: ItemRawLanguage,
+  _bundle?: MarketStatCatalogBundle,
+): StatCanonicalizer {
+  const locale = language === 'zh-rCN' ? 'zh-CN' : language === 'zh-rTW' ? 'zh-TW' : language === 'ko-KR' ? 'ko-KR' : 'en'
+  const matcher = new XiletradeModifierMatcher(getXiletradeDataCatalog().bundle(locale))
+  return (value, group = 'explicit', context = {}, nextLine = '') => matcher.match(value, group, context, nextLine)
+}
+
+function projectTradeItemForRealm(realm: MarketRealm, item: LibraryItemSnapshot, catalog: CatalogSnapshot): LibraryItemSnapshot {
+  const locale = realm === 'cn' ? 'zh-CN' : 'en'
+  const source = getXiletradeDataCatalog()
+  const context = source.resolveItemContext(locale, item)
+  const matcher = new XiletradeModifierMatcher(source.bundle(locale))
+  const catalogHas = (id: string) => {
+    const [baseId] = id.split('|')
+    return catalog.entries.some((entry) => entry.id === id || entry.id === baseId)
+  }
+  return {
+    ...structuredClone(item),
+    itemClass: context.itemClass,
+    tradeCategory: context.tradeCategory,
+    modifiers: item.modifiers.map((modifier) => {
+      const prior = modifier.tradeResolutions.find((candidate) => candidate.realm === realm)
+      let candidateStatIds = [...new Set(modifier.tradeResolutions.flatMap((candidate) => (
+        candidate.queryStatId ? [candidate.queryStatId] : candidate.candidateStatIds
+      )).filter(catalogHas))]
+      let resolvedBy: TradeStatResolutionSnapshot['resolvedBy'] = prior?.resolvedBy || 'exact-text'
+      if (candidateStatIds.length !== 1) {
+        const localized = realm === 'cn' ? modifier.localized?.['zh-CN']?.displayText : undefined
+        const match = matcher.match(localized || modifier.original.displayText, modifier.group, context)
+        const matchedIds = match?.queryStatId ? [match.queryStatId] : match?.candidateStatIds || []
+        const validMatches = matchedIds.filter(catalogHas)
+        if (validMatches.length) candidateStatIds = [...new Set(validMatches)]
+        resolvedBy = 'exact-text'
+      }
+      const queryStatId = candidateStatIds.length === 1 ? candidateStatIds[0] : undefined
+      const [baseStatId, optionId] = queryStatId?.split('|') || []
+      const resolution: TradeStatResolutionSnapshot = {
+        realm,
+        queryStatId,
+        baseStatId,
+        optionId,
+        candidateStatIds,
+        source: modifier.sourceTags.find((tag) => ['enchant', 'rune', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated'].includes(tag)) as TradeStatResolutionSnapshot['source'] || 'unknown',
+        valueMode: optionId ? 'fixed-option' : modifier.valueMode,
+        valueTransform: prior?.valueTransform || 'identity',
+        resolvedBy,
+        catalogFetchedAt: catalog.fetchedAt,
+        catalogPayloadHash: catalog.payloadHash,
+        status: queryStatId ? 'resolved' : candidateStatIds.length ? 'ambiguous' : 'unresolved',
+      }
+      return {
+        ...structuredClone(modifier),
+        tradeResolutions: [...modifier.tradeResolutions.filter((candidate) => candidate.realm !== realm), resolution],
+      }
+    }),
+  }
+}
+
 function resolveMarketItemText(realm: MarketRealm, value: string): { canonicalText?: string } {
   if (realm !== 'cn') return { canonicalText: value }
   return { canonicalText: itemTranslations.toEnglish(value) || itemTranslations.statToEnglish(value) || value }
@@ -708,6 +820,15 @@ function resolveMarketItemText(realm: MarketRealm, value: string): { canonicalTe
 interface GameClipboardParseResult {
   raw: string
   unresolved: string[]
+  evidence?: XiletradeItemParseResult['evidence']
+  localized?: XiletradeItemParseResult['localized']
+}
+
+interface GameClipboardParseOptions {
+  /** Price checks may use the resolved subset; library imports must be complete. */
+  strict?: boolean
+  /** Optional official-catalog canonicalization for localized stat lines. */
+  canonicalizeStat?: StatCanonicalizer
 }
 
 function usableLocalizedText(value: string | undefined): string | undefined {
@@ -715,7 +836,7 @@ function usableLocalizedText(value: string | undefined): string | undefined {
   return value
 }
 
-function translatePobRawForPriceCheck(value: string): GameClipboardParseResult {
+function translatePobRawForPriceCheck(value: string, canonicalizeStat?: StatCanonicalizer): GameClipboardParseResult {
   const normalized = value.replace(/\r\n/g, '\n').trim()
   const language = detectItemRawLanguage(normalized)
   if (language === 'en') return { raw: normalized, unresolved: [] }
@@ -728,12 +849,13 @@ function translatePobRawForPriceCheck(value: string): GameClipboardParseResult {
     if (metadata.test(line) || /^\{[^}]+\}/u.test(line)) {
       const prefix = line.match(/^(?:\{[^}]+\})+/u)?.[0] || ''
       const body = line.slice(prefix.length)
-      const translated = translations.statToEnglish(body)
+      const group = /\{(?:rune)\}/i.test(prefix) ? 'rune' : /\{(?:enchant)\}/i.test(prefix) ? 'enchant' : /\{(?:implicit)\}/i.test(prefix) ? 'implicit' : 'explicit'
+      const translated = canonicalizeStat?.(body, group)?.canonicalText || translations.statToEnglish(body)
       output.push(prefix + (translated || body))
       continue
     }
     const translatedName = translations.toEnglish(line)
-    const translatedStat = translations.statToEnglish(line)
+    const translatedStat = canonicalizeStat?.(line, 'explicit')?.canonicalText || translations.statToEnglish(line)
     const translated = translatedStat || translatedName || (/^[\x20-\x7e]+$/.test(line) ? line : undefined)
     if (translated) output.push(translated)
     else unresolved.push(line)
@@ -741,7 +863,7 @@ function translatePobRawForPriceCheck(value: string): GameClipboardParseResult {
   return { raw: output.join('\n'), unresolved: [...new Set(unresolved)] }
 }
 
-function gameClipboardToPobRaw(value: string): GameClipboardParseResult {
+function gameClipboardToPobRaw(value: string, options: GameClipboardParseOptions = {}): GameClipboardParseResult {
   const normalized = value.replace(/\r\n/g, '\n').trim()
   const language = detectItemRawLanguage(normalized)
   if (language === 'en') return { raw: normalized, unresolved: [] }
@@ -755,10 +877,26 @@ function gameClipboardToPobRaw(value: string): GameClipboardParseResult {
   // in a separate section, so retain that fallback for compatibility.
   const header = rarityIndex >= 0 ? firstSection.slice(0, rarityIndex + 1) : firstSection
   const inlineNames = rarityIndex >= 0 ? firstSection.slice(rarityIndex + 1) : []
-  const names = inlineNames.length ? inlineNames : sections[1]
+  // Depending on the client version, the game may put a warning such as
+  // "You cannot use this item" in the header and move the name/base type to
+  // the next section. Select the last two name-like lines rather than treating
+  // that warning as the item name.
+  const nameNoise = /^(?:You cannot use|你无法使用|您无法使用|你無法使用|사용할 수 없는|이 아이템을 사용할 수 없습니다)/iu
+  const nameMetadata = /^(?:物品类别|物品類別|稀有度|Rarity|品质|品質|物理伤害|物理傷害|元素伤害|元素傷害|暴击率|暴擊率|每秒攻击次数|每秒攻擊次數|需求|插槽|物品等级|物品等級|Item Level|Sockets|Quality|품질|소켓|요구|아이템 레벨|물리 피해|원소 피해|치명타 확률|초당 공격 횟수)\s*[：:]/iu
+  const nameCandidates = (lines: string[]) => lines.filter((line) => line && !nameNoise.test(line) && !nameMetadata.test(line))
+  let names = nameCandidates(inlineNames).slice(-2)
+  if (names.length < 2) {
+    for (const section of sections.slice(1)) {
+      const candidates = nameCandidates(section)
+      if (candidates.length >= 2) {
+        names = candidates.slice(-2)
+        break
+      }
+    }
+  }
   const field = (patterns: RegExp[]) => header.find((line) => patterns.some((pattern) => pattern.test(line)))?.split(/:\s*|：\s*/).slice(1).join(':').trim()
   const raritySource = field([/^Rarity\s*:/i, /^稀有度\s*[：:]/u, /^희귀도\s*[：:]/u]) || ''
-  const rarity = /unique|傳奇|传奇|유니크/i.test(raritySource) ? 'UNIQUE'
+  const rarity = /unique|傳奇|传奇|유니크|고유/i.test(raritySource) ? 'UNIQUE'
     : /rare|稀有|희귀/i.test(raritySource) ? 'RARE'
       : /magic|魔法|마법/i.test(raritySource) ? 'MAGIC' : 'NORMAL'
   const displayName = names[0] || ''
@@ -769,10 +907,50 @@ function gameClipboardToPobRaw(value: string): GameClipboardParseResult {
   const itemLevelLine = sections.flat().find((line) => /^(?:Item Level|物品等级|物品等級|아이템 레벨)\s*[：:]/iu.test(line))
   const itemLevel = itemLevelLine?.match(/\d+/)?.[0]
   const itemLevelSection = sections.findIndex((section) => section.some((line) => line === itemLevelLine))
-  const modifierLines: Array<{ text: string; rune: boolean; implicit: boolean }> = []
+  // Jewel metadata is part of the game's clipboard format, but it appears in
+  // the section before the item level. Keep it in the canonical PoB raw so
+  // unique jewels retain their limit/radius behavior when saved manually.
+  const metadataLines: string[] = []
+  for (const line of sections.flat()) {
+    const cleaned = line.replace(/\s*\((?:augmented|强化|強化)\)\s*$/iu, '').trim()
+    const limited = cleaned.match(/^(?:Limited to|仅限|僅限)\s*[：:]\s*(\d+)(?:\s+Historic)?$/iu)
+    if (limited) {
+      metadataLines.push(`Limited to: ${limited[1]}${/\s+Historic$/iu.test(cleaned) ? ' Historic' : ''}`)
+      continue
+    }
+    const radius = cleaned.match(/^(?:Radius|范围|範圍)\s*[：:]\s*(Variable|变量|變數|Very Small|极小|極小|Small|小型|Medium-Small|中小|中小型|Medium|中型|Large|大型|Very Large|极大|極大|Massive|巨大)$/iu)
+    if (radius) {
+      const value = radius[1].toLowerCase() === 'variable' || radius[1] === '变量' || radius[1] === '變數'
+        ? 'Variable'
+        : radius[1]
+            .replace(/^极小$/u, 'Very Small')
+            .replace(/^極小$/u, 'Very Small')
+            .replace(/^小型$/u, 'Small')
+            .replace(/^中小$/u, 'Medium-Small')
+            .replace(/^中小型$/u, 'Medium-Small')
+            .replace(/^中型$/u, 'Medium')
+            .replace(/^大型$/u, 'Large')
+            .replace(/^极大$/u, 'Very Large')
+            .replace(/^極大$/u, 'Very Large')
+            .replace(/^巨大$/u, 'Massive')
+      metadataLines.push(`Radius: ${value}`)
+    }
+  }
+  const qualityLine = sections.flat().find((line) => /^(?:Quality|品质|品質|품질)\s*[：:]/iu.test(line))
+  const quality = qualityLine?.match(/([+-]?\d+(?:\.\d+)?)\s*%/u)?.[1]
+  if (quality) metadataLines.push(`Quality: ${quality}`)
+  const socketsLine = sections.flat().find((line) => /^(?:Sockets|插槽|소켓)\s*[：:]/iu.test(line))
+  const socketText = socketsLine?.split(/[：:]/u).slice(1).join(':').match(/[SJ]/gi)?.join(' ')
+  if (socketText) metadataLines.push(`Sockets: ${socketText}`)
+  const requirementLine = sections.flat().find((line) => /^(?:需求|Requirements?|요구)\s*[：:]/iu.test(line))
+  const levelRequirement = requirementLine?.match(/(?:等级|等級|Level)\s*(\d+)/iu)?.[1]
+  if (levelRequirement) metadataLines.push(`LevelReq: ${levelRequirement}`)
+
+  const modifierLines: Array<{ text: string; tags: string[]; implicit: boolean }> = []
   const unresolved: string[] = []
   const footerMarker = /^(?:Corrupted|Twice Corrupted|Sanctified|Sanctified Item|已腐化|已污染|被腐化|已腐化|双重腐化|圣化|圣化物品|Split|分裂|分裂之物|引路石掉落|Waystone Drop|타락|이중 타락|분열|웨이스톤 드롭)$/iu
   let footerMode = false
+  let pendingMarkerTags = new Set<string>()
   for (const section of sections.slice(Math.max(2, itemLevelSection + 1))) {
     if (footerMode) continue
     if (section.some((line) => footerMarker.test(line))) {
@@ -781,18 +959,43 @@ function gameClipboardToPobRaw(value: string): GameClipboardParseResult {
     }
     const isFlavorSection = section.some((line) => /^(?:[“"]|'.*')/u.test(line))
       || section.every((line) => /[，。！？；、——…]$/u.test(line))
-    if (isFlavorSection) continue
-    let implicit = false
-    if (section.some((line) => /^\{\s*(?:基底属性|基底屬性|Base Properties)\s*\}$/u.test(line))) implicit = true
+    // The client also copies interaction hints (for example how to remove a
+    // cosmetic effect). They are presentation text, not item modifiers.
+    const isInteractionHint = section.some((line) => /^(?:使用|放置到|右键点击|按住|Use|Place|Right[- ]click|Hold)\b/iu.test(line))
+    if (isFlavorSection || isInteractionHint) continue
+    const markerLine = section.find((line) => /^\{.*\}$/u.test(line)) || ''
+    const markerTags = new Set<string>()
+    if (/(?:基底属性|基底屬性|Base Properties|기본 속성)/iu.test(markerLine)) markerTags.add('implicit')
+    if (/(?:强化|強化|강화)\s*\}?$/iu.test(markerLine) || /(?:腐化强化|腐化強化|타락 강화)/iu.test(markerLine)) markerTags.add('enchant')
+    if (/(?:破碎的|碎裂的|Fractured|분열된)/iu.test(markerLine)) markerTags.add('fractured')
+    if (/(?:打造的|製作的|Crafted|제작된)/iu.test(markerLine)) markerTags.add('crafted')
+    if (/(?:亵渎的|褻瀆的|Desecrated|모독된)/iu.test(markerLine)) markerTags.add('desecrated')
+    for (const tag of pendingMarkerTags) markerTags.add(tag)
+    const markerOnly = markerLine !== '' && section.every((line) => /^\{.*\}$/u.test(line))
+    if (markerOnly) {
+      pendingMarkerTags = markerTags
+      continue
+    }
+    pendingMarkerTags = new Set<string>()
+    const implicit = markerTags.has('implicit')
     for (const sourceLine of section) {
       if (/^\{.*\}$/u.test(sourceLine) || footerMarker.test(sourceLine)) continue
       const rune = /\((?:rune|符文)\)$/i.test(sourceLine)
       const cleaned = sourceLine.replace(/\s*\((?:rune|符文)\)\s*$/i, '').replace(/^\{[^}]+\}/, '').trim()
-      const translated = translations.statToEnglish(cleaned) || (/^[\x20-\x7e]+$/.test(cleaned) ? cleaned : undefined)
-      if (translated && !/^(?:Requirements?|Sockets?|Quality|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second)\s*:/i.test(translated)) {
+      const statGroup: LibraryModifierGroup = rune
+        ? 'rune'
+        : markerTags.has('enchant') ? 'enchant'
+          : markerTags.has('implicit') ? 'implicit'
+            : 'explicit'
+      const translated = options.canonicalizeStat?.(cleaned, statGroup)?.canonicalText
+        || translations.statToEnglish(cleaned)
+        || (/^[\x20-\x7e]+$/.test(cleaned) ? cleaned : undefined)
+      if (translated && !/^(?:Requirements?|Sockets?|Quality|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second|Weapon Range|Armour|Evasion|Energy Shield|Ward|Spirit|Charm Slots|Requires)\s*:/i.test(translated)) {
+        const tags = [...markerTags]
+        if (rune) tags.push('rune')
         modifierLines.push({
           text: translated,
-          rune,
+          tags: [...new Set(tags)],
           // Unique base properties and granted skills are implicit item data in
           // PoB, even when the game clipboard puts them in separate sections.
           implicit: !rune && (implicit || /^Grants Skill:/i.test(translated)),
@@ -802,85 +1005,117 @@ function gameClipboardToPobRaw(value: string): GameClipboardParseResult {
       }
     }
   }
-  const uniqueModifiers = [...new Map(modifierLines.map((modifier) => [`${modifier.rune}:${modifier.text}`, modifier])).values()]
+  const uniqueModifiers = [...new Map(modifierLines.map((modifier) => [`${modifier.tags.join(',')}:${modifier.text}`, modifier])).values()]
   const uniqueUnresolved = [...new Set(unresolved)]
-  if (!uniqueModifiers.length) {
-    const detail = uniqueUnresolved.length ? ` Unsupported ${language} item lines: ${uniqueUnresolved.join(' | ')}` : ''
+  if (options.strict && uniqueUnresolved.length) {
+    throw new Error(`Unsupported ${language} item lines: ${uniqueUnresolved.join(' | ')}`)
+  }
+  if (!uniqueModifiers.length && uniqueUnresolved.length) {
+    const detail = ` Unsupported ${language} item lines: ${uniqueUnresolved.join(' | ')}`
     throw new Error(`No supported modifiers could be resolved from the game clipboard.${detail}`)
   }
   // Unknown localized lines are deliberately excluded from PoB raw. They are
   // retained as diagnostics so a partial query can still use all recognized
   // modifiers without silently submitting an unsafe approximation.
   if (uniqueUnresolved.length) console.warn(`[PriceCheck] Unsupported ${language} item lines: ${uniqueUnresolved.join(' | ')}`)
-  const implicitCount = uniqueModifiers.filter((modifier) => modifier.rune || modifier.implicit).length
+  // PoB counts rune/enchant/base-implicit lines in the implicit header. This
+  // keeps corrupted enchants and rune effects in their native parser section.
+  const implicitCount = uniqueModifiers.filter((modifier) => modifier.tags.includes('rune') || modifier.tags.includes('enchant') || modifier.implicit).length
   const raw = [`Rarity: ${rarity}`]
   if ((rarity === 'RARE' || rarity === 'UNIQUE') && name && name !== baseType) raw.push(name)
   raw.push(baseType)
   if (itemLevel) raw.push(`Item Level: ${itemLevel}`)
+  raw.push(...[...new Set(metadataLines)])
   raw.push(`Implicits: ${implicitCount}`)
-  raw.push(...uniqueModifiers.map((modifier) => `${modifier.rune ? '{rune}' : modifier.implicit ? '{implicit}' : ''}${modifier.text}`))
+  raw.push(...uniqueModifiers.map((modifier) => {
+    const tags = modifier.tags.filter((tag) => tag !== 'implicit')
+    const prefix = `${modifier.implicit ? '{implicit}' : ''}${tags.map((tag) => `{${tag}}`).join('')}`
+    return `${prefix}${modifier.text}`
+  }))
   const footerLines = sections.flat()
   if (footerLines.some((line) => /^(?:Twice Corrupted|双重腐化|이중 타락)$/iu.test(line))) raw.push('Twice Corrupted')
   else if (footerLines.some((line) => /^(?:Corrupted|已腐化|已污染|被腐化|已腐化|타락)$/iu.test(line))) raw.push('Corrupted')
   return { raw: raw.join('\n'), unresolved: uniqueUnresolved }
 }
 
+function parseGameClipboardItem(value: string, options: GameClipboardParseOptions = {}): XiletradeItemParseResult {
+  const language = detectItemRawLanguage(value)
+  const translations = getItemTranslationIndex(language)
+  const locale = language === 'zh-rCN' ? 'zh-CN'
+    : language === 'zh-rTW' ? 'zh-TW'
+      : language === 'ko-KR' ? 'ko-KR' : 'en'
+  return parseXiletradeItemText(value, {
+    strict: options.strict,
+    language: {
+      locale,
+      toEnglish: (text) => translations.toEnglish(text),
+      statToEnglish: (text) => translations.statToEnglish(text),
+    },
+    canonicalizeStat: options.canonicalizeStat
+      ? (text, group, itemClass, nextLine) => options.canonicalizeStat?.(text, group, itemClass, nextLine)
+      : createStatCanonicalizer(language),
+    parsingRules: getXiletradeDataCatalog().get(locale).rules,
+    upstreamCommit: getXiletradeDataCatalog().get(locale).upstreamCommit,
+  })
+}
+
 async function priceCheckSnapshot(request: TradePriceCheckPrepareRequest) {
   const target = request.target
   if (!target || typeof target !== 'object') throw new Error('Invalid price check target')
   const sourceText = target.kind === 'raw' ? target.raw : target.kind === 'library' ? equipmentLibrary.get(target.entryId)?.item.raw : ''
+  const sourceLanguage = sourceText ? detectItemRawLanguage(sourceText) : 'en'
+  let canonicalizeStat: StatCanonicalizer | undefined
   if (sourceText && detectItemRawLanguage(sourceText) !== 'en') {
     await createMarketStatTextResolver('cn')
     await createMarketStatTextResolver(request.realm)
+    const bundle = await createMarketStatCatalog(sourceLanguage === 'zh-rCN' ? 'cn' : 'global').catch(() => undefined)
+    if (bundle) canonicalizeStat = createStatCanonicalizer(sourceLanguage, bundle)
   }
   const statResolver = await createMarketStatTextResolver(request.realm).catch(() => () => undefined)
   if (target.kind === 'library') {
-    const entry = equipmentLibrary.get(validateShortString(target.entryId, 'library entry ID', 128))
+    const entryId = validateShortString(target.entryId, 'library entry ID', 128)
+    let entry = equipmentLibrary.get(entryId)
     if (!entry) throw new Error('Equipment library entry not found')
-    const translatedRaw = translatePobRawForPriceCheck(entry.item.raw)
-    const normalized = await pobItemBridge.normalize(translatedRaw.raw)
-    const modifiers = normalized.view.modifiers.map((modifier, index) => {
-      const existing = entry.view.modifiers[index]?.localized || modifier.localized
-      // Rebuild localized text from the canonical English modifier first.
-      // Older library entries may contain stale '?' placeholders produced by
-      // the previous template translator.
-      const fallback = modifier.tradeStatIds.map((id) => statResolver(id)).find(Boolean)
-      const canonicalText = usableLocalizedText(modifier.text) || usableLocalizedText(fallback?.canonicalText)
-      const chinese = usableLocalizedText(canonicalText ? itemTranslations.statToChinese(canonicalText) : undefined)
-        || usableLocalizedText(fallback?.displayText)
-        || usableLocalizedText(existing?.['zh-CN'])
-      const canonicalModifier = canonicalText ? { ...modifier, text: canonicalText } : modifier
-      return {
-        ...canonicalModifier,
-        localized: chinese ? { ...existing, 'zh-CN': chinese } : existing,
-      }
-    })
-    return canonicalToLegacySnapshot(normalized, {
-      ...normalized.view,
-      iconUrl: entry.view.iconUrl,
-      localized: entry.view.localized,
-      modifiers,
-    }, request.realm)
+    if (!Array.isArray(entry.item.modifierSnapshots)) {
+      const migrated = await pobItemBridge.normalize(entry.item.raw)
+      migrated.view.iconUrl = entry.view.iconUrl
+      migrated.view.localized = entry.view.localized
+      migrated.view.modifiers.forEach((modifier, index) => {
+        if (entry?.view.modifiers[index]?.localized) modifier.localized = entry.view.modifiers[index].localized
+      })
+      entry = equipmentLibrary.updateItem(entryId, migrated, { touchUpdatedAt: false })
+    }
+    // Library entries are already canonical snapshots. Re-running translation
+    // and Lua after the one-time legacy migration could reorder or drop
+    // multi-line evidence, so price checks project directly from persistence.
+    return canonicalToLegacySnapshot({ item: entry.item, view: entry.view }, entry.view, request.realm)
   }
   if (target.kind !== 'raw' || typeof target.raw !== 'string' || !target.raw.trim() || target.raw.length > 100_000) {
     throw new Error('Invalid PoB item raw')
   }
-  const translatedRaw = translatePobRawForPriceCheck(target.raw)
-  const normalized = await pobItemBridge.normalize(translatedRaw.raw)
-  const name = itemTranslations.toChinese(normalized.view.name)
-  const baseType = itemTranslations.toChinese(normalized.view.baseType)
+  const parsedRaw = sourceLanguage !== 'en' && /^--------+$/m.test(target.raw)
+    ? parseGameClipboardItem(target.raw, { canonicalizeStat })
+    : translatePobRawForPriceCheck(target.raw, canonicalizeStat)
+  const normalized = await pobItemBridge.normalize(parsedRaw.raw)
+  if (parsedRaw.evidence) normalized.item.parseEvidence = parsedRaw.evidence
+  applyXiletradeParseEvidence(normalized.view, parsedRaw.evidence)
+  const evidenceLocale = parsedRaw.evidence?.locale
+  const name = parsedRaw.localized?.name || itemTranslations.toChinese(normalized.view.name)
+  const baseType = parsedRaw.localized?.baseType || itemTranslations.toChinese(normalized.view.baseType)
   const modifiers = normalized.view.modifiers.map((modifier) => {
+    const evidence = parsedRaw.evidence?.modifiers.find((candidate) => candidate.canonicalText === modifier.text)
     const fallback = modifier.tradeStatIds.map((id) => statResolver(id)).find(Boolean)
     const canonicalText = usableLocalizedText(modifier.text) || usableLocalizedText(fallback?.canonicalText)
-    const localized = usableLocalizedText(canonicalText ? itemTranslations.statToChinese(canonicalText) : undefined)
+    const localized = usableLocalizedText(evidence?.original.displayText)
+      || usableLocalizedText(canonicalText ? itemTranslations.statToChinese(canonicalText) : undefined)
       || usableLocalizedText(fallback?.displayText)
     const canonicalModifier = canonicalText ? { ...modifier, text: canonicalText } : modifier
-    return { ...canonicalModifier, ...(localized ? { localized: { 'zh-CN': localized } } : {}) }
+    return { ...canonicalModifier, ...(localized ? { localized: { [evidenceLocale || 'zh-CN']: localized } } : {}) }
   })
   return canonicalToLegacySnapshot(normalized, {
     ...normalized.view,
     modifiers,
-    ...((name || baseType) ? { localized: { 'zh-CN': { name: name || normalized.view.name, baseType: baseType || normalized.view.baseType } } } : {}),
+    ...((name || baseType) ? { localized: { [evidenceLocale || 'zh-CN']: { name: name || normalized.view.name, baseType: baseType || normalized.view.baseType } } } : {}),
   }, request.realm)
 }
 
@@ -898,6 +1133,28 @@ async function savePriceCheckListing(ref: MarketDomListingRef) {
   const normalized = await pobItemBridge.normalize(imported.item.raw)
   normalized.view.iconUrl = imported.item.iconUrl
   normalized.view.localized = imported.item.localized
+  const officialByGroup = new Map<LibraryModifierGroup, typeof imported.item.preview.modifiers>()
+  for (const modifier of imported.item.preview.modifiers) {
+    const list = officialByGroup.get(modifier.group) || []
+    list.push(modifier)
+    officialByGroup.set(modifier.group, list)
+  }
+  const consumedByGroup = new Map<LibraryModifierGroup, number>()
+  normalized.view.modifiers = normalized.view.modifiers.map((modifier) => {
+    const index = consumedByGroup.get(modifier.group) || 0
+    consumedByGroup.set(modifier.group, index + 1)
+    const official = officialByGroup.get(modifier.group)?.[index]
+    const resolution = official?.tradeResolutions.find((candidate) => candidate.realm === ref.realm)
+    if (!official || !resolution) return modifier
+    const statIds = resolution.queryStatId ? [resolution.queryStatId] : resolution.candidateStatIds
+    return {
+      ...modifier,
+      sourceTags: official.sourceTags,
+      tradeStatIds: [...new Set(statIds)],
+      ...(official.currentValues[0] != null ? { tradeValue: official.currentValues[0], tradeValueNegated: resolution.valueTransform === 'negate' } : {}),
+    }
+  })
+  normalized.item.modifierSnapshots = structuredClone(normalized.view.modifiers)
   if (imported.source.display?.locale && imported.source.display.locale !== 'en') {
     imported.source.display.modifiers?.forEach((displayText, index) => {
       if (normalized.view.modifiers[index]) {
@@ -1567,19 +1824,61 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     } else {
       throw new Error('Invalid equipment library source')
     }
-    const normalized = await pobItemBridge.normalize(input.raw)
+    // Manual entries may come directly from the game's localized clipboard.
+    // Normalize those through the same data-driven converter used by the
+    // price checker, while leaving canonical PoB Raw untouched.
+    const inputLanguage = detectItemRawLanguage(input.raw)
+    let canonicalizeStat: StatCanonicalizer | undefined
+    if (inputLanguage !== 'en') {
+      const bundle = await createMarketStatCatalog(inputLanguage === 'zh-rCN' ? 'cn' : 'global').catch(() => undefined)
+      if (bundle) canonicalizeStat = createStatCanonicalizer(inputLanguage, bundle)
+    }
+    const parsedInput: GameClipboardParseResult = inputLanguage !== 'en' && /^--------+$/m.test(input.raw)
+      ? parseGameClipboardItem(input.raw, { canonicalizeStat })
+      : translatePobRawForPriceCheck(input.raw, canonicalizeStat)
+    const normalized = await pobItemBridge.normalize(parsedInput.raw)
+    if (parsedInput.evidence) normalized.item.parseEvidence = parsedInput.evidence
+    applyXiletradeParseEvidence(normalized.view, parsedInput.evidence)
+    normalized.item.itemClass = normalized.view.itemClass
+    normalized.item.tradeCategory = normalized.view.tradeCategory
     normalized.view.iconUrl = input.iconUrl || itemIcons.resolve(normalized.view.rarity, normalized.view.name, normalized.view.baseType)
     let localized = input.localized
     let localizedModifiers: string[] | undefined
     if (input.source?.kind === 'manual' && !localized) {
-      const localizedName = itemTranslations.toChinese(normalized.view.name)
-      const localizedBaseType = itemTranslations.toChinese(normalized.view.baseType)
+      const parsedLocale = parsedInput.evidence?.locale || 'zh-CN'
+      const localizedName = usableLocalizedText(parsedInput.localized?.name) || usableLocalizedText(itemTranslations.toChinese(normalized.view.name))
+      const localizedBaseType = usableLocalizedText(parsedInput.localized?.baseType) || usableLocalizedText(itemTranslations.toChinese(normalized.view.baseType))
       if (localizedName || localizedBaseType) {
-        localized = { 'zh-CN': { name: localizedName || normalized.view.name, baseType: localizedBaseType || normalized.view.baseType } }
+        localized = { [parsedLocale]: { name: localizedName || normalized.view.name, baseType: localizedBaseType || normalized.view.baseType } }
       }
-      localizedModifiers = normalized.view.modifiers.map((modifier) => itemTranslations.statToChinese(modifier.text) || modifier.text)
+      const translatedModifiers = normalized.view.modifiers.map((modifier) => {
+        const evidence = parsedInput.evidence?.modifiers.find((candidate) => candidate.canonicalText === modifier.text)
+        return usableLocalizedText(evidence?.original.displayText)
+          || (parsedLocale === 'zh-CN' ? usableLocalizedText(itemTranslations.statToChinese(modifier.text)) : undefined)
+      })
+      localizedModifiers = translatedModifiers.some(Boolean)
+        ? normalized.view.modifiers.map((modifier, index) => translatedModifiers[index] || modifier.text)
+        : undefined
       normalized.view.modifiers.forEach((modifier, index) => {
-        if (localizedModifiers?.[index] !== modifier.text) modifier.localized = { 'zh-CN': localizedModifiers![index] }
+        const evidence = parsedInput.evidence?.modifiers.find((candidate) => candidate.canonicalText === modifier.text)
+        const translated = usableLocalizedText(evidence?.original.displayText) || localizedModifiers?.[index]
+        if (translated && translated !== modifier.text) modifier.localized = { [parsedLocale]: translated }
+      })
+    }
+    const parsedCanonicalTexts = new Set(normalized.view.modifiers.map((modifier) => modifier.text))
+    for (const evidence of parsedInput.evidence?.modifiers || []) {
+      const projectedLines = evidence.canonicalText?.split('\n').map((line) => line.trim()).filter(Boolean) || []
+      if (evidence.canonicalText && (parsedCanonicalTexts.has(evidence.canonicalText) || projectedLines.some((line) => parsedCanonicalTexts.has(line)))) continue
+      normalized.view.modifiers.push({
+        id: `unsupported-${evidence.displayOrder}`,
+        displayOrder: normalized.view.modifiers.length,
+        group: evidence.group,
+        sourceTags: evidence.sourceTags,
+        text: evidence.canonicalText || evidence.original.displayText,
+        unsupported: true,
+        localized: { [evidence.original.locale]: evidence.original.displayText },
+        tradeStatIds: evidence.queryStatId ? [evidence.queryStatId] : evidence.candidateStatIds,
+        tradeValue: evidence.currentValues[0],
       })
     }
     normalized.view.localized = localized
@@ -1635,8 +1934,11 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const leagueId = validateShortString(input.leagueId, 'trade league', 128)
     if (!tradeProvider || !marketViewManager) throw new Error('Trade provider is unavailable')
     try {
-      const normalized = await pobItemBridge.normalize(entry.item.raw)
-      const legacyItem = canonicalToLegacySnapshot(normalized, { ...normalized.view, iconUrl: entry.view.iconUrl, localized: entry.view.localized }, realm)
+      const legacyItem = canonicalToLegacySnapshot(
+        { item: entry.item, view: entry.view },
+        { ...entry.view, iconUrl: entry.view.iconUrl, localized: entry.view.localized },
+        realm,
+      )
       const criteria = (input as { criteria?: unknown }).criteria == null ? undefined : validatePriceCheckCriteria((input as { criteria?: unknown }).criteria)
       const result = await tradeProvider.search(realm, leagueId, legacyItem, criteria)
       marketViewManager.openSource(realm, result.url)
@@ -1758,6 +2060,14 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     }
   } catch (error) {
     console.error('[Equipment library] v1 migration failed; original file was left unchanged', error)
+  }
+  try {
+    const migration = await equipmentLibrary.migrateTradeData(pobItemBridge)
+    if (migration.migrated || migration.unresolved) {
+      console.info(`[Equipment library] Xiletrade migration: ${migration.migrated} migrated, ${migration.unresolved} unresolved`)
+    }
+  } catch (error) {
+    console.error('[Equipment library] Xiletrade migration failed; existing entries were left unchanged', error)
   }
   try {
     const repaired = await equipmentLibrary.repairCorruptedMarketTitles(pobItemBridge, (text) => itemTranslations.toEnglish(text))

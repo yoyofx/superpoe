@@ -56,6 +56,36 @@ describe('EquipmentLibraryRepository', () => {
     expect(store.list({ query: '最大生命' })).toHaveLength(1)
   })
 
+  it('restores clipboard parsing evidence and unsupported localized modifiers after restart', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'superpoe-library-evidence-test-'))
+    temporaryDirectories.push(directory)
+    const filePath = path.join(directory, 'library.json')
+    const snapshot = item()
+    snapshot.view.modifiers[0].tradeStatIds = ['explicit.stat_life']
+    snapshot.item.parseEvidence = {
+      parser: 'xiletrade-compatible', schemaVersion: 1, upstreamCommit: 'test-commit',
+      parsedAt: '2026-08-14T00:00:00.000Z', locale: 'zh-CN', originalText: '游戏复制原文',
+      modifiers: [{
+        displayOrder: 0, group: 'explicit', sourceTags: ['explicit'],
+        original: { locale: 'zh-CN', lines: ['无法识别的词缀 12%'], displayText: '无法识别的词缀 12%' },
+        currentValues: [12], tierRanges: [], candidateStatIds: [], status: 'unresolved',
+      }],
+    }
+    const source = {
+      kind: 'manual' as const, sourceKey: 'manual:evidence', capturedAt: '2026-08-14T00:00:00.000Z',
+      updatedAt: '2026-08-14T00:00:00.000Z', display: { locale: 'zh-CN' as const, name: '灾厄外壳', baseType: '专家六翼战袍' },
+    }
+    new EquipmentLibraryRepository(filePath).upsert(snapshot, source)
+
+    const restored = new EquipmentLibraryRepository(filePath).list()[0]
+    expect(restored.item.parseEvidence?.originalText).toBe('游戏复制原文')
+    expect(restored.view.modifiers[0].tradeStatIds).toEqual(['explicit.stat_life'])
+    expect(restored.view.modifiers).toContainEqual(expect.objectContaining({
+      text: '无法识别的词缀 12%', unsupported: true, tradeValue: 12,
+      localized: { 'zh-CN': '无法识别的词缀 12%' },
+    }))
+  })
+
   it('updates a source idempotently without merging a different collection record by fingerprint', () => {
     const store = repository()
     store.upsert(item(), marketSource(2))
@@ -230,6 +260,28 @@ describe('EquipmentLibraryRepository', () => {
     expect(store.list()).toHaveLength(1)
     expect(readFileSync(v2Path, 'utf8')).toContain('unresolvedLegacyEntries')
     expect(readFileSync(`${v1Path}.migration-backup.json`, 'utf8')).toContain('unresolved-entry')
+  })
+
+  it('migrates legacy trade projections once per Xiletrade data version', async () => {
+    const store = repository()
+    store.upsert(item(), marketSource(2))
+    let normalizeCalls = 0
+    const migratedItem = item()
+    migratedItem.item.tradeDataVersion = 'xiletrade:test-commit'
+    migratedItem.view.modifiers[0].tradeStatIds = ['explicit.stat_life']
+    const bridge = {
+      tradeDataVersion: 'xiletrade:test-commit',
+      normalize: async () => {
+        normalizeCalls += 1
+        return structuredClone(migratedItem)
+      },
+    }
+
+    expect(await store.migrateTradeData(bridge as never)).toEqual({ migrated: 1, unresolved: 0 })
+    expect(store.list()[0].item.tradeDataVersion).toBe('xiletrade:test-commit')
+    expect(store.list()[0].view.modifiers[0].tradeStatIds).toEqual(['explicit.stat_life'])
+    expect(await store.migrateTradeData(bridge as never)).toEqual({ migrated: 0, unresolved: 0 })
+    expect(normalizeCalls).toBe(1)
   })
 
   it('migrates v2 mixed-source entries into independent collection records', () => {

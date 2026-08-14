@@ -8,13 +8,11 @@ import type {
 import type { MarketViewManager } from './marketView.js'
 import { OfficialTradeRequestError } from './officialTradeRequestError.js'
 
-interface CatalogOption { id: string; text: string }
-interface CatalogEntry { id: string; text: string; type?: string; option?: { options?: CatalogOption[] } }
-interface CatalogSnapshot { realm: MarketRealm; fetchedAt: string; payloadHash: string; entries: CatalogEntry[] }
+export interface CatalogOption { id: string; text: string }
+export interface CatalogEntry { id: string; text: string; type?: string; option?: { options?: CatalogOption[] } }
+export interface CatalogSnapshot { realm: MarketRealm; fetchedAt: string; payloadHash: string; entries: CatalogEntry[] }
 
 interface SearchResponse { id?: unknown; total?: unknown; result?: unknown }
-
-type TradeStatMatch = { entry: CatalogEntry; queryStatId: string; option?: CatalogOption }
 
 const CATALOG_TTL = 24 * 60 * 60 * 1_000
 
@@ -24,49 +22,6 @@ function record(value: unknown): Record<string, unknown> {
 
 function clean(value: unknown): string {
   return typeof value === 'string' ? value.replace(/<<[^>]+>>/g, '').trim() : ''
-}
-
-function normalizeTemplate(value: string): string {
-  return value
-    // The Chinese advanced clipboard/catalog may include the Bonded label
-    // as presentation context. It is not part of the searchable stat text.
-    .replace(/^(?:bonded|羁绊|羈絆)\s*[:：]\s*/iu, '')
-    .replace(/[-+]?\d+(?:\.\d+)?/g, (number) => number.startsWith('-') ? '-#' : '#')
-    .replace(/\+(?=#)/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLocaleLowerCase()
-}
-
-function normalizeTemplateVariants(value: string): string[] {
-  const normalized = normalizeTemplate(value)
-  const variants = new Set([normalized])
-
-  // PoB's Chinese presentation uses "# 级技能", while the official CN
-  // catalog uses "等级 # 技能" for granted skills.
-  const grantedSkill = normalized.match(/^获得技能\s*[:：]\s*#\s*级\s*(.+)$/iu)
-  if (grantedSkill) variants.add(`获得技能: 等级 # ${grantedSkill[1]}`)
-
-  const catalogOrder = normalized.match(/^获得技能\s*[:：]\s*等级\s*#\s*(.+)$/iu)
-  if (catalogOrder) variants.add(`获得技能: # 级${catalogOrder[1]}`)
-
-  return [...variants]
-}
-
-function normalizeText(value: string): string {
-  return value.replace(/\s+/g, ' ').trim().toLocaleLowerCase()
-}
-
-function statScope(queryStatId: string): string {
-  return queryStatId.split('.')[0] || ''
-}
-
-function preferredStatScopes(modifier: LibraryModifier): Set<string> {
-  const known = new Set(['explicit', 'implicit', 'enchant', 'rune', 'fractured', 'crafted', 'desecrated'])
-  const tagged = modifier.sourceTags.filter((tag) => known.has(tag))
-  if (tagged.length) return new Set(tagged)
-  if (modifier.group === 'implicit' || modifier.group === 'enchant' || modifier.group === 'rune') return new Set([modifier.group])
-  return new Set(['explicit'])
 }
 
 function parseEntries(payload: unknown): CatalogEntry[] {
@@ -139,63 +94,6 @@ export class TradeReferenceDataCache {
 
 }
 
-export class TradeStatResolver {
-  resolve(item: LibraryItemSnapshot, catalog: CatalogSnapshot): LibraryItemSnapshot {
-    return {
-      ...structuredClone(item),
-      modifiers: item.modifiers.map((modifier) => this.resolveModifier(modifier, catalog)),
-    }
-  }
-
-  private resolveModifier(modifier: LibraryModifier, catalog: CatalogSnapshot): LibraryModifier {
-    const previous = modifier.tradeResolutions.find((resolution) => resolution.realm === catalog.realm)
-    const existing = previous?.status === 'resolved' ? previous : undefined
-    if (existing) {
-      const [baseId] = existing.queryStatId?.split('|') || []
-      if (baseId && catalog.entries.some((entry) => entry.id === baseId)) return structuredClone(modifier)
-    }
-    const sourceText = catalog.realm === 'cn'
-      ? modifier.localized?.['zh-CN']?.displayText || modifier.original.displayText
-      : modifier.original.displayText
-    const templates = normalizeTemplateVariants(sourceText)
-    const directMatches: TradeStatMatch[] = catalog.entries
-      .filter((entry) => templates.includes(normalizeTemplate(entry.text)))
-      .map((entry) => ({ entry, queryStatId: entry.id }))
-    const optionMatches: TradeStatMatch[] = catalog.entries.flatMap((entry) => (entry.option?.options || []).flatMap((option) => (
-      normalizeText(entry.text.replace('#', option.text)) === normalizeText(sourceText)
-        ? [{ entry, option, queryStatId: `${entry.id}|${option.id}` }]
-        : []
-    )))
-    const allMatches = [...new Map([...optionMatches, ...directMatches].map((match) => [match.queryStatId, match])).values()]
-    const scopes = preferredStatScopes(modifier)
-    const scopedMatches = allMatches.filter((match) => scopes.has(statScope(match.queryStatId)))
-    const matches = scopedMatches.length ? scopedMatches : allMatches
-    const candidates = matches.map((match) => match.queryStatId).slice(0, 20)
-    const match = matches.length === 1 ? matches[0] : undefined
-    const scopedResolution = scopedMatches.length > 0 && matches.length > 0
-    const fixedOption = match ? (match as { option?: CatalogOption }).option : undefined
-    const resolution: TradeStatResolutionSnapshot = {
-      realm: catalog.realm,
-      queryStatId: scopedResolution || match ? matches[0]?.queryStatId : undefined,
-      baseStatId: match?.entry.id,
-      optionId: fixedOption?.id,
-      candidateStatIds: candidates,
-      source: modifier.sourceTags.find((tag) => ['enchant', 'rune', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated'].includes(tag)) as TradeStatResolutionSnapshot['source'] || 'unknown',
-      catalogTemplate: match?.entry.text,
-      valueMode: fixedOption ? 'fixed-option' : modifier.valueMode,
-      valueTransform: previous?.valueTransform || 'identity',
-      resolvedBy: 'exact-text',
-      catalogFetchedAt: catalog.fetchedAt,
-      catalogPayloadHash: catalog.payloadHash,
-      status: matches.length === 0 ? 'unresolved' : (matches.length === 1 || scopedResolution) ? 'resolved' : 'ambiguous',
-    }
-    return {
-      ...structuredClone(modifier),
-      tradeResolutions: [...modifier.tradeResolutions.filter((candidate) => candidate.realm !== catalog.realm), resolution],
-    }
-  }
-}
-
 function localizedTradeBaseType(item: LibraryItemSnapshot): string | undefined {
   const localized = clean(item.localized?.['zh-CN']?.baseType)
   if (!localized) return undefined
@@ -224,8 +122,7 @@ function resolutionFor(modifier: LibraryModifier, realm: MarketRealm): TradeStat
 
 function resolutionIds(resolution: TradeStatResolutionSnapshot | undefined): string[] {
   if (!resolution) return []
-  return [...new Set((resolution.candidateStatIds.length ? resolution.candidateStatIds : [resolution.queryStatId])
-    .filter((id): id is string => Boolean(id)))]
+  return resolution.queryStatId ? [resolution.queryStatId] : []
 }
 
 function finiteValue(value: number | undefined): number | undefined {
@@ -280,7 +177,7 @@ export function createPriceCheckDraft(item: LibraryItemSnapshot, realm: MarketRe
 
 export function buildTradeQuery(item: LibraryItemSnapshot, realm: MarketRealm, criteria?: TradePriceCheckCriteria): { query: unknown; resolved: number; unresolved: number } {
   const selected = criteria ? new Map(criteria.modifiers.map((modifier) => [modifier.id, modifier])) : undefined
-  const statGroups = item.modifiers.flatMap((modifier) => {
+  const statFilters = item.modifiers.flatMap((modifier) => {
     const selection = selected?.get(modifier.id)
     if (selected && !selection) return []
     const resolution = resolutionFor(modifier, realm)
@@ -289,13 +186,9 @@ export function buildTradeQuery(item: LibraryItemSnapshot, realm: MarketRealm, c
     const value = resolution.valueMode === 'numeric'
       ? (criteria ? selectedRange(resolution, selection?.min, selection?.max) : { min: modifier.currentValues[0] })
       : undefined
-    const filters = statIds.map((id) => ({ id, ...(value ? { value } : {}) }))
-    return [{
-      type: statIds.length > 1 ? 'count' : 'and',
-      ...(statIds.length > 1 ? { value: { min: 1 } } : {}),
-      filters,
-    }]
+    return statIds.map((id) => ({ id, ...(value ? { value } : {}) }))
   })
+  const statGroups = statFilters.length ? [{ type: 'and', filters: statFilters }] : []
   const unique = isUniqueItem(item)
   const type = queryItemType(item, realm)
   const miscFilters = criteria && (criteria.itemLevelMin != null || criteria.itemLevelMax != null)
@@ -317,8 +210,8 @@ export function buildTradeQuery(item: LibraryItemSnapshot, realm: MarketRealm, c
       },
       sort: { price: 'asc' },
     },
-    resolved: statGroups.length,
-    unresolved: requestedCount - statGroups.length,
+    resolved: statFilters.length,
+    unresolved: requestedCount - statFilters.length,
   }
 }
 
@@ -375,7 +268,12 @@ export class OfficialTradeProvider {
   private queue: Promise<void> = Promise.resolve()
   private lastRequestAt = 0
 
-  constructor(private readonly manager: MarketViewManager, private readonly cache: TradeReferenceDataCache) {}
+  constructor(
+    private readonly manager: MarketViewManager,
+    private readonly cache: TradeReferenceDataCache,
+    private readonly embeddedCatalog?: (realm: MarketRealm) => Promise<CatalogSnapshot>,
+    private readonly projectItem?: (realm: MarketRealm, item: LibraryItemSnapshot, catalog: CatalogSnapshot) => Promise<LibraryItemSnapshot> | LibraryItemSnapshot,
+  ) {}
 
   stats(realm: MarketRealm): Promise<CatalogSnapshot> {
     return this.cache.get(realm, () => this.limited(() => this.manager.fetchStats(realm)))
@@ -393,8 +291,8 @@ export class OfficialTradeProvider {
   }
 
   async prepare(realm: MarketRealm, item: LibraryItemSnapshot): Promise<{ draft: TradePriceCheckDraft; resolvedItem: LibraryItemSnapshot }> {
-    const catalog = await this.stats(realm)
-    const resolvedItem = new TradeStatResolver().resolve(item, catalog)
+    const catalog = this.embeddedCatalog ? await this.embeddedCatalog(realm) : await this.stats(realm)
+    const resolvedItem = this.projectItem ? await this.projectItem(realm, item, catalog) : structuredClone(item)
     return { draft: createPriceCheckDraft(resolvedItem, realm), resolvedItem }
   }
 

@@ -41,6 +41,7 @@ const TEST_TRANSLATION_FILES = [
   'tree_rt.csv',
   'passiveTree.csv',
   'statDescriptions.csv',
+  'GUI.csv',
   'Query_Mod.csv',
   'Gems_data.txt.csv',
 ]
@@ -191,6 +192,27 @@ describe('translationLoader', () => {
 
     await loadTranslations('zh-rCN')
     expect(translateGameText('Has 2 Charm Slots', 'zh-rCN')).toBe('具有 2 个咒符位')
+  })
+
+  it('translates compound enchantment templates and structured limits', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/data/Translate/translation-files.json') {
+        return { ok: true, status: 200, json: async () => testManifest(), text: async () => JSON.stringify(testManifest()) }
+      }
+      const file = url.split('/').pop() || ''
+      const rows = file === 'statDescriptions.csv'
+        ? '"Allocates {0}","配置 {0}"\n'
+        : file === 'tree_dn.csv'
+          ? '"Efficient Inscriptions",高效铭文\n"Paragon",典范\n'
+          : file === 'GUI.csv' ? '"Limited to",仅限\n' : ''
+      return { ok: true, status: 200, text: async () => rows }
+    }))
+
+    await loadTranslations('zh-rCN')
+
+    expect(translateGameText('Allocates Efficient Inscriptions', 'zh-rCN')).toBe('配置 高效铭文')
+    expect(translateGameText('Allocates Paragon', 'zh-rCN')).toBe('配置 典范')
+    expect(translateGameText('Limited to: 1', 'zh-rCN')).toBe('仅限: 1')
   })
 
   it('falls back to translating multi-line passive text line by line', async () => {

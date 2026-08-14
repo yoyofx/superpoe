@@ -10,6 +10,7 @@ import {
 } from 'pixi.js'
 import { screenToTree } from '@/engine/coordinate'
 import { getAttributeNodeDisplay } from '@/engine/attributeNodes'
+import { getSinisterJewelSocketIds, isSinisterJewelSocket } from '@/engine/sinisterJewelSockets'
 import { getConnectorState } from '@/engine/connectorSprites'
 import {
   getEffectiveAllocationPath,
@@ -266,6 +267,7 @@ export function TreePixiCanvas() {
   const nodeWeaponSets = useTreeStore((s) => s.nodeWeaponSets)
   const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
   const getActivePobTreeJewelItems = useTreeStore((s) => s.getActivePobTreeJewelItems)
+  const getActivePobXml = useTreeStore((s) => s.getActivePobXml)
   const pobBuildRevision = useTreeStore((s) => s.pobBuildRevision)
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
@@ -275,6 +277,9 @@ export function TreePixiCanvas() {
   const passiveJewels = useMemo(() => {
     return getActivePobTreeJewelItems() as NodeJewels
   }, [getActivePobTreeJewelItems, pobBuildRevision])
+  const dynamicSinisterSocketIds = useMemo(() => {
+    return getSinisterJewelSocketIds(treeData || undefined, getActivePobXml())
+  }, [getActivePobXml, pobBuildRevision, treeData])
   const previewCacheScope = [
     treeVersion,
     selectedClassId,
@@ -620,7 +625,12 @@ export function TreePixiCanvas() {
 
       for (const [id, node] of nodeList) {
         const [sx, sy] = nodeScreenCache.get(id)!
-        const isAllocated = isEffectivelyAllocated(id, allocatedNodes, implicitRoots)
+        // PoB grants Sinister sockets from Voices item modifiers at runtime;
+        // they are intentionally absent from Spec.nodes. Treat only the
+        // dynamically granted sockets as allocated for their own frame and
+        // jewel overlay, without adding them to ordinary passive allocation.
+        const isDynamicSinisterSocket = isSinisterJewelSocket(node) && dynamicSinisterSocketIds.has(id)
+        const isAllocated = isEffectivelyAllocated(id, allocatedNodes, implicitRoots) || isDynamicSinisterSocket
         const isAvailable = !isAllocated && availableNodes.has(id)
         const r = NODE_RADIUS[node.type] ?? 6
         const sr = r
@@ -720,7 +730,8 @@ export function TreePixiCanvas() {
       for (const [id, jewel] of Object.entries(passiveJewels)) {
         const node = treeData.nodes[id]
         const point = nodeScreenCache.get(id)
-        if (!node || !point || !isEffectivelyAllocated(id, allocatedNodes, implicitRoots)) continue
+        const dynamicSocketAllocated = Boolean(node && isSinisterJewelSocket(node) && dynamicSinisterSocketIds.has(id))
+        if (!node || !point || (!isEffectivelyAllocated(id, allocatedNodes, implicitRoots) && !dynamicSocketAllocated)) continue
         const radius = (NODE_RADIUS[node.type] ?? 9) * 0.92
         const itemIconUrl = resolveItemIconName(jewel.rarity === 'UNIQUE' ? jewel.name : jewel.baseType, itemIconIndex)
           || resolveItemIconName(jewel.baseType, itemIconIndex)
