@@ -7,6 +7,7 @@ import { create } from 'zustand'
 
 
 import type { BuildRealm, TreeData, SavedBuild } from '@/types/tree'
+import type { JewelRadiusPreview } from '@/types/jewelRadius'
 import { LANGUAGE_OPTIONS, getLocalizedSearchText, loadTranslations, type Language } from '@/i18n/translationLoader'
 import { decodeBuildCode, encodeBuildCode, getBuildActiveWeaponSet, getBuildCharacterLevel, getEncodeClassPayload } from '@/engine/buildCode'
 import { calculateBuild, rankSkillsByEffectiveDps } from '@/engine/pobLuaClient'
@@ -345,6 +346,8 @@ interface TreeStore {
 
   selectedNodeId: string | null
 
+  jewelRadiusPreview: JewelRadiusPreview | null
+
 
 
 
@@ -605,6 +608,9 @@ interface TreeStore {
 
 
   setSelectedNode: (id: string | null) => void
+
+  setJewelRadiusPreview: (preview: JewelRadiusPreview | null) => void
+  clearJewelRadiusPreview: () => void
 
 
 
@@ -1087,6 +1093,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
   selectedNodeId: null,
+
+  jewelRadiusPreview: null,
 
 
 
@@ -1708,7 +1716,13 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-  setSelectedNode: (id) => set({ selectedNodeId: id }),
+  setSelectedNode: (id) => set((state) => ({
+    selectedNodeId: id,
+    jewelRadiusPreview: id === state.selectedNodeId ? state.jewelRadiusPreview : null,
+  })),
+
+  setJewelRadiusPreview: (preview) => set({ jewelRadiusPreview: preview }),
+  clearJewelRadiusPreview: () => set({ jewelRadiusPreview: null }),
 
 
 
@@ -1792,7 +1806,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      set({ searchMatchIds: [], searchMatchCount: 0, selectedNodeId: null })
+      set({ searchMatchIds: [], searchMatchCount: 0, selectedNodeId: null, jewelRadiusPreview: null })
 
 
 
@@ -1890,6 +1904,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       searchMatchIds: matches,
       searchMatchCount: matchCount,
       selectedNodeId: firstMatch || null,
+      jewelRadiusPreview: null,
       ...(firstNode ? { offsetX: -focusX, offsetY: -focusY } : {}),
     })
 
@@ -1975,6 +1990,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       pobBuildRevision: activeBuildSession?.revision ?? 0,
       hoveredNodeId: null,
       selectedNodeId: null,
+      jewelRadiusPreview: null,
       searchQuery: '',
       searchMatchIds: [],
       searchMatchCount: 0,
@@ -2007,6 +2023,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       importedBuildCode: null,
       pobBuildRevision: 0,
       activeWeaponSet: 1,
+      jewelRadiusPreview: null,
       calculationProfiles: [{ ...DEFAULT_CALCULATION_PROFILE, values: {} }],
       activeCalculationProfileId: 'default',
       calculationConfig: null,

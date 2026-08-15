@@ -6,6 +6,10 @@ contextBridge.exposeInMainWorld('pob2Desktop', {
   importPoeNinja: (url: string) => ipcRenderer.invoke('pob2:import-poe-ninja', url),
   openBuildFile: () => ipcRenderer.invoke('pob2:open-build-file'),
   saveBuildFileCopy: (payload: { content: string; fileName: string }) => ipcRenderer.invoke('pob2:save-build-file-copy', payload),
+  openBackupFile: () => ipcRenderer.invoke('pob2:open-backup-file'),
+  saveBackupFile: (payload: { content: string; fileName: string }) => ipcRenderer.invoke('pob2:save-backup-file', payload),
+  collectBackupData: () => ipcRenderer.invoke('pob2:collect-backup-data'),
+  restoreBackupData: (main: import('../src/engine/superPoeBackup.js').SuperPoeBackupMainData) => ipcRenderer.invoke('pob2:restore-backup-data', main),
   registerBuildFileAssociation: () => ipcRenderer.invoke('pob2:register-build-file-association'),
   onOpenBuildFile: (callback: (result: { canceled: boolean; filePath?: string; content?: string; error?: string }) => void) => {
     const handler = (_event: unknown, result: { canceled: boolean; filePath?: string; content?: string; error?: string }) => callback(result)

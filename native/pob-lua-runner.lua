@@ -352,15 +352,26 @@ local function calculate(payload)
 		return { success = false, error = "Empty XML input" }
 	end
 
+	-- PoB reports OnFrame/load errors through launch.promptMsg instead of
+	-- raising them. Clear the previous request's prompt before loading the
+	-- next build so one invalid build cannot poison the long-lived sidecar.
+	if launch then launch.promptMsg = nil end
 	local loaded, loadBuildError = pcall(loadBuildFromXML, normalizeXml(xmlText), "superpoe-build")
 	if not loaded then
+		local prompt = launch and launch.promptMsg
+		if launch then launch.promptMsg = nil end
+		if prompt then
+			return { success = false, error = "Build load error: " .. tostring(prompt) }
+		end
 		return { success = false, error = "loadBuildFromXML failed: " .. tostring(loadBuildError) }
 	end
 
 	build = (launch and launch.main and launch.main.modes and launch.main.modes["BUILD"]) or build
 	if not build then return { success = false, error = "Build object not available after load" } end
 	if launch and launch.promptMsg then
-		return { success = false, error = "Build load error: " .. tostring(launch.promptMsg) }
+		local prompt = tostring(launch.promptMsg)
+		launch.promptMsg = nil
+		return { success = false, error = "Build load error: " .. prompt }
 	end
 	local characterOnly = payload.characterOnly == true
 
@@ -879,12 +890,23 @@ local function rankSkills(payload)
 		return { success = false, error = "Empty XML input" }
 	end
 
+	if launch then launch.promptMsg = nil end
 	local loaded, loadBuildError = pcall(loadBuildFromXML, normalizeXml(xmlText), "superpoe-skill-ranking")
 	if not loaded then
+		local prompt = launch and launch.promptMsg
+		if launch then launch.promptMsg = nil end
+		if prompt then
+			return { success = false, error = "Build load error: " .. tostring(prompt) }
+		end
 		return { success = false, error = "loadBuildFromXML failed: " .. tostring(loadBuildError) }
 	end
 
 	build = (launch and launch.main and launch.main.modes and launch.main.modes["BUILD"]) or build
+	if launch and launch.promptMsg then
+		local prompt = tostring(launch.promptMsg)
+		launch.promptMsg = nil
+		return { success = false, error = "Build load error: " .. prompt }
+	end
 	if not build or not build.calcsTab then
 		return { success = false, error = "Build calculation object not available after load" }
 	end

@@ -88,6 +88,30 @@ function hashText(value: string): string {
   return `fnv1a:${(hash >>> 0).toString(16).padStart(8, '0')}`
 }
 
+/** Repair the fixed-radius metadata omitted by older From Nothing imports. */
+function normalizeFromNothingJewelRaw(raw: string): string {
+  const normalized = raw.trim().replace(/\r\n?/g, '\n')
+  if (!/(?:^|\n)Rarity:\s*UNIQUE(?:\n|$)/iu.test(normalized)
+    || !/(?:^|\n)From Nothing(?:\n|$)/iu.test(normalized)
+    || !/(?:^|\n)Diamond(?:\n|$)/iu.test(normalized)) return normalized
+
+  const lines = normalized.split('\n')
+  const radiusLine = lines.findIndex((line) => /^Radius\s*:/iu.test(line))
+  const radiusAliases: Record<string, string> = {
+    '小': 'Small', '小型': 'Small', '中': 'Medium', '中型': 'Medium',
+    '大': 'Large', '大型': 'Large', '极大': 'Very Large', '極大': 'Very Large',
+  }
+  if (radiusLine >= 0) {
+    const value = lines[radiusLine].split(':').slice(1).join(':').trim()
+    if (radiusAliases[value]) lines[radiusLine] = `Radius: ${radiusAliases[value]}`
+    return lines.join('\n')
+  }
+
+  const insertionPoint = lines.findIndex((line) => /^Limited to\s*:/iu.test(line))
+  lines.splice(insertionPoint >= 0 ? insertionPoint : Math.min(lines.length, 3), 0, 'Radius: Small')
+  return lines.join('\n')
+}
+
 export class PobBuildObject {
   private readonly document: PobXmlDocument
   private readonly originalXml: string
@@ -632,7 +656,7 @@ export class PobBuildObject {
 
   /** Add a library item to Items and bind its new id to a passive jewel socket. */
   private bindTreeJewelRaw(nodeId: string, raw: string, dynamic = false): boolean {
-    const normalizedRaw = raw.trim()
+    const normalizedRaw = normalizeFromNothingJewelRaw(raw)
     if (!nodeId.trim()) throw new Error('Tree jewel socket node id is required')
     if (!normalizedRaw) throw new Error('Jewel Raw cannot be empty')
     if (!this.getTreeState().nodes.includes(nodeId)) {

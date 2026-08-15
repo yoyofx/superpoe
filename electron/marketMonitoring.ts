@@ -72,6 +72,38 @@ function isOpportunity(value: unknown): value is MarketOpportunity {
     && typeof item.status === 'string' && typeof item.detectedAt === 'string'
 }
 
+function isPurchaseTarget(value: unknown): value is PurchaseTarget {
+  if (!value || typeof value !== 'object') return false
+  const target = value as Partial<PurchaseTarget>
+  const search = target.search
+  return typeof target.id === 'string' && target.id.length <= 128
+    && typeof target.name === 'string' && typeof target.createdAt === 'string' && typeof target.updatedAt === 'string'
+    && (target.status === 'armed' || target.status === 'paused' || target.status === 'completed' || target.status === 'saved')
+    && (target.priority === 'high' || target.priority === 'normal' || target.priority === 'low')
+    && !!search && typeof search === 'object'
+    && (search.realm === 'cn' || search.realm === 'global')
+    && typeof search.leagueId === 'string' && typeof search.searchCode === 'string'
+    && typeof search.canonicalUrl === 'string'
+}
+
+function normalizeMonitorSettings(value: unknown): MarketMonitorSettings {
+  const input = value && typeof value === 'object' ? value as Partial<MarketMonitorSettings> : {}
+  return {
+    overlayEnabled: typeof input.overlayEnabled === 'boolean' ? input.overlayEnabled : DEFAULT_SETTINGS.overlayEnabled,
+    soundEnabled: typeof input.soundEnabled === 'boolean' ? input.soundEnabled : DEFAULT_SETTINGS.soundEnabled,
+    soundVolume: typeof input.soundVolume === 'number' && Number.isFinite(input.soundVolume)
+      ? Math.max(0, Math.min(1, input.soundVolume))
+      : DEFAULT_SETTINGS.soundVolume,
+    soundId: typeof input.soundId === 'string' && SOUND_IDS.includes(input.soundId as MarketSoundId)
+      ? input.soundId as MarketSoundId
+      : DEFAULT_SETTINGS.soundId,
+    doNotDisturb: typeof input.doNotDisturb === 'boolean' ? input.doNotDisturb : DEFAULT_SETTINGS.doNotDisturb,
+    overlayCorner: input.overlayCorner && ['top-right', 'top-left', 'bottom-right', 'bottom-left'].includes(input.overlayCorner)
+      ? input.overlayCorner
+      : DEFAULT_SETTINGS.overlayCorner,
+  }
+}
+
 export class MarketMonitoringCoordinator {
   private runtime = new Map<string, MonitorRuntimeState>()
   private purchaseTargets: PurchaseTarget[] = []
@@ -138,6 +170,63 @@ export class MarketMonitoringCoordinator {
       settings: this.settings,
       globalPaused: this.globalPaused,
     })
+  }
+
+  exportData(): unknown {
+    this.saveNow()
+    const file: MonitoringFile = {
+      schemaVersion: 2,
+      purchaseTargets: this.purchaseTargets,
+      batches: this.batches,
+      opportunities: this.opportunities,
+      settings: this.settings,
+      globalPaused: this.globalPaused,
+      updatedAt: new Date().toISOString(),
+    }
+    return structuredClone(file)
+  }
+
+  restoreData(value: unknown): void {
+    if (!value || typeof value !== 'object' || ![1, 2].includes(Number((value as { schemaVersion?: unknown }).schemaVersion))) {
+      throw new Error('Unsupported market monitoring backup schema')
+    }
+    const input = value as Partial<MonitoringFile>
+    if (!Array.isArray(input.purchaseTargets) || !Array.isArray(input.batches) || !Array.isArray(input.opportunities)) {
+      throw new Error('Invalid market monitoring backup data')
+    }
+    const previous = {
+      purchaseTargets: this.purchaseTargets,
+      batches: this.batches,
+      opportunities: this.opportunities,
+      settings: this.settings,
+      globalPaused: this.globalPaused,
+    }
+    try {
+      if (this.saveTimer) {
+        clearTimeout(this.saveTimer)
+        this.saveTimer = undefined
+      }
+      this.purchaseTargets = input.purchaseTargets.filter(isPurchaseTarget).slice(0, MAX_ACTIVE_PURCHASE_TARGETS * 4)
+      this.batches = input.batches.slice(0, 200) as OpportunityBatch[]
+      this.opportunities = input.opportunities.filter(isOpportunity).slice(0, MAX_OPPORTUNITIES)
+      this.settings = normalizeMonitorSettings(input.settings)
+      this.globalPaused = input.globalPaused === true
+      this.runtime.clear()
+      this.dedupe.clear()
+      this.trimHistory()
+      this.migrateLegacyTargets()
+      this.enforceActiveTargetLimit()
+      this.saveNow()
+      this.syncAll()
+      this.emitChanged()
+    } catch (error) {
+      this.purchaseTargets = previous.purchaseTargets
+      this.batches = previous.batches
+      this.opportunities = previous.opportunities
+      this.settings = previous.settings
+      this.globalPaused = previous.globalPaused
+      throw error
+    }
   }
 
   setGameState(state: GameRuntimeState): void {
@@ -560,8 +649,7 @@ export class MarketMonitoringCoordinator {
         this.purchaseTargets = Array.isArray(parsed.purchaseTargets) ? parsed.purchaseTargets : []
         this.batches = Array.isArray(parsed.batches) ? parsed.batches : []
         this.opportunities = Array.isArray(parsed.opportunities) ? parsed.opportunities.filter(isOpportunity).slice(0, MAX_OPPORTUNITIES) : []
-        this.settings = { ...DEFAULT_SETTINGS, ...(parsed.settings && typeof parsed.settings === 'object' ? parsed.settings : {}) }
-        if (!SOUND_IDS.includes(this.settings.soundId)) this.settings.soundId = DEFAULT_SETTINGS.soundId
+        this.settings = normalizeMonitorSettings(parsed.settings)
         this.globalPaused = parsed.globalPaused === true
         this.trimHistory()
         this.scheduleSave()

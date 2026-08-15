@@ -261,6 +261,21 @@ describe('PobBuildObject', () => {
     expect(xml).toContain('<Unknown value="keep"></Unknown>')
   })
 
+  it('repairs the missing fixed radius on legacy From Nothing jewels before binding', () => {
+    const object = PobBuildObject.fromXml('<?xml version="1.0"?><PathOfBuilding2><Items/><Tree activeSpec="1"><Spec treeVersion="0_5" nodes="100"/></Tree></PathOfBuilding2>')
+    const raw = [
+      'Rarity: UNIQUE', 'From Nothing', 'Diamond', 'Item Level: 82', 'LevelReq: 0',
+      'Limited to: 1', 'Implicits: 0',
+      'Passives in Radius of Eldritch Battery can be Allocated',
+      'without being connected to your tree', 'Corrupted',
+    ].join('\n')
+
+    expect(object.apply({
+      type: 'bind-tree-jewel-raw', nodeId: '100', raw, section: 'tree',
+    }).changed).toBe(true)
+    expect(object.toXml()).toContain('Radius: Small\nLimited to: 1')
+  })
+
   it('restores XML snapshots and recalculates dirty state', () => {
     const xml = '<?xml version="1.0"?><PathOfBuilding2><Build level="90"/><Unknown value="keep"/></PathOfBuilding2>'
     const object = PobBuildObject.fromXml(xml)

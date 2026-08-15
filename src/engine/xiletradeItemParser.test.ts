@@ -120,6 +120,68 @@ describe('Xiletrade-compatible game item parser', () => {
     }
   })
 
+  it('parses the CN From Nothing jewel with an empty modifier placeholder', () => {
+    const catalog = new XiletradeDataCatalog(path.join(process.cwd(), 'public', 'data', 'xiletrade'))
+    const matcher = new XiletradeModifierMatcher(catalog.bundle('zh-CN'))
+    const translations = new ItemTranslationIndex(path.join(process.cwd(), 'public', 'data', 'Translate', 'zh-rCN'))
+    const raw = [
+      '物品类别: 珠宝', '稀有度: 传奇', '无根之源', '宝钻', '--------',
+      '仅限: 1', '范围: 小', '--------', '物品等级: 82', '--------',
+      '{ 传奇属性 }',
+      '异能魔力 ()范围内的天赋可以在',
+      '未连结至天赋树的情况下配置 — 数值不可调整',
+      '--------', '被腐化',
+    ].join('\n')
+
+    const result = parseXiletradeItemText(raw, {
+      language: {
+        locale: 'zh-CN',
+        toEnglish: (value) => translations.toEnglish(value),
+        statToEnglish: (value) => translations.statToEnglish(value),
+      },
+      canonicalizeStat: (text, group, context, nextLine) => matcher.match(text, group, context || {}, nextLine),
+      parsingRules: catalog.get('zh-CN').rules,
+    })
+
+    expect(result.unresolved).toEqual([])
+    expect(result.raw).toContain('From Nothing\nDiamond')
+    expect(result.raw).toContain('Radius: Small')
+    expect(result.raw).toContain('Passives in Radius of Eldritch Battery can be Allocated')
+    expect(result.evidence.modifiers).toMatchObject([{
+      queryStatId: 'explicit.stat_2422708892|57513',
+      status: 'resolved',
+    }])
+  })
+
+  it('parses the separator-free CN clipboard format and keeps jewel radius metadata', () => {
+    const catalog = new XiletradeDataCatalog(path.join(process.cwd(), 'public', 'data', 'xiletrade'))
+    const matcher = new XiletradeModifierMatcher(catalog.bundle('zh-CN'))
+    const translations = new ItemTranslationIndex(path.join(process.cwd(), 'public', 'data', 'Translate', 'zh-rCN'))
+    const raw = [
+      '物品类别: 珠宝', '稀有度: 传奇', '无根之源', '宝钻', '仅限: 1', '范围: 小', '物品等级: 82',
+      '{ 传奇属性 }', '异能魔力 ()范围内的天赋可以在', '未连结至天赋树的情况下配置 — 数值不可调整',
+      '它们在不曾存在的深渊中挣扎着爬行，', '为一缕意义的光辉而欢欣鼓舞。',
+      '放置到一个天赋树的珠宝插槽中以产生效果。右键点击以移出插槽。', '被腐化', '引路石掉落',
+    ].join('\n')
+
+    const result = parseXiletradeItemText(raw, {
+      language: {
+        locale: 'zh-CN',
+        toEnglish: (value) => translations.toEnglish(value),
+        statToEnglish: (value) => translations.statToEnglish(value),
+      },
+      canonicalizeStat: (text, group, context, nextLine) => matcher.match(text, group, context || {}, nextLine),
+      parsingRules: catalog.get('zh-CN').rules,
+    })
+
+    expect(result.unresolved).toEqual([])
+    expect(result.localized).toEqual({ name: '无根之源', baseType: '宝钻' })
+    expect(result.raw).toContain('Item Level: 82')
+    expect(result.raw).toContain('Radius: Small')
+    expect(result.raw).toContain('Limited to: 1')
+    expect(result.raw).toContain('Passives in Radius of Eldritch Battery can be Allocated')
+  })
+
   it('recognizes the short CN enhance descriptor and resolves an allocated passive enchant', () => {
     const catalog = new XiletradeDataCatalog(path.join(process.cwd(), 'public', 'data', 'xiletrade'))
     const matcher = new XiletradeModifierMatcher(catalog.bundle('zh-CN'))

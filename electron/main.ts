@@ -35,6 +35,7 @@ import { PriceCheckWindowManager } from './priceCheck/PriceCheckWindowManager.js
 import { GameClipboardService, processIsElevated } from './priceCheck/GameClipboardService.js'
 import { applyXiletradeParseEvidence, parseXiletradeItemText, type CanonicalStatContext, type CanonicalStatMatch, type XiletradeItemParseResult } from './xiletradeItemParser.js'
 import { XiletradeDataCatalog, XiletradeModifierMatcher } from './xiletradeDataCatalog.js'
+import { MAX_SUPERPOE_BACKUP_FILE_SIZE, SUPERPOE_BACKUP_EXTENSION, type SuperPoeBackupMainData } from '../src/engine/superPoeBackup.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
@@ -85,6 +86,24 @@ function validateNativeBuildFilePayload(value: unknown): NativeBuildFilePayload 
   return {
     content: payload.content,
     fileName: safeName.toLowerCase().endsWith(SUPERPOE_BUILD_EXTENSION) ? safeName : `${safeName}${SUPERPOE_BUILD_EXTENSION}`,
+  }
+}
+
+function validateBackupFilePayload(value: unknown): NativeBuildFilePayload {
+  if (!value || typeof value !== 'object') throw new Error('Invalid SuperPoE backup payload')
+  const payload = value as Partial<NativeBuildFilePayload>
+  if (typeof payload.content !== 'string' || !payload.content || Buffer.byteLength(payload.content, 'utf8') > MAX_SUPERPOE_BACKUP_FILE_SIZE) {
+    throw new Error('Invalid SuperPoE backup content')
+  }
+  const parsed = JSON.parse(payload.content) as { format?: unknown; schemaVersion?: unknown }
+  if (!parsed || parsed.format !== 'superpoe-backup' || parsed.schemaVersion !== 1) {
+    throw new Error('Invalid SuperPoE backup format')
+  }
+  const baseName = path.basename(typeof payload.fileName === 'string' ? payload.fileName : 'SuperPoE backup.spoe-backup')
+  const safeName = baseName.replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ').trim() || 'SuperPoE backup.spoe-backup'
+  return {
+    content: payload.content,
+    fileName: safeName.toLowerCase().endsWith(`.${SUPERPOE_BACKUP_EXTENSION}`) ? safeName : `${safeName}.${SUPERPOE_BACKUP_EXTENSION}`,
   }
 }
 
@@ -1059,6 +1078,12 @@ function parseGameClipboardItem(value: string, options: GameClipboardParseOption
   })
 }
 
+function looksLikeGameClipboardItem(value: string): boolean {
+  const normalized = value.replace(/\r\n?/g, '\n')
+  return /^(?:物品类别|物品類別|Item Class|아이템 종류)\s*[：:]/m.test(normalized)
+    && /^(?:稀有度|Rarity|희귀도)\s*[：:]/m.test(normalized)
+}
+
 async function priceCheckSnapshot(request: TradePriceCheckPrepareRequest) {
   const target = request.target
   if (!target || typeof target !== 'object') throw new Error('Invalid price check target')
@@ -1093,7 +1118,7 @@ async function priceCheckSnapshot(request: TradePriceCheckPrepareRequest) {
   if (target.kind !== 'raw' || typeof target.raw !== 'string' || !target.raw.trim() || target.raw.length > 100_000) {
     throw new Error('Invalid PoB item raw')
   }
-  const parsedRaw = sourceLanguage !== 'en' && /^--------+$/m.test(target.raw)
+  const parsedRaw = looksLikeGameClipboardItem(target.raw)
     ? parseGameClipboardItem(target.raw, { canonicalizeStat })
     : translatePobRawForPriceCheck(target.raw, canonicalizeStat)
   const normalized = await pobItemBridge.normalize(parsedRaw.raw)
@@ -1223,6 +1248,64 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       : `${result.filePath}${SUPERPOE_BUILD_EXTENSION}`
     writeFileSync(filePath, payload.content, 'utf8')
     return { canceled: false, filePath }
+  })
+  ipcMain.handle('pob2:open-backup-file', async (event) => {
+    const window = requireMainWindowSender(event)
+    const result = await dialog.showOpenDialog(window, {
+      title: desktopText(uiLanguage, 'Open SuperPoE Backup', '打开 SuperPoE 备份', '開啟 SuperPoE 備份', 'SuperPoE 백업 열기'),
+      filters: [{ name: 'SuperPoE Backup', extensions: [SUPERPOE_BACKUP_EXTENSION] }],
+      properties: ['openFile'],
+    })
+    if (result.canceled || !result.filePaths[0]) return { canceled: true }
+    const filePath = path.resolve(result.filePaths[0])
+    if (path.extname(filePath).toLowerCase() !== `.${SUPERPOE_BACKUP_EXTENSION}`) throw new Error('Only SuperPoE backup files can be opened')
+    const content = readFileSync(filePath, 'utf8')
+    if (!content || Buffer.byteLength(content, 'utf8') > MAX_SUPERPOE_BACKUP_FILE_SIZE) throw new Error('Invalid SuperPoE backup file size')
+    return { canceled: false, filePath, content }
+  })
+  ipcMain.handle('pob2:save-backup-file', async (event, value: unknown) => {
+    const window = requireMainWindowSender(event)
+    const payload = validateBackupFilePayload(value)
+    const result = await dialog.showSaveDialog(window, {
+      title: desktopText(uiLanguage, 'Save SuperPoE Backup', '保存 SuperPoE 备份', '儲存 SuperPoE 備份', 'SuperPoE 백업 저장'),
+      defaultPath: path.join(app.getPath('documents'), payload.fileName),
+      filters: [{ name: 'SuperPoE Backup', extensions: [SUPERPOE_BACKUP_EXTENSION] }],
+      properties: ['createDirectory', 'showOverwriteConfirmation'],
+    })
+    if (result.canceled || !result.filePath) return { canceled: true }
+    const filePath = result.filePath.toLowerCase().endsWith(`.${SUPERPOE_BACKUP_EXTENSION}`)
+      ? result.filePath
+      : `${result.filePath}.${SUPERPOE_BACKUP_EXTENSION}`
+    writeFileSync(filePath, payload.content, 'utf8')
+    return { canceled: false, filePath }
+  })
+  ipcMain.handle('pob2:collect-backup-data', (event): SuperPoeBackupMainData => {
+    requireMainWindowSender(event)
+    return {
+      equipmentLibrary: equipmentLibrary.exportData(),
+      marketMonitoring: marketMonitoring?.exportData() || null,
+    }
+  })
+  ipcMain.handle('pob2:restore-backup-data', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object' || JSON.stringify(value).length > 80_000_000) throw new Error('Invalid backup main data')
+    const input = value as Partial<SuperPoeBackupMainData>
+    const previousEquipment = equipmentLibrary.exportData()
+    const previousMonitoring = marketMonitoring?.exportData() || null
+    try {
+      if (input.equipmentLibrary != null) equipmentLibrary.restoreData(input.equipmentLibrary)
+      if (input.marketMonitoring != null) {
+        if (!marketMonitoring) throw new Error('Market monitoring is unavailable')
+        marketMonitoring.restoreData(input.marketMonitoring)
+      }
+      notifyLibraryChanged()
+    } catch (error) {
+      try { equipmentLibrary.restoreData(previousEquipment) } catch { /* keep the original restore error */ }
+      if (previousMonitoring != null && marketMonitoring) {
+        try { marketMonitoring.restoreData(previousMonitoring) } catch { /* keep the original restore error */ }
+      }
+      throw error
+    }
   })
   ipcMain.handle('pob2:register-build-file-association', async (event) => {
     requireMainWindowSender(event)
@@ -1833,7 +1916,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       const bundle = await createMarketStatCatalog(inputLanguage === 'zh-rCN' ? 'cn' : 'global').catch(() => undefined)
       if (bundle) canonicalizeStat = createStatCanonicalizer(inputLanguage, bundle)
     }
-    const parsedInput: GameClipboardParseResult = inputLanguage !== 'en' && /^--------+$/m.test(input.raw)
+    const parsedInput: GameClipboardParseResult = looksLikeGameClipboardItem(input.raw)
       ? parseGameClipboardItem(input.raw, { canonicalizeStat })
       : translatePobRawForPriceCheck(input.raw, canonicalizeStat)
     const normalized = await pobItemBridge.normalize(parsedInput.raw)

@@ -1,6 +1,6 @@
 import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowLeftRight, Bookmark, Check, ChevronDown, ChevronRight, Clipboard, PackageOpen, PanelRightOpen, Search, Upload, X } from 'lucide-react'
+import { ArrowLeftRight, Bookmark, Check, ChevronDown, ChevronRight, Clipboard, Gem, PackageOpen, PanelRightOpen, Search, Upload, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import {
   type EquipmentAffixCategory,
@@ -22,6 +22,7 @@ import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { LANGUAGE_LOCALES, uiText, type UiMessage } from '@/i18n/uiLocale'
 import { getActiveBuildSession, useTreeStore } from '@/store/treeStore'
+import type { PassiveJewel } from '@/engine/buildCode'
 import type { EquipmentItem, EquipmentSet, EquipmentSlot } from '@/types/equipment'
 import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
 import type { EquipmentLibraryEntry } from '@/types/market'
@@ -215,6 +216,222 @@ function defenceAffixRank(summary: EquipmentAffixSummary): number {
 function getSocketSlotInfo(slotName: string): { parent: string; index: number } | null {
   const match = slotName.match(/^(.+?)\s+(?:Jewel Socket|Abyssal Socket|珠宝(?:插槽|孔)|珠寶(?:插槽|孔))\s*(\d+)$/i)
   return match ? { parent: match[1].trim(), index: Number(match[2]) } : null
+}
+
+interface JewelStripEntry {
+  key: string
+  item: EquipmentItem
+  sourceLabel: string
+  sourceKind: 'tree' | 'equipment'
+}
+
+interface JewelStripTooltipState {
+  entry: JewelStripEntry
+  x: number
+  y: number
+  above: boolean
+}
+
+function makeFallbackJewelItem(jewel: PassiveJewel, raw: string): EquipmentItem {
+  return {
+    id: jewel.itemId,
+    rarity: jewel.rarity,
+    name: jewel.name || 'Unknown Jewel',
+    baseType: jewel.baseType || jewel.name || 'Jewel',
+    socketCount: 0,
+    runes: [],
+    lines: jewel.lines,
+    modifiers: jewel.lines.map((line) => ({ text: line.replace(/\{[^}]+\}/g, '').trim(), tags: [], group: 'explicit' as const })),
+    raw,
+  }
+}
+
+function JewelStripIcon({ entry, index, size = 'small' }: { entry: JewelStripEntry; index: ItemIconIndex | null; size?: 'small' | 'large' }) {
+  const imageUrl = resolveItemIcon(entry.item, index)
+  return <span className={`equipment-jewel-icon equipment-jewel-icon-${size} ${RARITY_CLASS[entry.item.rarity] || 'rarity-normal'}`}>
+    <FallbackImage src={imageUrl} alt="" fallback={<span>J</span>} />
+  </span>
+}
+
+function JewelStripButton({
+  entry,
+  index,
+  size = 'large',
+  selected,
+  onSelect,
+  onHover,
+  onLeave,
+}: {
+  entry: JewelStripEntry
+  index: ItemIconIndex | null
+  size?: 'small' | 'large'
+  selected: boolean
+  onSelect: (entry: JewelStripEntry) => void
+  onHover: (event: MouseEvent<HTMLButtonElement>, entry: JewelStripEntry) => void
+  onLeave: () => void
+}) {
+  const { lang } = useTranslation()
+  const label = translateItemName(entry.item.name, entry.item.rarity, lang)
+  return <button
+    type="button"
+    className={`equipment-jewel-entry ${selected ? 'selected' : ''}`}
+    aria-label={label}
+    title={label}
+    onClick={() => onSelect(entry)}
+    onMouseEnter={(event) => onHover(event, entry)}
+    onMouseLeave={onLeave}
+  >
+    <JewelStripIcon entry={entry} index={index} size={size} />
+  </button>
+}
+
+function JewelStripTooltip({ tooltip, index, language }: { tooltip: JewelStripTooltipState; index: ItemIconIndex | null; language: Language }) {
+  const { entry } = tooltip
+  const itemName = translateItemName(entry.item.name, entry.item.rarity, language)
+  const baseType = entry.item.baseType && entry.item.baseType !== entry.item.name
+    ? translateGameText(entry.item.baseType, language)
+    : ''
+  const lines = entry.item.lines
+    .map((line) => translateGameText(line.replace(/\{[^}]+\}/g, ''), language))
+    .filter(Boolean)
+    .slice(0, 8)
+  return createPortal(
+    <div className={`equipment-jewel-tooltip ${tooltip.above ? 'above' : 'below'}`} style={{ left: tooltip.x, top: tooltip.y }} role="tooltip">
+      <header>
+        <span className="equipment-jewel-tooltip-icon"><JewelStripIcon entry={entry} index={index} size="large" /></span>
+        <span>
+          <strong>{itemName}</strong>
+          {baseType && <small>{baseType}</small>}
+          <small>{entry.sourceLabel}</small>
+        </span>
+      </header>
+      {lines.length > 0
+        ? <div className="equipment-jewel-tooltip-lines">{lines.map((line, lineIndex) => <p key={`${line}-${lineIndex}`}>{line}</p>)}</div>
+        : <p className="equipment-jewel-tooltip-empty">{uiText(language, 'No detailed modifier data available', '暂无可用的详细词条', '暫無可用的詳細詞綴', '사용 가능한 상세 속성이 없습니다')}</p>}
+    </div>,
+    document.body,
+  )
+}
+
+function JewelStripBar({
+  entries,
+  itemIconIndex,
+  selectedId,
+  onSelect,
+  onHover,
+  onLeave,
+}: {
+  entries: JewelStripEntry[]
+  itemIconIndex: ItemIconIndex | null
+  selectedId: string | null
+  onSelect: (entry: JewelStripEntry) => void
+  onHover: (event: MouseEvent<HTMLButtonElement>, entry: JewelStripEntry) => void
+  onLeave: () => void
+}) {
+  const { lang } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
+  const [popoverPosition, setPopoverPosition] = useState<{ left: number; top: number; width: number } | null>(null)
+  const stripRef = useRef<HTMLDivElement>(null)
+
+  const updatePopoverPosition = useCallback(() => {
+    const strip = stripRef.current
+    if (!strip) return
+    const rect = strip.getBoundingClientRect()
+    const width = Math.min(420, Math.max(220, window.innerWidth - 24))
+    setPopoverPosition({
+      left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
+      top: rect.bottom + 7,
+      width,
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!expanded) return
+    updatePopoverPosition()
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Element && target.closest('.equipment-jewel-strip, .equipment-jewel-popover')) return
+      setExpanded(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setExpanded(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('resize', updatePopoverPosition)
+    window.addEventListener('scroll', updatePopoverPosition, true)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('resize', updatePopoverPosition)
+      window.removeEventListener('scroll', updatePopoverPosition, true)
+    }
+  }, [expanded, updatePopoverPosition])
+
+  useEffect(() => {
+    if (!entries.length) setExpanded(false)
+  }, [entries.length])
+
+  const handleSelect = useCallback((entry: JewelStripEntry) => {
+    setExpanded(false)
+    onSelect(entry)
+  }, [onSelect])
+
+  const label = uiText(lang, 'Jewel Box', '珠宝匣', '珠寶匣', '주얼 보관함')
+  const equippedLabel = uiText(lang, 'Equipped jewels', '已装备珠宝', '已裝備珠寶', '장착된 주얼')
+  const closeLabel = uiText(lang, 'Close jewel box', '关闭珠宝匣', '關閉珠寶匣', '주얼 보관함 닫기')
+
+  return <div ref={stripRef} className={`equipment-jewel-strip ${expanded ? 'expanded' : ''}`}>
+    <button
+      type="button"
+      className="equipment-jewel-label"
+      disabled={!entries.length}
+      aria-expanded={expanded}
+      aria-haspopup="dialog"
+      aria-label={`${label} (${entries.length})`}
+      title={entries.length ? equippedLabel : uiText(lang, 'No equipped jewels', '没有已装备珠宝', '沒有已裝備珠寶', '장착된 주얼 없음')}
+      onClick={() => {
+        if (!entries.length) return
+        setExpanded((current) => !current)
+      }}
+    >
+      <Gem className="equipment-jewel-label-icon" aria-hidden="true" />
+      <strong>{label}</strong>
+      <small>{entries.length}</small>
+      <ChevronDown className="equipment-jewel-label-toggle" aria-hidden="true" />
+    </button>
+    {expanded && popoverPosition && createPortal(
+      <div
+        className="equipment-jewel-popover"
+        role="dialog"
+        aria-label={equippedLabel}
+        style={{ left: popoverPosition.left, top: popoverPosition.top, width: popoverPosition.width }}
+      >
+        <header className="equipment-jewel-popover-heading">
+          <span>
+            <strong>{label}</strong>
+            <small>{entries.length}</small>
+          </span>
+          <button type="button" onClick={() => setExpanded(false)} aria-label={closeLabel} title={closeLabel}>
+            <X aria-hidden="true" />
+          </button>
+        </header>
+        <div className="equipment-jewel-popover-list" aria-label={equippedLabel}>
+          {entries.map((entry) => <JewelStripButton
+            key={entry.key}
+            entry={entry}
+            index={itemIconIndex}
+            size="small"
+            selected={entry.item.id === selectedId}
+            onSelect={handleSelect}
+            onHover={onHover}
+            onLeave={onLeave}
+          />)}
+        </div>
+      </div>,
+      document.body,
+    )}
+  </div>
 }
 
 function AffixSummaryRow({
@@ -825,6 +1042,9 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const calcError = useTreeStore((state) => state.calcError)
   const runCalculation = useTreeStore((state) => state.runCalculation)
   const weaponSet = useTreeStore((state) => state.activeWeaponSet)
+  const treeData = useTreeStore((state) => state.treeData)
+  const getActivePobTreeJewelItems = useTreeStore((state) => state.getActivePobTreeJewelItems)
+  const getActivePobTreeJewelRaw = useTreeStore((state) => state.getActivePobTreeJewelRaw)
   const setWeaponSet = useTreeStore((state) => state.setActiveWeaponSet)
   const setActiveItemSet = useTreeStore((state) => state.setActiveItemSet)
   const replaceEquipmentSlotWithRaw = useTreeStore((state) => state.replaceEquipmentSlotWithRaw)
@@ -842,6 +1062,7 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const [semanticsLoading, setSemanticsLoading] = useState(false)
   const [replacementOpen, setReplacementOpen] = useState(false)
   const [contextMenu, setContextMenu] = useState<EquipmentContextMenuState | null>(null)
+  const [jewelTooltip, setJewelTooltip] = useState<JewelStripTooltipState | null>(null)
   const { hostRef, size: paperDollSize } = usePaperDollSize()
   const lastCalculationSelection = useRef<string | null>(null)
   const activePobCode = useMemo(() => getActivePobCode() || '', [getActivePobCode, pobBuildRevision])
@@ -1058,6 +1279,62 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
     .sort((a, b) => a.order - b.order)
     .map((entry) => entry.item) || []
 
+  const activeTreeJewelItems = useMemo(() => getActivePobTreeJewelItems(), [getActivePobTreeJewelItems, pobBuildRevision])
+  const jewelStripEntries = useMemo<JewelStripEntry[]>(() => {
+    if (!equipment || !activeSet) return []
+
+    const treeEntries = Object.entries(activeTreeJewelItems).map(([nodeId, jewel]) => {
+      const raw = getActivePobTreeJewelRaw(nodeId)?.raw || ''
+      const item = equipment.itemsById[jewel.itemId] || makeFallbackJewelItem(jewel, raw)
+      const nodeName = treeData?.nodes[nodeId]?.name
+      return {
+        key: `tree:${nodeId}:${jewel.itemId}`,
+        item,
+        sourceKind: 'tree' as const,
+        sourceLabel: `${l('Passive tree', '天赋树', '天賦樹', '패시브 트리')} · ${nodeName ? translateGameText(nodeName, lang) : nodeId}`,
+      }
+    })
+
+    const visibleParentNames = new Set(getActivePaperDollSlots(weaponSet).map((slot) => slot.slotName.toLowerCase()))
+    const equipmentEntries = activeSet.slots.flatMap((slot) => {
+      if (!slot.active || !slot.itemId) return []
+      const socket = getSocketSlotInfo(slot.name)
+      if (!socket || !visibleParentNames.has(socket.parent.toLowerCase())) return []
+      const item = equipment.itemsById[slot.itemId]
+      if (!item) return []
+      const parentSlot = activeSet.slots.find((candidate) => candidate.name.toLowerCase() === socket.parent.toLowerCase())
+      const parentItem = parentSlot ? equipment.itemsById[parentSlot.itemId] : undefined
+      const parentName = parentItem
+        ? translateItemName(parentItem.name, parentItem.rarity, lang)
+        : translateGameText(socket.parent, lang)
+      return [{
+        key: `equipment:${activeSet.id}:${slot.name}:${slot.itemId}`,
+        item,
+        sourceKind: 'equipment' as const,
+        sourceLabel: `${l('Equipment', '装备', '裝備', '장비')} · ${parentName} · ${uiText(lang, 'Socket', '插槽', '插槽', '홈')} ${socket.index}`,
+      }]
+    })
+
+    return [...treeEntries, ...equipmentEntries]
+  }, [activeSet, activeTreeJewelItems, equipment, getActivePobTreeJewelRaw, lang, l, pobBuildRevision, treeData, weaponSet])
+
+  const handleJewelHover = useCallback((event: MouseEvent<HTMLButtonElement>, entry: JewelStripEntry) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const above = rect.top > 250
+    setJewelTooltip({
+      entry,
+      x: Math.max(190, Math.min(window.innerWidth - 190, rect.left + rect.width / 2)),
+      y: above ? rect.top - 9 : rect.bottom + 9,
+      above,
+    })
+  }, [])
+
+  const handleJewelSelect = useCallback((entry: JewelStripEntry) => {
+    setJewelTooltip(null)
+    setSelectedId(entry.item.id)
+    setInspectorOpen(true)
+  }, [])
+
   const paperDollStyle = {
     width: `${paperDollSize.width}px`,
     height: `${paperDollSize.height}px`,
@@ -1103,7 +1380,17 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
 
       <div className="paper-doll-stage">
         <header className="paper-doll-heading">
-          <span>{t('equipment.title')}</span>
+          <div className="paper-doll-heading-main">
+            <span>{t('equipment.title')}</span>
+            <JewelStripBar
+              entries={jewelStripEntries}
+              itemIconIndex={itemIconIndex}
+              selectedId={selectedId}
+              onSelect={handleJewelSelect}
+              onHover={handleJewelHover}
+              onLeave={() => setJewelTooltip(null)}
+            />
+          </div>
           <div className="paper-doll-heading-actions">
             <small>{l('Select an item to inspect its properties', '选择装备查看完整属性', '選擇裝備以查看完整屬性', '아이템을 선택하여 전체 속성을 확인하세요')}</small>
             {!inspectorOpen && selected && <button
@@ -1171,6 +1458,7 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
             })}
           </div>
         </div>
+        {jewelTooltip && <JewelStripTooltip tooltip={jewelTooltip} index={itemIconIndex} language={lang} />}
       </div>
 
       {inspectorOpen && selected && <ItemDetail
@@ -1188,7 +1476,7 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
         onClose={() => setInspectorOpen(false)}
       />}
       {replacementOpen && <EquipmentLibraryPicker
-        mode={selectedSlotName?.toLowerCase().includes('jewel socket') ? 'jewel' : 'equipment'}
+        mode={selectedSlotName && getSocketSlotInfo(selectedSlotName) ? 'jewel' : 'equipment'}
         title={{ en: 'Change equipment', 'zh-rCN': '更换装备', 'zh-rTW': '更換裝備', 'ko-KR': '장비 변경' }}
         currentSlot={selectedSlotName}
         onClose={() => setReplacementOpen(false)}

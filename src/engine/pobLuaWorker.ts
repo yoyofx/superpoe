@@ -2,6 +2,7 @@ import type { CalcApiResponse, SkillCalculationSelection } from '@/types/calc'
 import {
   calculateWithLuaEngine,
   inspectEquipmentWithLuaEngine,
+  inspectJewelRadiusWithLuaEngine,
   installBuildHelpers,
   installHostCompatibility,
   rankSkillsWithLuaEngine,
@@ -17,7 +18,7 @@ import wasmUrl from 'wasmoon/dist/glue.wasm?url'
 
 interface WorkerRequest {
   id: number
-  type: 'init' | 'calculate' | 'inspectEquipment' | 'rankSkills'
+  type: 'init' | 'calculate' | 'inspectEquipment' | 'inspectJewelRadius' | 'rankSkills'
   payload?: ({ code?: string; xml?: string } & SkillCalculationSelection) | { items?: EquipmentInspectionItem[] }
 }
 
@@ -218,6 +219,12 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       }
       if (request.type === 'inspectEquipment') {
         const result = await inspectEquipment(request.payload as { items?: EquipmentInspectionItem[] } | undefined)
+        respond({ id: request.id, success: true, data: result })
+        return
+      }
+      if (request.type === 'inspectJewelRadius') {
+        const payload = request.payload as { xml?: string } | undefined
+        const result = inspectJewelRadiusWithLuaEngine(lua!, payload?.xml || '')
         respond({ id: request.id, success: true, data: result })
         return
       }

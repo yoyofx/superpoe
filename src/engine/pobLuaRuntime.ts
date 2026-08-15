@@ -1,5 +1,6 @@
 import type { CalcApiResponse, SkillCalculationSelection } from '@/types/calc'
 import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
+import type { JewelRadiusSnapshot } from '@/types/jewelRadius'
 import type { LuaFactory } from 'wasmoon'
 
 type LuaEngine = Awaited<ReturnType<LuaFactory['createEngine']>>
@@ -302,6 +303,11 @@ xmlText = xmlText:gsub(
 
 local loadOk, loadErr = pcall(loadBuildFromXML, xmlText, "browser-build")
 if not loadOk then
+  local prompt = launch and launch.promptMsg
+  if launch then launch.promptMsg = nil end
+  if prompt then
+    return { success = false, error = "Build load error: " .. tostring(prompt) }
+  end
   return { success = false, error = "loadBuildFromXML failed: " .. tostring(loadErr) }
 end
 
@@ -312,7 +318,10 @@ end
 
 local mo = mainObject or launch
 if mo and mo.promptMsg then
-  return { success = false, error = "Build load error: " .. tostring(mo.promptMsg) }
+  local prompt = tostring(mo.promptMsg)
+  mo.promptMsg = nil
+  if launch then launch.promptMsg = nil end
+  return { success = false, error = "Build load error: " .. prompt }
 end
 
 local calcOk, calcErr = pcall(function()
@@ -962,10 +971,22 @@ xmlText = xmlText:gsub(
 
 local loadOk, loadErr = pcall(loadBuildFromXML, xmlText, "browser-skill-ranking")
 if not loadOk then
+  local prompt = launch and launch.promptMsg
+  if launch then launch.promptMsg = nil end
+  if prompt then
+    return { success = false, error = "Build load error: " .. tostring(prompt) }
+  end
   return { success = false, error = "loadBuildFromXML failed: " .. tostring(loadErr) }
 end
 
 build = (launch and launch.main and launch.main.modes and launch.main.modes["BUILD"]) or build
+local mo = mainObject or launch
+if mo and mo.promptMsg then
+  local prompt = tostring(mo.promptMsg)
+  mo.promptMsg = nil
+  if launch then launch.promptMsg = nil end
+  return { success = false, error = "Build load error: " .. prompt }
+end
 if not build or not build.calcsTab then
   return { success = false, error = "Build calculation object not available after load" }
 end
@@ -1242,6 +1263,128 @@ end
 return { results = results, errors = errors }
 `
 
+export const JEWEL_RADIUS_SCRIPT = `
+local xmlText = __pobBuildXml
+if type(xmlText) ~= "string" or xmlText == "" then
+  return { success = false, error = "Empty build XML" }
+end
+
+local loaded, loadError = pcall(loadBuildFromXML, xmlText, "superpoe-jewel-radius")
+if not loaded then
+  -- A failed PoB mode switch can leave a prompt message in the shared Lua
+  -- runtime. This inspection is optional and must not poison later builds.
+  if launch then launch.promptMsg = nil end
+  if mainObject then mainObject.promptMsg = nil end
+  return { success = false, error = "loadBuildFromXML failed: " .. tostring(loadError) }
+end
+
+local mo = mainObject or launch
+if mo and mo.promptMsg then
+  local prompt = tostring(mo.promptMsg)
+  mo.promptMsg = nil
+  if launch then launch.promptMsg = nil end
+  return { success = false, error = "Build load error: " .. prompt }
+end
+
+build = (launch and launch.main and launch.main.modes and launch.main.modes["BUILD"]) or build
+if not build or not build.spec then
+  return { success = false, error = "Build object unavailable after load" }
+end
+
+local runtimeData = build.data or data
+local radiusDefinitions = {}
+-- These indices mirror Controlled Metamorphosis' ring variants in Data/Uniques/jewel.lua.
+local variableRadiusLabels = {
+  [5] = "Very Small Ring",
+  [6] = "Small Ring",
+  [7] = "Medium-Small Ring",
+  [8] = "Medium Ring",
+  [9] = "Medium-Large Ring",
+  [10] = "Large Ring",
+  [11] = "Very Large Ring",
+  [12] = "Massive Ring",
+}
+for index, radius in ipairs(runtimeData.jewelRadius or {}) do
+  local label = tostring(radius.label or "")
+  if label == "Variable" and variableRadiusLabels[index] then
+    label = variableRadiusLabels[index]
+  end
+  table.insert(radiusDefinitions, {
+    index = index,
+    label = label,
+    inner = tonumber(radius.inner) or 0,
+    outer = tonumber(radius.outer) or 0,
+    color = type(radius.col) == "string" and radius.col or nil,
+  })
+end
+
+local function socketCenters(item, socketNodeId)
+  local centers = {}
+  if item and item.title == "From Nothing" and item.jewelData and item.jewelData.fromNothingKeystones then
+    for keystoneName in pairs(item.jewelData.fromNothingKeystones) do
+      local keystone = build.spec.tree and build.spec.tree.keystoneMap and build.spec.tree.keystoneMap[keystoneName]
+      if keystone and keystone.id then
+        table.insert(centers, tostring(keystone.id))
+      end
+    end
+  end
+  if #centers == 0 then table.insert(centers, tostring(socketNodeId)) end
+  return centers
+end
+
+local effects = {}
+for socketNodeId, itemId in pairs(build.spec.jewels or {}) do
+  local item = build.itemsTab and build.itemsTab.items and (build.itemsTab.items[itemId] or build.itemsTab.items[tonumber(itemId)])
+  if not item and build.itemsTab and type(build.itemsTab.GetSocketAndJewelForNodeID) == "function" then
+    local ok, _, resolvedItem = pcall(function()
+      return build.itemsTab:GetSocketAndJewelForNodeID(socketNodeId)
+    end)
+    if ok then item = resolvedItem end
+  end
+  if item then
+    local radiusIndex = tonumber(item.jewelRadiusIndex)
+    local radius = radiusIndex and runtimeData.jewelRadius and runtimeData.jewelRadius[radiusIndex]
+    if radiusIndex and radius then
+      local label = tostring(item.jewelRadiusLabel or radius.label or "")
+      local kind = label == "Variable" and "variable" or "normal"
+      local visual = "standard"
+      local conqueror = nil
+      if item.title == "From Nothing" then
+        kind = "special"
+        visual = "from-nothing"
+      elseif item.jewelData and item.jewelData.conqueredBy
+        and item.jewelData.conqueredBy.conqueror
+        and item.jewelData.conqueredBy.conqueror.type then
+        kind = "special"
+        visual = "conqueror"
+        conqueror = tostring(item.jewelData.conqueredBy.conqueror.type)
+        if conqueror == "kalguur" then conqueror = "kalguuran" end
+      end
+      table.insert(effects, {
+        socketNodeId = tostring(socketNodeId),
+        itemId = tostring(itemId),
+        label = label,
+        radiusIndex = radiusIndex,
+        inner = tonumber(radius.inner),
+        outer = tonumber(radius.outer),
+        color = type(radius.col) == "string" and radius.col or nil,
+        kind = kind,
+        visual = visual,
+        conqueror = conqueror,
+        centerNodeIds = socketCenters(item, socketNodeId),
+      })
+    end
+  end
+end
+
+return {
+  success = true,
+  multiplier = tonumber(runtimeData.gameConstants and runtimeData.gameConstants["PassiveTreeJewelDistanceMultiplier"]) or 1.2,
+  definitions = radiusDefinitions,
+  effects = effects,
+}
+`
+
 interface DetachedEquipmentInspection {
   results?: unknown[]
   errors?: Record<string, string>
@@ -1314,6 +1457,37 @@ export function inspectEquipmentWithLuaEngine(engine: LuaEngine, rawItems: strin
       rawItems.forEach((_raw, index) => engine.global.set(`__pobEquipmentRaw${index + 1}`, undefined))
     } catch {
       // The next inspection overwrites all input globals if cleanup fails.
+    }
+  }
+}
+
+export function inspectJewelRadiusWithLuaEngine(engine: LuaEngine, xml: string): JewelRadiusSnapshot {
+  if (!xml) {
+    return { success: false, multiplier: 1.2, definitions: [], effects: [], error: 'Missing build XML' }
+  }
+  try {
+    engine.global.set('__pobBuildXml', xml)
+    const result = detachLuaValue(engine.doStringSync(JEWEL_RADIUS_SCRIPT)) as Partial<JewelRadiusSnapshot> | undefined
+    return {
+      success: result?.success === true,
+      multiplier: typeof result?.multiplier === 'number' ? result.multiplier : 1.2,
+      definitions: Array.isArray(result?.definitions) ? result.definitions as JewelRadiusSnapshot['definitions'] : [],
+      effects: Array.isArray(result?.effects) ? result.effects as JewelRadiusSnapshot['effects'] : [],
+      error: typeof result?.error === 'string' ? result.error : undefined,
+    }
+  } catch (err) {
+    return {
+      success: false,
+      multiplier: 1.2,
+      definitions: [],
+      effects: [],
+      error: err instanceof Error ? err.message : String(err),
+    }
+  } finally {
+    try {
+      engine.global.set('__pobBuildXml', undefined)
+    } catch {
+      // The next request overwrites the input global.
     }
   }
 }

@@ -11,6 +11,7 @@ import {
 import { screenToTree } from '@/engine/coordinate'
 import { getAttributeNodeDisplay } from '@/engine/attributeNodes'
 import { getSinisterJewelSocketIds, isSinisterJewelSocket } from '@/engine/sinisterJewelSockets'
+import { inspectJewelRadius } from '@/engine/pobLuaClient'
 import { getConnectorState } from '@/engine/connectorSprites'
 import {
   getEffectiveAllocationPath,
@@ -47,6 +48,7 @@ import {
 } from '@/engine/treeRenderShared'
 import { useTreeStore } from '@/store/treeStore'
 import type { TreeConnectorQuad, TreeNode } from '@/types/tree'
+import type { JewelRadiusDefinition, JewelRadiusEffect, JewelRadiusSnapshot } from '@/types/jewelRadius'
 import { useTranslation } from '@/i18n/useTranslation'
 import { uiText } from '@/i18n/uiLocale'
 
@@ -66,6 +68,12 @@ const PIXEL_RATIO_CAP = 3
 const HOVER_RADIUS_MULTIPLIER = 1.18
 const HIT_GRID_CELL_SIZE = 280
 const PREVIEW_CACHE_LIMIT = 256
+const JEWEL_RADIUS_MULTIPLIER_FALLBACK = 1.2
+const JEWEL_RADIUS_ACTUAL_COLOR = 0xDCE8FF
+const JEWEL_RADIUS_RING_TEXTURE = '/assets/ui/ring.png'
+const JEWEL_RADIUS_SHADED_OUTER_TEXTURE = '/assets/ui/ShadedOuterRing.png'
+const JEWEL_RADIUS_SHADED_INNER_TEXTURE = '/assets/ui/ShadedInnerRing.png'
+const JEWEL_RADIUS_ROTATION = 0.7
 
 interface NodeHit {
   id: string
@@ -98,6 +106,178 @@ function resizeRendererToHost(app: Application, host: HTMLElement): void {
 
 function hexToNumber(hex: string): number {
   return Number.parseInt(hex.replace('#', ''), 16)
+}
+
+function jewelRadiusColor(value: string | undefined, fallback: number): number {
+  const match = value?.match(/([0-9a-f]{6})$/i)
+  return match ? Number.parseInt(match[1], 16) : fallback
+}
+
+function isJewelRadiusSocket(node: TreeNode | undefined): boolean {
+  return Boolean(
+    node
+      && (node.isJewelSocket || node.type === 'JewelSocket' || node.type === 'Socket')
+      && !node.noRadius
+      && !isSinisterJewelSocket(node)
+      && node.name !== 'Charm Socket',
+  )
+}
+
+function drawRadiusDisc(graphics: Graphics, x: number, y: number, radius: number, color: number, fillAlpha: number, strokeAlpha: number): void {
+  if (!(radius > 0)) return
+  graphics
+    .circle(x, y, radius)
+    .fill({ color, alpha: fillAlpha })
+    .stroke({ color, width: Math.max(4, radius * 0.004), alpha: strokeAlpha })
+}
+
+function drawRadiusRing(graphics: Graphics, x: number, y: number, inner: number, outer: number, color: number, alpha: number): void {
+  if (!(outer > inner && outer > 0)) return
+  const width = Math.max(5, outer - inner)
+  graphics
+    .circle(x, y, (inner + outer) / 2)
+    .stroke({ color, width, alpha })
+}
+
+function makeRadiusSprite(texture: Texture, x: number, y: number, diameter: number, alpha: number, tint: number, rotation: number, flipped: boolean): Sprite {
+  const sprite = new Sprite(texture)
+  sprite.anchor.set(0.5)
+  sprite.position.set(x, y)
+  sprite.width = diameter
+  sprite.height = diameter
+  sprite.alpha = alpha
+  sprite.tint = tint
+  sprite.rotation = rotation
+  if (flipped) sprite.scale.x *= -1
+  return sprite
+}
+
+function addRadiusTexturePair(container: Container, texture: Texture, x: number, y: number, diameter: number, alpha: number, tint: number): void {
+  container.addChild(
+    makeRadiusSprite(texture, x, y, diameter, alpha, tint, -JEWEL_RADIUS_ROTATION, false),
+    makeRadiusSprite(texture, x, y, diameter, alpha, tint, JEWEL_RADIUS_ROTATION, true),
+  )
+}
+
+function addRadiusTexture(container: Container, texture: Texture, x: number, y: number, diameter: number, alpha: number, tint: number): void {
+  container.addChild(makeRadiusSprite(texture, x, y, diameter, alpha, tint, 0, false))
+}
+
+function drawShadedRadius(
+  container: Container,
+  fallback: Graphics,
+  x: number,
+  y: number,
+  inner: number,
+  outer: number,
+  multiplier: number,
+  fallbackColor: number,
+  alpha: number,
+  requestRender: () => void,
+): void {
+  const outerSize = Math.max(0, outer * multiplier)
+  const innerSize = Math.max(0, inner * multiplier)
+  const outerTexture = requestPixiTexture(JEWEL_RADIUS_SHADED_OUTER_TEXTURE, requestRender)
+  if (outerTexture) {
+    addRadiusTexturePair(container, outerTexture, x, y, outerSize * 2, alpha, 0xFFFFFF)
+  } else if (innerSize === 0) {
+    drawRadiusDisc(fallback, x, y, outerSize, fallbackColor, 0.055, alpha)
+  }
+
+  if (innerSize > 0) {
+    const innerTexture = requestPixiTexture(JEWEL_RADIUS_SHADED_INNER_TEXTURE, requestRender)
+    if (innerTexture) {
+      addRadiusTexturePair(container, innerTexture, x, y, innerSize * 2, alpha, 0xFFFFFF)
+    } else if (!outerTexture) {
+      drawRadiusRing(fallback, x, y, innerSize, outerSize, fallbackColor, alpha)
+    }
+  }
+}
+
+function drawRingRadius(
+  container: Container,
+  fallback: Graphics,
+  x: number,
+  y: number,
+  inner: number,
+  outer: number,
+  multiplier: number,
+  color: number,
+  alpha: number,
+  requestRender: () => void,
+): void {
+  const outerSize = Math.max(0, outer * multiplier)
+  const innerSize = Math.max(0, inner * multiplier)
+  const texture = requestPixiTexture(JEWEL_RADIUS_RING_TEXTURE, requestRender)
+  if (texture) {
+    addRadiusTexture(container, texture, x, y, outerSize * 2, alpha, color)
+    if (innerSize > 0) addRadiusTexture(container, texture, x, y, innerSize * 2, alpha, color)
+  } else if (innerSize === 0) {
+    drawRadiusDisc(fallback, x, y, outerSize, color, 0.025, alpha)
+  } else {
+    drawRadiusRing(fallback, x, y, innerSize, outerSize, color, alpha)
+  }
+}
+
+function conquerorRadiusUrl(treeVersion: string, conqueror: string, index: 1 | 2): string {
+  if (conqueror === 'abyss') {
+    return `/assets/dds/${treeVersion}/icons/art_textures_interface_2d_2dart_uiimages_ingame_abyss_abysspassiveskillscreenjewelcircle1.webp`
+  }
+  return `/assets/dds/${treeVersion}/icons/art_textures_interface_2d_2dart_uiimages_ingame_passiveskillscreen${conqueror}jewelcircle${index}.webp`
+}
+
+function drawConquerorRadius(
+  container: Container,
+  fallback: Graphics,
+  x: number,
+  y: number,
+  outer: number,
+  multiplier: number,
+  conqueror: string,
+  treeVersion: string,
+  requestRender: () => void,
+): void {
+  const diameter = Math.max(0, outer * multiplier * 2)
+  const circle1 = requestPixiTexture(conquerorRadiusUrl(treeVersion, conqueror, 1), requestRender)
+  const circle2 = requestPixiTexture(conquerorRadiusUrl(treeVersion, conqueror, 2), requestRender)
+  if (circle1 || circle2) {
+    if (circle1) container.addChild(makeRadiusSprite(circle1, x, y, diameter, 0.7, 0xFFFFFF, -JEWEL_RADIUS_ROTATION, false))
+    if (circle2) container.addChild(makeRadiusSprite(circle2, x, y, diameter, 0.7, 0xFFFFFF, JEWEL_RADIUS_ROTATION, true))
+    return
+  }
+  drawShadedRadius(container, fallback, x, y, 0, outer, multiplier, JEWEL_RADIUS_ACTUAL_COLOR, 0.7, requestRender)
+}
+
+function drawRadiusDefinition(
+  container: Container,
+  fallback: Graphics,
+  x: number,
+  y: number,
+  definition: JewelRadiusDefinition,
+  multiplier: number,
+  requestRender: () => void,
+): void {
+  const color = jewelRadiusColor(definition.color, 0x7DD3FC)
+  drawRingRadius(container, fallback, x, y, definition.inner, definition.outer, multiplier, color, 1, requestRender)
+}
+
+function drawJewelRadiusEffect(
+  container: Container,
+  fallback: Graphics,
+  x: number,
+  y: number,
+  effect: JewelRadiusEffect,
+  multiplier: number,
+  treeVersion: string,
+  requestRender: () => void,
+): void {
+  if (effect.inner == null || effect.outer == null) return
+  if (effect.visual === 'conqueror' && effect.conqueror) {
+    drawConquerorRadius(container, fallback, x, y, effect.outer, multiplier, effect.conqueror, treeVersion, requestRender)
+    return
+  }
+  const inner = effect.visual === 'from-nothing' ? 150 / multiplier : effect.inner * 1.06
+  drawShadedRadius(container, fallback, x, y, inner, effect.outer, multiplier, JEWEL_RADIUS_ACTUAL_COLOR, 0.7, requestRender)
 }
 
 function jewelColor(jewel: NodeJewels[string]): number {
@@ -230,6 +410,7 @@ export function TreePixiCanvas() {
   const hostRef = useRef<HTMLDivElement>(null)
   const appRef = useRef<Application | null>(null)
   const worldLayerRef = useRef<Container | null>(null)
+  const jewelRadiusLayerRef = useRef<Container | null>(null)
   const previewConnectorLayerRef = useRef<Container | null>(null)
   const previewNodeLayerRef = useRef<Container | null>(null)
   const interactionLayerRef = useRef<Container | null>(null)
@@ -253,6 +434,7 @@ export function TreePixiCanvas() {
   const [nodeRenderRevision, setNodeRenderRevision] = useState(0)
   const [itemIconIndex, setItemIconIndex] = useState<ItemIconIndex | null>(null)
   const [attributeAllocationMenu, setAttributeAllocationMenu] = useState<AttributeAllocationMenu | null>(null)
+  const [jewelRadiusSnapshot, setJewelRadiusSnapshot] = useState<JewelRadiusSnapshot | null>(null)
 
   const treeData = useTreeStore((s) => s.treeData)
   const treeVersion = useTreeStore((s) => s.treeVersion)
@@ -261,6 +443,7 @@ export function TreePixiCanvas() {
   const zoom = useTreeStore((s) => s.zoom)
   const hoveredNodeId = useTreeStore((s) => s.hoveredNodeId)
   const selectedNodeId = useTreeStore((s) => s.selectedNodeId)
+  const jewelRadiusPreview = useTreeStore((s) => s.jewelRadiusPreview)
   const searchMatchIds = useTreeStore((s) => s.searchMatchIds)
   const treeEditMode = useTreeStore((s) => s.treeEditMode)
   const weaponSetMode = useTreeStore((s) => s.weaponSetMode)
@@ -277,9 +460,27 @@ export function TreePixiCanvas() {
   const passiveJewels = useMemo(() => {
     return getActivePobTreeJewelItems() as NodeJewels
   }, [getActivePobTreeJewelItems, pobBuildRevision])
+  const activePobXml = useMemo(() => {
+    return getActivePobXml() || ''
+  }, [getActivePobXml, pobBuildRevision])
   const dynamicSinisterSocketIds = useMemo(() => {
     return getSinisterJewelSocketIds(treeData || undefined, getActivePobXml())
   }, [getActivePobXml, pobBuildRevision, treeData])
+
+  useEffect(() => {
+    let cancelled = false
+    const selectedNode = selectedNodeId ? treeData?.nodes[selectedNodeId] || undefined : undefined
+    if (!activePobXml || !isJewelRadiusSocket(selectedNode)) {
+      setJewelRadiusSnapshot(null)
+      return () => { cancelled = true }
+    }
+
+    setJewelRadiusSnapshot(null)
+    void inspectJewelRadius(activePobXml).then((snapshot) => {
+      if (!cancelled) setJewelRadiusSnapshot(snapshot.success ? snapshot : null)
+    })
+    return () => { cancelled = true }
+  }, [activePobXml, pobBuildRevision, selectedNodeId, treeData, treeVersion])
   const previewCacheScope = [
     treeVersion,
     selectedClassId,
@@ -343,6 +544,7 @@ export function TreePixiCanvas() {
       if (appRef.current === app) {
         appRef.current = null
       }
+      jewelRadiusLayerRef.current = null
       if (initialized) {
         app.destroy(true)
       }
@@ -445,12 +647,14 @@ export function TreePixiCanvas() {
       const connectorLayer = new Container()
       const previewConnectorLayer = new Container()
       const nodeLayer = new Container()
+      const jewelRadiusLayer = new Container()
       const overlayLayer = new Container()
       const jewelLayer = new Container()
       const previewNodeLayer = new Container()
       const interactionLayer = new Container()
       const hoverLayer = new Container()
       worldLayerRef.current = worldLayer
+      jewelRadiusLayerRef.current = jewelRadiusLayer
       previewConnectorLayerRef.current = previewConnectorLayer
       previewNodeLayerRef.current = previewNodeLayer
       interactionLayerRef.current = interactionLayer
@@ -461,6 +665,7 @@ export function TreePixiCanvas() {
         backgroundLayer,
         orbitLayer,
         connectorLayer,
+        jewelRadiusLayer,
         previewConnectorLayer,
         nodeLayer,
         overlayLayer,
@@ -794,6 +999,59 @@ export function TreePixiCanvas() {
       if (token === renderTokenRef.current) render()
     })
   }, [pixiReady, textureRenderTick, resizeTick, treeData, treeVersion, nodeWeaponSets, nodeAttributeSelections, passiveJewels, itemIconIndex, selectedClassId, selectedAscendancyId, allocatedNodes, availableNodes, requestRender])
+
+  useEffect(() => {
+    const layer = jewelRadiusLayerRef.current
+    if (!layer) return
+    layer.removeChildren().forEach((child) => child.destroy({ children: true }))
+    if (!pixiReady || !treeData || !jewelRadiusSnapshot?.success) return
+
+    const projection = getSelectedAscendancyProjection(treeData, selectedClassId, selectedAscendancyId)
+    const multiplier = jewelRadiusSnapshot.multiplier || JEWEL_RADIUS_MULTIPLIER_FALLBACK
+    const radiusLayer = new Container()
+    const radiusGraphics = new Graphics()
+    const roots = getImplicitRootIds({ treeData, selectedClassId, selectedAscendancyId })
+
+    for (const effect of jewelRadiusSnapshot.effects) {
+      const socket = treeData.nodes[effect.socketNodeId]
+      if (!isJewelRadiusSocket(socket)) continue
+      if (!isEffectivelyAllocated(effect.socketNodeId, allocatedNodes, roots)) continue
+
+      const centers = effect.centerNodeIds.length > 0 ? effect.centerNodeIds : [effect.socketNodeId]
+      const drawnCenters = new Set<string>()
+      for (const centerNodeId of centers) {
+        if (drawnCenters.has(centerNodeId)) continue
+        drawnCenters.add(centerNodeId)
+        const centerNode = treeData.nodes[centerNodeId]
+        if (!centerNode) continue
+        const [x, y] = getRenderTreePoint(centerNode, projection)
+        drawJewelRadiusEffect(radiusLayer, radiusGraphics, x, y, effect, multiplier, treeVersion, requestRender)
+      }
+    }
+
+    if (jewelRadiusPreview) {
+      const previewNode = treeData.nodes[jewelRadiusPreview.nodeId]
+      const definition = jewelRadiusSnapshot.definitions.find((item) => item.index === jewelRadiusPreview.radiusIndex)
+      if (previewNode && definition && isJewelRadiusSocket(previewNode)) {
+        const [x, y] = getRenderTreePoint(previewNode, projection)
+        drawRadiusDefinition(radiusLayer, radiusGraphics, x, y, definition, multiplier, requestRender)
+      }
+    }
+
+    layer.addChild(radiusLayer)
+    layer.addChild(radiusGraphics)
+  }, [
+    pixiReady,
+    treeData,
+    selectedClassId,
+    selectedAscendancyId,
+    allocatedNodes,
+    dynamicSinisterSocketIds,
+    jewelRadiusPreview,
+    jewelRadiusSnapshot,
+    nodeRenderRevision,
+    requestRender,
+  ])
 
   useEffect(() => {
     const connectorLayer = previewConnectorLayerRef.current

@@ -29,6 +29,14 @@ import { compareBuildCodes, type BuildUpdateDiff } from '@/engine/buildDiff'
 import { SUPERPOE_PACKAGE_VERSION } from '@/engine/appVersion'
 import { GlobalSettingsDialog } from '@/components/GlobalSettingsDialog'
 import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/appSettings'
+import {
+  applyRendererStorage,
+  buildBackupFileName,
+  collectRendererStorage,
+  createSuperPoeBackup,
+  parseSuperPoeBackup,
+  type BackupStorageKey,
+} from '@/engine/superPoeBackup'
 import { UpdateDialog } from '@/components/UpdateDialog'
 import type { MarketWorkspaceView } from '@/components/market/MarketShell'
 import type { MarketMonitoringSnapshot } from '@/types/market'
@@ -82,6 +90,8 @@ export default function App() {
   const [buildUpdateError, setBuildUpdateError] = useState<string | null>(null)
   const buildUpdateRequestRef = useRef(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [backupNotice, setBackupNotice] = useState<string | null>(null)
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [appSettings, setAppSettings] = useState(loadAppSettings)
   const { treeData, error, loadTreeData, loadSavedBuilds } = useTreeStore()
@@ -649,6 +659,73 @@ export default function App() {
     setSaveStatus('dirty')
   }, [])
 
+  const handleBackupExport = useCallback(async () => {
+    const bridge = window.pob2Desktop
+    if (!bridge) {
+      setBackupNotice(l('Backups require the desktop app', '备份功能需要桌面版应用', '備份功能需要桌面版應用程式', '백업은 데스크톱 앱에서만 지원됩니다'))
+      return
+    }
+    setBackupBusy(true)
+    setBackupNotice(null)
+    try {
+      const currentHash = encodeToHash()
+      const rendererStorage = collectRendererStorage()
+      const currentCode = getActivePobCode() || ''
+      if (currentCode) {
+        rendererStorage['pob2-imported-build' as BackupStorageKey] = JSON.stringify({ hash: currentHash, code: currentCode })
+      }
+      const content = await createSuperPoeBackup({
+        main: await bridge.collectBackupData(),
+        appVersion: SUPERPOE_PACKAGE_VERSION,
+        channel: appSettings.updateChannel,
+        platform: /Macintosh|Mac OS X/i.test(navigator.userAgent) ? 'darwin' : 'win32',
+        rendererStorage,
+        urlHash: currentHash,
+      })
+      const result = await bridge.saveBackupFile({ content, fileName: buildBackupFileName() })
+      if (!result.canceled) setBackupNotice(l('Backup saved', '备份已保存', '備份已儲存', '백업이 저장되었습니다'))
+    } catch (error) {
+      console.error('[Backup] export failed', error)
+      setBackupNotice(l('Backup failed', '备份失败', '備份失敗', '백업 실패'))
+    } finally {
+      setBackupBusy(false)
+    }
+  }, [appSettings.updateChannel, encodeToHash, getActivePobCode, l])
+
+  const handleBackupImport = useCallback(async () => {
+    const bridge = window.pob2Desktop
+    if (!bridge) {
+      setBackupNotice(l('Backups require the desktop app', '备份功能需要桌面版应用', '備份功能需要桌面版應用程式', '백업은 데스크톱 앱에서만 지원됩니다'))
+      return
+    }
+    setBackupBusy(true)
+    setBackupNotice(null)
+    try {
+      const result = await bridge.openBackupFile()
+      if (result.canceled || !result.content) return
+      const backup = await parseSuperPoeBackup(result.content)
+      const writtenAt = new Date(backup.writtenAt).toLocaleString()
+      const confirmed = window.confirm(l(
+        `Restore this backup from ${writtenAt}? Current local data and settings will be replaced.`,
+        `确定恢复 ${writtenAt} 的备份吗？当前本地数据和设置将被替换。`,
+        `確定要恢復 ${writtenAt} 的備份嗎？目前本機資料與設定將被取代。`,
+        `이 백업(${writtenAt})을 복원할까요? 현재 로컬 데이터와 설정이 교체됩니다.`,
+      ))
+      if (!confirmed) return
+      await bridge.restoreBackupData(backup.data.main)
+      applyRendererStorage(backup.data.rendererStorage)
+      const nextUrl = `${window.location.pathname}${window.location.search}${backup.data.urlHash ? `#${backup.data.urlHash}` : ''}`
+      window.history.replaceState(null, '', nextUrl)
+      setBackupNotice(l('Backup restored; restarting...', '备份已恢复，正在重启...', '備份已恢復，正在重新啟動...', '백업 복원 완료. 다시 시작하는 중...'))
+      window.setTimeout(() => window.location.reload(), 500)
+    } catch (error) {
+      console.error('[Backup] import failed', error)
+      setBackupNotice(l('Backup restore failed', '恢复备份失败', '恢復備份失敗', '백업 복원 실패'))
+    } finally {
+      setBackupBusy(false)
+    }
+  }, [l])
+
   const handleSettingsChange = useCallback((settings: AppSettings) => {
     setAppSettings(settings)
     saveAppSettings(settings)
@@ -698,7 +775,16 @@ export default function App() {
       </>}
       <NewBuildDialog open={newBuildOpen} defaultRealm={appSettings.defaultRealm} onClose={() => setNewBuildOpen(false)} onCreate={(input) => void handleCreateBuild(input)} />
       <UnifiedImportDialog open={importOpen} hasCurrentBuild={screen === 'editor'} defaultRealm={appSettings.defaultRealm} onClose={() => setImportOpen(false)} onConfirm={handleImportConfirmation} />
-      <GlobalSettingsDialog open={settingsOpen} settings={appSettings} onChange={handleSettingsChange} onClose={() => setSettingsOpen(false)} />
+      <GlobalSettingsDialog
+        open={settingsOpen}
+        settings={appSettings}
+        onChange={handleSettingsChange}
+        onClose={() => setSettingsOpen(false)}
+        backupBusy={backupBusy}
+        backupNotice={backupNotice}
+        onBackupExport={() => void handleBackupExport()}
+        onBackupImport={() => void handleBackupImport()}
+      />
       <UpdateDialog settings={appSettings} />
       {buildUpdateTarget && <BuildUpdateDialog
         build={buildUpdateTarget}

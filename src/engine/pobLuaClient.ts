@@ -1,9 +1,10 @@
 import type { CalcApiResponse, RankSkillsInput, SkillCalculationSelection, SkillDpsRankResponse } from '@/types/calc'
 import type { EquipmentInspectionItem, EquipmentInspectionResult } from '@/types/equipmentSemantics'
+import type { JewelRadiusSnapshot } from '@/types/jewelRadius'
 
 interface WorkerRequest {
   id: number
-  type: 'init' | 'calculate' | 'inspectEquipment' | 'rankSkills'
+  type: 'init' | 'calculate' | 'inspectEquipment' | 'inspectJewelRadius' | 'rankSkills'
   payload?: unknown
 }
 
@@ -97,6 +98,24 @@ export async function inspectEquipment(items: EquipmentInspectionItem[]): Promis
     console.debug(`[PoB Lua] equipment init=${initMs.toFixed(1)}ms parse=${parseMs.toFixed(1)}ms hits=${cacheHits} misses=${cacheMisses}`)
   }
   return result
+}
+
+export async function inspectJewelRadius(xml: string): Promise<JewelRadiusSnapshot> {
+  if (!xml) {
+    return { success: false, multiplier: 1.2, definitions: [], effects: [], error: 'Missing build XML' }
+  }
+  try {
+    await initPobLuaWorker()
+    return await callWorker<JewelRadiusSnapshot>('inspectJewelRadius', { xml })
+  } catch (err) {
+    return {
+      success: false,
+      multiplier: 1.2,
+      definitions: [],
+      effects: [],
+      error: err instanceof Error ? err.message : String(err),
+    }
+  }
 }
 
 async function calculateViaBackend(input: CalculateBuildInput): Promise<CalcApiResponse> {

@@ -464,6 +464,49 @@ export class EquipmentLibraryRepository {
     return this.entries.length
   }
 
+  exportData(): unknown {
+    const file: EquipmentLibraryFile = {
+      schemaVersion: 3,
+      entries: this.entries.map(({ view: _view, ...entry }) => entry),
+      ...(this.unresolvedLegacyEntries.length ? { unresolvedLegacyEntries: this.unresolvedLegacyEntries } : {}),
+      folders: this.folders,
+      searches: this.searches,
+      selectedFolders: this.selectedFolders,
+      updatedAt: new Date().toISOString(),
+    }
+    return structuredClone(file)
+  }
+
+  restoreData(value: unknown): void {
+    if (!value || typeof value !== 'object' || (value as { schemaVersion?: unknown }).schemaVersion !== 3
+      || !Array.isArray((value as { entries?: unknown }).entries)) {
+      throw new Error('Unsupported equipment library backup schema')
+    }
+    const previous = {
+      entries: this.entries,
+      folders: this.folders,
+      searches: this.searches,
+      selectedFolders: this.selectedFolders,
+      unresolvedLegacyEntries: this.unresolvedLegacyEntries,
+    }
+    try {
+      this.entries = []
+      this.folders = []
+      this.searches = []
+      this.selectedFolders = {}
+      this.unresolvedLegacyEntries = []
+      this.loadPayload(value)
+      this.save()
+    } catch (error) {
+      this.entries = previous.entries
+      this.folders = previous.folders
+      this.searches = previous.searches
+      this.selectedFolders = previous.selectedFolders
+      this.unresolvedLegacyEntries = previous.unresolvedLegacyEntries
+      throw error
+    }
+  }
+
   sidebarSnapshot(): EquipmentLibrarySidebarSnapshot {
     return structuredClone({
       folders: [...this.folders].sort((a, b) => a.sortOrder - b.sortOrder || a.createdAt.localeCompare(b.createdAt)),

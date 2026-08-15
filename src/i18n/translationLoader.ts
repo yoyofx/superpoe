@@ -346,8 +346,10 @@ function translateText(value: string, language: Language, depth = 0): string {
   if (key.includes('\n')) {
     const lines = key.split('\n')
     const translatedLines = lines.map((line) => line.trim() ? translateText(line, language) : line)
-    if (translatedLines.some((line, index) => line !== lines[index])) {
-      return remember(translatedLines.join('\n'))
+    const numericValues = extractNumericPlaceholderValues(key)
+    const filledLines = translatedLines.map((line) => fillMissingNumericPlaceholders(line, numericValues))
+    if (filledLines.some((line, index) => line !== lines[index])) {
+      return remember(filledLines.join('\n'))
     }
   }
 
@@ -357,6 +359,65 @@ function translateText(value: string, language: Language, depth = 0): string {
 /** Translate game-provided names and stat lines using the loaded PoB dictionaries. */
 export function translateGameText(value: string, language: Language): string {
   return translateText(value, language)
+}
+
+/**
+ * Extract current values from a multi-line stat without treating a tier range
+ * such as `(0-150)` as two independent values. Current values before a tier
+ * range are preferred; when only a range exists, the range itself is used.
+ */
+function extractNumericPlaceholderValues(value: string): string[] {
+  const ranges = [...value.matchAll(/\(\s*([-+]?\d+(?:\.\d+)?\s*-\s*[-+]?\d+(?:\.\d+)?)\s*\)/g)]
+  const masked = value.replace(/\(\s*[-+]?\d+(?:\.\d+)?\s*-\s*[-+]?\d+(?:\.\d+)?\s*\)/g, (match) => ' '.repeat(match.length))
+  const current = [...masked.matchAll(/[-+]?\d+(?:\.\d+)?(?=\s*%|\s*\()/g)].map((match) => match[0])
+  if (current.length) return current
+  return ranges.map((match) => match[1].replace(/\s+/g, ''))
+}
+
+function fillMissingNumericPlaceholders(value: string, numericValues: string[]): string {
+  if (!numericValues.length || !/\{\d+\}/.test(value)) return value
+  return value.replace(/\{(\d+)\}/g, (placeholder, index: string, offset: number) => {
+    const replacement = numericValues[Number(index)] ?? numericValues[0]
+    if (replacement == null) return placeholder
+    return value[offset + placeholder.length] === '%' ? replacement.replace(/%$/, '') : replacement
+  })
+}
+
+const JEWEL_RADIUS_LABELS = [
+  'Very Small Ring',
+  'Small Ring',
+  'Medium-Small Ring',
+  'Medium Ring',
+  'Medium-Large Ring',
+  'Large Ring',
+  'Very Large Ring',
+  'Massive Ring',
+] as const
+
+const JEWEL_RADIUS_STAT_PREFIX = 'Only affects Passives in '
+
+const JEWEL_RADIUS_SENTENCE_PATTERNS: Readonly<Record<Language, RegExp>> = {
+  en: /^Only affects Passives in (.+)$/,
+  'zh-rCN': /^只影响(.+?)内的天赋$/,
+  'zh-rTW': /^只會影響(.+?)內的天賦$/,
+  'ko-KR': /^(.+?)의 패시브 스킬에만 영향을 미침$/,
+}
+
+/**
+ * Localize a jewel radius label through the bundled PoB stat translations.
+ * The translation assets contain complete "Only affects Passives in ... Ring"
+ * sentences rather than standalone radius names, so the translated sentence's
+ * language-specific grammatical wrapper is removed here.
+ */
+export function translateJewelRadiusLabel(value: string, language: Language): string {
+  const sourceLabel = JEWEL_RADIUS_LABELS.find((label) => label.toLowerCase() === value.trim().toLowerCase())
+  if (!sourceLabel) return translateGameText(value, language)
+
+  const target = translateGameText(`${JEWEL_RADIUS_STAT_PREFIX}${sourceLabel}`, language)
+  const sourceSentence = `${JEWEL_RADIUS_STAT_PREFIX}${sourceLabel}`
+  if (!target || target === sourceSentence) return sourceLabel
+
+  return target.match(JEWEL_RADIUS_SENTENCE_PATTERNS[language])?.[1]?.trim() || sourceLabel
 }
 
 function translateList(value: string[] | undefined, language: Language): string[] | undefined {

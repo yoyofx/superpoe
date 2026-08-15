@@ -12,6 +12,7 @@ import {
   normalizeDisplayTags,
   resetTranslationsForTest,
   translateGameText,
+  translateJewelRadiusLabel,
 } from '@/i18n/translationLoader'
 import type { TreeNode } from '@/types/tree'
 
@@ -152,6 +153,36 @@ describe('translationLoader', () => {
     expect(getLocalizedSearchText(node, 'zh-rCN')).toContain('感电几率提高 15%')
   })
 
+  it('derives variable jewel radius labels from translated stat descriptions', async () => {
+    const labels = [
+      ['Very Small Ring', '极小环形范围'],
+      ['Small Ring', '小型环形范围'],
+      ['Medium-Small Ring', '中小环形范围'],
+      ['Medium Ring', '中型环形范围'],
+      ['Medium-Large Ring', '中大环形范围'],
+      ['Large Ring', '大型环形范围'],
+      ['Very Large Ring', '极大环形范围'],
+      ['Massive Ring', '巨大环形范围'],
+    ] as const
+
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/data/Translate/translation-files.json') {
+        return { ok: true, status: 200, json: async () => testManifest(), text: async () => JSON.stringify(testManifest()) }
+      }
+      const file = url.split('/').pop() || ''
+      const rows = file === 'statDescriptions.csv'
+        ? labels.map(([source, translated]) => `"Only affects Passives in ${source}","只影响${translated}内的天赋"`).join('\n')
+        : ''
+      return { ok: true, status: 200, text: async () => rows }
+    }))
+
+    await loadTranslations('zh-rCN')
+
+    expect(translateJewelRadiusLabel('Very Large Ring', 'zh-rCN')).toBe('极大环形范围')
+    expect(translateJewelRadiusLabel('Medium-Small Ring', 'zh-rCN')).toBe('中小环形范围')
+    expect(translateJewelRadiusLabel('Very Large Ring', 'en')).toBe('Very Large Ring')
+  })
+
   it('reuses numeric translation patterns for matching stat lines', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: string) => {
       if (url === '/data/Translate/translation-files.json') {
@@ -236,6 +267,24 @@ describe('translationLoader', () => {
       ...node,
       stats: ['Excess Life Recovery from Regeneration is applied to Energy Shield\nEnergy Shield does not Recharge'],
     }, 'zh-rTW').stats[0]).toBe('过量生命再生回复应用于能量护盾\n能量护盾无法充能')
+  })
+
+  it('fills values into existing translations for compound item modifiers', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => {
+      if (url === '/data/Translate/translation-files.json') {
+        return { ok: true, status: 200, json: async () => testManifest(), text: async () => JSON.stringify(testManifest()) }
+      }
+      const file = url.split('/').pop() || ''
+      const rows = file === 'statDescriptions.csv'
+        ? '"{0}% increased Effect of Jewel Socket Passive Skills",含有被腐化的魔法珠宝的\n"containing Corrupted Magic Jewels","珠宝插槽天赋效果降低 {0}%"\n'
+        : ''
+      return { ok: true, status: 200, text: async () => rows }
+    }))
+
+    await loadTranslations('zh-rCN')
+
+    expect(translateGameText('150% increased Effect of Jewel Socket Passive Skills\ncontaining Corrupted Magic Jewels', 'zh-rCN'))
+      .toBe('含有被腐化的魔法珠宝的\n珠宝插槽天赋效果降低 150%')
   })
 
   it('recognizes every bundled non-English language option', async () => {

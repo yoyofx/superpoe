@@ -81,13 +81,55 @@ export function applyXiletradeParseEvidence(view: CanonicalItemView, evidence: I
   return view
 }
 
-const FIELD_LINE = /^(?:物品类别|物品類別|아이템 종류|稀有度|Rarity|品质|品質|Quality|物理伤害|物理傷害|Physical Damage|元素伤害|元素傷害|Elemental Damage|暴击率|暴擊率|Critical Hit Chance|每秒攻击次数|每秒攻擊次數|Attacks per Second|需求|Requirements?|插槽|Sockets?|物品等级|物品等級|Item Level|품질|소켓|요구|아이템 레벨|물리 피해|원소 피해|치명타 확률|초당 공격 횟수)\s*[：:]/iu
+const FIELD_LINE = /^(?:物品类别|物品類別|아이템 종류|稀有度|Rarity|品质|品質|Quality|物理伤害|物理傷害|Physical Damage|元素伤害|元素傷害|Elemental Damage|暴击率|暴擊率|Critical Hit Chance|每秒攻击次数|每秒攻擊次數|Attacks per Second|需求|Requirements?|插槽|Sockets?|物品等级|物品等級|Item Level|仅限|僅限|Limited to|范围|範圍|Radius|품질|소켓|요구|아이템 레벨|물리 피해|원소 피해|치명타 확률|초당 공격 횟수)\s*[：:]/iu
 const FOOTER_LINE = /^(?:Corrupted|Twice Corrupted|Sanctified|Sanctified Item|已腐化|已污染|被腐化|双重腐化|雙重腐化|圣化|聖化|圣化物品|Split|分裂|分裂之物|引路石掉落|Waystone Drop|타락|이중 타락|분열|웨이스톤 드롭)$/iu
 const PROPERTY_LINE = /^(?:Requirements?|Sockets?|Quality|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second|Weapon Range|Armour|Evasion|Energy Shield|Ward|Spirit|Charm Slots|Requires)\s*:/i
 
 function unique<T>(values: T[]): T[] { return [...new Set(values)] }
 
 function escapeRegex(value: string): string { return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') }
+
+function isInteractionHintLine(line: string): boolean {
+  return /^(?:使用|放置到|右键点击|按住|Use|Place|Right[- ]click|Hold)\b/iu.test(line)
+}
+
+function isFlavorStart(lines: string[], index: number): boolean {
+  if (index >= lines.length || FOOTER_LINE.test(lines[index]) || /^\{.*\}$/u.test(lines[index]) || isInteractionHintLine(lines[index])) return false
+  if (!/[，。！？；、——…]$/u.test(lines[index])) return false
+  const next = lines[index + 1]
+  return !!next && /[，。！？；、——…]$/u.test(next) && !FOOTER_LINE.test(next)
+}
+
+/** Split newer CN clipboard output that omits the visual separator rows. */
+function splitCompactClipboardSections(lines: string[]): string[][] {
+  const itemLevelIndex = lines.findIndex((line) => /^(?:Item Level|物品等级|物品等級|아이템 레벨)\s*[：:]/iu.test(line))
+  if (itemLevelIndex < 0) return [lines]
+  const sections: string[][] = []
+  const header = lines.slice(0, itemLevelIndex)
+  if (header.length) sections.push(header)
+  let cursor = itemLevelIndex
+  const isBoundary = (index: number) => /^\{.*\}$/u.test(lines[index])
+    || FOOTER_LINE.test(lines[index]) || isInteractionHintLine(lines[index]) || isFlavorStart(lines, index)
+  while (cursor < lines.length) {
+    const start = cursor
+    if (/^\{.*\}$/u.test(lines[cursor])) {
+      cursor += 1
+      while (cursor < lines.length && !isBoundary(cursor)) cursor += 1
+    } else if (FOOTER_LINE.test(lines[cursor])) {
+      while (cursor < lines.length && FOOTER_LINE.test(lines[cursor])) cursor += 1
+    } else if (isInteractionHintLine(lines[cursor])) {
+      cursor += 1
+      while (cursor < lines.length && !isBoundary(cursor)) cursor += 1
+    } else if (isFlavorStart(lines, cursor)) {
+      cursor += 1
+      while (cursor < lines.length && /[，。！？；、——…]$/u.test(lines[cursor])) cursor += 1
+    } else {
+      while (cursor < lines.length && !isBoundary(cursor)) cursor += 1
+    }
+    if (cursor > start) sections.push(lines.slice(start, cursor))
+  }
+  return sections
+}
 
 export function applyXiletradeParsingRules(value: string, rules: XiletradeParsingRule[] = []): string {
   let result = value
@@ -139,8 +181,9 @@ function groupFor(tags: LibraryModifierTag[]): LibraryModifierGroup {
 function localizedRadius(value: string): string {
   const normalized: Record<string, string> = {
     '变量': 'Variable', '變數': 'Variable', '极小': 'Very Small', '極小': 'Very Small',
-    '小型': 'Small', '中小': 'Medium-Small', '中小型': 'Medium-Small', '中型': 'Medium',
-    '大型': 'Large', '极大': 'Very Large', '極大': 'Very Large', '巨大': 'Massive',
+    '小': 'Small', '小型': 'Small', '中小': 'Medium-Small', '中小型': 'Medium-Small',
+    '中': 'Medium', '中型': 'Medium', '大': 'Large', '大型': 'Large',
+    '极大': 'Very Large', '極大': 'Very Large', '巨大': 'Massive',
   }
   return normalized[value] || value
 }
@@ -153,12 +196,18 @@ function localizedRadius(value: string): string {
 export function parseXiletradeItemText(value: string, options: XiletradeItemParserOptions): XiletradeItemParseResult {
   const normalized = value
     .replace(/\r\n?/g, '\n')
-    .replace(/\(\)/g, '')
+    // The CN client inserts an empty placeholder before some variable unique
+    // modifiers (for example: "异能魔力 ()范围内..."). It is presentation
+    // noise, and leaving the adjacent space prevents exact catalog matching.
+    .replace(/[ \t\u3000]*\(\)[ \t\u3000]*/g, '')
     .replace(/\[([^\]|]*\|)?([^\]]+)\]/g, '$2')
     .trim()
-  const sections = normalized.split(/^--------+$/m)
+  const separatedSections = normalized.split(/^--------+$/m)
     .map((section) => section.split('\n').map((line) => line.trim()).filter(Boolean))
     .filter((section) => section.length)
+  const sections = separatedSections.length > 1
+    ? separatedSections
+    : splitCompactClipboardSections(separatedSections[0] || [])
   if (sections.length < 2) throw new Error('Clipboard does not contain a supported Path of Exile 2 item')
 
   const first = sections[0]

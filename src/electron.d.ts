@@ -51,6 +51,10 @@ declare global {
       importPoeNinja(url: string): Promise<{ code: string; sourceUrl: string; suggestedName: string }>
       openBuildFile(): Promise<{ canceled: boolean; filePath?: string; content?: string }>
       saveBuildFileCopy(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
+      openBackupFile(): Promise<{ canceled: boolean; filePath?: string; content?: string }>
+      saveBackupFile(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
+      collectBackupData(): Promise<import('@/engine/superPoeBackup').SuperPoeBackupMainData>
+      restoreBackupData(main: import('@/engine/superPoeBackup').SuperPoeBackupMainData): Promise<void>
       registerBuildFileAssociation(): Promise<{ registered: boolean; isDefault: boolean; settingsOpened: boolean; reason?: 'unsupported-platform' }>
       onOpenBuildFile(callback: (result: { canceled: boolean; filePath?: string; content?: string; error?: string }) => void): () => void
       saveGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
