@@ -20,6 +20,12 @@ export interface BuildUpdateDiff {
   hasChanges: boolean
 }
 
+export type BuildUpdateSection = 'build' | 'tree' | 'equipment' | 'skills' | 'other'
+
+export const BUILD_UPDATE_SECTIONS: readonly BuildUpdateSection[] = [
+  'build', 'tree', 'equipment', 'skills', 'other',
+]
+
 function emptyBucket(): BuildChangeBucket {
   return { added: 0, removed: 0, changed: 0 }
 }

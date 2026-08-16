@@ -25,7 +25,8 @@ import {
   type ParsedSuperPoeBuildFile,
 } from '@/engine/superPoeBuildFile'
 import { encodeBuildCode, getEncodeClassPayload } from '@/engine/buildCode'
-import { compareBuildCodes, type BuildUpdateDiff } from '@/engine/buildDiff'
+import { compareBuildCodes, type BuildUpdateDiff, type BuildUpdateSection } from '@/engine/buildDiff'
+import { mergeBuildUpdateCode } from '@/engine/buildUpdateMerge'
 import { SUPERPOE_PACKAGE_VERSION } from '@/engine/appVersion'
 import { GlobalSettingsDialog } from '@/components/GlobalSettingsDialog'
 import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/appSettings'
@@ -85,6 +86,7 @@ export default function App() {
   const [buildUpdateTarget, setBuildUpdateTarget] = useState<SavedBuild | null>(null)
   const [buildUpdateCode, setBuildUpdateCode] = useState<string | null>(null)
   const [buildUpdateDiff, setBuildUpdateDiff] = useState<BuildUpdateDiff | null>(null)
+  const [buildUpdateSections, setBuildUpdateSections] = useState<BuildUpdateSection[]>([])
   const [buildUpdateChecking, setBuildUpdateChecking] = useState(false)
   const [buildUpdateBusy, setBuildUpdateBusy] = useState(false)
   const [buildUpdateError, setBuildUpdateError] = useState<string | null>(null)
@@ -368,6 +370,7 @@ export default function App() {
     setBuildUpdateTarget(build)
     setBuildUpdateCode(null)
     setBuildUpdateDiff(null)
+    setBuildUpdateSections([])
     setBuildUpdateError(null)
     setBuildUpdateChecking(true)
     try {
@@ -390,15 +393,18 @@ export default function App() {
         : diff
       if (!updateDiff.hasChanges) {
         setBuildUpdateTarget(null)
+        setBuildUpdateSections([])
         setSaveNotice({ type: 'success', message: l('Build is already up to date', '构筑已是最新版本', '構築已是最新版本', '빌드가 최신 버전입니다') })
         return
       }
       setBuildUpdateCode(result.code)
       setBuildUpdateDiff(updateDiff)
+      setBuildUpdateSections([])
     } catch (reason) {
       if (requestId !== buildUpdateRequestRef.current) return
       setBuildUpdateTarget(null)
       setBuildUpdateDiff(null)
+      setBuildUpdateSections([])
       setSaveNotice({ type: 'error', message: reason instanceof Error ? reason.message : String(reason) })
     } finally {
       if (requestId === buildUpdateRequestRef.current) setBuildUpdateChecking(false)
@@ -411,6 +417,7 @@ export default function App() {
     setBuildUpdateTarget(null)
     setBuildUpdateCode(null)
     setBuildUpdateDiff(null)
+    setBuildUpdateSections([])
     setBuildUpdateError(null)
     setBuildUpdateChecking(false)
   }, [buildUpdateBusy])
@@ -421,7 +428,12 @@ export default function App() {
     setBuildUpdateBusy(true)
     setBuildUpdateError(null)
     try {
-      await importPobBuildCode(buildUpdateCode)
+      const mergedCode = mergeBuildUpdateCode(
+        target.importedBuildCode || '',
+        buildUpdateCode,
+        new Set(buildUpdateSections),
+      )
+      await importPobBuildCode(mergedCode)
       setBuildRealm(target.realm)
       const now = new Date().toISOString()
       const savedId = saveBuild(target.name, target.id, target.source, target.sourceUrl, {
@@ -438,6 +450,7 @@ export default function App() {
       setBuildUpdateTarget(null)
       setBuildUpdateCode(null)
       setBuildUpdateDiff(null)
+      setBuildUpdateSections([])
       setActiveView('equipment')
       setScreen('editor')
       window.setTimeout(markClean, 0)
@@ -447,7 +460,7 @@ export default function App() {
     } finally {
       setBuildUpdateBusy(false)
     }
-  }, [buildUpdateCode, buildUpdateTarget, lang, markClean, saveBuild, setBuildRealm])
+  }, [buildUpdateCode, buildUpdateSections, buildUpdateTarget, lang, markClean, saveBuild, setBuildRealm])
 
   const handleCreateBuild = useCallback(async (input: NewBuildInput) => {
     if (input.treeVersion !== useTreeStore.getState().treeVersion) await setTreeVersion(input.treeVersion)
@@ -792,6 +805,8 @@ export default function App() {
         busy={buildUpdateBusy}
         error={buildUpdateError}
         diff={buildUpdateDiff}
+        selectedSections={buildUpdateSections}
+        onSelectionChange={setBuildUpdateSections}
         onCancel={cancelBuildUpdate}
         onConfirm={() => void handleConfirmBuildUpdate()}
       />}
