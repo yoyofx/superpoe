@@ -29,6 +29,8 @@ import type { EquipmentLibraryEntry } from '@/types/market'
 import { EquipmentLibraryPicker } from '@/components/equipment/EquipmentLibraryPicker'
 import type { CalcResult } from '@/types/calc'
 import { inspectEquipment } from '@/engine/pobLuaClient'
+import { EquipmentDifferenceTooltip } from '@/equipmentDifference/components/EquipmentDifferenceTooltip'
+import type { BuildContextSnapshot } from '@/equipmentDifference'
 import {
   fitPaperDoll,
   getActivePaperDollSlots,
@@ -790,7 +792,7 @@ function SocketedRunes({
   )
 }
 
-function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotName, socketedItems, onSave, onPriceCheck, onReplace, onClose }: { item: EquipmentItem; base?: ItemBaseData; semantics?: EquipmentItemSemantics; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; onSave: () => Promise<void>; onPriceCheck: () => void; onReplace?: () => void; onClose: () => void }) {
+function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotName, socketedItems, buildContext, onSave, onPriceCheck, onReplace, onClose }: { item: EquipmentItem; base?: ItemBaseData; semantics?: EquipmentItemSemantics; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; buildContext: BuildContextSnapshot | null; onSave: () => Promise<void>; onPriceCheck: () => void; onReplace?: () => void; onClose: () => void }) {
   const { t, lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
@@ -935,6 +937,14 @@ function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotNam
           </section>)}
         </div>
 
+        <EquipmentDifferenceTooltip
+          context={buildContext}
+          item={item}
+          language={lang}
+          sourceSlotName={slotName}
+          slotOnlyTooltips={Boolean(slotName)}
+        />
+
         {weaponComparisonStats.length > 0 && <div className="weapon-comparison-stats">
           {weaponComparisonStats.map((stat) => <span key={stat.key}>
             <strong>{stat.key}</strong> {stat.value}
@@ -1036,7 +1046,13 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const { t, lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const pobBuildRevision = useTreeStore((state) => state.pobBuildRevision)
+  // The active session can change without changing its internal revision
+  // (for example when opening a saved build whose first revision is 0).
+  // Subscribe to the imported code so derived XML/equipment snapshots are
+  // rebuilt instead of retaining the empty snapshot from the initial render.
+  const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
   const getActivePobCode = useTreeStore((state) => state.getActivePobCode)
+  const getActivePobXml = useTreeStore((state) => state.getActivePobXml)
   const calcResult = useTreeStore((state) => state.calcResult)
   const calcLoading = useTreeStore((state) => state.calcLoading)
   const calcError = useTreeStore((state) => state.calcError)
@@ -1065,7 +1081,8 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const [jewelTooltip, setJewelTooltip] = useState<JewelStripTooltipState | null>(null)
   const { hostRef, size: paperDollSize } = usePaperDollSize()
   const lastCalculationSelection = useRef<string | null>(null)
-  const activePobCode = useMemo(() => getActivePobCode() || '', [getActivePobCode, pobBuildRevision])
+  const activePobCode = useMemo(() => getActivePobCode() || '', [getActivePobCode, importedBuildCode, pobBuildRevision])
+  const activePobXml = useMemo(() => getActivePobXml() || '', [getActivePobXml, importedBuildCode, buildId, pobBuildRevision])
 
   useEffect(() => {
     let mounted = true
@@ -1111,6 +1128,15 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   }, [activePobCode, pobBuildRevision])
   const activeSetId = selectedSetId || equipment?.activeItemSetId
   const activeSet = equipment?.itemSets.find((set) => set.id === activeSetId) || equipment?.itemSets[0]
+  const equipmentDifferenceContext = useMemo<BuildContextSnapshot | null>(() => {
+    if (!activePobXml || !activeSet) return null
+    return {
+      xml: activePobXml,
+      buildRevision: pobBuildRevision,
+      activeItemSetId: activeSet.id,
+      activeWeaponSet: weaponSet,
+    }
+  }, [activePobXml, activeSet?.id, pobBuildRevision, weaponSet])
 
   const calculateCharacter = useCallback(() => runCalculation({
     itemSetId: activeSet?.id,
@@ -1470,6 +1496,7 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
         runeDetails={runeDetails}
         slotName={selectedSlotName}
         socketedItems={selectedSlotName ? socketedItemsForSlot(selectedSlotName) : []}
+        buildContext={equipmentDifferenceContext}
         onSave={() => saveItem(selected, selectedSlotName)}
         onPriceCheck={() => { void window.superpoePriceCheck?.open({ source: { kind: 'raw', raw: selected.raw } }) }}
         onReplace={selectedSlotName ? () => setReplacementOpen(true) : undefined}
@@ -1479,6 +1506,8 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
         mode={selectedSlotName && getSocketSlotInfo(selectedSlotName) ? 'jewel' : 'equipment'}
         title={{ en: 'Change equipment', 'zh-rCN': '更换装备', 'zh-rTW': '更換裝備', 'ko-KR': '장비 변경' }}
         currentSlot={selectedSlotName}
+        differenceContext={equipmentDifferenceContext}
+        differenceSlotName={selectedSlotName}
         onClose={() => setReplacementOpen(false)}
         onSelect={replaceSelectedSlot}
       />}

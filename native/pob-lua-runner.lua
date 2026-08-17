@@ -52,6 +52,8 @@ package.loaded["lua-utf8"] = utf8lib
 _G.utf8 = utf8lib
 
 local json = require("dkjson")
+local equipmentDifference = require("EquipmentDifference")
+local equipmentDifferenceSessions = {}
 
 local ok, loadError = pcall(dofile, join(bundlePath, "HeadlessWrapper.lua"))
 if not ok then error("PoB initialization failed: " .. tostring(loadError)) end
@@ -374,6 +376,37 @@ local function calculate(payload)
 		return { success = false, error = "Build load error: " .. prompt }
 	end
 	local characterOnly = payload.characterOnly == true
+	local calcsModule = build.calcsTab and build.calcsTab.calcs
+	local dpsSocketGroups = build.skillsTab and build.skillsTab.socketGroupList or {}
+	local dpsDisplayNameOriginal
+	local dpsMarkerPrefix = "@@SUPERPOE_DPS:"
+	local dpsMarkerSuffix = "@@"
+	local function dpsGroupId(activeSkill)
+		local socketGroup = activeSkill and activeSkill.socketGroup
+		if not socketGroup then return nil end
+		for index, candidate in ipairs(dpsSocketGroups) do
+			if candidate == socketGroup then return tostring(index) end
+		end
+		return nil
+	end
+	local function restoreDpsDisplayName()
+		if dpsDisplayNameOriginal and calcsModule then
+			calcsModule.getActiveSkillDisplayName = dpsDisplayNameOriginal
+			dpsDisplayNameOriginal = nil
+		end
+	end
+	if not characterOnly and calcsModule and calcsModule.getActiveSkillDisplayName then
+		dpsDisplayNameOriginal = calcsModule.getActiveSkillDisplayName
+		calcsModule.getActiveSkillDisplayName = function(activeSkill)
+			local name = dpsDisplayNameOriginal(activeSkill)
+			local groupId = dpsGroupId(activeSkill)
+			if not groupId then return name end
+			local activeEffect = activeSkill and activeSkill.activeEffect
+			local grantedEffect = activeEffect and activeEffect.grantedEffect
+			local skillId = grantedEffect and grantedEffect.id or ""
+			return name .. dpsMarkerPrefix .. groupId .. ":" .. skillId .. dpsMarkerSuffix
+		end
+	end
 
 	local calculated, envOrError = pcall(function()
 		local calcsTab = build.calcsTab
@@ -435,12 +468,52 @@ local function calculate(payload)
 		return calcsTab.mainEnv
 	end)
 	if not calculated then
+		restoreDpsDisplayName()
 		return { success = false, error = "Calculation failed: " .. tostring(envOrError) }
 	end
 
 	local env = envOrError
 	local output = env and env.player and env.player.output
-	if not output then return { success = false, error = "No output data produced" } end
+	if not output then
+		restoreDpsDisplayName()
+		return { success = false, error = "No output data produced" }
+	end
+
+	-- Keep PoB's selected Full DPS entries separate from the complete list of
+	-- enabled runtime skills. The UI uses the latter for ranking, while the
+	-- former remains the authoritative breakdown of output.FullDPS.
+	local fullSkillDpsOutput = output.SkillDPS
+	local allSkillDpsOutput = fullSkillDpsOutput
+	if not characterOnly then
+		local calcsTab = build.calcsTab
+		local socketGroups = build.skillsTab and build.skillsTab.socketGroupList
+		local needsAllSkillPass = not fullSkillDpsOutput or #fullSkillDpsOutput == 0
+		if socketGroups then
+			for _, socketGroup in ipairs(socketGroups) do
+				if socketGroup.enabled and not socketGroup.includeInFullDPS then
+					needsAllSkillPass = true
+					break
+				end
+			end
+		end
+		if needsAllSkillPass and calcsTab and calcsTab.calcs and socketGroups then
+			local originalInclude = {}
+			for index, socketGroup in ipairs(socketGroups) do
+				originalInclude[index] = socketGroup.includeInFullDPS
+				if socketGroup.enabled then socketGroup.includeInFullDPS = true end
+			end
+			local rebuiltOk, rebuilt = pcall(function()
+				return calcsTab.calcs.calcFullDPS(build, "CALCULATOR", {}, { env = nil })
+			end)
+			for index, socketGroup in ipairs(socketGroups) do
+				socketGroup.includeInFullDPS = originalInclude[index]
+			end
+			if rebuiltOk and rebuilt and rebuilt.skills and #rebuilt.skills > 0 then
+				allSkillDpsOutput = rebuilt.skills
+			end
+		end
+	end
+	restoreDpsDisplayName()
 
 	local data = {}
 	local fields = {
@@ -468,17 +541,35 @@ local function calculate(payload)
 		for _ in pairs(build.spec.allocNodes or {}) do data.allocatedNodes = data.allocatedNodes + 1 end
 	end
 
-	if not characterOnly and output.SkillDPS and #output.SkillDPS > 0 then
-		data.SkillDPS = {}
-		for _, skill in ipairs(output.SkillDPS) do
-			table.insert(data.SkillDPS, {
-				name = skill.name,
+	local function encodeSkillDpsEntries(skillList)
+		local encoded = {}
+		for _, skill in ipairs(skillList or {}) do
+			local displayName, groupId, skillId = tostring(skill.name or ""), nil, nil
+			local plainName, markerGroupId, markerSkillId = displayName:match("^(.-)@@SUPERPOE_DPS:([^:]+):(.-)@@$")
+			if plainName then
+				displayName = plainName
+				groupId = markerGroupId
+				skillId = markerSkillId ~= "" and markerSkillId or nil
+			end
+			table.insert(encoded, {
+				name = displayName,
 				dps = safeNum(skill.dps),
 				count = skill.count,
 				trigger = skill.trigger,
 				skillPart = skill.skillPart,
+				groupId = groupId,
+				skillId = skillId,
+				kind = (skill.trigger and skill.trigger ~= "") and "trigger" or (skill.source and "dot" or "main"),
 			})
 		end
+		return encoded
+	end
+
+	if not characterOnly then
+		data.FullSkillDPS = encodeSkillDpsEntries(fullSkillDpsOutput)
+		data.AllSkillDPS = encodeSkillDpsEntries(allSkillDpsOutput)
+		-- Keep the old field useful for existing stat panels and older callers.
+		data.SkillDPS = #data.FullSkillDPS > 0 and data.FullSkillDPS or data.AllSkillDPS
 	end
 
 	if not characterOnly then
@@ -536,7 +627,15 @@ local function calculate(payload)
 			critMultiplier = safeNum(actorOutput.CritMultiplier),
 		}
 		for index, skill in ipairs(displaySkills) do
-			table.insert(details.activeSkills, { index = index, label = calcsTab.calcs.getActiveSkillDisplayName(skill) })
+			local activeEffect = skill.activeEffect
+			local grantedEffect = activeEffect and activeEffect.grantedEffect
+			table.insert(details.activeSkills, {
+				index = index,
+				label = calcsTab.calcs.getActiveSkillDisplayName(skill),
+				skillId = grantedEffect and grantedEffect.id,
+				trigger = skill.infoTrigger,
+				skillPart = skill.skillPartName,
+			})
 		end
 		for index, statSet in ipairs(playerActiveEffect.grantedEffect.statSets or {}) do
 			table.insert(details.statSets, { index = index, label = statSet.label })
@@ -947,6 +1046,13 @@ local function rankSkills(payload)
 	return { success = true, data = entries }
 end
 
+local function compareEquipment(payload)
+	if type(payload) ~= "table" then
+		return { success = false, error = { code = "invalid-item", message = "Invalid equipment comparison payload" } }
+	end
+	return equipmentDifference.compare(payload, equipmentDifferenceSessions)
+end
+
 local function send(value)
 	io.stdout:write(json.encode(value), "\n")
 	io.stdout:flush()
@@ -963,6 +1069,7 @@ for line in io.lines() do
 			if request.type == "normalizeItem" then return normalizeItem(request.payload) end
 			if request.type == "calculate" then return calculate(request.payload) end
 			if request.type == "rankSkills" then return rankSkills(request.payload) end
+			if request.type == "compareEquipment" then return compareEquipment(request.payload) end
 			if request.type == "describeSupportGems" then return describeSupportGems(request.payload) end
 			error("Unknown request type: " .. tostring(request.type))
 		end)

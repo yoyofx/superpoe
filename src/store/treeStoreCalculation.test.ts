@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { deflate } from 'pako'
 import type { CalcApiResponse, CalcResult } from '@/types/calc'
 import type { TreeData } from '@/types/tree'
+import { calculationCache } from '@/engine/calculationCache'
 
 const luaMocks = vi.hoisted(() => ({
   calculateBuild: vi.fn(),
@@ -42,6 +43,7 @@ const treeData = {
 describe('tree store calculation lifecycle', () => {
   beforeEach(async () => {
     luaMocks.calculateBuild.mockReset()
+    calculationCache.clear()
     useTreeStore.setState({
       treeData,
       treeVersion: '0_5',
@@ -79,5 +81,15 @@ describe('tree store calculation lifecycle', () => {
 
     expect(useTreeStore.getState().calcResult).toBeNull()
     expect(useTreeStore.getState().calcLoading).toBe(false)
+  })
+
+  it('reuses an exact cached result instead of recalculating it', async () => {
+    luaMocks.calculateBuild.mockResolvedValue({ success: true, data: { CharacterLevel: 90 } as CalcResult })
+
+    await useTreeStore.getState().runCalculation({ weaponSet: 1 })
+    await useTreeStore.getState().runCalculation({ weaponSet: 1 })
+
+    expect(luaMocks.calculateBuild).toHaveBeenCalledTimes(1)
+    expect(useTreeStore.getState().calcResult?.CharacterLevel).toBe(90)
   })
 })

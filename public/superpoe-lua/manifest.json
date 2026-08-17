@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "name": "superpoe",
+  "source": "lua/superpoe",
+  "fileCount": 1,
+  "totalBytes": 17036,
+  "files": [
+    {
+      "path": "EquipmentDifference.lua",
+      "hash": "b60d6b6a8cd31b393ae56f44886fb4b4e62b34ca470f40b2b0c7313b1ac99a03",
+      "size": 17036
+    }
+  ]
+}

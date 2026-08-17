@@ -27,6 +27,13 @@ INCLUDE_FILES = [
     "Launch.lua",
 ]
 
+# Project-owned Lua bridges are copied into the generated bundle after the
+# pinned upstream files. They are kept outside the upstream checkout so an
+# upstream refresh cannot overwrite them.
+PROJECT_LUA_FILES = {
+    "src/equipmentDifference/EquipmentDifference.lua": "EquipmentDifference.lua",
+}
+
 BROWSER_SOURCE_PATCHES = {
     "Classes/TradeHelpers.lua": [
         (
@@ -115,6 +122,22 @@ def copy_bundle(source: Path, runtime: Path, out: Path) -> dict:
                 raise SystemExit(f"Failed to copy Lua runtime {rel}: {error}") from error
         entries.append({
             "path": rel,
+            "hash": sha256(dst),
+            "size": dst.stat().st_size,
+        })
+    for source_name, output_name in PROJECT_LUA_FILES.items():
+        src = ROOT / source_name
+        if not src.is_file():
+            raise SystemExit(f"Missing project Lua bridge: {source_name}")
+        dst = out / output_name
+        dst.parent.mkdir(parents=True, exist_ok=True)
+        if not dst.exists() or sha256(src) != sha256(dst):
+            try:
+                shutil.copy2(src, dst)
+            except OSError as error:
+                raise SystemExit(f"Failed to copy project Lua bridge {source_name}: {error}") from error
+        entries.append({
+            "path": output_name,
             "hash": sha256(dst),
             "size": dst.stat().st_size,
         })

@@ -11,6 +11,7 @@ import type { JewelRadiusPreview } from '@/types/jewelRadius'
 import { LANGUAGE_OPTIONS, getLocalizedSearchText, loadTranslations, type Language } from '@/i18n/translationLoader'
 import { decodeBuildCode, encodeBuildCode, getBuildActiveWeaponSet, getBuildCharacterLevel, getEncodeClassPayload } from '@/engine/buildCode'
 import { calculateBuild, rankSkillsByEffectiveDps } from '@/engine/pobLuaClient'
+import { calculationCache, createCalculationCacheKeys } from '@/engine/calculationCache'
 import { clearPersistedImportedBuild, getInitialImportedBuildCode } from '@/engine/buildPersistence'
 import { createActiveBuildSession, type ActiveBuildSession } from '@/engine/pobBuildSession'
 import type { PobBuildChange, PobBuildCommand, PobTreeState } from '@/engine/pobBuildObject'
@@ -2643,6 +2644,30 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
+      const cacheKeys = createCalculationCacheKeys({
+        code,
+        xml: encodeData.xml,
+        weaponSet: calculationWeaponSet,
+        calcMode: selection?.calcMode,
+        configOverrides: calculationProfile?.values || {},
+        selection,
+      })
+      const cachedResult = calculationCache.get(cacheKeys.resultKey)
+      if (cachedResult) {
+        if (
+          requestId !== calculationRequestId
+          || get().activeWeaponSet !== calculationWeaponSet
+          || get().pobBuildRevision !== buildObjectRevision
+          || getActiveBuildSession() !== buildSession
+        ) return
+        set({
+          calcResult: cachedResult,
+          calculationConfig: cachedResult.CalculationConfig || get().calculationConfig,
+          calcLoading: false,
+        })
+        return
+      }
+
       const calcData: CalcApiResponse = await calculateBuild({
         code,
         xml: encodeData.xml,
@@ -2706,6 +2731,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
         || get().pobBuildRevision !== buildObjectRevision
         || getActiveBuildSession() !== buildSession
       ) return
+      calculationCache.set(cacheKeys, calcData.data)
       set({
         calcResult: calcData.data,
         calculationConfig: calcData.data.CalculationConfig || get().calculationConfig,

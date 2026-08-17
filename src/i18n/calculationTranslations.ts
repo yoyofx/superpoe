@@ -89,6 +89,30 @@ export function translateCalculationStat(stat: string, language: Language): stri
   return stat.split(' / ').map((entry) => formatSingleStat(entry, language)).join(' / ')
 }
 
+/**
+ * Localize labels emitted by PoB's display-stat tables.
+ *
+ * PoB keeps the label without punctuation (for example, `Mana Cost`), while
+ * the translation CSVs commonly store the same UI label with a trailing
+ * colon (`Mana Cost:`). Try the normal entry first, then the punctuation
+ * variants and remove only the translated trailing colon before returning it.
+ */
+export function translateCalculationLabel(value: string, language: Language): string {
+  const normalized = value.trim()
+  if (!normalized || language === 'en') return value
+
+  const direct = translateGameText(normalized, language)
+  if (direct !== normalized) return direct.replace(/[：:]\s*$/, '')
+
+  for (const suffix of [':', '：']) {
+    const source = normalized + suffix
+    const translated = translateGameText(source, language)
+    if (translated !== source) return translated.replace(/[：:]\s*$/, '')
+  }
+
+  return value
+}
+
 export function translateCalculationTerm(value: string, language: Language): string {
   if (language === 'zh-rCN' && ZH_CALCULATION_TERMS[value]) return ZH_CALCULATION_TERMS[value]
   return translateCalculationText(value, language)

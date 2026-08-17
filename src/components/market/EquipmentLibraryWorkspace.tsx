@@ -10,6 +10,10 @@ import type { Language } from '@/i18n/translationLoader'
 import { uiText, type UiMessage } from '@/i18n/uiLocale'
 import { EquipmentItemInspector, equipmentItemBaseType, equipmentItemName } from '@/components/equipment/EquipmentItemInspector'
 import { EquipmentCollectionTree, type EquipmentCollectionSelection } from '@/components/equipment/EquipmentCollectionTree'
+import { parseEquipmentXml } from '@/engine/equipment'
+import { useTreeStore } from '@/store/treeStore'
+import { EquipmentDifferenceTooltip } from '@/equipmentDifference/components/EquipmentDifferenceTooltip'
+import type { BuildContextSnapshot } from '@/equipmentDifference'
 
 interface EquipmentLibraryWorkspaceProps {
   realm: MarketRealm
@@ -67,6 +71,21 @@ function itemBaseType(entry: EquipmentLibraryEntry, language: Language): string 
 export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspaceProps) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
+  const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
+  const pobBuildRevision = useTreeStore((state) => state.pobBuildRevision)
+  const activeWeaponSet = useTreeStore((state) => state.activeWeaponSet)
+  const getActivePobXml = useTreeStore((state) => state.getActivePobXml)
+  const activePobXml = useMemo(() => getActivePobXml() || '', [getActivePobXml, importedBuildCode, pobBuildRevision])
+  const activeEquipment = useMemo(() => activePobXml ? parseEquipmentXml(activePobXml) : null, [activePobXml])
+  const equipmentDifferenceContext = useMemo<BuildContextSnapshot | null>(() => {
+    if (!activePobXml || !activeEquipment?.activeItemSetId) return null
+    return {
+      xml: activePobXml,
+      buildRevision: pobBuildRevision,
+      activeItemSetId: activeEquipment.activeItemSetId,
+      activeWeaponSet,
+    }
+  }, [activeEquipment?.activeItemSetId, activePobXml, activeWeaponSet, pobBuildRevision])
   const bridge = window.pob2Market
   const [entries, setEntries] = useState<EquipmentLibraryEntry[]>([])
   const [folders, setFolders] = useState<EquipmentLibraryFolder[]>([])
@@ -338,6 +357,12 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
     price={marketSource(entry)?.price?.display}
     tags={entry.tags}
     note={entry.note}
+    footer={equipmentDifferenceContext && entry.item.raw ? <EquipmentDifferenceTooltip
+      context={equipmentDifferenceContext}
+      candidate={{ raw: entry.item.raw, source: 'equipment-library' }}
+      language={lang}
+      slotOnlyTooltips={false}
+    /> : undefined}
     headerProps={floating ? {
       onPointerDown: handleFloatingPointerDown,
       onPointerMove: handleFloatingPointerMove,

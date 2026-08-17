@@ -9,6 +9,8 @@ const Root = surface === 'price-check'
     ? React.lazy(() => import('./priceCheck/PriceCheckDetailApp').then((module) => ({ default: module.PriceCheckDetailApp })))
     : surface === 'price-check-mask'
       ? React.lazy(() => import('./priceCheck/PriceCheckMaskApp').then((module) => ({ default: module.PriceCheckMaskApp })))
+      : surface === 'equipment-try-on'
+        ? React.lazy(() => import('./components/equipment/EquipmentTryOnWindow').then((module) => ({ default: module.EquipmentTryOnWindow })))
     : React.lazy(() => import('./App').then((module) => ({ default: module.default })))
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

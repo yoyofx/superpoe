@@ -4,6 +4,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
 import type { CanonicalEquipmentItem, CanonicalItemView } from '../src/types/market.js'
+import type { EquipmentDifferenceRequest, EquipmentDifferenceResult } from '../src/equipmentDifference/types.js'
 
 interface SidecarResponse {
   id?: number
@@ -196,6 +197,12 @@ export class PobLuaService {
     const status = await this.initialize()
     if (!status.available || !this.child) throw new Error(status.error || 'LuaJIT sidecar is unavailable')
     return this.request('rankSkills', input)
+  }
+
+  async compareEquipment(input: EquipmentDifferenceRequest & { contextKey: string }): Promise<EquipmentDifferenceResult> {
+    const status = await this.initialize()
+    if (!status.available || !this.child) throw new Error(status.error || 'LuaJIT sidecar is unavailable')
+    return this.request('compareEquipment', input) as Promise<EquipmentDifferenceResult>
   }
 
   async normalizeItem(raw: string): Promise<PobItemNormalizationResult> {

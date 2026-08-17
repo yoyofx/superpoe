@@ -1,6 +1,7 @@
 import type { CalcApiResponse, SkillCalculationSelection } from '@/types/calc'
 import {
   calculateWithLuaEngine,
+  compareEquipmentWithLuaEngine,
   inspectEquipmentWithLuaEngine,
   inspectJewelRadiusWithLuaEngine,
   installBuildHelpers,
@@ -13,13 +14,16 @@ import type {
   EquipmentInspectionResult,
   EquipmentItemSemantics,
 } from '@/types/equipmentSemantics'
+import type { EquipmentDifferenceRequest, EquipmentDifferenceResult } from '@/equipmentDifference/types'
 import { LuaFactory } from 'wasmoon'
 import wasmUrl from 'wasmoon/dist/glue.wasm?url'
 
 interface WorkerRequest {
   id: number
-  type: 'init' | 'calculate' | 'inspectEquipment' | 'inspectJewelRadius' | 'rankSkills'
-  payload?: ({ code?: string; xml?: string } & SkillCalculationSelection) | { items?: EquipmentInspectionItem[] }
+  type: 'init' | 'calculate' | 'inspectEquipment' | 'inspectJewelRadius' | 'rankSkills' | 'compareEquipment'
+  payload?: ({ code?: string; xml?: string } & SkillCalculationSelection)
+    | { items?: EquipmentInspectionItem[] }
+    | EquipmentDifferenceRequest
 }
 
 interface WorkerResponse {
@@ -232,6 +236,14 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
         const payload = request.payload as { xml?: string; groupIds?: string[]; configOverrides?: SkillCalculationSelection['configOverrides'] } | undefined
         const result = rankSkillsWithLuaEngine(lua!, payload?.xml || '', payload?.groupIds || [], payload?.configOverrides)
         respond({ id: request.id, success: true, data: result })
+        return
+      }
+      if (request.type === 'compareEquipment') {
+        const payload = request.payload as EquipmentDifferenceRequest & { contextKey?: string }
+        const contextKey = payload?.contextKey
+          || String(payload?.context?.buildRevision || '') + ':' + String(payload?.context?.activeItemSetId || '')
+        const result = compareEquipmentWithLuaEngine(lua!, payload, contextKey)
+        respond({ id: request.id, success: true, data: result as EquipmentDifferenceResult })
         return
       }
       respond({ id: request.id, success: false, error: `Unknown worker request: ${request.type}` })

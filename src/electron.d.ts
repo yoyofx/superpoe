@@ -70,6 +70,13 @@ declare global {
       }>
       calculatePobLua(payload: import('@/types/calc').SkillCalculationSelection & { xml: string }): Promise<import('@/types/calc').CalcApiResponse>
       rankPobLuaSkills(payload: import('@/types/calc').RankSkillsInput): Promise<import('@/types/calc').SkillDpsRankResponse>
+      comparePobLuaEquipment(payload: import('@/equipmentDifference/types').EquipmentDifferenceRequest & { contextKey: string }): Promise<import('@/equipmentDifference/types').EquipmentDifferenceResult>
+      openEquipmentTryOn(payload: import('@/types/tryOn').EquipmentTryOnOpenRequest): Promise<void>
+    }
+    pob2TryOn?: {
+      close(): Promise<void>
+      getPayload(): Promise<import('@/types/tryOn').EquipmentTryOnOpenRequest | null>
+      onPayload(callback: (payload: import('@/types/tryOn').EquipmentTryOnOpenRequest) => void): () => void
     }
     pob2Market?: {
       activate(bounds: import('@/types/market').MarketBounds): Promise<import('@/types/market').MarketViewState>
@@ -117,6 +124,7 @@ declare global {
       onStateChanged(callback: (state: import('@/types/market').MarketViewState) => void): () => void
       onLibraryChanged(callback: () => void): () => void
       onSidebarRequest(callback: (scope: import('@/types/market').LibraryTreeScope) => void): () => void
+      onTryOnRequest(callback: (entry: import('@/types/market').EquipmentLibraryEntry) => void): () => void
       onMonitoringChanged(callback: (snapshot: import('@/types/market').MarketMonitoringSnapshot) => void): () => void
       onOpenMonitoring(callback: () => void): () => void
       onOpenTradeCenter(callback: () => void): () => void

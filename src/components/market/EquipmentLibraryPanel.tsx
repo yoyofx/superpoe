@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type CSSProperties, type Dra
 import {
   BellOff, BellRing, Bookmark, Check, ChevronDown, ChevronRight, ExternalLink, Folder, FolderInput, FolderPlus, Home,
   ListChecks, PanelLeftClose, PanelLeftOpen, Pencil, Save, Search, Square,
-  RefreshCw, Replace, SquareCheckBig, Tags, Trash2, X,
+  RefreshCw, Replace, Shirt, SquareCheckBig, Tags, Trash2, X,
 } from 'lucide-react'
 import type {
   EquipmentLibraryEntry, EquipmentLibraryFolder, EquipmentLibrarySidebarSnapshot, LibraryTreeScope,
@@ -13,6 +13,9 @@ import type { Language } from '@/i18n/translationLoader'
 import { uiText, type UiMessage } from '@/i18n/uiLocale'
 import { EquipmentItemInspector, equipmentItemName } from '@/components/equipment/EquipmentItemInspector'
 import { EquipmentCollectionTree, type EquipmentCollectionSelection } from '@/components/equipment/EquipmentCollectionTree'
+import { parseEquipmentXml } from '@/engine/equipment'
+import { useTreeStore } from '@/store/treeStore'
+import type { BuildContextSnapshot } from '@/equipmentDifference'
 
 interface EquipmentLibraryPanelProps {
   realm: MarketRealm
@@ -86,6 +89,21 @@ function isDescendant(folder: EquipmentLibraryFolder, ancestorId: string, folder
 
 export function EquipmentLibraryPanel({ realm, language, currentSearch, monitoring, activeTab, onTabChange, onClose, headerTitle }: EquipmentLibraryPanelProps) {
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
+  const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
+  const pobBuildRevision = useTreeStore((state) => state.pobBuildRevision)
+  const activeWeaponSet = useTreeStore((state) => state.activeWeaponSet)
+  const getActivePobXml = useTreeStore((state) => state.getActivePobXml)
+  const activePobXml = useMemo(() => getActivePobXml() || '', [getActivePobXml, importedBuildCode, pobBuildRevision])
+  const activeEquipment = useMemo(() => activePobXml ? parseEquipmentXml(activePobXml) : null, [activePobXml])
+  const equipmentDifferenceContext = useMemo<BuildContextSnapshot | null>(() => {
+    if (!activePobXml || !activeEquipment?.activeItemSetId) return null
+    return {
+      xml: activePobXml,
+      buildRevision: pobBuildRevision,
+      activeItemSetId: activeEquipment.activeItemSetId,
+      activeWeaponSet,
+    }
+  }, [activeEquipment?.activeItemSetId, activePobXml, activeWeaponSet, pobBuildRevision])
   const bridge = window.pob2Market
   const [entries, setEntries] = useState<EquipmentLibraryEntry[]>([])
   const [sidebar, setSidebar] = useState<EquipmentLibrarySidebarSnapshot>(EMPTY_SIDEBAR)
@@ -340,6 +358,18 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
     void run(`sort:${source.id}`, () => bridge!.updateSearch({ id: source.id, beforeId: target.id }))
   }
 
+  const openTryOn = (entry: EquipmentLibraryEntry) => {
+    if (!window.pob2Desktop?.openEquipmentTryOn) {
+      setError(l('The try-on window is unavailable in this environment.', '当前环境无法打开试穿窗口。', '目前環境無法開啟試穿視窗。', '이 환경에서는 시험 착용 창을 열 수 없습니다.'))
+      return
+    }
+    void window.pob2Desktop.openEquipmentTryOn({
+      entry,
+      context: equipmentDifferenceContext,
+      language,
+    }).catch((caught: unknown) => setError(caught instanceof Error ? caught.message : String(caught)))
+  }
+
   const renderEntry = (entry: EquipmentLibraryEntry) => {
     const source = marketSource(entry)
     const similarLeagueId = source?.leagueId || leagueId
@@ -371,6 +401,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
       />
       {!bulkSelecting && <footer>
         {source && <button className="primary-action" disabled={busyId === entry.id} onClick={() => void run(entry.id, () => visitHideout(entry.id), l('Hideout travel request sent', '已发送前往藏身处请求', '已傳送前往藏身處請求', '은신처 이동 요청 전송됨'))} title={l('Travel to hideout', '前往藏身处', '前往藏身處', '은신처로 이동')}><Home /><span>{l('Hideout', '藏身处', '藏身處', '은신처')}</span></button>}
+        <button className="primary-action" disabled={!entry.item.raw} onClick={(event) => { event.stopPropagation(); openTryOn(entry) }} title={l('Preview this item on the current build', '在当前构筑中试穿并查看差异', '在目前構築中試穿並查看差異', '현재 빌드에 시험 장착하고 차이를 확인')}><Shirt /><span>{l('Try on', '试穿', '試穿', '시험 착용')}</span></button>
         <button className="primary-action" disabled={!similarLeagueId || busyId === entry.id} onClick={() => { void window.superpoePriceCheck?.open({ source: { kind: 'library', entryId: entry.id }, initialLeagueId: marketSource(entry)?.leagueId || similarLeagueId }) }} title={l('Configure price check', '选择词条并查价', '選擇詞綴並查價', '속성을 선택하고 가격 확인')}><Search /><span>{l('Price check', '查价', '查價', '가격 확인')}</span></button>
         <button className="danger" onClick={() => window.confirm(l(`Delete “${displayName}”?`, `删除“${displayName}”？`, `刪除「${displayName}」？`, `“${displayName}”을(를) 삭제할까요?`)) && void run(entry.id, () => bridge!.deleteLibrary(entry.id))} title={l('Delete', '删除', '刪除', '삭제')}><Trash2 /></button>
       </footer>}

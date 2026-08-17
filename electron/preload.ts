@@ -24,10 +24,22 @@ contextBridge.exposeInMainWorld('pob2Desktop', {
   initPobLua: () => ipcRenderer.invoke('pob2:lua-init'),
   calculatePobLua: (payload: import('../src/types/calc.js').SkillCalculationSelection & { xml: string }) => ipcRenderer.invoke('pob2:lua-calculate', payload),
   rankPobLuaSkills: (payload: import('../src/types/calc.js').RankSkillsInput) => ipcRenderer.invoke('pob2:lua-rank-skills', payload),
+  comparePobLuaEquipment: (payload: import('../src/equipmentDifference/types.js').EquipmentDifferenceRequest & { contextKey: string }) => ipcRenderer.invoke('pob2:lua-compare-equipment', payload),
+  openEquipmentTryOn: (payload: import('../src/types/tryOn.js').EquipmentTryOnOpenRequest) => ipcRenderer.invoke('equipment-try-on:open', payload),
 })
 
 contextBridge.exposeInMainWorld('superpoePriceCheck', {
   open: (request: import('../src/types/market.js').PriceCheckOpenRequest) => ipcRenderer.invoke('price-check:open', request),
+})
+
+contextBridge.exposeInMainWorld('pob2TryOn', {
+  close: () => ipcRenderer.invoke('equipment-try-on:close'),
+  getPayload: () => ipcRenderer.invoke('equipment-try-on:get-payload') as Promise<import('../src/types/tryOn.js').EquipmentTryOnOpenRequest | null>,
+  onPayload: (callback: (payload: import('../src/types/tryOn.js').EquipmentTryOnOpenRequest) => void) => {
+    const handler = (_event: unknown, payload: import('../src/types/tryOn.js').EquipmentTryOnOpenRequest) => callback(payload)
+    ipcRenderer.on('equipment-try-on:payload', handler)
+    return () => { ipcRenderer.removeListener('equipment-try-on:payload', handler) }
+  },
 })
 
 contextBridge.exposeInMainWorld('pob2Market', {
@@ -87,6 +99,13 @@ contextBridge.exposeInMainWorld('pob2Market', {
     const handler = (_event: unknown, scope: import('../src/types/market.js').LibraryTreeScope) => callback(scope)
     ipcRenderer.on('market:sidebar-request', handler)
     return () => { ipcRenderer.removeListener('market:sidebar-request', handler) }
+  },
+  onTryOnRequest: (callback: (entry: import('../src/types/market.js').EquipmentLibraryEntry) => void) => {
+    const handler = (_event: unknown, payload: { entry?: import('../src/types/market.js').EquipmentLibraryEntry }) => {
+      if (payload?.entry) callback(payload.entry)
+    }
+    ipcRenderer.on('market:try-on-request', handler)
+    return () => { ipcRenderer.removeListener('market:try-on-request', handler) }
   },
   onMonitoringChanged: (callback: (snapshot: import('../src/types/market.js').MarketMonitoringSnapshot) => void) => {
     const handler = (_event: unknown, snapshot: import('../src/types/market.js').MarketMonitoringSnapshot) => callback(snapshot)

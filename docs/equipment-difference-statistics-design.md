@@ -607,3 +607,147 @@ Lua 错误信息可以在开发日志中保留原始信息，但用户界面显�
 8. 构筑不变时多个候选共享比较 session，构筑/配置变化时不会复用旧结果。
 9. 快速悬停、并发请求和后端切换不会发生旧结果覆盖新 Tooltip。
 10. 上游 PoB bundle 更新可通过版本/hash 和 parity test 发现语义漂移。
+
+## 14. 独立模块和组件集成边界
+
+### 14.1 设计原则
+
+装备差异统计应作为一个独立功能模块实现，而不是把比较逻辑直接写入 EquipmentPanel、treeStore、Market 或 PriceCheck。现有页面只负责提供宿主上下文和放置 UI 组件，差异模块负责自己的请求、缓存、状态和展示。
+
+这意味着：
+
+- 装备差异统计可以单独开发、测试、关闭和替换。
+- 不改变现有装备面板的基础属性展示、装备替换、构筑保存和价格查询流程。
+- 差异计算是只读操作，不直接修改当前构筑、装备组或候选装备。
+- 集市、查价器和装备库只能作为候选装备来源，不能成为差异模块的内部依赖。
+- 后续即使增加技能、宝石或天赋节点的差异比较，也可以复用同一套比较会话基础设施，而不必把代码塞回装备面板。
+
+### 14.2 独立目录和当前实现
+
+结合当前项目已有的 components、engine、types 目录，差异统计使用独立功能目录。首期实现如下：
+
+    src/equipmentDifference/
+      index.ts
+      types.ts
+      api.ts
+      comparisonCache.ts
+      components/
+        EquipmentDifferenceTooltip.tsx
+
+比较 session 由 Lua bridge 内部维护，BuildContextSnapshot 和 candidate adapter 在首期由宿主页面组装；当装备库或集市接入时，再按需要抽出独立 adapter 文件，不把页面依赖反向引入差异模块。
+
+职责划分：
+
+| 文件/目录 | 职责 |
+| --- | --- |
+| types.ts | 请求、结果、槽位差异、统计项和错误类型 |
+| api.ts | 对外唯一入口，调用 Lua comparison RPC |
+| comparisonCache.ts | 独立 LRU，不复用或修改完整构筑计算缓存的内部结构 |
+| components/ | 差异 Tooltip、区段、加载/空态/错误态等纯展示组件 |
+| index.ts | 对外导出，禁止宿主页面深入访问内部实现 |
+
+Lua bridge、Worker、Native 和 Electron IPC 仍属于运行时基础设施，但应只暴露 compareEquipment 这一项稳定接口给本模块。比较模块不应直接访问 Lua engine、sidecar child process 或 ipcRenderer。
+
+### 14.3 依赖方向
+
+推荐依赖方向如下：
+
+    EquipmentPanel / EquipmentLibraryInspector / MarketListingInspector
+                         |
+                         v
+              equipmentDifference/components
+                         |
+                         v
+              equipmentDifference/api
+                         |
+                         v
+             pobLuaClient.compareEquipment
+                         |
+             +-----------+-----------+
+             v                       v
+       Wasmoon Worker          LuaJIT sidecar
+
+约束：
+
+1. equipmentDifference 不导入 market、priceCheck 或具体页面组件。
+2. equipmentDifference 不直接读写 treeStore；由宿主通过 adapter 传入快照。
+3. components 不直接拼接 PoB Lua 文本，也不自行计算 delta、percent 或颜色。
+4. pobLuaClient.compareEquipment 是运行时边界，宿主和功能模块不需要知道 Wasmoon/LuaJIT 的选择。
+5. candidateAdapter 只转换输入，不负责判断装备是否能放入哪个槽位；合法性必须由 Lua 完成。
+
+### 14.4 现有页面的最小集成方式
+
+EquipmentPanel 的集成只保留三个动作：
+
+1. 在打开装备详情或 Tooltip 时，构造 BuildContextSnapshot。
+2. 把当前槽位名、候选装备 Raw、候选来源和当前 Item ID 交给 EquipmentDifferenceTooltip。
+3. 在关闭 Tooltip、切换装备、切换 item set 或构筑 revision 变化时取消/失效当前请求。
+
+EquipmentPanel 不应包含以下代码：
+
+- GetMiscCalculator() 或任何 Lua 调用。
+- PoB2 displayStats 的复制规则。
+- 槽位合法性判断。
+- 统计颜色和百分比推导。
+- 候选结果排序。
+
+装备库和集市页面以后接入时，只需复用同一个 EquipmentDifferenceTooltip，并分别实现 candidateAdapter。它们不需要复制一份差异计算逻辑。
+
+### 14.5 宿主上下文适配器
+
+为了避免差异模块依赖 treeStore，宿主只提供只读快照：
+
+    export interface BuildContextSnapshot {
+      xml: string
+      buildRevision: number
+      activeItemSetId: string
+      activeWeaponSet: 1 | 2
+      configFingerprint?: string
+      configOverrides?: Record<string, boolean | number | string>
+      activeSkillContext?: {
+        skillGroupId?: string
+        calcMode?: string
+      }
+    }
+
+EquipmentPanel 可以从现有的 getActivePobCode、pobBuildRevision、activeSet.id 和 activeWeaponSet 组装该快照，但比较模块只接收结果，不持有 store 引用。
+
+### 14.6 独立状态和生命周期
+
+差异模块维护自己的状态：
+
+- idle：没有候选或没有打开 Tooltip。
+- loading：正在建立 comparison session 或计算候选槽位。
+- ready：已有结构化 groups。
+- empty：没有合法槽位或没有可显示差异。
+- error：构筑、物品、Lua 或上下文错误。
+- stale：结果已经被新候选或新构筑取代。
+
+它不复用 EquipmentPanel 的 inspectorOpen、Market 的搜索状态或 PriceCheck 的请求状态。宿主卸载差异组件时，模块应取消未完成请求或丢弃 generation，避免结果回写到已关闭的页面。
+
+### 14.7 对现有功能的影响控制
+
+采用独立模块后，实施影响被限制为：
+
+| 现有功能 | 集成方式 | 是否改变原有业务逻辑 |
+| --- | --- | --- |
+| 装备面板 | 增加一个 Tooltip/详情区段组件 | 否，只增加只读展示 |
+| 装备库 | 可选接入同一组件 | 否 |
+| 集市候选 | 可选接入同一组件 | 否 |
+| PriceCheck | 只提供候选 Raw 时可复用 | 否 |
+| treeStore | 只提供 BuildContextSnapshot 所需数据 | 不增加差异规则 |
+| calculationCache | 保持原职责，比较模块使用独立缓存 | 不改变原有 key |
+| PoB Lua runtime | 增加 compareEquipment RPC 和 session | 增加能力，不改变 calculateBuild 协议 |
+| 技能/天赋页面 | 暂不接入 | 无影响 |
+
+### 14.8 独立模块验收标准
+
+独立模块达到以下条件才允许接入第一个宿主页面：
+
+1. 不导入 Market、PriceCheck、EquipmentPanel 或 treeStore。
+2. 可以在单元测试中使用假的 BuildContextSnapshot 和 candidate 独立运行。
+3. 可以在没有 React 页面时直接测试 Lua RPC、缓存失效和结果排序。
+4. EquipmentPanel 只通过公开组件/API 接入，不包含差异算法。
+5. 关闭差异功能开关时，装备面板仍能正常显示和编辑装备。
+6. 移除差异模块不会破坏构筑计算、装备保存、集市和查价。
+7. 以后接入装备库或集市时，不复制差异逻辑，只增加 adapter。

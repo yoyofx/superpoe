@@ -15,10 +15,10 @@ import { detectItemRawLanguage, ItemTranslationIndex, type ItemRawLanguage } fro
 import { ItemIconIndex } from './itemIconIndex.js'
 import { MarketViewManager, type MarketNavigationCommand, type MarketRealm } from './marketView.js'
 import { TradeCredentialStore } from './tradeCredentialStore.js'
-import { EquipmentLibraryRepository, equipmentSourceKey, pobSourceKey } from './equipmentLibraryRepository.js'
+import { EquipmentLibraryRepository, equipmentSourceKey, fingerprintLibraryItem, pobSourceKey } from './equipmentLibraryRepository.js'
 import { normalizeMarketListing, type MarketStatTextResolution } from './marketListing.js'
 import type {
-  EquipmentCollectionRoot, EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
+  EquipmentCollectionRoot, EquipmentLibraryEntry, EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
   EquipmentLibraryMetadataPatch, EquipmentLibrarySource, EquipmentTradeSearchRequest, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
   MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch, TradePriceCheckCriteria, TradePriceCheckPrepareRequest,
   TradePriceCheckSearchRequest,
@@ -32,13 +32,16 @@ import { CurrencyMarketService } from './currencyMarket/currencyMarketService.js
 import { desktopText, isUiLanguage, type UiLanguage } from './uiLocale.js'
 import { PriceCheckCoordinator } from './priceCheck/PriceCheckCoordinator.js'
 import { PriceCheckWindowManager } from './priceCheck/PriceCheckWindowManager.js'
+import { EquipmentTryOnWindowManager } from './equipmentTryOnWindow.js'
 import { GameClipboardService, processIsElevated } from './priceCheck/GameClipboardService.js'
 import { applyXiletradeParseEvidence, parseXiletradeItemText, type CanonicalStatContext, type CanonicalStatMatch, type XiletradeItemParseResult } from './xiletradeItemParser.js'
 import { XiletradeDataCatalog, XiletradeModifierMatcher } from './xiletradeDataCatalog.js'
 import { MAX_SUPERPOE_BACKUP_FILE_SIZE, SUPERPOE_BACKUP_EXTENSION, type SuperPoeBackupMainData } from '../src/engine/superPoeBackup.js'
+import type { EquipmentTryOnOpenRequest } from '../src/types/tryOn.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
+const equipmentTryOnPreloadPath = path.join(currentDir, 'equipmentTryOnPreload.cjs')
 const priceCheckPreloadPath = path.join(currentDir, 'priceCheckPreload.cjs')
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
 const packageMetadata = JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')) as {
@@ -275,6 +278,7 @@ let opportunityOverlay: OpportunityOverlayController | null = null
 let currencyMarketService: CurrencyMarketService | null = null
 let priceCheckCoordinator: PriceCheckCoordinator | null = null
 let priceCheckWindowManager: PriceCheckWindowManager | null = null
+let equipmentTryOnWindowManager: EquipmentTryOnWindowManager | null = null
 let priceCheckHotkey = ''
 let defaultRealm: MarketRealm = 'global'
 let uiLanguage: UiLanguage = 'en'
@@ -285,6 +289,7 @@ const equipmentLibrary = new EquipmentLibraryRepository(
   path.join(userDataPath, 'library', 'equipment-library.v1.json'),
 )
 const favoriteOperations = new Map<string, Promise<void>>()
+const tryOnOperations = new Map<string, Promise<void>>()
 
 function registerPriceCheckHotkey(enabled: boolean, requestedHotkey: string): { registered: boolean; error?: string } {
   if (priceCheckHotkey) globalShortcut.unregister(priceCheckHotkey)
@@ -461,6 +466,38 @@ function requireMainWindowSender(event: IpcMainInvokeEvent): BrowserWindow {
   return mainWindow
 }
 
+function validateEquipmentTryOnOpenRequest(value: unknown): EquipmentTryOnOpenRequest {
+  if (!value || typeof value !== 'object') throw new Error('Invalid equipment try-on request')
+  let serializedSize = 0
+  try { serializedSize = JSON.stringify(value).length } catch { throw new Error('Invalid equipment try-on request') }
+  if (serializedSize > 12_000_000) throw new Error('Equipment try-on request is too large')
+  const input = value as Partial<EquipmentTryOnOpenRequest>
+  const entry = input.entry
+  if (!entry || typeof entry !== 'object' || !entry.item || typeof entry.item.raw !== 'string' || !entry.item.raw || entry.item.raw.length > 200_000) {
+    throw new Error('Invalid equipment try-on item')
+  }
+  if (!isUiLanguage(input.language)) throw new Error('Invalid equipment try-on language')
+  if (input.context != null) {
+    if (typeof input.context !== 'object' || typeof input.context.xml !== 'string' || !input.context.xml || input.context.xml.length > 10_000_000) {
+      throw new Error('Invalid equipment try-on build XML')
+    }
+    if (typeof input.context.buildRevision !== 'number' || !Number.isFinite(input.context.buildRevision)) {
+      throw new Error('Invalid equipment try-on build revision')
+    }
+    if (typeof input.context.activeItemSetId !== 'string' || !input.context.activeItemSetId || input.context.activeItemSetId.length > 128) {
+      throw new Error('Invalid equipment try-on item set')
+    }
+    if (input.context.activeWeaponSet !== 1 && input.context.activeWeaponSet !== 2) {
+      throw new Error('Invalid equipment try-on weapon set')
+    }
+  }
+  return structuredClone({
+    entry,
+    context: input.context ?? null,
+    language: input.language,
+  }) as EquipmentTryOnOpenRequest
+}
+
 function validateMarketBounds(event: IpcMainInvokeEvent, value: unknown): Rectangle {
   const window = requireMainWindowSender(event)
   if (!value || typeof value !== 'object') throw new Error('Invalid market bounds')
@@ -562,6 +599,8 @@ function createWindow(): BrowserWindow {
     true,
     () => gameWindowService?.focusGame(),
   )
+  equipmentTryOnWindowManager?.dispose()
+  equipmentTryOnWindowManager = new EquipmentTryOnWindowManager(equipmentTryOnPreloadPath, rendererUrl, getAppIconPath())
   priceCheckCoordinator = new PriceCheckCoordinator({
     context: () => ({ realm: defaultRealm, language: uiLanguage }),
     prepare: async (realm, source) => {
@@ -664,6 +703,8 @@ function createWindow(): BrowserWindow {
     priceCheckCoordinator = null
     priceCheckWindowManager?.dispose()
     priceCheckWindowManager = null
+    equipmentTryOnWindowManager?.dispose()
+    equipmentTryOnWindowManager = null
     if (mainWindow === window) mainWindow = null
   })
   return window
@@ -1144,6 +1185,44 @@ async function priceCheckSnapshot(request: TradePriceCheckPrepareRequest) {
   }, request.realm)
 }
 
+async function createMarketListingPreviewEntry(ref: MarketDomListingRef): Promise<EquipmentLibraryEntry> {
+  if (!marketViewManager) throw new Error('Market browser is unavailable')
+  const payload = await marketViewManager.fetchListing(ref)
+  const resolveStatText = await createMarketStatTextResolver(ref.realm)
+  const imported = normalizeMarketListing(
+    payload,
+    ref,
+    (text) => itemTranslations.toEnglish(text),
+    (text) => itemTranslations.statToEnglish(text),
+    resolveStatText,
+  )
+  const normalized = await pobItemBridge.normalize(imported.item.raw)
+  normalized.view.iconUrl = imported.item.iconUrl
+  normalized.view.localized = imported.item.localized
+  normalized.item.modifierSnapshots = structuredClone(normalized.view.modifiers)
+  if (imported.source.display?.locale && imported.source.display.locale !== 'en') {
+    imported.source.display.modifiers?.forEach((displayText, index) => {
+      if (normalized.view.modifiers[index]) {
+        normalized.view.modifiers[index].localized = { [imported.source.display!.locale]: displayText }
+      }
+    })
+  }
+  const now = new Date().toISOString()
+  return {
+    schemaVersion: 3,
+    id: `market-preview:${ref.realm}:${ref.listingId}`,
+    fingerprint: fingerprintLibraryItem(normalized.item),
+    item: structuredClone(normalized.item),
+    view: structuredClone(normalized.view),
+    sources: [structuredClone(imported.source)],
+    collectionRoot: 'market',
+    tags: [],
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
 async function savePriceCheckListing(ref: MarketDomListingRef) {
   if (!marketViewManager) throw new Error('Market browser is unavailable')
   const payload = await marketViewManager.fetchListing(ref)
@@ -1318,6 +1397,19 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     }
     event.sender.setZoomFactor(value)
     return event.sender.getZoomFactor()
+  })
+  ipcMain.handle('equipment-try-on:open', (event, value: unknown) => {
+    const parent = requireMainWindowSender(event)
+    if (!equipmentTryOnWindowManager) throw new Error('Equipment try-on window is unavailable')
+    equipmentTryOnWindowManager.open(parent, validateEquipmentTryOnOpenRequest(value))
+  })
+  ipcMain.handle('equipment-try-on:close', (event) => {
+    if (!equipmentTryOnWindowManager) throw new Error('Equipment try-on window is unavailable')
+    equipmentTryOnWindowManager.close(event.sender.id)
+  })
+  ipcMain.handle('equipment-try-on:get-payload', (event) => {
+    if (!equipmentTryOnWindowManager) throw new Error('Equipment try-on window is unavailable')
+    return equipmentTryOnWindowManager.getPayload(event.sender.id)
   })
   ipcMain.handle('pob2:restart-as-admin', async (event) => {
     const fromMain = mainWindow?.webContents.id === event.sender.id
@@ -1622,6 +1714,40 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       event.sender.send('market-enhancement:status-result', { states: equipmentLibrary.marketStates(realm, listingIds) })
     } catch {
       // Ignore messages from stale or untrusted web contents.
+    }
+  })
+
+  ipcMain.on('market-enhancement:try-on', (event, value: unknown) => {
+    let listingId = ''
+    try {
+      const realm = requireMarketSender(event)
+      const input = value && typeof value === 'object' ? value as { requestId?: unknown; ref?: unknown } : {}
+      if (input.ref && typeof input.ref === 'object') {
+        const candidateId = (input.ref as { listingId?: unknown }).listingId
+        if (typeof candidateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(candidateId)) listingId = candidateId
+      }
+      const requestId = validateShortString(input.requestId, 'try-on request ID', 128)
+      const ref = validateListingRef(input.ref, realm)
+      listingId = ref.listingId
+      const operationKey = `${realm}:${ref.listingId}`
+      const previous = tryOnOperations.get(operationKey) || Promise.resolve()
+      const operation = previous.catch(() => {}).then(async () => {
+        if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Main window is unavailable')
+        const entry = await createMarketListingPreviewEntry(ref)
+        mainWindow.webContents.send('market:try-on-request', { requestId, entry })
+        if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:try-on-result', { requestId, listingId: ref.listingId })
+      }).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:try-on-result', { requestId, listingId: ref.listingId, error: message.slice(0, 300) })
+      }).finally(() => {
+        if (tryOnOperations.get(operationKey) === operation) tryOnOperations.delete(operationKey)
+      })
+      tryOnOperations.set(operationKey, operation)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!event.sender.isDestroyed() && listingId) {
+        event.sender.send('market-enhancement:try-on-result', { listingId, error: message.slice(0, 300) })
+      }
     }
   })
 
@@ -2102,6 +2228,40 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       groupIds: string[]
       configOverrides?: Record<string, boolean | number | string>
     })
+  })
+  ipcMain.handle('pob2:lua-compare-equipment', (_event, value: unknown) => {
+    if (!value || typeof value !== 'object') throw new Error('Invalid equipment comparison payload')
+    const payload = value as {
+      context?: {
+        xml?: unknown
+        buildRevision?: unknown
+        activeItemSetId?: unknown
+        activeWeaponSet?: unknown
+        configFingerprint?: unknown
+        configOverrides?: unknown
+        activeSkillContext?: unknown
+      }
+      candidate?: { raw?: unknown; buildItemId?: unknown; source?: unknown }
+      sourceSlotName?: unknown
+      slotOnlyTooltips?: unknown
+      contextKey?: unknown
+    }
+    if (!payload.context || typeof payload.context.xml !== 'string' || !payload.context.xml || payload.context.xml.length > 10_000_000) {
+      throw new Error('Invalid equipment comparison build XML')
+    }
+    if (!payload.candidate || typeof payload.candidate.raw !== 'string' || !payload.candidate.raw || payload.candidate.raw.length > 200_000) {
+      throw new Error('Invalid equipment comparison item')
+    }
+    if (typeof payload.contextKey !== 'string' || !payload.contextKey || payload.contextKey.length > 128) {
+      throw new Error('Invalid equipment comparison context')
+    }
+    if (payload.context.activeWeaponSet !== 1 && payload.context.activeWeaponSet !== 2) {
+      throw new Error('Invalid equipment comparison weapon set')
+    }
+    if (payload.sourceSlotName != null && (typeof payload.sourceSlotName !== 'string' || payload.sourceSlotName.length > 80)) {
+      throw new Error('Invalid equipment comparison slot')
+    }
+    return pobLuaService.compareEquipment(payload as import('../src/equipmentDifference/types.js').EquipmentDifferenceRequest & { contextKey: string })
   })
   ipcMain.handle('pob2:save-game-build', async (_event, value: unknown) => {
     const payload = validateGameBuildPayload(value)

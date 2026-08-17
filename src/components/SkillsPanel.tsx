@@ -8,7 +8,7 @@ import {
   type MouseEvent,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowDownWideNarrow, Check, CircleHelp, Info, LoaderCircle, PanelRightOpen, Pencil, RotateCcw, Sparkles, X } from 'lucide-react'
+import { Check, ChevronDown, ChevronRight, CircleHelp, Info, LoaderCircle, PanelLeftClose, PanelLeftOpen, PanelRightOpen, Pencil, Sparkles, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import { GemTooltip, type GemTooltipTarget } from '@/components/GemTooltip'
 import { getImportedCalculationModeFromCode, getImportedCalculationModeFromObject } from '@/engine/calculationConfig'
@@ -28,7 +28,7 @@ import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { formatUiNumber, uiText, type UiMessage } from '@/i18n/uiLocale'
 import { getActiveBuildSession, useTreeStore } from '@/store/treeStore'
-import type { CalcResult, SkillCalculationDetails, SkillCalculationMode, SkillLevelReference } from '@/types/calc'
+import type { CalcResult, SkillCalculationDetails, SkillCalculationMode, SkillDpsEntry, SkillLevelReference } from '@/types/calc'
 
 const SKILL_PANEL_WIDTH = 1540
 const SKILL_PANEL_HEIGHT = 1200
@@ -129,6 +129,293 @@ function SkillGemEditor({
 function formatCalculationValue(value: number | undefined, decimals: number, language: Language): string {
   if (!Number.isFinite(value)) return '-'
   return formatUiNumber(value as number, language, { maximumFractionDigits: decimals })
+}
+
+function formatDpsValue(value: number | undefined, language: Language): string {
+  if (!Number.isFinite(value)) return '-'
+  const numeric = value as number
+  const absolute = Math.abs(numeric)
+  if (absolute >= 1_000_000) return `${formatCalculationValue(numeric / 1_000_000, 1, language)}M`
+  if (absolute >= 1_000) return `${formatCalculationValue(numeric / 1_000, 1, language)}k`
+  return formatCalculationValue(numeric, 0, language)
+}
+
+function isSyntheticDpsEntry(name: string): boolean {
+  return /^(?:Best .+ DPS|Full (?:Impale|Decay|DoT|Culling) DPS)$/i.test(name.trim())
+}
+
+function normalizeSkillOptionName(value: string | undefined): string {
+  return (value || '')
+    .replace(/\^[0-9A-Za-z]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase()
+}
+
+function skillNamesMatch(left: string | undefined, right: string | undefined): boolean {
+  const leftName = normalizeSkillOptionName(left)
+  const rightName = normalizeSkillOptionName(right)
+  return Boolean(leftName && rightName && (
+    leftName === rightName
+    || leftName.startsWith(`${rightName}:`)
+    || rightName.startsWith(`${leftName}:`)
+  ))
+}
+
+function skillMetadataMatches(left: string | undefined, right: string | undefined): boolean {
+  const leftName = normalizeSkillOptionName(left)
+  const rightName = normalizeSkillOptionName(right)
+  return Boolean(leftName && rightName && (
+    skillNamesMatch(leftName, rightName)
+    || leftName.includes(rightName)
+    || rightName.includes(leftName)
+  ))
+}
+
+function getDpsSkillNameCandidates(entry: SkillDpsEntry): string[] {
+  const candidates = [entry.name, entry.skillPart]
+  if (entry.skillPart) candidates.push(entry.skillPart.split(':', 1)[0])
+  return [...new Set(candidates
+    .map(normalizeSkillOptionName)
+    .filter(Boolean))]
+}
+
+function findActiveSkillOptionIndex(details: SkillCalculationDetails, entry: SkillDpsEntry): number | undefined {
+  const candidates = getDpsSkillNameCandidates(entry)
+  if (!candidates.length) return undefined
+  const match = details.activeSkills
+    .map((option) => {
+      const optionNameMatches = candidates.some((candidate) => skillNamesMatch(option.label, candidate))
+      if (!optionNameMatches) return { option, score: -1 }
+      let score = 10
+      if (entry.skillId && option.skillId === entry.skillId) score += 1000
+      if (entry.trigger && option.trigger && skillMetadataMatches(entry.trigger, option.trigger)) score += 100
+      if (entry.skillPart && option.skillPart && skillMetadataMatches(entry.skillPart, option.skillPart)) score += 50
+      return { option, score }
+    })
+    .filter((candidate) => candidate.score >= 0)
+    .sort((left, right) => right.score - left.score)[0]?.option
+  return match?.index
+}
+
+interface SkillDpsSnapshot {
+  allEntries: SkillDpsEntry[]
+  fullEntries: SkillDpsEntry[]
+  fullDps?: number
+}
+
+type NormalizedSkillDpsEntry = SkillDpsEntry & {
+  rowKey: string
+  totalDps: number
+}
+
+function SkillDpsDrawer({
+  fullEntries,
+  allEntries,
+  fullDps,
+  groups,
+  catalog,
+  language,
+  loading,
+  error,
+  selectedGroupId,
+  onSelectEntry,
+  onToggleGroup,
+  onClose,
+}: {
+  fullEntries: SkillDpsEntry[]
+  allEntries: SkillDpsEntry[]
+  fullDps?: number
+  groups: ReturnType<typeof parseSkillsObject>['groups']
+  catalog: SkillCatalog | null
+  language: Language
+  loading: boolean
+  error: string | null
+  selectedGroupId?: string
+  onSelectEntry: (entry: SkillDpsEntry, groupId: string) => void
+  onToggleGroup: (groupId: string, include: boolean) => void
+  onClose: () => void
+}) {
+  const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  const normalizeEntries = (entries: SkillDpsEntry[], includeSynthetic: boolean): NormalizedSkillDpsEntry[] => entries
+    .map((entry, index) => ({
+      ...entry,
+      rowKey: [entry.groupId || '', entry.skillId || '', entry.name, entry.trigger || '', entry.skillPart || '', index].join('|'),
+      totalDps: (entry.dps || 0) * (entry.count || 1),
+    }))
+    .filter((entry) => (includeSynthetic || !isSyntheticDpsEntry(entry.name)) && entry.totalDps > 0)
+    .sort((left, right) => right.totalDps - left.totalDps)
+  const includedEntries = useMemo(() => normalizeEntries(fullEntries, false), [fullEntries])
+  const orderedEntries = useMemo(() => normalizeEntries(allEntries, false), [allEntries])
+  const unIncludedEntries = useMemo(() => orderedEntries.filter((entry) => {
+    if (!entry.groupId) return true
+    return !groups.find((group) => group.id === entry.groupId)?.includeInFullDps
+  }), [groups, orderedEntries])
+  const highestDps = unIncludedEntries[0]?.totalDps || 1
+
+  const getSkillPresentation = (entry: SkillDpsEntry) => {
+    const entryCandidates = getDpsSkillNameCandidates(entry)
+    const matchesEntry = (gem: (typeof groups)[number]['gems'][number]) => Boolean(
+      (entry.skillId && gem.skillId === entry.skillId)
+      || entryCandidates.some((candidate) => skillNamesMatch(gem.name, candidate)),
+    )
+    const scoredGroups = groups.map((item, index) => {
+      let score = 0
+      if (item.gems.some(matchesEntry)) score += 20
+      if (entry.trigger && item.gems.some((gem) => skillMetadataMatches(entry.trigger, gem.name))) score += 100
+      if (entry.skillPart && item.gems.some((gem) => skillMetadataMatches(entry.skillPart, gem.name))) score += 10
+      return { item, index, score }
+    })
+    const group = entry.groupId
+      ? groups.find((item) => item.id === entry.groupId)
+      : scoredGroups
+        .filter((candidate) => candidate.score > 0)
+        .sort((left, right) => right.score - left.score || left.index - right.index)[0]?.item
+    const groupGem = group?.gems[0]
+    const matchingGem = group?.gems.find(matchesEntry)
+    const gemLike = {
+      name: entry.name,
+      skillId: entry.skillId || '',
+      gemId: entry.skillId || '',
+      variantId: '',
+    }
+    const displayGem = matchingGem || gemLike
+    const detail = resolveSkillCatalogEntry(displayGem, catalog) || resolveSkillCatalogName(entry.name, catalog)
+    const localizedName = getLocalizedSkillName(displayGem, detail, language)
+    return { group, groupGem, matchingGem, detail, localizedName }
+  }
+
+  const renderEntry = (entry: NormalizedSkillDpsEntry, index: number, section: 'full' | 'ranking') => {
+    const { group, groupGem, detail, localizedName } = getSkillPresentation(entry)
+    const entryKey = `${section}:${entry.rowKey}`
+    const expanded = expandedKey === entryKey
+    const kindLabel = entry.kind === 'trigger' || entry.trigger
+      ? l('Trigger', '触发', '觸發', '트리거')
+      : entry.kind === 'minion'
+        ? l('Minion', '召唤物', '召喚物', '미니언')
+        : entry.kind === 'mirage'
+          ? l('Mirage', '幻影', '幻影', '미라지')
+          : entry.kind === 'dot'
+            ? 'DOT'
+            : ''
+    const source = entry.trigger || entry.skillPart || ''
+    const selectionEntry = group?.id && entry.groupId !== group.id
+      ? { ...entry, groupId: group.id }
+      : entry
+    const toggleEnabled = Boolean(group?.id)
+    const handleSelect = () => {
+      setExpandedKey((current) => current === entryKey ? null : entryKey)
+      if (group?.id) onSelectEntry(selectionEntry, group.id)
+    }
+    return <article
+      key={entryKey}
+      className={`skill-dps-entry${expanded ? ' expanded' : ''}${group?.id === selectedGroupId ? ' related' : ''}${section === 'full' ? ' full' : ''}`}
+      role={group?.id ? 'button' : undefined}
+      tabIndex={group?.id ? 0 : -1}
+      onClick={handleSelect}
+      onKeyDown={(event) => {
+        if (!group?.id || (event.key !== 'Enter' && event.key !== ' ')) return
+        event.preventDefault()
+        handleSelect()
+      }}
+    >
+      <div className="skill-dps-entry-main">
+        <span className="skill-dps-entry-rank">{index + 1}</span>
+        <span className="skill-dps-entry-icon">
+          <FallbackImage src={detail?.icon || undefined} alt="" fallback={<Sparkles />} />
+        </span>
+        <span className="skill-dps-entry-copy">
+          <strong>{localizedName || entry.name}</strong>
+          <small>
+            {kindLabel && <em>{kindLabel}</em>}
+            {source && <span>{source}</span>}
+            {!kindLabel && !source && <span>{l('Calculated skill', '已计算技能', '已計算技能', '계산된 스킬')}</span>}
+          </small>
+        </span>
+        <span className="skill-dps-entry-value">
+          <span className="skill-dps-entry-number">
+            <strong>{formatDpsValue(entry.totalDps, language)}</strong>
+            <ChevronDown className="skill-dps-entry-chevron" />
+          </span>
+          {section === 'ranking' && <span className="skill-dps-entry-meter" aria-hidden="true"><i style={{ width: `${Math.max(3, entry.totalDps / highestDps * 100)}%` }} /></span>}
+        </span>
+      </div>
+      {expanded && <div className="skill-dps-entry-details">
+        <div><span>{l('Skill DPS', '技能 DPS', '技能 DPS', '스킬 DPS')}</span><strong>{formatCalculationValue(entry.dps, 1, language)}</strong></div>
+        {entry.count !== 1 && <div><span>{l('Count', '次数', '次數', '횟수')}</span><strong>x{formatCalculationValue(entry.count, 2, language)}</strong></div>}
+        {entry.skillPart && <div><span>{l('Skill part', '技能部件', '技能部件', '스킬 부위')}</span><strong>{entry.skillPart}</strong></div>}
+        {entry.trigger && <div><span>{l('Trigger source', '触发来源', '觸發來源', '트리거 출처')}</span><strong>{entry.trigger}</strong></div>}
+        {group && <div><span>{l('Skill group', '技能组', '技能組', '스킬 그룹')}</span><strong>{groupGem ? getLocalizedSkillName(groupGem, resolveSkillCatalogEntry(groupGem, catalog), language) : group.id}</strong></div>}
+        {toggleEnabled && group && <label
+          className="skill-dps-include-toggle"
+          title={l('This setting applies to the whole skill group.', '此设置对整个技能组生效。', '此設定對整個技能組生效。', '이 설정은 전체 스킬 그룹에 적용됩니다.')}
+          onClick={(event) => event.stopPropagation()}
+        >
+          <span>
+            <strong>{l('Include in Full DPS', '计入完整 DPS', '計入完整 DPS', '전체 DPS에 포함')}</strong>
+            <small>{l('Applies to this skill group', '按技能组生效', '按技能組生效', '스킬 그룹 단위')}</small>
+          </span>
+          <input
+            type="checkbox"
+            checked={group.includeInFullDps}
+            disabled={!group.enabled || loading}
+            aria-label={l('Include skill group in Full DPS', '将技能组计入完整 DPS', '將技能組計入完整 DPS', '스킬 그룹을 전체 DPS에 포함')}
+            onChange={(event) => onToggleGroup(group.id, event.target.checked)}
+          />
+        </label>}
+      </div>}
+    </article>
+  }
+
+  return <aside className="skill-dps-drawer" aria-label={l('Skill DPS', '技能 DPS', '技能 DPS', '스킬 DPS')}>
+    <header className="skill-dps-drawer-header">
+      <div>
+        <span>{l('Skill DPS', '技能 DPS', '技能 DPS', '스킬 DPS')}</span>
+        <small>{l('Runtime skills, including triggers', '包含触发技能的运行时技能', '包含觸發技能的執行時技能', '트리거를 포함한 런타임 스킬')}</small>
+      </div>
+      <button
+        type="button"
+        className="skill-dps-drawer-close"
+        onClick={onClose}
+        title={l('Close Skill DPS', '关闭技能 DPS', '關閉技能 DPS', '스킬 DPS 닫기')}
+        aria-label={l('Close Skill DPS', '关闭技能 DPS', '關閉技能 DPS', '스킬 DPS 닫기')}
+      ><PanelLeftClose /></button>
+    </header>
+    <div className="skill-dps-drawer-meta">
+      <span>{l('Full DPS sources and all runtime skills', '完整 DPS 来源与全部运行时技能', '完整 DPS 來源與全部執行時技能', '전체 DPS 원천 및 모든 런타임 스킬')}</span>
+      {loading && <LoaderCircle className="spinning" aria-label={l('Calculating', '计算中', '計算中', '계산 중')} />}
+    </div>
+    <div className="skill-dps-drawer-list">
+      {error && <p className="skill-dps-drawer-message error">{error}</p>}
+      {!error && loading && !allEntries.length && <p className="skill-dps-drawer-message">{l('Calculating skill DPS...', '正在计算技能 DPS…', '正在計算技能 DPS…', '스킬 DPS 계산 중...')}</p>}
+      <section className="skill-dps-section skill-dps-section-full">
+        <header className="skill-dps-section-header">
+          <div>
+            <h3>{l('Included in Full DPS', '计入完整 DPS', '計入完整 DPS', '전체 DPS에 포함')}</h3>
+            <small>{l('Skill sources; derived damage stays in the total', '技能来源；派生伤害仍计入总值', '技能來源；衍生傷害仍計入總值', '스킬 원천; 파생 피해는 총합에 포함')}</small>
+          </div>
+          <strong>{formatDpsValue(fullDps, language)} <small>DPS</small></strong>
+        </header>
+        {includedEntries.length
+          ? <div className="skill-dps-section-list">{includedEntries.map((entry, index) => renderEntry(entry, index, 'full'))}</div>
+          : <p className="skill-dps-drawer-message">{l('No direct skill source is included. Derived damage remains in the total.', '当前没有可显示的直接技能来源，派生伤害仍计入总值。', '目前沒有可顯示的直接技能來源，衍生傷害仍計入總值。', '표시할 직접 스킬 원천이 없습니다. 파생 피해는 총합에 포함됩니다.')}</p>}
+      </section>
+      <section className="skill-dps-section skill-dps-section-ranking">
+        <header className="skill-dps-section-header">
+          <div>
+            <h3>{l('Skill DPS Ranking', '技能 DPS 排序', '技能 DPS 排序', '스킬 DPS 순위')}</h3>
+            <small>{l('Skills not included in Full DPS', '未计入完整 DPS 的技能', '未計入完整 DPS 的技能', '전체 DPS에 포함되지 않은 스킬')}</small>
+          </div>
+          {loading && <LoaderCircle className="spinning" aria-hidden="true" />}
+        </header>
+        {!unIncludedEntries.length && !loading && <p className="skill-dps-drawer-message">{orderedEntries.length
+          ? l('All direct skills are included in Full DPS.', '所有直接技能都已计入完整 DPS。', '所有直接技能都已計入完整 DPS。', '모든 직접 스킬이 전체 DPS에 포함되어 있습니다.')
+          : l('No individual skill DPS is available.', '暂无独立技能 DPS 数据。', '暫無獨立技能 DPS 資料。', '개별 스킬 DPS가 없습니다.')}</p>}
+        <div className="skill-dps-section-list">{unIncludedEntries.map((entry, index) => renderEntry(entry, index, 'ranking'))}</div>
+      </section>
+    </div>
+  </aside>
 }
 
 function SkillLevelReferencePanel({
@@ -1026,15 +1313,13 @@ export function SkillsPanel() {
   const calcResult = useTreeStore((state) => state.calcResult)
   const calcLoading = useTreeStore((state) => state.calcLoading)
   const calcError = useTreeStore((state) => state.calcError)
+  const calculationProfiles = useTreeStore((state) => state.calculationProfiles)
+  const activeCalculationProfileId = useTreeStore((state) => state.activeCalculationProfileId)
   const runCalculation = useTreeStore((state) => state.runCalculation)
-  const rankSkillsByDps = useTreeStore((state) => state.rankSkillsByDps)
   const updateSkillGem = useTreeStore((state) => state.updateSkillGem)
   const updateSkillGroup = useTreeStore((state) => state.updateSkillGroup)
   const setActiveSkillSet = useTreeStore((state) => state.setActiveSkillSet)
   const setMainSocketGroup = useTreeStore((state) => state.setMainSocketGroup)
-  const allocatedNodes = useTreeStore((state) => state.allocatedNodes)
-  const calculationProfiles = useTreeStore((state) => state.calculationProfiles)
-  const activeCalculationProfileId = useTreeStore((state) => state.activeCalculationProfileId)
   const [selectedId, setSelectedId] = useState('')
   const [inspectorOpen, setInspectorOpen] = useState(true)
   const [skillEditMode, setSkillEditMode] = useState(false)
@@ -1049,10 +1334,13 @@ export function SkillsPanel() {
   }>({ groupId: '' })
   const [catalog, setCatalog] = useState<SkillCatalog | null>(null)
   const [tooltip, setTooltip] = useState<GemTooltipTarget | null>(null)
-  const [dpsRanking, setDpsRanking] = useState<Record<string, { dps: number; valid: boolean }> | null>(null)
-  const [rankingLoading, setRankingLoading] = useState(false)
-  const [rankingError, setRankingError] = useState('')
-  const rankingRequestId = useRef(0)
+  const [dpsDrawerOpen, setDpsDrawerOpen] = useState(true)
+  const [pendingDpsSelection, setPendingDpsSelection] = useState<{
+    groupId: string
+    entry: SkillDpsEntry
+  } | null>(null)
+  const [skillDpsSnapshot, setSkillDpsSnapshot] = useState<SkillDpsSnapshot | null>(null)
+  const dpsSnapshotContextRef = useRef('')
   const activePobCode = useMemo(() => getActivePobCode() || '', [getActivePobCode, pobBuildRevision])
 
   useEffect(() => {
@@ -1076,51 +1364,7 @@ export function SkillsPanel() {
       ? parseSkillsObject(session.object)
       : parseSkillsCode(activePobCode)
     : { activeSkillSetId: '', skillSets: [], activeGroupId: '', groups: [] }, [activePobCode, pobBuildRevision, session])
-  const orderedGroups = useMemo(() => {
-    if (!dpsRanking) return skills.groups
-    const originalIndex = new Map(skills.groups.map((group, index) => [group.id, index]))
-    return [...skills.groups].sort((left, right) => {
-      const leftRank = dpsRanking[left.id]
-      const rightRank = dpsRanking[right.id]
-      if (leftRank?.valid !== rightRank?.valid) return leftRank?.valid ? -1 : 1
-      const dpsDifference = (rightRank?.dps || 0) - (leftRank?.dps || 0)
-      return dpsDifference || (originalIndex.get(left.id) || 0) - (originalIndex.get(right.id) || 0)
-    })
-  }, [dpsRanking, skills.groups])
-
-  const restoreSkillOrder = () => {
-    rankingRequestId.current += 1
-    setDpsRanking(null)
-    setRankingLoading(false)
-    setRankingError('')
-  }
-
-  const toggleDpsRanking = async () => {
-    if (dpsRanking) {
-      restoreSkillOrder()
-      return
-    }
-    const requestId = ++rankingRequestId.current
-    setRankingLoading(true)
-    setRankingError('')
-    try {
-      const entries = await rankSkillsByDps(skills.groups.map((group) => group.id), weaponSet)
-      if (requestId !== rankingRequestId.current) return
-      setDpsRanking(Object.fromEntries(entries.map((entry) => [entry.groupId, {
-        dps: entry.dps,
-        valid: entry.valid,
-      }])))
-    } catch (error) {
-      if (requestId !== rankingRequestId.current) return
-      setRankingError(error instanceof Error ? error.message : String(error))
-    } finally {
-      if (requestId === rankingRequestId.current) setRankingLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    restoreSkillOrder()
-  }, [activePobCode, pobBuildRevision, weaponSet, allocatedNodes, calculationProfiles, activeCalculationProfileId])
+  const orderedGroups = skills.groups
 
   useEffect(() => {
     if (!activePobCode) {
@@ -1150,10 +1394,42 @@ export function SkillsPanel() {
   const minionStatSetIndex = selected && skillCalculationSelection.groupId === selected.id
     ? skillCalculationSelection.minionStatSetIndex
     : undefined
+  const activeCalculationProfile = calculationProfiles.find((profile) => profile.id === activeCalculationProfileId)
+  const dpsContextKey = useMemo(() => JSON.stringify([
+    activePobCode,
+    pobBuildRevision,
+    weaponSet,
+    calcMode,
+    activeCalculationProfileId,
+    Object.entries(activeCalculationProfile?.values || {}).sort(([left], [right]) => left.localeCompare(right)),
+  ]), [activePobCode, pobBuildRevision, weaponSet, calcMode, activeCalculationProfileId, activeCalculationProfile?.values])
   const calculationKey = selected
     ? `${activePobCode}:${pobBuildRevision}:${weaponSet}:${selected.id}:${calcMode}:${activeSkillIndex || ''}:${statSetIndex || ''}:${minionSkillIndex || ''}:${minionStatSetIndex || ''}`
     : ''
   const lastCalculationKey = useRef('')
+
+  useEffect(() => {
+    if (dpsSnapshotContextRef.current && dpsSnapshotContextRef.current !== dpsContextKey) {
+      setSkillDpsSnapshot(null)
+    }
+    dpsSnapshotContextRef.current = ''
+  }, [dpsContextKey])
+
+  useEffect(() => {
+    const allEntries = calcResult?.AllSkillDPS ?? calcResult?.SkillDPS
+    const fullEntries = calcResult?.FullSkillDPS ?? (Array.isArray(calcResult?.SkillDPS)
+      ? calcResult.SkillDPS.filter((entry) => Boolean(
+        entry.groupId && skills.groups.find((group) => group.id === entry.groupId)?.includeInFullDps,
+      ))
+      : undefined)
+    if (calcLoading || !Array.isArray(allEntries) || !Array.isArray(fullEntries) || dpsSnapshotContextRef.current === dpsContextKey) return
+    setSkillDpsSnapshot({
+      allEntries: allEntries.map((entry) => ({ ...entry })),
+      fullEntries: fullEntries.map((entry) => ({ ...entry })),
+      fullDps: calcResult?.FullDPS,
+    })
+    dpsSnapshotContextRef.current = dpsContextKey
+  }, [calcLoading, calcResult, dpsContextKey, skills.groups])
 
   useEffect(() => {
     if (!selected || !activePobCode || calcLoading || lastCalculationKey.current === calculationKey) return
@@ -1171,6 +1447,26 @@ export function SkillsPanel() {
 
   const selectedCalculation = !calcLoading && lastCalculationKey.current === calculationKey ? calcResult : null
   const calculationDetails = selectedCalculation?.SkillDetails
+
+  useEffect(() => {
+    if (!pendingDpsSelection || !selected || pendingDpsSelection.groupId !== selected.id || calcLoading || !calculationDetails) return
+    const matchedIndex = findActiveSkillOptionIndex(calculationDetails, pendingDpsSelection.entry)
+    if (matchedIndex == null) {
+      // The runtime may omit a non-damaging or unsupported triggered skill from
+      // the selectable list. Do not replace the user's current selection.
+      setPendingDpsSelection(null)
+      return
+    }
+    setSkillCalculationSelection((current) => {
+      if (current.groupId === selected.id && current.activeSkillIndex === matchedIndex) return current
+      return {
+        ...current,
+        groupId: selected.id,
+        activeSkillIndex: matchedIndex,
+      }
+    })
+    setPendingDpsSelection(null)
+  }, [pendingDpsSelection, selected?.id, calcLoading, calculationDetails])
 
   const showTooltip = (
     event: MouseEvent<HTMLElement>,
@@ -1194,7 +1490,46 @@ export function SkillsPanel() {
     </section>
   }
 
-  return <section className={`skills-workspace${inspectorOpen ? ' inspector-open' : ''}`}>
+  return <section className={`skills-workspace${inspectorOpen ? ' inspector-open' : ''}${dpsDrawerOpen ? ' dps-drawer-open' : ''}`}>
+    {dpsDrawerOpen
+      ? <SkillDpsDrawer
+        fullEntries={skillDpsSnapshot?.fullEntries || []}
+        allEntries={skillDpsSnapshot?.allEntries || []}
+        fullDps={skillDpsSnapshot?.fullDps}
+        groups={skills.groups}
+        catalog={catalog}
+        language={lang}
+        loading={calcLoading}
+        error={skillDpsSnapshot ? null : calcError}
+        selectedGroupId={selected.id}
+        onSelectEntry={(entry, groupId) => {
+          setSelectedId(groupId)
+          setInspectorOpen(true)
+          setInspectorPage('calculation')
+          setPendingDpsSelection({ groupId, entry })
+          setSkillCalculationSelection((current) => ({
+            ...current,
+            groupId,
+            activeSkillIndex: undefined,
+          }))
+        }}
+        onToggleGroup={(groupId, include) => {
+          const groupIndex = skills.groups.findIndex((group) => group.id === groupId)
+          if (groupIndex >= 0) updateSkillGroup(skills.activeSkillSetId, groupIndex, { includeInFullDPS: String(include) })
+        }}
+        onClose={() => setDpsDrawerOpen(false)}
+      />
+      : <button
+        type="button"
+        className="skill-dps-rail"
+        onClick={() => setDpsDrawerOpen(true)}
+        title={l('Open Skill DPS drawer', '打开技能 DPS 抽屉', '開啟技能 DPS 抽屜', '스킬 DPS 서랍 열기')}
+        aria-label={l('Open Skill DPS drawer', '打开技能 DPS 抽屉', '開啟技能 DPS 抽屜', '스킬 DPS 서랍 열기')}
+      >
+        <PanelLeftOpen aria-hidden="true" />
+        <strong>{l('Skill DPS', '技能 DPS', '技能 DPS', '스킬 DPS')}</strong>
+        <ChevronRight aria-hidden="true" />
+      </button>}
     <div className="skill-groups-stage">
       <header>
         <div className="skill-groups-header-actions">
@@ -1218,23 +1553,6 @@ export function SkillsPanel() {
             >{value === 1 ? 'I' : 'II'}</button>)}
           </div>
           <span>{l('Skill groups', '技能组', '技能組', '스킬 그룹')}</span>
-          <button
-            type="button"
-            className={`skill-dps-sort${dpsRanking ? ' active' : ''}`}
-            disabled={rankingLoading}
-            onClick={() => void toggleDpsRanking()}
-            title={rankingError || (dpsRanking
-              ? l('Restore imported skill order', '恢复导入时的技能组顺序', '恢復匯入時的技能組順序', '가져온 스킬 순서 복원')
-              : l('Sort by effective DPS, highest first', '按有效 DPS 从高到低排序', '依有效 DPS 由高至低排序', '유효 DPS가 높은 순으로 정렬'))}
-          >
-            {rankingLoading ? <LoaderCircle className="spinning" /> : dpsRanking ? <RotateCcw /> : <ArrowDownWideNarrow />}
-            {rankingLoading
-              ? l('Calculating', '计算中', '計算中', '계산 중')
-              : dpsRanking
-                ? l('Restore', '恢复顺序', '恢復順序', '복원')
-                : l('Effective DPS', '有效 DPS 排序', '有效 DPS 排序', '유효 DPS')}
-          </button>
-          {rankingError && <span className="skill-dps-sort-error" title={rankingError}>!</span>}
         </div>
         <div className="skill-groups-header-meta">
           <strong>{skills.groups.length}</strong>
@@ -1290,11 +1608,7 @@ export function SkillsPanel() {
             </div>
             <div className="skill-group-copy">
               <strong>{label}</strong>
-              <small>{dpsRanking
-                ? dpsRanking[group.id]?.valid
-                  ? `${l('Effective DPS', '有效 DPS', '有效 DPS', '유효 DPS')} ${formatCalculationValue(dpsRanking[group.id].dps, 1, lang)}`
-                  : l('No effective DPS', '无有效 DPS', '無有效 DPS', '유효 DPS 없음')
-                : calculatedLevel
+              <small>{calculatedLevel
                   ? `${l('Effective level', '实际等级', '實際等級', '유효 레벨')} ${calculatedLevel}`
                   : `${l('Gem level', '宝石等级', '寶石等級', '젬 레벨')} ${main.level}`}</small>
             </div>

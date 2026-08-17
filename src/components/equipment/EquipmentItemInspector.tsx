@@ -10,6 +10,7 @@ interface EquipmentItemInspectorProps {
   price?: string
   tags?: string[]
   note?: string
+  footer?: ReactNode
   headerAction?: ReactNode
   headerProps?: Omit<HTMLAttributes<HTMLElement>, 'className'>
 }
@@ -111,7 +112,7 @@ function DisplayStatList({ stats, language, className }: { stats: CanonicalItemD
   return <div className={className}>{stats.map((stat) => <span key={`${stat.key}-${stat.values.join('|')}`}><label>{displayStatLabel(stat.key, language)}</label><strong>{stat.values.join(' - ')}</strong></span>)}</div>
 }
 
-export function EquipmentItemInspector({ view, language, sourceLabels = [], price, tags = [], note, headerAction, headerProps }: EquipmentItemInspectorProps) {
+export function EquipmentItemInspector({ view, language, sourceLabels = [], price, tags = [], note, footer, headerAction, headerProps }: EquipmentItemInspectorProps) {
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
   const rarityKey = view.rarity.toLowerCase()
   const modifierGroups = (['implicit', 'enchant', 'rune', 'explicit'] as const)
@@ -149,6 +150,7 @@ export function EquipmentItemInspector({ view, language, sourceLabels = [], pric
         {l('Support status unavailable for this saved item', '此仓库装备尚未规范化，暂无法判断词缀支持状态', '此倉庫裝備尚未規範化，暫無法判斷詞綴支援狀態', '이 저장된 아이템은 아직 정규화되지 않아 속성 지원 상태를 알 수 없습니다')}
       </div>}
       {(tags.length > 0 || note) && <div className="library-item-inspector-notes">{tags.length > 0 && <span>{tags.join(' · ')}</span>}{note && <p>{note}</p>}</div>}
+      {footer}
     </div>
   </>
 }

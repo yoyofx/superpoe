@@ -61,12 +61,27 @@ export interface CalcResult {
   ClassName?: string
   allocatedNodes: number
   // Skill DPS breakdown
-  SkillDPS?: Array<{ name: string; dps: number; count: number; trigger?: string; skillPart?: string }>
+  SkillDPS?: SkillDpsEntry[]
+  /** DPS entries that PoB included in the Full DPS roll-up. */
+  FullSkillDPS?: SkillDpsEntry[]
+  /** All enabled runtime skills with a positive DPS contribution. */
+  AllSkillDPS?: SkillDpsEntry[]
   SkillDetails?: SkillCalculationDetails
   CalculationConfig?: CalculationConfigSnapshot
 }
 
 export type SkillCalculationMode = 'UNBUFFED' | 'BUFFED' | 'COMBAT' | 'EFFECTIVE'
+
+export interface SkillDpsEntry {
+  name: string
+  dps: number
+  count: number
+  trigger?: string
+  skillPart?: string
+  groupId?: string
+  skillId?: string
+  kind?: 'main' | 'trigger' | 'minion' | 'mirage' | 'dot' | 'other'
+}
 
 export interface SkillCalculationSelection {
   /** Character equipment panels only need the MAIN output already built while loading the XML. */
@@ -142,6 +157,9 @@ export interface LocalCalculationProfile {
 export interface SkillCalculationOption {
   index: number
   label: string
+  skillId?: string
+  trigger?: string
+  skillPart?: string
 }
 
 export interface SkillDamageBreakdown {

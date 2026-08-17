@@ -1,10 +1,11 @@
 import type { CalcApiResponse, RankSkillsInput, SkillCalculationSelection, SkillDpsRankResponse } from '@/types/calc'
 import type { EquipmentInspectionItem, EquipmentInspectionResult } from '@/types/equipmentSemantics'
 import type { JewelRadiusSnapshot } from '@/types/jewelRadius'
+import type { EquipmentDifferenceRequest, EquipmentDifferenceResult } from '@/equipmentDifference/types'
 
 interface WorkerRequest {
   id: number
-  type: 'init' | 'calculate' | 'inspectEquipment' | 'inspectJewelRadius' | 'rankSkills'
+  type: 'init' | 'calculate' | 'inspectEquipment' | 'inspectJewelRadius' | 'rankSkills' | 'compareEquipment'
   payload?: unknown
 }
 
@@ -173,5 +174,36 @@ export async function rankSkillsByEffectiveDps(input: RankSkillsInput): Promise<
     return await callWorker<SkillDpsRankResponse>('rankSkills', input)
   } catch (err) {
     return { success: false, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+export async function compareEquipment(
+  input: EquipmentDifferenceRequest,
+  contextKey: string,
+): Promise<EquipmentDifferenceResult> {
+  const payload = { ...input, contextKey }
+  try {
+    if (window.pob2Desktop?.comparePobLuaEquipment) {
+      const backend = await initPobLuaEngine()
+      if (backend === 'luajit') {
+        try {
+          return await window.pob2Desktop.comparePobLuaEquipment(payload)
+        } catch (error) {
+          nativeBackendFailed = true
+          engineInitPromise = null
+          console.warn('[PoB Lua] Native equipment comparison failed; switching to Wasmoon.', error)
+        }
+      }
+    }
+    await initPobLuaWorker()
+    return await callWorker<EquipmentDifferenceResult>('compareEquipment', payload)
+  } catch (err) {
+    return {
+      success: false,
+      error: {
+        code: 'runtime-unavailable',
+        message: err instanceof Error ? err.message : String(err),
+      },
+    }
   }
 }

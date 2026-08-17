@@ -585,6 +585,28 @@ svg { flex: 0 0 auto; }
 .trade-helper-item > footer button.primary-action { width: auto; min-width: 62px; display: inline-flex; grid-auto-flow: column; gap: 4px; padding: 0 7px; color: #b8aa8f; }
 .trade-helper-item > footer button.primary-action span { font: 10px Arial, "Microsoft YaHei", sans-serif; white-space: nowrap; }
 .trade-helper-item button.danger:hover, .trade-helper-search button.danger:hover { border-color: #993333; background: #2a1a1a; color: #ff7777; }
+.equipment-try-on-window { width: 100%; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; border: 1px solid #4d4638; background: #111310; box-sizing: border-box; }
+.equipment-try-on-window-header { min-height: 66px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 15px 10px 18px; border-bottom: 1px solid #403b30; background: #181914; -webkit-app-region: drag; }
+.equipment-try-on-window-no-drag { -webkit-app-region: no-drag; }
+.equipment-try-on-window-header > div { min-width: 0; }
+.equipment-try-on-window-header span { display: block; color: #777065; font-size: 9px; }
+.equipment-try-on-window-header h1 { display: flex; align-items: center; gap: 7px; margin-top: 3px; color: #d0c29f; font: 500 17px Georgia, "Microsoft YaHei", serif; }
+.equipment-try-on-window-header h1 svg { width: 17px; height: 17px; color: #c9ad72; }
+.equipment-try-on-window-header button { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; }
+.equipment-try-on-window-header button svg { width: 15px; height: 15px; }
+.equipment-try-on-window-content { min-height: 0; overflow-y: auto; background: #111310; }
+.equipment-try-on-window-content > .inspector-title { min-height: 58px; padding: 9px 18px; }
+.equipment-try-on-window-content > .inspector-scroll { min-height: 0; overflow-y: visible; padding: 15px 20px 20px; }
+.equipment-try-on-window-content .equipment-difference-panel { margin-top: 18px; }
+.equipment-try-on-window-no-build { margin-top: 18px; padding: 11px 12px; border: 1px solid #6e5930; background: #211b10; color: #c6ab69; font-size: 10px; line-height: 1.5; }
+.equipment-try-on-window-footer { min-height: 54px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 14px; border-top: 1px solid #403b30; background: #151713; }
+.equipment-try-on-window-footer > span { min-width: 0; color: #817b70; font-size: 9px; line-height: 1.35; }
+.equipment-try-on-window-loading { width: 100%; height: 100%; display: grid; place-items: center; background: #111310; color: #817b70; font-size: 11px; }
+.equipment-try-on-window-loading.error { padding: 24px; color: #d17d72; line-height: 1.6; text-align: center; }
+@media (max-width: 560px) {
+  .equipment-try-on-window-footer { align-items: flex-end; flex-direction: column; }
+  .equipment-try-on-window-footer > span { width: 100%; }
+}
 @container library-content (max-width: 360px) {
   .trade-helper-actions { grid-template-columns: minmax(0, 1fr); }
   .trade-helper-actions > select { grid-column: 1; }
@@ -956,9 +978,9 @@ svg { flex: 0 0 auto; }
 .inspector-title.rarity-rare h2, .inspector-title.rarity-rare p { color: #ffff77; }
 .inspector-title.rarity-unique h2, .inspector-title.rarity-unique p { color: #af6025; }
 .inspector-title.rarity-relic h2, .inspector-title.rarity-relic p { color: #60c060; }
-.inspector-scroll { min-height: 0; overflow-y: auto; padding: 14px 17px 24px; }
-.item-property-type { color: #7f7f7f; font-size: 10px; text-align: center; }
-.item-display-stats { display: grid; gap: 3px; margin-top: 7px; font-size: 10px; text-align: center; }
+.inspector-scroll { min-height: 0; overflow-y: auto; padding: 14px 17px 24px; font-family: "Microsoft YaHei UI", "Microsoft YaHei", "Segoe UI", sans-serif; }
+.item-property-type { color: #7f7f7f; font-size: 11px; text-align: center; }
+.item-display-stats { display: grid; gap: 3px; margin-top: 7px; font-size: 11px; text-align: center; }
 .item-display-stats span { color: #7f7f7f; }
 .item-display-stats strong { margin-left: 5px; color: #c8c8c8; font-weight: 500; }
 .item-display-stats .stat-physical { color: #c8c8c8; }
@@ -968,16 +990,16 @@ svg { flex: 0 0 auto; }
 .item-display-stats .stat-chaos { color: #d02090; }
 .item-display-stats .stat-augmented { color: #8888ff; }
 .item-display-stats span { display: inline-flex; justify-content: center; gap: 5px; }
-.item-requirements { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 12px; padding: 6px 4px 3px; color: #c8c8c8; font-size: 10px; text-align: center; }
+.item-requirements { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 12px; padding: 6px 4px 3px; color: #c8c8c8; font-size: 11px; text-align: center; }
 .item-requirements span { display: inline-flex; gap: 4px; }
 .item-requirements label { color: #aaa395; }
 .item-requirements strong { color: #c8c8c8; font-weight: 500; }
-.item-metadata { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 12px; padding: 11px 4px; color: #77736c; font-size: 9px; }
+.item-metadata { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px 12px; padding: 11px 4px; color: #77736c; font-size: 10px; }
 .item-metadata strong { color: inherit; font-weight: 500; }
 .item-metadata .requirement-augmented { color: #8888ff; }
-.item-modifiers { color: #aaa395; font-size: 10px; line-height: 1.65; text-align: center; }
+.item-modifiers { color: #aaa395; font-size: 11px; line-height: 1.65; text-align: center; }
 .item-modifiers p + p { margin-top: 2px; }
-.weapon-comparison-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #39352c; color: #c8c8c8; font-size: 10px; font-variant-numeric: tabular-nums; }
+.weapon-comparison-stats { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 16px; margin-top: 12px; padding-top: 10px; border-top: 1px solid #39352c; color: #c8c8c8; font-size: 11px; font-variant-numeric: tabular-nums; }
 .weapon-comparison-stats strong { color: #9e8c66; font-weight: 600; }
 .modifier-group { position: relative; padding-top: 10px; margin-top: 8px; }
 .modifier-group::before { content: ""; position: absolute; top: 0; left: 9%; width: 82%; height: 4px; background-position: center; background-repeat: no-repeat; background-size: 100% 100%; opacity: .9; }
@@ -994,13 +1016,13 @@ svg { flex: 0 0 auto; }
 .item-modifiers .item-modifier-unsupported { color: #e64d4d; }
 .item-modifiers .item-modifier-unsupported em { margin-left: 6px; color: #ef6464; font-size: .9em; font-style: normal; white-space: nowrap; }
 .library-item-normalization-unknown { margin-top: 8px; color: #b89455; font-size: 9px; line-height: 1.45; text-align: center; }
-.inspector-section-title { min-height: 30px; display: flex; align-items: center; justify-content: space-between; margin-top: 14px; border-bottom: 1px solid #39352c; color: #9e8c66; font-size: 10px; }
+.inspector-section-title { min-height: 30px; display: flex; align-items: center; justify-content: space-between; margin-top: 14px; border-bottom: 1px solid #39352c; color: #9e8c66; font-size: 11px; }
 .inspector-section-title small { color: #67635b; }
 .socket-detail-list { display: grid; gap: 6px; margin-top: 8px; }
 .socket-detail-list .socket-entry { display: grid; grid-template-columns: 28px 1fr; align-items: center; gap: 8px; min-height: 34px; }
 .socket-copy strong, .socket-copy small { display: block; }
-.socket-copy strong { color: #aaa293; font-size: 10px; font-weight: 500; }
-.socket-copy small { color: #656159; font-size: 8px; margin-top: 2px; }
+.socket-copy strong { color: #aaa293; font-size: 11px; font-weight: 500; }
+.socket-copy small { color: #656159; font-size: 9px; margin-top: 2px; }
 .empty-inspector { display: flex; align-items: center; justify-content: center; gap: 8px; color: #6d685f; font-size: 11px; }
 .empty-inspector svg { width: 14px; height: 14px; }
 
@@ -2380,8 +2402,83 @@ svg { flex: 0 0 auto; }
 }
 
 /* Skill details float above the full-width skill list instead of shrinking it. */
-.skills-workspace { grid-template-columns: minmax(0, 1fr); overflow: hidden; }
+.skills-workspace { grid-template-columns: 32px minmax(0, 1fr); overflow: hidden; }
 .skills-workspace.inspector-open .skill-panel-host { place-items: center start; }
+.skills-workspace.dps-drawer-open { grid-template-columns: clamp(286px, 30vw, 370px) minmax(0, 1fr); }
+.skill-dps-rail { position: relative; width: 32px; min-width: 0; min-height: 0; display: grid; grid-template-rows: 36px minmax(0, 1fr) 30px; place-items: center; padding: 0; border: 0; border-right: 1px solid #39362f; background: rgba(12, 14, 12, .96); color: #827b6c; cursor: pointer; box-shadow: inset -1px 0 rgba(0, 0, 0, .28); transition: background-color .16s ease, color .16s ease, border-color .16s ease; }
+.skill-dps-rail::before { content: ""; position: absolute; top: 36px; width: 14px; height: 1px; background: #454137; }
+.skill-dps-rail strong { writing-mode: vertical-rl; text-orientation: mixed; color: #9d9278; font: 500 9px/1.1 var(--font-ui); letter-spacing: .02em; }
+.skill-dps-rail svg { width: 13px; height: 13px; transition: color .16s ease, transform .16s ease; }
+.skill-dps-rail > svg:first-child { width: 15px; height: 15px; color: #a99a77; }
+.skill-dps-rail > svg:last-child { color: #66645e; }
+.skill-dps-rail:hover { border-right-color: #6c5a3e; background: #171a16; color: #d0c097; }
+.skill-dps-rail:hover strong, .skill-dps-rail:hover svg { color: #d0c097; }
+.skill-dps-rail:hover > svg:last-child { transform: translateX(2px); }
+.skill-dps-rail:focus-visible { outline: 1px solid #d1b676; outline-offset: -2px; }
+.skill-dps-drawer { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); overflow: hidden; border-right: 1px solid #454137; background: rgba(10, 12, 10, .98); box-shadow: 5px 0 14px rgba(0, 0, 0, .2); animation: skill-dps-drawer-enter .16s ease-out; }
+.skill-dps-drawer-header { min-height: 58px; display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 9px 12px 8px 14px; border-bottom: 1px solid #3f3a30; background: #131510; }
+.skill-dps-drawer-header > div { min-width: 0; }
+.skill-dps-drawer-header span, .skill-dps-drawer-header small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.skill-dps-drawer-header span { color: #c5b17b; font: 500 12px Georgia, "Microsoft YaHei", serif; }
+.skill-dps-drawer-header small { margin-top: 4px; color: #777168; font-size: 9px; }
+.skill-dps-drawer-close { width: 27px; height: 27px; display: grid; flex: none; place-items: center; padding: 0; border: 1px solid #4e493d; background: #11130f; color: #8f887a; cursor: pointer; }
+.skill-dps-drawer-close:hover { border-color: #776b52; color: #d7c390; background: #1a1b16; }
+.skill-dps-drawer-close:focus-visible { outline: 1px solid #d1b676; outline-offset: 1px; }
+.skill-dps-drawer-close svg { width: 15px; height: 15px; }
+.skill-dps-drawer-meta { min-height: 30px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 12px 0 14px; border-bottom: 1px solid #302e28; color: #706b61; font-size: 9px; }
+.skill-dps-drawer-meta svg { width: 13px; height: 13px; color: #c39b4d; }
+.skill-dps-drawer-meta .spinning { animation: skill-dps-sort-spin .8s linear infinite; }
+.skill-dps-drawer-list { min-height: 0; overflow-y: auto; padding: 7px; scrollbar-width: thin; scrollbar-color: #686153 transparent; }
+.skill-dps-drawer-list::-webkit-scrollbar { width: 7px; }
+.skill-dps-drawer-list::-webkit-scrollbar-thumb { background: #686153; }
+.skill-dps-drawer-message { margin: 0; padding: 22px 9px; color: #777168; font-size: 10px; line-height: 1.5; text-align: center; }
+.skill-dps-drawer-message.error { color: #c97d72; }
+.skill-dps-section + .skill-dps-section { margin-top: 12px; padding-top: 10px; border-top: 1px solid #38352d; }
+.skill-dps-section-header { min-height: 34px; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 4px 7px; }
+.skill-dps-section-header > div { min-width: 0; }
+.skill-dps-section-header h3 { margin: 0; overflow: hidden; color: #c7b990; font: 500 11px/1.2 Georgia, "Microsoft YaHei", serif; text-overflow: ellipsis; white-space: nowrap; }
+.skill-dps-section-header small { display: block; margin-top: 3px; overflow: hidden; color: #777168; font-size: 8px; font-weight: 400; text-overflow: ellipsis; white-space: nowrap; }
+.skill-dps-section-header > strong { flex: none; color: #e2d8c1; font: 600 13px ui-monospace, Consolas, monospace; text-align: right; }
+.skill-dps-section-header > strong small { display: inline; margin: 0; color: #777168; font: 500 8px ui-monospace, Consolas, monospace; }
+.skill-dps-section-header > svg { width: 13px; height: 13px; color: #c39b4d; }
+.skill-dps-section-header > svg.spinning { animation: skill-dps-sort-spin .8s linear infinite; }
+.skill-dps-section-list { display: grid; gap: 5px; }
+.skill-dps-entry { margin-bottom: 5px; border: 1px solid #302f29; background: rgba(19, 22, 18, .92); color: #b7ad99; cursor: pointer; outline: 0; }
+.skill-dps-entry:last-child { margin-bottom: 0; }
+.skill-dps-entry:hover, .skill-dps-entry:focus-visible { border-color: #6c5a3e; background: #191b16; }
+.skill-dps-entry.related { border-color: #77653f; }
+.skill-dps-entry.full { background: rgba(26, 24, 18, .92); }
+.skill-dps-entry.full .skill-dps-entry-main { min-height: 54px; }
+.skill-dps-entry.full .skill-dps-entry-value { min-width: 60px; }
+.skill-dps-entry.full .skill-dps-entry-chevron { color: #625943; }
+.skill-dps-entry-main { min-height: 62px; display: flex; align-items: center; gap: 8px; padding: 7px 7px 7px 6px; }
+.skill-dps-entry-rank { width: 17px; flex: none; color: #706b61; font: 600 10px ui-monospace, Consolas, monospace; text-align: center; }
+.skill-dps-entry-icon { width: 40px; height: 40px; display: grid; flex: none; place-items: center; border-radius: 50%; background: #080a08; box-shadow: inset 0 0 0 1px #4a4233; }
+.skill-dps-entry-icon img, .skill-dps-entry-icon > svg, .skill-dps-entry-icon > span { width: 35px; height: 35px; object-fit: cover; border-radius: 50%; }
+.skill-dps-entry-icon > svg { padding: 8px; color: #ae9664; }
+.skill-dps-entry-copy { min-width: 0; display: flex; flex: 1; flex-direction: column; justify-content: center; }
+.skill-dps-entry-copy strong { overflow: hidden; color: #d0c2a2; font: 500 12px/1.2 Georgia, "Microsoft YaHei", serif; text-overflow: ellipsis; white-space: nowrap; }
+.skill-dps-entry-copy small { min-width: 0; display: flex; align-items: center; gap: 5px; margin-top: 5px; overflow: hidden; color: #71af96; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.skill-dps-entry-copy small span { overflow: hidden; color: #79766e; text-overflow: ellipsis; white-space: nowrap; }
+.skill-dps-entry-copy em { padding: 1px 4px; border: 1px solid #76623d; color: #c4a764; font-style: normal; font-size: 8px; }
+.skill-dps-entry-value { min-width: 74px; display: grid; justify-items: end; gap: 4px; }
+.skill-dps-entry-number { display: flex; align-items: center; gap: 4px; }
+.skill-dps-entry-value strong { color: #e2d8c1; font: 600 14px ui-monospace, Consolas, monospace; }
+.skill-dps-entry-chevron { width: 14px; height: 14px; color: #777168; transition: transform .14s ease; }
+.skill-dps-entry.expanded .skill-dps-entry-chevron { transform: rotate(180deg); }
+.skill-dps-entry-meter { width: 66px; height: 3px; display: block; overflow: hidden; background: #262821; }
+.skill-dps-entry-meter i { height: 100%; display: block; background: #b94a8c; }
+.skill-dps-entry-details { display: grid; gap: 5px; padding: 7px 12px 9px 65px; border-top: 1px solid #36332b; background: rgba(8, 10, 8, .7); }
+.skill-dps-entry-details > div { min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.skill-dps-entry-details span { color: #777168; font-size: 9px; }
+.skill-dps-entry-details strong { min-width: 0; overflow: hidden; color: #c7b990; font: 500 9px/1.35 ui-monospace, Consolas, monospace; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+.skill-dps-include-toggle { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 3px; padding-top: 7px; border-top: 1px solid #302e27; cursor: pointer; }
+.skill-dps-include-toggle > span { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.skill-dps-include-toggle strong { overflow: hidden; color: #cdbf9d; font: 500 9px/1.2 Georgia, "Microsoft YaHei", serif; text-overflow: ellipsis; white-space: nowrap; }
+.skill-dps-include-toggle small { color: #777168; font-size: 8px; }
+.skill-dps-include-toggle input { width: 16px; height: 16px; flex: none; margin: 0; accent-color: #b94a8c; cursor: pointer; }
+.skill-dps-include-toggle input:disabled { opacity: .45; cursor: not-allowed; }
+@keyframes skill-dps-drawer-enter { from { opacity: 0; transform: translateX(-12px); } to { opacity: 1; transform: translateX(0); } }
 .skill-groups-header-meta { display: flex; align-items: center; gap: 10px; }
 .skill-inspector-toggle,
 .skill-inspector-close { width: 28px; height: 28px; display: grid; place-items: center; padding: 0; border: 1px solid #4e493d; border-radius: 0; background: #11130f; color: #8f887a; cursor: pointer; }
@@ -2402,11 +2499,15 @@ svg { flex: 0 0 auto; }
 @keyframes skill-inspector-enter { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: translateX(0); } }
 
 @media (max-width: 900px) {
+  .skills-workspace.dps-drawer-open { grid-template-columns: 1fr; }
+  .skills-workspace:not(.dps-drawer-open) { grid-template-columns: 32px minmax(0, 1fr); }
+  .skill-dps-drawer { position: absolute; z-index: 25; top: 6px; left: 6px; bottom: 6px; width: min(370px, calc(100% - 12px)); border: 1px solid #5a5242; box-shadow: 16px 0 36px rgba(0, 0, 0, .62); }
   .skill-inspector.skill-inspector-floating { top: 6px; right: 6px; bottom: 6px; width: calc(100% - 12px); max-width: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .skill-inspector.skill-inspector-floating { animation: none; }
+  .skill-dps-rail svg, .skill-dps-drawer { animation: none; transition: none; }
 }
 
 /* Item details float above the equipment workspace instead of reserving a third column. */
@@ -3786,3 +3887,24 @@ svg { flex: 0 0 auto; }
 .skill-inspector-overview + .skill-inspector-section .skill-support-row strong { font-size: 11px; }
 .skill-inspector-overview + .skill-inspector-section .skill-support-row p,
 .skill-inspector-overview + .skill-inspector-section .skill-support-effects { font-size: 10px; line-height: 1.45; }
+
+.equipment-difference-panel { margin-top: 12px; padding: 9px 10px; border-top: 1px solid #3d382f; background: rgba(20, 22, 18, .72); }
+.equipment-difference-title { display: flex; align-items: center; gap: 6px; color: #c9ad72; font-size: 11px; font-weight: 700; letter-spacing: .02em; }
+.equipment-difference-title svg { width: 13px; height: 13px; }
+.equipment-difference-help { display: inline-flex; align-items: center; color: #8e9b91; cursor: help; outline: none; }
+.equipment-difference-help:focus-visible { color: #c9ad72; }
+.equipment-difference-help svg { width: 12px; height: 12px; }
+.equipment-difference-group + .equipment-difference-group { margin-top: 9px; padding-top: 8px; border-top: 1px solid #302d27; }
+.equipment-difference-group h4 { margin: 7px 0 4px; color: #a89c86; font-size: 10px; line-height: 1.45; font-weight: 600; }
+.equipment-difference-stats { display: grid; gap: 2px; }
+.equipment-difference-stat { display: flex; align-items: flex-start; gap: 4px; margin: 0; font-size: 11px; line-height: 1.45; }
+.equipment-difference-stat svg { flex: 0 0 auto; width: 11px; height: 11px; margin-top: 2px; }
+.equipment-difference-stat.positive { color: #78bf86; }
+.equipment-difference-stat.negative { color: #d16e6e; }
+.equipment-difference-state { display: flex; align-items: center; gap: 6px; margin-top: 7px; color: #9e9688; font-size: 11px; line-height: 1.45; }
+.equipment-difference-state.error { color: #dc7770; }
+.equipment-difference-state svg { flex: 0 0 auto; width: 13px; height: 13px; }
+.equipment-difference-state .spin { animation: equipment-difference-spin .9s linear infinite; }
+.equipment-difference-hint { display: flex; align-items: flex-start; gap: 5px; margin-top: 8px; color: #8f9d93; font-size: 10px; line-height: 1.5; }
+.equipment-difference-hint svg { flex: 0 0 auto; width: 12px; height: 12px; margin-top: 1px; }
+@keyframes equipment-difference-spin { to { transform: rotate(360deg); } }

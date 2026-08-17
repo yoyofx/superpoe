@@ -7,6 +7,8 @@ import { EquipmentCollectionTree, type EquipmentCollectionSelection } from './Eq
 import { useTranslation } from '@/i18n/useTranslation'
 import { uiText, type UiMessage } from '@/i18n/uiLocale'
 import { fitsEquipmentLibrarySlot, isEquipmentLibraryJewel } from '@/engine/equipmentLibrarySlot'
+import { EquipmentDifferenceTooltip } from '@/equipmentDifference/components/EquipmentDifferenceTooltip'
+import type { BuildContextSnapshot } from '@/equipmentDifference'
 
 export type EquipmentLibraryPickerMode = 'equipment' | 'jewel'
 
@@ -15,6 +17,8 @@ interface Props {
   title: UiMessage
   subtitle?: UiMessage
   currentSlot?: string
+  differenceContext?: BuildContextSnapshot | null
+  differenceSlotName?: string
   onClose: () => void
   onSelect: (entry: EquipmentLibraryEntry) => void
   filterEntry?: (entry: EquipmentLibraryEntry) => boolean
@@ -40,7 +44,7 @@ function folderPath(folder: EquipmentLibraryFolder, folders: EquipmentLibraryFol
   return names.join(' / ')
 }
 
-export function EquipmentLibraryPicker({ mode, title, subtitle, currentSlot, onClose, onSelect, filterEntry }: Props) {
+export function EquipmentLibraryPicker({ mode, title, subtitle, currentSlot, differenceContext, differenceSlotName, onClose, onSelect, filterEntry }: Props) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const [entries, setEntries] = useState<EquipmentLibraryEntry[]>([])
@@ -177,7 +181,16 @@ export function EquipmentLibraryPicker({ mode, title, subtitle, currentSlot, onC
         <div className="library-workspace-splitter" aria-hidden="true" />
         <section className="library-workspace-grid-pane">{loading ? <div className="library-workspace-empty-grid"><LoaderCircle className="spinning" /><strong>{l('Loading equipment library…', '正在读取装备仓库…', '正在讀取裝備倉庫…', '장비 보관함 불러오는 중…')}</strong></div> : error ? <div className="library-workspace-empty-grid"><strong>{error}</strong></div> : <div className="library-workspace-grid">{visibleEntries.map(renderCard)}{!visibleEntries.length && <div className="library-workspace-empty-grid"><Gem /><strong>{l('No matching items', '没有匹配的装备', '沒有符合的裝備', '일치하는 아이템이 없습니다')}</strong></div>}</div>}</section>
       </div>
-      {tooltipEntry && tooltip && <div className="library-item-tooltip library-item-inspector-tooltip" role="tooltip" style={{ left: tooltip.left, top: tooltip.top }} onMouseEnter={cancelTooltipHide} onMouseLeave={hideTooltip}><EquipmentItemInspector view={tooltipEntry.view} language={lang} /></div>}
+      {tooltipEntry && tooltip && <div className="library-item-tooltip library-item-inspector-tooltip" role="tooltip" style={{ left: tooltip.left, top: tooltip.top }} onMouseEnter={cancelTooltipHide} onMouseLeave={hideTooltip}>
+        <EquipmentItemInspector view={tooltipEntry.view} language={lang} />
+        {differenceContext && tooltipEntry.item.raw && <EquipmentDifferenceTooltip
+          context={differenceContext}
+          candidate={{ raw: tooltipEntry.item.raw, source: 'equipment-library' }}
+          language={lang}
+          sourceSlotName={differenceSlotName || currentSlot}
+          slotOnlyTooltips={Boolean(differenceSlotName || currentSlot)}
+        />}
+      </div>}
     </section>
   </div>, document.body)
 }
