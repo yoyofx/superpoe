@@ -6,7 +6,7 @@ import { EquipmentItemInspector, equipmentItemBaseType, equipmentItemName } from
 import { EquipmentCollectionTree, type EquipmentCollectionSelection } from './EquipmentCollectionTree'
 import { useTranslation } from '@/i18n/useTranslation'
 import { uiText, type UiMessage } from '@/i18n/uiLocale'
-import { fitsEquipmentLibrarySlot, isEquipmentLibraryJewel } from '@/engine/equipmentLibrarySlot'
+import { equipmentLibrarySearchText, filterEquipmentLibraryEntries, type EquipmentLibraryQueryContext } from '@/engine/equipmentLibraryQuery'
 import { EquipmentDifferenceTooltip } from '@/equipmentDifference/components/EquipmentDifferenceTooltip'
 import type { BuildContextSnapshot } from '@/equipmentDifference'
 
@@ -19,6 +19,7 @@ interface Props {
   currentSlot?: string
   differenceContext?: BuildContextSnapshot | null
   differenceSlotName?: string
+  queryContext?: EquipmentLibraryQueryContext
   onClose: () => void
   onSelect: (entry: EquipmentLibraryEntry) => void
   filterEntry?: (entry: EquipmentLibraryEntry) => boolean
@@ -44,7 +45,7 @@ function folderPath(folder: EquipmentLibraryFolder, folders: EquipmentLibraryFol
   return names.join(' / ')
 }
 
-export function EquipmentLibraryPicker({ mode, title, subtitle, currentSlot, differenceContext, differenceSlotName, onClose, onSelect, filterEntry }: Props) {
+export function EquipmentLibraryPicker({ mode, title, subtitle, currentSlot, differenceContext, differenceSlotName, queryContext, onClose, onSelect, filterEntry }: Props) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const [entries, setEntries] = useState<EquipmentLibraryEntry[]>([])
@@ -93,11 +94,15 @@ export function EquipmentLibraryPicker({ mode, title, subtitle, currentSlot, dif
     if (tooltipHideTimerRef.current != null) window.clearTimeout(tooltipHideTimerRef.current)
   }, [])
 
-  const compatibleEntries = useMemo(() => entries.filter((entry) => {
-    if (mode === 'jewel' && !isEquipmentLibraryJewel(entry)) return false
-    if (mode === 'equipment' && !fitsEquipmentLibrarySlot(entry, currentSlot)) return false
-    return filterEntry ? filterEntry(entry) : true
-  }), [currentSlot, entries, filterEntry, mode])
+  const effectiveQueryContext = useMemo<EquipmentLibraryQueryContext>(() => queryContext || {
+    kind: mode === 'jewel' ? 'jewel-slot' : 'equipment-slot',
+    ...(currentSlot ? { slotName: currentSlot } : {}),
+  }, [currentSlot, mode, queryContext])
+  const compatibleEntries = useMemo(() => filterEquipmentLibraryEntries(entries, effectiveQueryContext)
+    .filter((entry) => filterEntry ? filterEntry(entry) : true), [effectiveQueryContext, entries, filterEntry])
+  const visibleRoots = useMemo(() => effectiveQueryContext.allowedRoots?.length
+    ? ROOTS.filter((root) => effectiveQueryContext.allowedRoots!.includes(root.id))
+    : ROOTS, [effectiveQueryContext.allowedRoots])
 
   const visibleEntries = useMemo(() => {
     const normalizedQuery = query.trim().toLocaleLowerCase()
@@ -108,8 +113,7 @@ export function EquipmentLibraryPicker({ mode, title, subtitle, currentSlot, dif
         if (!selection.folderId && entry.folderId) return false
       }
       if (!normalizedQuery) return true
-      const values = [entry.view.name, entry.view.baseType, entry.view.tradeCategory, ...entry.view.modifiers.flatMap((modifier) => [modifier.text, ...Object.values(modifier.localized || {})])]
-      return values.filter(Boolean).join('\n').toLocaleLowerCase().includes(normalizedQuery)
+      return equipmentLibrarySearchText(entry).includes(normalizedQuery)
     })
   }, [compatibleEntries, query, selection])
 
@@ -154,6 +158,7 @@ export function EquipmentLibraryPicker({ mode, title, subtitle, currentSlot, dif
   }
 
   const tooltipEntry = tooltip ? entries.find((entry) => entry.id === tooltip.entryId) : undefined
+  const comparisonSlotName = differenceSlotName || (mode === 'equipment' ? currentSlot : undefined)
   const renderCard = (entry: EquipmentLibraryEntry) => <article
     className={`library-item-card${selectedId === entry.id ? ' selected' : ''}`}
     key={entry.id}
@@ -177,7 +182,7 @@ export function EquipmentLibraryPicker({ mode, title, subtitle, currentSlot, dif
         <div className="library-workspace-command-actions">{selected && <div className="library-workspace-selection-actions"><button type="button" className="primary" onClick={() => onSelect(selected)}><Check /><span>{mode === 'jewel' ? l('Bind jewel', '绑定珠宝', '綁定珠寶', '주얼 장착') : l('Change equipment', '更换装备', '更換裝備', '장비 변경')}</span></button></div>}</div>
       </div>
       <div className="library-workspace-layout equipment-picker-layout">
-        <aside className="library-workspace-directory"><header><strong>{l('Library categories', '仓库分类', '倉庫分類', '라이브러리 분류')}</strong><span>{folders.length}</span></header><EquipmentCollectionTree roots={ROOTS.map((root) => ({ id: root.id, label: root.label[lang] }))} folders={folders} entries={compatibleEntries} selection={selection} readOnly allLabel={mode === 'jewel' ? l('All jewels', '全部珠宝', '全部珠寶', '모든 주얼') : l('All equipment', '全部装备', '全部裝備', '모든 장비')} labels={{ collapse: l('Collapse', '折叠', '收合', '접기'), expand: l('Expand', '展开', '展開', '펼치기'), newFolder: '', rename: '', delete: '' }} onSelect={selectDirectory} onCreate={async () => undefined} onRename={async () => undefined} onDelete={async () => undefined} onToggle={async (folder) => { await window.pob2Market?.updateFolder({ id: folder.id, expanded: !folder.expanded }); await load() }} /></aside>
+        <aside className="library-workspace-directory"><header><strong>{l('Library categories', '仓库分类', '倉庫分類', '라이브러리 분류')}</strong><span>{folders.length}</span></header><EquipmentCollectionTree roots={visibleRoots.map((root) => ({ id: root.id, label: root.label[lang] }))} folders={folders} entries={compatibleEntries} selection={selection} readOnly allLabel={mode === 'jewel' ? l('All jewels', '全部珠宝', '全部珠寶', '모든 주얼') : l('All equipment', '全部装备', '全部裝備', '모든 장비')} labels={{ collapse: l('Collapse', '折叠', '收合', '접기'), expand: l('Expand', '展开', '展開', '펼치기'), newFolder: '', rename: '', delete: '' }} onSelect={selectDirectory} onCreate={async () => undefined} onRename={async () => undefined} onDelete={async () => undefined} onToggle={async (folder) => { await window.pob2Market?.updateFolder({ id: folder.id, expanded: !folder.expanded }); await load() }} /></aside>
         <div className="library-workspace-splitter" aria-hidden="true" />
         <section className="library-workspace-grid-pane">{loading ? <div className="library-workspace-empty-grid"><LoaderCircle className="spinning" /><strong>{l('Loading equipment library…', '正在读取装备仓库…', '正在讀取裝備倉庫…', '장비 보관함 불러오는 중…')}</strong></div> : error ? <div className="library-workspace-empty-grid"><strong>{error}</strong></div> : <div className="library-workspace-grid">{visibleEntries.map(renderCard)}{!visibleEntries.length && <div className="library-workspace-empty-grid"><Gem /><strong>{l('No matching items', '没有匹配的装备', '沒有符合的裝備', '일치하는 아이템이 없습니다')}</strong></div>}</div>}</section>
       </div>
@@ -187,8 +192,8 @@ export function EquipmentLibraryPicker({ mode, title, subtitle, currentSlot, dif
           context={differenceContext}
           candidate={{ raw: tooltipEntry.item.raw, source: 'equipment-library' }}
           language={lang}
-          sourceSlotName={differenceSlotName || currentSlot}
-          slotOnlyTooltips={Boolean(differenceSlotName || currentSlot)}
+          sourceSlotName={comparisonSlotName}
+          slotOnlyTooltips={Boolean(comparisonSlotName)}
         />}
       </div>}
     </section>

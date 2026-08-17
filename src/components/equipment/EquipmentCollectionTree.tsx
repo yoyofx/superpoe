@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState, type DragEvent, type ReactNode } from 'react'
 import { ChevronDown, ChevronRight, Folder, FolderPlus, FolderTree, Pencil, Save, Trash2, X } from 'lucide-react'
 import type { EquipmentCollectionRoot, EquipmentLibraryEntry, EquipmentLibraryFolder } from '@/types/market'
 
@@ -24,12 +24,16 @@ interface Props {
   onRename: (folderId: string, name: string) => Promise<void>
   onDelete: (folder: EquipmentLibraryFolder) => Promise<void>
   onToggle: (folder: EquipmentLibraryFolder) => Promise<void>
+  dropTarget?: EquipmentCollectionSelection | null
+  onDragOver?: (event: DragEvent<HTMLElement>, target: EquipmentCollectionSelection) => void
+  onDrop?: (event: DragEvent<HTMLElement>, target: EquipmentCollectionSelection) => void
+  onDragLeave?: () => void
 }
 
 type Editor = { mode: 'create'; root: EquipmentCollectionRoot; parentId?: string; name: string }
   | { mode: 'rename'; folderId: string; name: string }
 
-export function EquipmentCollectionTree({ roots, folders, entries, selection, allLabel, labels, readOnly = false, onSelect, onCreate, onRename, onDelete, onToggle }: Props) {
+export function EquipmentCollectionTree({ roots, folders, entries, selection, allLabel, labels, readOnly = false, onSelect, onCreate, onRename, onDelete, onToggle, dropTarget, onDragOver, onDrop, onDragLeave }: Props) {
   const [editor, setEditor] = useState<Editor | null>(null)
   const [busy, setBusy] = useState(false)
   const [collapsedRoots, setCollapsedRoots] = useState<Set<EquipmentCollectionRoot>>(() => new Set())
@@ -70,13 +74,26 @@ export function EquipmentCollectionTree({ roots, folders, entries, selection, al
     })
   }
 
+  const isDropTarget = (target: EquipmentCollectionSelection) => {
+    if (!dropTarget || dropTarget.kind !== target.kind) return false
+    if (target.kind === 'all' || dropTarget.kind === 'all') return target.kind === dropTarget.kind
+    return dropTarget.root === target.root && dropTarget.folderId === target.folderId
+  }
+
+  const directoryDropProps = (target: EquipmentCollectionSelection) => ({
+    onDragOver: onDragOver ? (event: DragEvent<HTMLElement>) => onDragOver(event, target) : undefined,
+    onDrop: onDrop ? (event: DragEvent<HTMLElement>) => onDrop(event, target) : undefined,
+    onDragLeave: onDragLeave ? () => onDragLeave() : undefined,
+  })
+
   const renderFolder = (folder: EquipmentLibraryFolder, depth = 0): ReactNode => {
     const children = itemFolders.filter((candidate) => candidate.collectionRoot === folder.collectionRoot && candidate.parentId === folder.id)
     const count = entries.filter((entry) => entry.folderId === folder.id).length
     const selected = selection.kind === 'root' && selection.folderId === folder.id
     const expandable = children.length > 0
+    const target: EquipmentCollectionSelection = { kind: 'root', root: folder.collectionRoot!, folderId: folder.id }
     return <div className="equipment-tree-node" key={folder.id} style={{ '--equipment-tree-depth': depth } as React.CSSProperties}>
-      <div className={`equipment-tree-row${selected ? ' selected' : ''}`}>
+      <div className={`equipment-tree-row${selected ? ' selected' : ''}${isDropTarget(target) ? ' drop-target' : ''}`} {...directoryDropProps(target)}>
         {expandable
           ? <button className="equipment-tree-chevron" onClick={() => void onToggle(folder)} title={folder.expanded ? labels.collapse : labels.expand} aria-label={folder.expanded ? labels.collapse : labels.expand}>{folder.expanded ? <ChevronDown /> : <ChevronRight />}</button>
           : <span className="equipment-tree-leaf-marker" aria-hidden="true" />}
@@ -105,7 +122,7 @@ export function EquipmentCollectionTree({ roots, folders, entries, selection, al
       const collapsed = collapsedRoots.has(root.id)
       const expandable = rootFolders.length > 0
       return <section className="equipment-tree-root-group" key={root.id}>
-        <div className={`equipment-tree-row equipment-tree-root-row${selected ? ' selected' : ''}`}>
+        <div className={`equipment-tree-row equipment-tree-root-row${selected ? ' selected' : ''}${isDropTarget({ kind: 'root', root: root.id }) ? ' drop-target' : ''}`} {...directoryDropProps({ kind: 'root', root: root.id })}>
           {expandable
             ? <button className="equipment-tree-chevron" onClick={() => toggleRoot(root.id)} title={collapsed ? labels.expand : labels.collapse} aria-label={collapsed ? labels.expand : labels.collapse}>{collapsed ? <ChevronRight /> : <ChevronDown />}</button>
             : <span className="equipment-tree-leaf-marker" aria-hidden="true" />}

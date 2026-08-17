@@ -64,6 +64,7 @@ contextBridge.exposeInMainWorld('pob2Market', {
   openSearch: (id: string) => ipcRenderer.invoke('market:open-search', id) as Promise<void>,
   visitHideout: (entryId: string) => ipcRenderer.invoke('market:visit-hideout', entryId) as Promise<import('../src/types/market.js').MarketVisitHideoutResult>,
   updateLibrary: (patch: import('../src/types/market.js').EquipmentLibraryMetadataPatch) => ipcRenderer.invoke('market:update-library', patch) as Promise<import('../src/types/market.js').EquipmentLibraryEntry>,
+  moveLibrary: (input: import('../src/types/market.js').EquipmentLibraryMoveInput) => ipcRenderer.invoke('market:move-library', input) as Promise<import('../src/types/market.js').EquipmentLibraryMoveResult>,
   deleteLibrary: (id: string) => ipcRenderer.invoke('market:delete-library', id) as Promise<boolean>,
   deleteLibraries: (ids: string[]) => ipcRenderer.invoke('market:delete-libraries', ids) as Promise<number>,
   removeLibrarySource: (sourceKey: string) => ipcRenderer.invoke('market:remove-library-source', sourceKey),

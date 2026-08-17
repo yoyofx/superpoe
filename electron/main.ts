@@ -19,7 +19,7 @@ import { EquipmentLibraryRepository, equipmentSourceKey, fingerprintLibraryItem,
 import { normalizeMarketListing, type MarketStatTextResolution } from './marketListing.js'
 import type {
   EquipmentCollectionRoot, EquipmentLibraryEntry, EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
-  EquipmentLibraryMetadataPatch, EquipmentLibrarySource, EquipmentTradeSearchRequest, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
+  EquipmentLibraryMetadataPatch, EquipmentLibraryMoveInput, EquipmentLibrarySource, EquipmentTradeSearchRequest, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
   MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch, TradePriceCheckCriteria, TradePriceCheckPrepareRequest,
   TradePriceCheckSearchRequest,
   PriceCheckOpenRequest, LibraryModifierGroup, LibraryItemSnapshot, TradeStatResolutionSnapshot,
@@ -1974,6 +1974,17 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const entry = equipmentLibrary.updateMetadata(patch)
     notifyLibraryChanged()
     return entry
+  })
+  ipcMain.handle('market:move-library', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object') throw new Error('Invalid equipment library move')
+    const input = value as Partial<EquipmentLibraryMoveInput>
+    if (!Array.isArray(input.entryIds) || !input.entryIds.length || input.entryIds.length > 5_000) throw new Error('Invalid equipment library entry IDs')
+    const entryIds = input.entryIds.map((id) => validateShortString(id, 'library entry ID', 128))
+    const targetFolderId = input.targetFolderId == null ? undefined : validateShortString(input.targetFolderId, 'folder ID', 128)
+    const result = equipmentLibrary.moveEquipment({ entryIds, ...(targetFolderId ? { targetFolderId } : {}) })
+    notifyLibraryChanged()
+    return result
   })
   ipcMain.handle('market:delete-library', (event, value: unknown) => {
     requireMainWindowSender(event)

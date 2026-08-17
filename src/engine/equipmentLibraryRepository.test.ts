@@ -130,6 +130,17 @@ describe('EquipmentLibraryRepository', () => {
     expect(store.sidebarSnapshot().folders).toEqual([expect.objectContaining({ id: child.id, parentId: undefined })])
   })
 
+  it('uses the selected market folder for market upserts without an explicit target', () => {
+    const store = repository()
+    const folder = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Upgrades' })
+    store.selectFolder('items', folder.id)
+
+    const entry = store.upsert(item(), marketSource(2), { collectionRoot: 'market' })
+
+    expect(entry.folderId).toBe(folder.id)
+    expect(store.sidebarSnapshot().selectedItemFolderId).toBe(folder.id)
+  })
+
   it('moves direct contents to the parent when deleting a child folder', () => {
     const store = repository()
     const parent = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Upgrades' })
@@ -153,6 +164,42 @@ describe('EquipmentLibraryRepository', () => {
     expect(store.list()[0]).toMatchObject({ id: entry.id, folderId: target.id })
     expect(store.sidebarSnapshot().folders).toContainEqual(expect.objectContaining({ id: nested.id, parentId: target.id }))
     expect(() => store.updateFolder({ id: target.id, parentId: nested.id })).toThrow('A folder cannot be moved into itself')
+  })
+
+  it('moves multiple equipment entries atomically within one source root', () => {
+    const store = repository()
+    const source = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Source' })
+    const target = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Target' })
+    const first = store.upsert(item('First'), marketSource(2), { folderId: source.id })
+    const second = store.upsert(item('Second'), {
+      ...marketSource(3), sourceKey: marketSourceKey('global', 'listing-2'), listingId: 'listing-2',
+    }, { folderId: source.id })
+
+    const result = store.moveEquipment({ entryIds: [first.id, second.id], targetFolderId: target.id })
+
+    expect(result).toEqual({ movedIds: [first.id, second.id], collectionRoot: 'market', targetFolderId: target.id })
+    expect(store.list({ collectionRoot: 'market', folderId: target.id }).map((entry) => entry.id).sort()).toEqual([first.id, second.id].sort())
+    expect(store.list({ collectionRoot: 'market', folderId: source.id })).toEqual([])
+  })
+
+  it('rejects moving entries from different source roots as one operation', () => {
+    const store = repository()
+    const market = store.upsert(item('Market'), marketSource(2))
+    const custom = store.upsert(item('Custom'), {
+      kind: 'manual', sourceKey: 'manual:custom', capturedAt: '2026-07-29T00:00:00.000Z', updatedAt: '2026-07-29T00:00:00.000Z',
+    })
+
+    expect(() => store.moveEquipment({ entryIds: [market.id, custom.id] })).toThrow('different source roots')
+    expect(store.get(market.id)?.folderId).toBeUndefined()
+    expect(store.get(custom.id)?.folderId).toBeUndefined()
+  })
+
+  it('does not allow metadata updates to change an equipment source root', () => {
+    const store = repository()
+    const entry = store.upsert(item(), marketSource(2))
+
+    expect(() => store.updateMetadata({ id: entry.id, collectionRoot: 'custom' })).toThrow('source root cannot be changed')
+    expect(store.get(entry.id)?.collectionRoot).toBe('market')
   })
 
   it('rejects moving equipment or folders across fixed collection roots', () => {

@@ -9,6 +9,7 @@ describe('native PoB item bridge', () => {
     const executable = path.join(root, 'native', 'bin', 'win32-x64', 'luajit.exe')
     const runner = path.join(root, 'native', 'pob-lua-runner.lua')
     const bundle = path.join(root, 'public', 'pob-lua')
+    const projectBundle = path.join(root, 'public', 'superpoe-lua')
     const raw = [
       'Rarity: RARE',
       'Doom Branch',
@@ -21,7 +22,7 @@ describe('native PoB item bridge', () => {
       '43% increased Effect of Suffixes',
     ].join('\n')
     const request = JSON.stringify({ id: 1, type: 'normalizeItem', payload: { raw } }) + '\n'
-    const result = spawnSync(executable, [runner, bundle], { cwd: bundle, input: request, encoding: 'utf8', timeout: 30_000 })
+    const result = spawnSync(executable, [runner, bundle, projectBundle], { cwd: bundle, input: request, encoding: 'utf8', timeout: 30_000 })
 
     expect(result.status).toBe(0)
     const lines = result.stdout.trim().split(/\r?\n/)

@@ -100,6 +100,7 @@ declare global {
       openSearch(id: string): Promise<void>
       visitHideout(entryId: string): Promise<import('@/types/market').MarketVisitHideoutResult>
       updateLibrary(patch: import('@/types/market').EquipmentLibraryMetadataPatch): Promise<import('@/types/market').EquipmentLibraryEntry>
+      moveLibrary(input: import('@/types/market').EquipmentLibraryMoveInput): Promise<import('@/types/market').EquipmentLibraryMoveResult>
       deleteLibrary(id: string): Promise<boolean>
       deleteLibraries(ids: string[]): Promise<number>
       removeLibrarySource(sourceKey: string): Promise<{ removedEntryId?: string; entry?: import('@/types/market').EquipmentLibraryEntry }>

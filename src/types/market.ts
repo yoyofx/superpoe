@@ -300,6 +300,17 @@ export interface EquipmentLibraryMetadataPatch {
   archived?: boolean
 }
 
+export interface EquipmentLibraryMoveInput {
+  entryIds: string[]
+  targetFolderId?: string
+}
+
+export interface EquipmentLibraryMoveResult {
+  movedIds: string[]
+  collectionRoot: EquipmentCollectionRoot
+  targetFolderId?: string
+}
+
 export type LibraryTreeScope = 'items' | 'searches'
 
 export interface EquipmentLibraryFolder {

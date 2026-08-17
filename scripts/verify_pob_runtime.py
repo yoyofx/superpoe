@@ -11,8 +11,13 @@ ROOT = Path(__file__).resolve().parents[1]
 LOCK_PATH = ROOT / "pob-runtime.lock.json"
 SOURCE_ROOT = ROOT / "upstreams" / "PathOfBuilding-PoE2" / "src"
 BUNDLE_ROOT = ROOT / "public" / "pob-lua"
+PROJECT_SOURCE_ROOT = ROOT / "lua" / "superpoe"
+PROJECT_BUNDLE_ROOT = ROOT / "public" / "superpoe-lua"
 INCLUDE_DIRS = ["Classes", "Data", "Export", "Modules", "TreeData"]
 INCLUDE_FILES = ["GameVersions.lua", "HeadlessWrapper.lua", "Launch.lua"]
+# Files supplied by the checked-in Lua runtime dependency. Project modules are
+# never allowed at the bundle root alongside these files.
+RUNTIME_ROOT_FILES = ["base64.lua", "dkjson.lua", "lua-profiler.lua", "sha2.lua", "socket.lua", "xml.lua"]
 
 
 def normalized_bytes(path: Path) -> bytes:
@@ -43,6 +48,62 @@ def file_hash(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def iter_project_files(root: Path) -> list[Path]:
+    if not root.exists():
+        return []
+    return sorted(root.rglob("*.lua"), key=lambda path: path.relative_to(root).as_posix().lower())
+
+
+def project_tree_hash(root: Path) -> tuple[int, str]:
+    digest = hashlib.sha256()
+    files = iter_project_files(root)
+    for path in files:
+        relative = path.relative_to(root).as_posix().encode("utf-8")
+        digest.update(len(relative).to_bytes(4, "big"))
+        digest.update(relative)
+        digest.update(normalized_bytes(path))
+    return len(files), digest.hexdigest()
+
+
+def verify_project_bundle(verify_source: bool) -> tuple[int, str | None]:
+    manifest_path = PROJECT_BUNDLE_ROOT / "manifest.json"
+    if not manifest_path.is_file():
+        raise SystemExit(f"Project Lua bundle manifest is missing: {manifest_path}")
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("schemaVersion") != 1 or manifest.get("name") != "superpoe":
+        raise SystemExit("Unsupported project Lua bundle manifest")
+    mismatches = []
+    for entry in manifest.get("files", []):
+        path = PROJECT_BUNDLE_ROOT / entry["path"]
+        if not path.is_file() or file_hash(path) != entry.get("hash") or path.stat().st_size != entry.get("size"):
+            mismatches.append(entry.get("path"))
+    if mismatches:
+        raise SystemExit(f"Project Lua bundle hash mismatch ({len(mismatches)}): {mismatches[:10]}")
+    count, tree_hash = project_tree_hash(PROJECT_BUNDLE_ROOT)
+    manifest_paths = {entry.get("path") for entry in manifest.get("files", [])}
+    actual_paths = {path.relative_to(PROJECT_BUNDLE_ROOT).as_posix() for path in iter_project_files(PROJECT_BUNDLE_ROOT)}
+    if manifest_paths != actual_paths:
+        raise SystemExit(
+            "Project Lua manifest file list mismatch: "
+            f"missing={sorted(manifest_paths - actual_paths)}, extra={sorted(actual_paths - manifest_paths)}"
+        )
+    if count != manifest.get("fileCount"):
+        raise SystemExit(
+            f"Project Lua file count mismatch: expected {manifest.get('fileCount')}, got {count}"
+        )
+    source_hash: str | None = None
+    if verify_source:
+        if not PROJECT_SOURCE_ROOT.exists():
+            raise SystemExit(f"Project Lua source directory is missing: {PROJECT_SOURCE_ROOT}")
+        source_count, source_hash = project_tree_hash(PROJECT_SOURCE_ROOT)
+        if source_count != count or source_hash != tree_hash:
+            raise SystemExit(
+                "Project Lua bundle does not match source tree: "
+                f"bundle={count}/{tree_hash}, source={source_count}/{source_hash}"
+            )
+    return count, source_hash
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -66,6 +127,14 @@ def main() -> None:
             mismatches.append(entry["path"])
     if mismatches:
         raise SystemExit(f"PoB bundle hash mismatch ({len(mismatches)}): {mismatches[:10]}")
+
+    allowed_root_lua = set(INCLUDE_FILES + RUNTIME_ROOT_FILES)
+    unexpected_root_lua = sorted(path.name for path in BUNDLE_ROOT.glob("*.lua") if path.name not in allowed_root_lua)
+    if unexpected_root_lua:
+        raise SystemExit(
+            "PoB bundle contains non-upstream root Lua files: "
+            f"{unexpected_root_lua}; move project Lua to public/superpoe-lua"
+        )
 
     bundle_source_count, bundle_source_hash = source_tree_hash(BUNDLE_ROOT)
     expected_source_hash = lock["pob"]["sourceTreeHash"]
@@ -91,6 +160,8 @@ def main() -> None:
             )
         print(f"PoB source: {count} files, commit {expected_commit}, hash {actual_hash}")
 
+    project_count, project_source_hash = verify_project_bundle(args.verify_upstream)
+
     for binary in lock["luajit"].get("binaries", []):
         path = ROOT / binary["path"]
         if not path.is_file():
@@ -115,6 +186,8 @@ def main() -> None:
         f"PoB bundle: {manifest['fileCount']} files, {bundle_source_count} pinned source files, "
         "all hashes valid"
     )
+    project_suffix = f", source hash {project_source_hash}" if project_source_hash else ""
+    print(f"SuperPoE Lua bundle: {project_count} project files{project_suffix}, all hashes valid")
     print(f"LuaJIT binaries: {len(lock['luajit'].get('binaries', []))} files, all hashes valid")
 
 

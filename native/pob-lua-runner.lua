@@ -13,6 +13,10 @@ local bundlePath = arg[1]
 if not bundlePath or bundlePath == "" then
 	error("PoB Lua bundle path is required")
 end
+local projectLuaBundlePath = arg[2]
+if not projectLuaBundlePath or projectLuaBundlePath == "" then
+	error("SuperPoE Lua bundle path is required")
+end
 
 local separator = package.config:sub(1, 1)
 local function join(left, right)
@@ -26,6 +30,8 @@ package.path = table.concat({
 	join(bundlePath, "Classes" .. separator .. "?.lua"),
 	join(bundlePath, "Modules" .. separator .. "?.lua"),
 	join(bundlePath, "Data" .. separator .. "?.lua"),
+	join(projectLuaBundlePath, "?.lua"),
+	join(projectLuaBundlePath, "?" .. separator .. "init.lua"),
 	package.path,
 }, ";")
 

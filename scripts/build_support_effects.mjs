@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const catalogPath = path.join(root, 'public', 'data', 'skill-catalog.json')
 const bundle = path.join(root, 'public', 'pob-lua')
+const projectBundle = path.join(root, 'public', 'superpoe-lua')
 const runner = path.join(root, 'native', 'pob-lua-runner.lua')
 const bundledExecutable = path.join(
   root,
@@ -22,6 +23,7 @@ const MAX_QUALITY = 30
 
 if (!existsSync(catalogPath)) throw new Error(`Missing skill catalog: ${catalogPath}`)
 if (!existsSync(bundle)) throw new Error(`Missing PoB Lua bundle: ${bundle}`)
+if (!existsSync(projectBundle)) throw new Error(`Missing SuperPoE Lua bundle: ${projectBundle}`)
 if (!existsSync(runner)) throw new Error(`Missing PoB Lua runner: ${runner}`)
 
 const catalog = JSON.parse(readFileSync(catalogPath, 'utf8'))
@@ -36,7 +38,7 @@ for (const entry of supports) {
 }
 
 const effects = await new Promise((resolve, reject) => {
-  const child = spawn(executable, [runner, bundle], {
+  const child = spawn(executable, [runner, bundle, projectBundle], {
     cwd: bundle,
     windowsHide: true,
     stdio: ['pipe', 'pipe', 'pipe'],

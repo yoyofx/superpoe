@@ -9,6 +9,8 @@ import type {
   EquipmentLibraryFolderInput,
   EquipmentLibraryFolderPatch,
   EquipmentLibraryMetadataPatch,
+  EquipmentLibraryMoveInput,
+  EquipmentLibraryMoveResult,
   EquipmentLibrarySidebarSnapshot,
   EquipmentLibrarySource,
   CanonicalEquipmentItem,
@@ -345,14 +347,18 @@ export class EquipmentLibraryRepository {
     const now = new Date().toISOString()
     let entry = this.entries.find((candidate) => candidate.sources.some((existing) => existing.sourceKey === source.sourceKey))
     const collectionRoot = target.collectionRoot || collectionRootForSource(source)
-    if (target.folderId) this.requireFolder(target.folderId, 'items', collectionRoot)
+    const selectedFolder = collectionRoot === 'market' && this.selectedFolders.items
+      ? this.folders.find((folder) => folder.id === this.selectedFolders.items && folder.scope === 'items' && folder.collectionRoot === collectionRoot)
+      : undefined
+    const folderId = target.folderId || selectedFolder?.id
+    if (folderId) this.requireFolder(folderId, 'items', collectionRoot)
 
     if (entry) {
       entry.item = structuredClone(normalized.item)
       entry.view = structuredClone(normalized.view)
       entry.fingerprint = fingerprint
       entry.collectionRoot = collectionRoot
-      if (target.folderId) entry.folderId = target.folderId
+      if (folderId) entry.folderId = folderId
       else {
         const currentFolderId = entry.folderId
         if (currentFolderId && this.folders.find((folder) => folder.id === currentFolderId)?.collectionRoot !== collectionRoot) entry.folderId = undefined
@@ -371,7 +377,7 @@ export class EquipmentLibraryRepository {
         view: structuredClone(normalized.view),
         sources: [structuredClone(source)],
         collectionRoot,
-        ...(target.folderId ? { folderId: target.folderId } : {}),
+        ...(folderId ? { folderId } : {}),
         tags: [],
         archived: false,
         createdAt: now,
@@ -420,6 +426,7 @@ export class EquipmentLibraryRepository {
     const entry = this.entries.find((candidate) => candidate.id === patch.id)
     if (!entry) throw new Error('Equipment library entry not found')
     if (patch.collectionRoot) {
+      if (patch.collectionRoot !== entry.collectionRoot) throw new Error('Equipment source root cannot be changed by metadata update')
       entry.collectionRoot = patch.collectionRoot
       if (entry.folderId && this.folders.find((folder) => folder.id === entry.folderId)?.collectionRoot !== patch.collectionRoot) entry.folderId = undefined
     }
@@ -438,6 +445,32 @@ export class EquipmentLibraryRepository {
     entry.updatedAt = new Date().toISOString()
     this.save()
     return structuredClone(entry)
+  }
+
+  moveEquipment(input: EquipmentLibraryMoveInput): EquipmentLibraryMoveResult {
+    const entryIds = [...new Set(input.entryIds)]
+    if (!entryIds.length) throw new Error('At least one equipment library entry is required')
+    if (entryIds.length > MAX_ENTRIES) throw new Error('Too many equipment library entries')
+    const entries = entryIds.map((id) => {
+      const entry = this.entries.find((candidate) => candidate.id === id)
+      if (!entry) throw new Error('Equipment library entry not found')
+      return entry
+    })
+    const roots = new Set(entries.map((entry) => entry.collectionRoot))
+    if (roots.size !== 1) throw new Error('Equipment from different source roots cannot be moved together')
+    const collectionRoot = entries[0].collectionRoot
+    if (input.targetFolderId) this.requireFolder(input.targetFolderId, 'items', collectionRoot)
+    const targetFolderId = input.targetFolderId || undefined
+    const changed = entries.some((entry) => entry.folderId !== targetFolderId)
+    if (changed) {
+      for (const entry of entries) {
+        entry.folderId = targetFolderId
+        entry.folder = undefined
+        entry.updatedAt = nextUpdatedAt(entry.updatedAt)
+      }
+      this.save()
+    }
+    return { movedIds: entryIds, collectionRoot, ...(targetFolderId ? { targetFolderId } : {}) }
   }
 
   updateItem(id: string, normalized: NormalizedPobItem, options: { touchUpdatedAt?: boolean } = {}): EquipmentLibraryEntry {
@@ -591,7 +624,6 @@ export class EquipmentLibraryRepository {
 
   selectFolder(scope: LibraryTreeScope, folderId?: string): EquipmentLibrarySidebarSnapshot {
     if (scope !== 'items' && scope !== 'searches') throw new Error('Invalid folder scope')
-    if (scope === 'items') return this.sidebarSnapshot()
     if (folderId) {
       this.requireFolder(folderId, scope)
       this.selectedFolders[scope] = folderId
@@ -907,7 +939,6 @@ export class EquipmentLibraryRepository {
     this.folders = Array.isArray(parsed.folders) ? parsed.folders.filter((folder): folder is EquipmentLibraryFolder => this.isFolder(folder)).slice(0, MAX_FOLDERS) : []
     this.searches = Array.isArray(parsed.searches) ? parsed.searches.flatMap((search) => this.normalizeLoadedSearch(search)).slice(0, MAX_SEARCHES) : []
     this.selectedFolders = parsed.selectedFolders && typeof parsed.selectedFolders === 'object' ? parsed.selectedFolders : {}
-    delete this.selectedFolders.items
     this.migrateLegacyFolders()
     return false
   }
@@ -997,7 +1028,7 @@ export class EquipmentLibraryRepository {
 
   private requireFolder(id: string, scope: LibraryTreeScope, collectionRoot?: EquipmentCollectionRoot): EquipmentLibraryFolder {
     const folder = this.folders.find((candidate) => candidate.id === id && candidate.scope === scope
-      && (scope !== 'items' || candidate.collectionRoot === collectionRoot))
+      && (scope !== 'items' || !collectionRoot || candidate.collectionRoot === collectionRoot))
     if (!folder) throw new Error('Equipment library folder not found')
     return folder
   }

@@ -10,6 +10,7 @@ const platformArch = process.platform === 'darwin' ? 'darwin-arm64' : `${process
 const executable = path.join(root, 'native', 'bin', platformArch, process.platform === 'win32' ? 'luajit.exe' : 'luajit')
 const runner = path.join(root, 'native', 'pob-lua-runner.lua')
 const bundle = path.join(root, 'public', 'pob-lua')
+const projectBundle = path.join(root, 'public', 'superpoe-lua')
 const buildJsonPath = process.env.SUPERPOE_BUILD_JSON_PATH
 const buildCodePath = process.env.SUPERPOE_BUILD_CODE_PATH
 function decodeBuildCode(code) {
@@ -55,7 +56,7 @@ const flaskCandidate = [
   'Corrupted',
 ].join('\n')
 
-const child = spawn(executable, [runner, bundle], {
+const child = spawn(executable, [runner, bundle, projectBundle], {
   cwd: bundle,
   windowsHide: true,
   stdio: ['pipe', 'pipe', 'pipe'],

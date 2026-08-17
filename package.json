@@ -84,6 +84,10 @@
         "to": "pob-lua"
       },
       {
+        "from": "public/superpoe-lua",
+        "to": "superpoe-lua"
+      },
+      {
         "from": "native/pob-lua-runner.lua",
         "to": "pob-lua-sidecar/pob-lua-runner.lua"
       }

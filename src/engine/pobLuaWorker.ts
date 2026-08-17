@@ -35,6 +35,7 @@ interface WorkerResponse {
 
 let initPromise: Promise<void> | null = null
 let manifest: PobLuaManifest | null = null
+let projectManifest: PobLuaManifest | null = null
 const fileCache = new Map<string, string>()
 let luaFactory: LuaFactory | null = null
 let luaWasm: Awaited<ReturnType<LuaFactory['getLuaModule']>> | null = null
@@ -76,52 +77,60 @@ function applyBrowserCompatibility(path: string, source: string): string {
   return patched
 }
 
-function assetUrl(path: string): string {
+function assetUrl(bundle: 'pob-lua' | 'superpoe-lua', path: string): string {
   if (self.location.protocol === 'file:') {
-    return new URL(`../pob-lua/${path}`, self.location.href).href
+    return new URL(`../${bundle}/${path}`, self.location.href).href
   }
-  return new URL(`/pob-lua/${path}`, self.location.origin).href
+  return new URL(`/${bundle}/${path}`, self.location.origin).href
 }
 
 function respond(message: WorkerResponse) {
   self.postMessage(message)
 }
 
-async function fetchText(path: string): Promise<string> {
-  const cached = fileCache.get(path)
+async function fetchText(bundle: 'pob-lua' | 'superpoe-lua', path: string): Promise<string> {
+  const cacheKey = `${bundle}:${path}`
+  const cached = fileCache.get(cacheKey)
   if (cached != null) return cached
-  const response = await fetch(assetUrl(path))
-  if (!response.ok) throw new Error(`Missing Lua bundle file: ${path}`)
+  const response = await fetch(assetUrl(bundle, path))
+  if (!response.ok) throw new Error(`Missing ${bundle} file: ${path}`)
   const text = await response.text()
-  fileCache.set(path, text)
+  fileCache.set(cacheKey, text)
   return text
 }
 
-async function loadManifest(): Promise<PobLuaManifest> {
-  if (manifest) return manifest
-  const response = await fetch(assetUrl('manifest.json'))
+async function loadManifest(bundle: 'pob-lua' | 'superpoe-lua'): Promise<PobLuaManifest> {
+  if (bundle === 'pob-lua' && manifest) return manifest
+  if (bundle === 'superpoe-lua' && projectManifest) return projectManifest
+  const response = await fetch(assetUrl(bundle, 'manifest.json'))
   if (!response.ok) {
-    throw new Error('Missing /pob-lua/manifest.json. Run python scripts/build_pob_lua_bundle.py first.')
+    throw new Error(`Missing /${bundle}/manifest.json. Run python scripts/build_pob_lua_bundle.py first.`)
   }
-  manifest = await response.json() as PobLuaManifest
-  return manifest
+  const loaded = await response.json() as PobLuaManifest
+  if (bundle === 'pob-lua') manifest = loaded
+  else projectManifest = loaded
+  return loaded
 }
 
 async function init(): Promise<void> {
   if (!initPromise) {
     initPromise = (async () => {
       const startedAt = performance.now()
-      const loadedManifest = await loadManifest()
+      const loadedManifest = await loadManifest('pob-lua')
+      const loadedProjectManifest = await loadManifest('superpoe-lua')
       const required = new Set(['HeadlessWrapper.lua', 'Launch.lua'])
       for (const file of required) {
         if (!loadedManifest.files.some((entry) => entry.path === file)) {
           throw new Error(`Lua bundle missing required file: ${file}`)
         }
       }
+      if (loadedProjectManifest.name !== 'superpoe') {
+        throw new Error('Invalid /superpoe-lua/manifest.json')
+      }
 
       luaFactory = new LuaFactory(wasmUrl)
       luaWasm = await luaFactory.getLuaModule()
-      await mountBundleFiles(loadedManifest)
+      await mountBundleFiles(loadedManifest, loadedProjectManifest)
       lua = await luaFactory.createEngine()
       installHostCompatibility(lua)
       lua.doFileSync('/HeadlessWrapper.lua')
@@ -132,17 +141,28 @@ async function init(): Promise<void> {
   return initPromise
 }
 
-async function mountBundleFiles(loadedManifest: PobLuaManifest): Promise<void> {
+async function mountBundleFiles(loadedManifest: PobLuaManifest, loadedProjectManifest: PobLuaManifest): Promise<void> {
   if (!luaFactory || !luaWasm || mountedFiles) return
   const luaEntries = loadedManifest.files.filter((entry) => entry.path.endsWith('.lua'))
   for (let start = 0; start < luaEntries.length; start += MOUNT_FETCH_CONCURRENCY) {
     const batch = luaEntries.slice(start, start + MOUNT_FETCH_CONCURRENCY)
     const files = await Promise.all(batch.map(async (entry) => ({
       path: entry.path,
-      text: applyBrowserCompatibility(entry.path, await fetchText(entry.path)),
+      text: applyBrowserCompatibility(entry.path, await fetchText('pob-lua', entry.path)),
     })))
     for (const file of files) {
       luaFactory.mountFileSync(luaWasm, `/${file.path}`, file.text)
+    }
+  }
+  const projectEntries = loadedProjectManifest.files.filter((entry) => entry.path.endsWith('.lua'))
+  for (let start = 0; start < projectEntries.length; start += MOUNT_FETCH_CONCURRENCY) {
+    const batch = projectEntries.slice(start, start + MOUNT_FETCH_CONCURRENCY)
+    const files = await Promise.all(batch.map(async (entry) => ({
+      path: entry.path,
+      text: await fetchText('superpoe-lua', entry.path),
+    })))
+    for (const file of files) {
+      luaFactory.mountFileSync(luaWasm, `/superpoe-lua/${file.path}`, file.text)
     }
   }
   // A minimal manifest makes Launch.lua treat the runtime as repository/dev

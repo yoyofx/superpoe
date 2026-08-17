@@ -50,7 +50,7 @@ export class PobLuaService {
   private cachedInput: string | null = null
   private cachedResult: unknown = null
 
-  private resourcePaths(): { executable: string; runner: string; bundle: string } {
+  private resourcePaths(): { executable: string; runner: string; bundle: string; projectBundle: string } {
     const platformArch = process.platform === 'darwin' ? 'darwin-arm64' : `${process.platform}-${process.arch}`
     const executableName = process.platform === 'win32' ? 'luajit.exe' : 'luajit'
     if (app.isPackaged) {
@@ -58,6 +58,7 @@ export class PobLuaService {
         executable: path.join(process.resourcesPath, 'pob-lua-runtime', platformArch, executableName),
         runner: path.join(process.resourcesPath, 'pob-lua-sidecar', 'pob-lua-runner.lua'),
         bundle: path.join(process.resourcesPath, 'pob-lua'),
+        projectBundle: path.join(process.resourcesPath, 'superpoe-lua'),
       }
     }
     const root = app.getAppPath()
@@ -65,6 +66,7 @@ export class PobLuaService {
       executable: path.join(root, 'native', 'bin', platformArch, executableName),
       runner: path.join(root, 'native', 'pob-lua-runner.lua'),
       bundle: path.join(root, 'public', 'pob-lua'),
+      projectBundle: path.join(root, 'public', 'superpoe-lua'),
     }
   }
 
@@ -88,7 +90,7 @@ export class PobLuaService {
 
     const startedAt = Date.now()
     return new Promise<PobLuaStatus>((resolve, reject) => {
-      const child = spawn(resources.executable, [resources.runner, resources.bundle], {
+      const child = spawn(resources.executable, [resources.runner, resources.bundle, resources.projectBundle], {
         cwd: resources.bundle,
         windowsHide: true,
         stdio: ['pipe', 'pipe', 'pipe'],

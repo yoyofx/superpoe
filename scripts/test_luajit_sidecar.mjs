@@ -16,6 +16,7 @@ const executable = process.env.SUPERPOE_LUAJIT_EXECUTABLE || path.join(
 )
 const runner = path.join(root, 'native', 'pob-lua-runner.lua')
 const bundle = path.join(root, 'public', 'pob-lua')
+const projectBundle = path.join(root, 'public', 'superpoe-lua')
 const buildCodePath = process.env.SUPERPOE_BUILD_CODE_PATH
 const buildXmlPath = process.env.SUPERPOE_BUILD_XML_PATH
 const skillGroupId = process.env.SUPERPOE_SKILL_GROUP_ID
@@ -37,7 +38,7 @@ const minionXml = !buildCodePath && !buildXmlPath
   )
   : null
 
-const child = spawn(executable, [runner, bundle], {
+const child = spawn(executable, [runner, bundle, projectBundle], {
   cwd: bundle,
   windowsHide: true,
   stdio: ['pipe', 'pipe', 'pipe'],

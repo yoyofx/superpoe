@@ -313,7 +313,6 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
             <button className="primary-command toolbar-export-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')} aria-label={l('Export build', '导出构筑', '匯出構築', '빌드 내보내기')} aria-expanded={activeMenu === 'export'}><FileOutput /><span>{l('Export', '导出', '匯出', '내보내기')}</span></button>
             <button className="icon-command toolbar-file-more" onClick={() => toggleMenu('file')} title={l('More build file actions', '更多构筑文件操作', '更多構築檔案操作', '더 많은 빌드 파일 작업')} aria-label={l('More build file actions', '更多构筑文件操作', '更多構築檔案操作', '더 많은 빌드 파일 작업')} aria-expanded={activeMenu === 'file'}><MoreVertical /></button>
           </div>
-          <button className="secondary-command toolbar-library-command" onClick={() => { setActiveMenu(null); onLibrary() }} title={l('Open equipment library', '打开装备仓库', '開啟裝備倉庫', '장비 라이브러리 열기')} aria-label={l('Open equipment library', '打开装备仓库', '開啟裝備倉庫', '장비 라이브러리 열기')}><Archive /><span>{l('Equipment library', '装备仓库', '裝備倉庫', '장비 라이브러리')}</span></button>
           <GameRuntimeIndicator />
           <button className="icon-command" onClick={() => { setActiveMenu(null); onSettings() }} title={l('Global settings', '全局设置', '全域設定', '전역 설정')} aria-label={l('Global settings', '全局设置', '全域設定', '전역 설정')}><Settings /></button>
         </div>
@@ -333,6 +332,9 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
           <i className="workspace-tabs-divider" aria-hidden="true" />
           <button className={`workspace-global-entry monitoring-entry${isActivelyMonitoring ? ' is-monitoring' : ''}`} onClick={onTradeCenter} aria-label={l('Trade Center', '交易中心', '交易中心', '거래 센터')} title={l('Open global Trade Center', '打开全局交易中心', '開啟全域交易中心', '전역 거래 센터 열기')}>
             <Store /><span>{l('Trade Center', '交易中心', '交易中心', '거래 센터')}</span>{isActivelyMonitoring && <span className="monitoring-tab-icon" aria-hidden="true"><BellRing /></span>}{monitoring && <small className="monitoring-tab-count">{armedCount}/{MAX_ACTIVE_PURCHASE_TARGETS}</small>}{pendingCount > 0 && <small className="monitoring-tab-alert">{pendingCount}</small>}
+          </button>
+          <button className="workspace-global-entry library-entry" onClick={onLibrary} aria-label={l('Equipment library', '装备仓库', '裝備倉庫', '장비 라이브러리')} title={l('Open equipment library', '打开装备仓库', '開啟裝備倉庫', '장비 라이브러리 열기')}>
+            <Archive /><span>{l('Equipment library', '装备仓库', '裝備倉庫', '장비 라이브러리')}</span>
           </button>
         </nav>
 

@@ -4,11 +4,13 @@ import type { EquipmentLibraryEntry } from '@/types/market'
 import { translateEquipmentItemName } from '@/components/equipment/EquipmentItemInspector'
 import { EquipmentLibraryPicker } from '@/components/equipment/EquipmentLibraryPicker'
 import { inspectJewelRadius } from '@/engine/pobLuaClient'
+import { parseEquipmentXml } from '@/engine/equipment'
 import { translateGameText, translateJewelRadiusLabel } from '@/i18n/translationLoader'
 import { getSinisterJewelSocketIds } from '@/engine/sinisterJewelSockets'
 import { uiText } from '@/i18n/uiLocale'
 import { useTreeStore } from '@/store/treeStore'
 import type { JewelRadiusSnapshot } from '@/types/jewelRadius'
+import type { BuildContextSnapshot } from '@/equipmentDifference'
 
 function radiusLabel(label: string, language: Parameters<typeof uiText>[0]): string {
   const normalized = label.trim().toLowerCase()
@@ -38,6 +40,7 @@ export function JewelSocketPanel() {
   const clearJewelRadiusPreview = useTreeStore((state) => state.clearJewelRadiusPreview)
   const language = useTreeStore((state) => state.language)
   const pobBuildRevision = useTreeStore((state) => state.pobBuildRevision)
+  const activeWeaponSet = useTreeStore((state) => state.activeWeaponSet)
   const [open, setOpen] = useState(false)
   const [jewelRadiusSnapshot, setJewelRadiusSnapshot] = useState<JewelRadiusSnapshot | null>(null)
   const [radiusSelection, setRadiusSelection] = useState<number | null>(null)
@@ -56,6 +59,16 @@ export function JewelSocketPanel() {
     || getSinisterJewelSocketIds(treeData || undefined, getActivePobXml()).has(selectedNodeId)))
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
   const activePobXml = getActivePobXml() || ''
+  const activeEquipment = useMemo(() => activePobXml ? parseEquipmentXml(activePobXml) : null, [activePobXml])
+  const differenceContext = useMemo<BuildContextSnapshot | null>(() => {
+    if (!activePobXml || !activeEquipment?.activeItemSetId) return null
+    return {
+      xml: activePobXml,
+      buildRevision: pobBuildRevision,
+      activeItemSetId: activeEquipment.activeItemSetId,
+      activeWeaponSet,
+    }
+  }, [activeEquipment?.activeItemSetId, activePobXml, activeWeaponSet, pobBuildRevision])
 
   const showRadiusPreview = useCallback((radiusIndex: number | null) => {
     setJewelRadiusPreview(radiusIndex != null && selectedNodeId ? { nodeId: selectedNodeId, radiusIndex } : null)
@@ -285,7 +298,7 @@ export function JewelSocketPanel() {
           </>}
         </div>}
       </div>
-      {open && <EquipmentLibraryPicker mode="jewel" title={{ en: 'Bind jewel', 'zh-rCN': '绑定珠宝', 'zh-rTW': '綁定珠寶', 'ko-KR': '주얼 장착' }} currentSlot={selectedNodeId} onClose={() => { hideRadiusPreview(); setOpen(false) }} onSelect={(entry) => void choose(entry)} />}
+      {open && <EquipmentLibraryPicker mode="jewel" title={{ en: 'Bind jewel', 'zh-rCN': '绑定珠宝', 'zh-rTW': '綁定珠寶', 'ko-KR': '주얼 장착' }} currentSlot={selectedNodeId} differenceContext={differenceContext} queryContext={{ kind: 'jewel-slot', slotName: selectedNodeId }} onClose={() => { hideRadiusPreview(); setOpen(false) }} onSelect={(entry) => void choose(entry)} />}
       <span className="hidden">{pobBuildRevision}</span>
     </aside>
   )

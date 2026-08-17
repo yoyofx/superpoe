@@ -83,6 +83,7 @@ def validate_and_collect(version: str) -> tuple[dict[str, Any], list[str]]:
     tree_versions = load_json(DATA / "tree-versions.json")
     translations = load_json(DATA / "Translate" / "translation-files.json")
     lua_manifest = load_json(PUBLIC / "pob-lua" / "manifest.json")
+    project_lua_manifest = load_json(PUBLIC / "superpoe-lua" / "manifest.json")
 
     visible_skills = [entry for entry in skill_catalog.get("entries", {}).values() if entry.get("userVisible")]
     skill_paths = {entry["icon"] for entry in visible_skills if entry.get("icon")}
@@ -157,6 +158,10 @@ def validate_and_collect(version: str) -> tuple[dict[str, Any], list[str]]:
         path = PUBLIC / "pob-lua" / entry["path"]
         if not path.is_file() or path.stat().st_size != entry.get("size"):
             errors.append(f"lua: missing or changed pob-lua/{entry.get('path')}")
+    for entry in project_lua_manifest.get("files", []):
+        path = PUBLIC / "superpoe-lua" / entry["path"]
+        if not path.is_file() or path.stat().st_size != entry.get("size"):
+            errors.append(f"lua: missing or changed superpoe-lua/{entry.get('path')}")
 
     stats = {
         "treeVersions": versions,
@@ -174,6 +179,7 @@ def validate_and_collect(version: str) -> tuple[dict[str, Any], list[str]]:
             language: len(files) for language, files in translations.get("languages", {}).items()
         },
         "luaFiles": len(lua_manifest.get("files", [])),
+        "projectLuaFiles": len(project_lua_manifest.get("files", [])),
     }
     return {"stats": stats, "warnings": warnings}, errors
 

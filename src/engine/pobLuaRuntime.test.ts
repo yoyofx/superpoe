@@ -16,6 +16,7 @@ import {
 const rootDir = fileURLToPath(new URL('../..', import.meta.url))
 const fixturePath = resolve(rootDir, 'builds/0.4_风暴编织者.build')
 const luaBundleDir = resolve(rootDir, 'public/pob-lua')
+const projectLuaBundleDir = resolve(rootDir, 'public/superpoe-lua')
 const wasmPath = resolve(rootDir, 'node_modules/wasmoon/dist/glue.wasm')
 
 let luaFactory: LuaFactory
@@ -38,6 +39,17 @@ beforeAll(async () => {
       readFileSync(resolve(luaBundleDir, entry.path), 'utf8'),
     )
   }
+  const projectManifest = JSON.parse(
+    readFileSync(resolve(projectLuaBundleDir, 'manifest.json'), 'utf8'),
+  ) as PobLuaManifest
+  for (const entry of projectManifest.files) {
+    if (!entry.path.endsWith('.lua')) continue
+    luaFactory.mountFileSync(
+      luaWasm,
+      `/superpoe-lua/${entry.path}`,
+      readFileSync(resolve(projectLuaBundleDir, entry.path), 'utf8'),
+    )
+  }
   luaFactory.mountFileSync(luaWasm, '/manifest.xml', '<PoBVersion><Version number="browser"/></PoBVersion>')
 
   lua = await luaFactory.createEngine()
@@ -52,6 +64,10 @@ afterAll(() => {
 })
 
 describe('PoB Lua front-end runtime', () => {
+  it('loads the project equipment bridge from its separate Lua bundle', () => {
+    expect(lua.doStringSync('return type(require("EquipmentDifference").compare)')).toBe('function')
+  })
+
   it('formats integral floats like the LuaJIT runtime used by desktop PoB2', () => {
     expect(lua.doStringSync('return tostring(90.0)')).toBe('90')
     expect(lua.doStringSync('return tostring(90.25)')).toBe('90.25')

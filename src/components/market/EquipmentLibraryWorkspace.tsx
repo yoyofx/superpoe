@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type FocusEvent as ReactFocusEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { Check, Clipboard, ClipboardPaste, FileText, PanelLeftClose, PanelLeftOpen, Plus, Search, Tags, Trash2, X } from 'lucide-react'
 import type {
@@ -31,6 +31,11 @@ interface DragState {
   pointerId: number
   offsetX: number
   offsetY: number
+}
+
+interface EquipmentItemDragState {
+  entryIds: string[]
+  collectionRoot: EquipmentCollectionRoot
 }
 
 interface DirectoryResizeState {
@@ -97,6 +102,8 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
   const tooltipHideTimerRef = useRef<number | null>(null)
   const [floatingDetail, setFloatingDetail] = useState<FloatingDetailPosition | null>(null)
   const dragRef = useRef<DragState | null>(null)
+  const [equipmentDrag, setEquipmentDrag] = useState<EquipmentItemDragState | null>(null)
+  const [dropTarget, setDropTarget] = useState<EquipmentCollectionSelection | null>(null)
   const directoryResizeRef = useRef<DirectoryResizeState | null>(null)
   const [directoryWidth, setDirectoryWidth] = useState(222)
   const [directoryCollapsed, setDirectoryCollapsed] = useState(false)
@@ -195,6 +202,59 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
     setSelectedEntryId(null)
     setTooltip(null)
     setFloatingDetail(null)
+    setDropTarget(null)
+  }
+
+  const startEquipmentDrag = (event: ReactDragEvent<HTMLElement>, entry: EquipmentLibraryEntry) => {
+    const payload: EquipmentItemDragState = { entryIds: [entry.id], collectionRoot: entry.collectionRoot }
+    setEquipmentDrag(payload)
+    setDropTarget(null)
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('application/x-superpoe-equipment', JSON.stringify(payload))
+    event.dataTransfer.setData('text/plain', entry.id)
+  }
+
+  const finishEquipmentDrag = () => {
+    setEquipmentDrag(null)
+    setDropTarget(null)
+  }
+
+  const handleDirectoryDragOver = (event: ReactDragEvent<HTMLElement>, target: EquipmentCollectionSelection) => {
+    if (!equipmentDrag || target.kind !== 'root') return
+    event.preventDefault()
+    event.stopPropagation()
+    if (target.root !== equipmentDrag.collectionRoot) {
+      event.dataTransfer.dropEffect = 'none'
+      setDropTarget(null)
+      return
+    }
+    event.dataTransfer.dropEffect = 'move'
+    setDropTarget(target)
+  }
+
+  const handleDirectoryDragLeave = () => {
+    setDropTarget(null)
+  }
+
+  const handleDirectoryDrop = (event: ReactDragEvent<HTMLElement>, target: EquipmentCollectionSelection) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const payload = equipmentDrag
+    setEquipmentDrag(null)
+    setDropTarget(null)
+    if (!payload || target.kind !== 'root' || !bridge) return
+    if (target.root !== payload.collectionRoot) {
+      setError(l('Items from different source roots cannot be moved directly. Use an explicit copy or import.', '不同来源的装备不能直接移动，请使用明确的复制或导入操作。', '不同來源的裝備不能直接移動，請使用明確的複製或匯入操作。', '서로 다른 출처의 장비는 직접 이동할 수 없습니다. 복사 또는 가져오기를 사용하세요.'))
+      return
+    }
+    const targetFolderId = target.folderId
+    const destination = targetFolderId
+      ? folders.find((folder) => folder.id === targetFolderId)?.name || l('Selected folder', '当前目录', '目前目錄', '선택한 폴더')
+      : LIBRARY_CATEGORIES.find((category) => category.id === target.root)?.label[lang] || target.root
+    void run(
+      () => bridge.moveLibrary({ entryIds: payload.entryIds, ...(targetFolderId ? { targetFolderId } : {}) }),
+      l(`Moved to “${destination}”`, `已移动到“${destination}”`, `已移動至「${destination}」`, `“${destination}”(으)로 이동됨`),
+    )
   }
 
   const createFolder = async (root: EquipmentCollectionRoot, name: string, parentId?: string) => {
@@ -374,8 +434,11 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
 
   const renderCard = (entry: EquipmentLibraryEntry) => {
     return <article
-      className={`library-item-card${selectedEntry?.id === entry.id ? ' selected' : ''}`}
+      className={`library-item-card${selectedEntry?.id === entry.id ? ' selected' : ''}${equipmentDrag?.entryIds.includes(entry.id) ? ' dragging' : ''}`}
       key={entry.id}
+      draggable
+      onDragStart={(event) => startEquipmentDrag(event, entry)}
+      onDragEnd={finishEquipmentDrag}
       onMouseEnter={(event) => showTooltip(event, entry)}
       onMouseLeave={scheduleTooltipHide}
       onFocus={(event) => showTooltip(event, entry)}
@@ -443,6 +506,10 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
           onRename={renameFolder}
           onDelete={deleteFolder}
           onToggle={async (folder) => { await bridge?.updateFolder({ id: folder.id, expanded: !folder.expanded }); await load() }}
+          dropTarget={dropTarget}
+          onDragOver={handleDirectoryDragOver}
+          onDrop={handleDirectoryDrop}
+          onDragLeave={handleDirectoryDragLeave}
         />
       </aside>
       <div

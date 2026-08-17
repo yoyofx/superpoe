@@ -1508,6 +1508,7 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
         currentSlot={selectedSlotName}
         differenceContext={equipmentDifferenceContext}
         differenceSlotName={selectedSlotName}
+        queryContext={{ kind: selectedSlotName && getSocketSlotInfo(selectedSlotName) ? 'jewel-slot' : 'equipment-slot', slotName: selectedSlotName }}
         onClose={() => setReplacementOpen(false)}
         onSelect={replaceSelectedSlot}
       />}

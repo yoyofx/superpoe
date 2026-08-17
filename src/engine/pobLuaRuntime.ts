@@ -7,7 +7,9 @@ import type { LuaFactory } from 'wasmoon'
 type LuaEngine = Awaited<ReturnType<LuaFactory['createEngine']>>
 
 export interface PobLuaManifest {
-  version: string
+  version?: string
+  schemaVersion?: number
+  name?: string
   files: Array<{ path: string; hash: string; size: number }>
 }
 
@@ -54,7 +56,7 @@ export function installHostCompatibility(engine: LuaEngine) {
       error(formatted)
     end
     jit = jit or { version = "wasmoon-lua5.4", off = function() end, opt = { start = function() end } }
-    package.path = "/?.lua;/?/init.lua;/Classes/?.lua;/Modules/?.lua;/Data/?.lua;" .. package.path
+    package.path = "/?.lua;/?/init.lua;/Classes/?.lua;/Modules/?.lua;/Data/?.lua;/superpoe-lua/?.lua;/superpoe-lua/?/init.lua;" .. package.path
 
     local nativeRequire = require
     local loaded = package.loaded

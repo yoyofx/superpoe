@@ -1,6 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type CSSProperties, type DragEvent as ReactDragEvent, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type ReactNode } from 'react'
 import {
-  BellOff, BellRing, Bookmark, Check, ChevronDown, ChevronRight, ExternalLink, Folder, FolderInput, FolderPlus, Home,
+  ArrowLeft, BellOff, BellRing, Bookmark, Check, ChevronDown, ChevronRight, ExternalLink, Eye, Folder, FolderInput, FolderPlus, Home,
   ListChecks, PanelLeftClose, PanelLeftOpen, Pencil, Save, Search, Square,
   RefreshCw, Replace, Shirt, SquareCheckBig, Tags, Trash2, X,
 } from 'lucide-react'
@@ -32,7 +32,7 @@ const EMPTY_SIDEBAR: EquipmentLibrarySidebarSnapshot = { folders: [], searches: 
 
 type LibraryDragPayload =
   | { kind: 'folder'; id: string }
-  | { kind: 'item'; id: string }
+  | { kind: 'item'; id: string; ids?: string[] }
   | { kind: 'search'; id: string }
 
 type FolderEditorState =
@@ -122,9 +122,12 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   const [folderEditor, setFolderEditor] = useState<FolderEditorState | null>(null)
   const [deleteCandidate, setDeleteCandidate] = useState<EquipmentLibraryFolder | null>(null)
   const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null)
+  const [detailEntryId, setDetailEntryId] = useState<string | null>(null)
   const [bulkSelecting, setBulkSelecting] = useState(false)
   const [selectedEntryIds, setSelectedEntryIds] = useState<Set<string>>(() => new Set())
   const [searchEditor, setSearchEditor] = useState<SearchEditorState | null>(null)
+  const contentListRef = useRef<HTMLDivElement | null>(null)
+  const listScrollTopRef = useRef(0)
 
   const load = useCallback(async () => {
     if (!bridge) return
@@ -151,6 +154,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   useEffect(() => {
     setBulkSelecting(false)
     setSelectedEntryIds(new Set())
+    setDetailEntryId(null)
   }, [activeTab])
 
   useEffect(() => {
@@ -160,6 +164,15 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
       return next.size === current.size ? current : next
     })
   }, [entries])
+
+  useEffect(() => {
+    const folderId = sidebar.selectedItemFolderId
+    setItemSelection((current) => current.kind === 'root'
+      && current.root === 'market'
+      && current.folderId === folderId
+      ? current
+      : { kind: 'root', root: 'market', ...(folderId ? { folderId } : {}) })
+  }, [sidebar.selectedItemFolderId])
 
   useEffect(() => {
     let active = true
@@ -193,8 +206,11 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   const selectFolder = (scope: LibraryTreeScope, id?: string) => run(id || 'root', async () => {
     setBulkSelecting(false)
     setSelectedEntryIds(new Set())
-    if (scope === 'items') setItemSelection({ kind: 'root', root: 'market', folderId: id })
-    else setSidebar(await bridge!.selectFolder(scope, id))
+    setDetailEntryId(null)
+    if (scope === 'items') {
+      setItemSelection({ kind: 'root', root: 'market', folderId: id })
+      setSidebar(await bridge!.selectFolder(scope, id))
+    } else setSidebar(await bridge!.selectFolder(scope, id))
   })
 
   const toggleEntrySelection = (entryId: string) => {
@@ -209,6 +225,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   const startBulkSelection = () => {
     setMovingId(null)
     setSelectedEntryId(null)
+    setDetailEntryId(null)
     setSelectedEntryIds(new Set())
     setBulkSelecting(true)
   }
@@ -336,10 +353,21 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
         beforeId,
       }), success)
     } else if (payload.kind === 'item') {
-      void run(`drag:${payload.id}`, () => bridge!.updateLibrary({ id: payload.id, folderId: folderId || null }), success)
+      const entryIds = payload.ids?.length ? payload.ids : [payload.id]
+      void run(`drag:${entryIds.join(',')}`, () => bridge!.moveLibrary({ entryIds, ...(folderId ? { targetFolderId: folderId } : {}) }), success)
     } else {
       void run(`drag:${payload.id}`, () => bridge!.updateSearch({ id: payload.id, folderId: folderId || null }), success)
     }
+  }
+
+  const handleItemTreeDragOver = (event: ReactDragEvent<HTMLElement>, target: EquipmentCollectionSelection) => {
+    if (activeTab !== 'items' || target.kind !== 'root' || target.root !== 'market') return
+    dragOver(event, target.folderId)
+  }
+
+  const handleItemTreeDrop = (event: ReactDragEvent<HTMLElement>, target: EquipmentCollectionSelection) => {
+    if (activeTab !== 'items' || target.kind !== 'root' || target.root !== 'market') return
+    dropInto(event, target.folderId)
   }
 
   const endDrag = () => {
@@ -370,21 +398,42 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
     }).catch((caught: unknown) => setError(caught instanceof Error ? caught.message : String(caught)))
   }
 
-  const renderEntry = (entry: EquipmentLibraryEntry) => {
+  const renderEntryActions = (entry: EquipmentLibraryEntry, className = '', includePrimaryActions = true, includeDetailButton = false, includeDeleteButton = true) => {
     const source = marketSource(entry)
     const similarLeagueId = source?.leagueId || leagueId
-    const selected = bulkSelecting ? selectedEntryIds.has(entry.id) : selectedEntryId === entry.id
     const displayName = equipmentItemName(entry.view, language)
+    return <footer className={className}>
+      {includePrimaryActions && source && <button className="primary-action" disabled={busyId === entry.id} onClick={(event) => { event.stopPropagation(); void run(entry.id, () => visitHideout(entry.id), l('Hideout travel request sent', '已发送前往藏身处请求', '已傳送前往藏身處請求', '은신처 이동 요청 전송됨')) }} title={l('Travel to hideout', '前往藏身处', '前往藏身處', '은신처로 이동')} aria-label={l('Travel to hideout', '前往藏身处', '前往藏身處', '은신처로 이동')}><Home /></button>}
+      {includePrimaryActions && <button className="primary-action" disabled={!entry.item.raw} onClick={(event) => { event.stopPropagation(); openTryOn(entry) }} title={l('Preview this item on the current build', '在当前构筑中试穿并查看差异', '在目前構築中試穿並查看差異', '현재 빌드에 시험 장착하고 차이를 확인')} aria-label={l('Try on', '试穿', '試穿', '시험 착용')}><Shirt /></button>}
+      {includePrimaryActions && <button className="primary-action" disabled={!similarLeagueId || busyId === entry.id} onClick={(event) => { event.stopPropagation(); void window.superpoePriceCheck?.open({ source: { kind: 'library', entryId: entry.id }, initialLeagueId: marketSource(entry)?.leagueId || similarLeagueId }) }} title={l('Configure price check', '选择词条并查价', '選擇詞綴並查價', '속성을 선택하고 가격 확인')} aria-label={l('Price check', '查价', '查價', '가격 확인')}><Search /></button>}
+      {includeDeleteButton && <button className="danger" onClick={(event) => { event.stopPropagation(); if (window.confirm(l(`Delete “${displayName}”?`, `删除“${displayName}”？`, `刪除「${displayName}」？`, `“${displayName}”을(를) 삭제할까요?`))) { setDetailEntryId(null); void run(entry.id, () => bridge!.deleteLibrary(entry.id)) } }} title={l('Delete', '删除', '刪除', '삭제')}><Trash2 /></button>}
+      {includeDetailButton && <button className="trade-helper-item-detail" onClick={(event) => { event.stopPropagation(); openEntryDetail(entry.id) }} title={l('View item details', '查看装备详情', '查看裝備詳情', '장비 상세 보기')} aria-label={l('View item details', '查看装备详情', '查看裝備詳情', '장비 상세 보기')}><Eye /></button>}
+    </footer>
+  }
+
+  const renderEntry = (entry: EquipmentLibraryEntry) => {
+    const source = marketSource(entry)
+    const selected = bulkSelecting ? selectedEntryIds.has(entry.id) : selectedEntryId === entry.id
     return <article
-      className={`trade-helper-item rarity-${entry.view.rarity.toLowerCase()}${dragging?.kind === 'item' && dragging.id === entry.id ? ' dragging' : ''}${selected ? ' selected' : ''}${bulkSelecting ? ' bulk-selecting' : ''}`}
-      tabIndex={0}
+      className={`trade-helper-item rarity-${entry.view.rarity.toLowerCase()}${dragging?.kind === 'item' && (dragging.ids || [dragging.id]).includes(entry.id) ? ' dragging' : ''}${selected ? ' selected' : ''}${bulkSelecting ? ' bulk-selecting' : ''}`}
+      draggable
+      onDragStart={(event) => {
+        const entryIds = bulkSelecting && selectedEntryIds.has(entry.id) ? [...selectedEntryIds] : [entry.id]
+        startDrag(event, { kind: 'item', id: entry.id, ids: entryIds })
+      }}
+      onDragEnd={endDrag}
+      tabIndex={bulkSelecting ? 0 : -1}
       aria-selected={selected}
-      onClick={() => bulkSelecting ? toggleEntrySelection(entry.id) : setSelectedEntryId(entry.id)}
+      onClick={() => { if (bulkSelecting) toggleEntrySelection(entry.id) }}
+      onDoubleClick={(event) => {
+        if (event.target instanceof Element && event.target.closest('button')) return
+        if (!bulkSelecting) openEntryDetail(entry.id)
+      }}
       onKeyDown={(event) => {
+        if (event.target !== event.currentTarget) return
         if (event.key !== 'Enter' && event.key !== ' ') return
         event.preventDefault()
         if (bulkSelecting) toggleEntrySelection(entry.id)
-        else setSelectedEntryId(entry.id)
       }}
       key={entry.id}
     >
@@ -399,12 +448,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
           ? <button className="trade-helper-item-select" aria-pressed={selected} onClick={(event) => { event.stopPropagation(); toggleEntrySelection(entry.id) }} title={selected ? l('Deselect', '取消选择', '取消選擇', '선택 해제') : l('Select item', '选择装备', '選擇裝備', '아이템 선택')} aria-label={selected ? l('Deselect', '取消选择', '取消選擇', '선택 해제') : l('Select item', '选择装备', '選擇裝備', '아이템 선택')}>{selected ? <SquareCheckBig /> : <Square />}</button>
           : undefined}
       />
-      {!bulkSelecting && <footer>
-        {source && <button className="primary-action" disabled={busyId === entry.id} onClick={() => void run(entry.id, () => visitHideout(entry.id), l('Hideout travel request sent', '已发送前往藏身处请求', '已傳送前往藏身處請求', '은신처 이동 요청 전송됨'))} title={l('Travel to hideout', '前往藏身处', '前往藏身處', '은신처로 이동')}><Home /><span>{l('Hideout', '藏身处', '藏身處', '은신처')}</span></button>}
-        <button className="primary-action" disabled={!entry.item.raw} onClick={(event) => { event.stopPropagation(); openTryOn(entry) }} title={l('Preview this item on the current build', '在当前构筑中试穿并查看差异', '在目前構築中試穿並查看差異', '현재 빌드에 시험 장착하고 차이를 확인')}><Shirt /><span>{l('Try on', '试穿', '試穿', '시험 착용')}</span></button>
-        <button className="primary-action" disabled={!similarLeagueId || busyId === entry.id} onClick={() => { void window.superpoePriceCheck?.open({ source: { kind: 'library', entryId: entry.id }, initialLeagueId: marketSource(entry)?.leagueId || similarLeagueId }) }} title={l('Configure price check', '选择词条并查价', '選擇詞綴並查價', '속성을 선택하고 가격 확인')}><Search /><span>{l('Price check', '查价', '查價', '가격 확인')}</span></button>
-        <button className="danger" onClick={() => window.confirm(l(`Delete “${displayName}”?`, `删除“${displayName}”？`, `刪除「${displayName}」？`, `“${displayName}”을(를) 삭제할까요?`)) && void run(entry.id, () => bridge!.deleteLibrary(entry.id))} title={l('Delete', '删除', '刪除', '삭제')}><Trash2 /></button>
-      </footer>}
+      {!bulkSelecting && renderEntryActions(entry, '', true, true)}
     </article>
   }
 
@@ -482,6 +526,28 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   const selectedFolder = selectedFolderId ? folders.find((folder) => folder.id === selectedFolderId) : undefined
   const contentCount = activeTab === 'items' ? visibleEntries.length : visibleSearches.length
   const allVisibleEntriesSelected = Boolean(visibleEntries.length) && visibleEntries.every((entry) => selectedEntryIds.has(entry.id))
+  const detailEntry = detailEntryId ? visibleEntries.find((entry) => entry.id === detailEntryId) : undefined
+  const itemDropTarget: EquipmentCollectionSelection | null = activeTab === 'items' && dragOverFolderId
+    ? { kind: 'root', root: 'market', ...(dragOverFolderId === 'root' ? {} : { folderId: dragOverFolderId }) }
+    : null
+
+  useEffect(() => {
+    if (detailEntryId && (!detailEntry || activeTab !== 'items')) setDetailEntryId(null)
+  }, [activeTab, detailEntry, detailEntryId])
+
+  const openEntryDetail = (entryId: string) => {
+    if (bulkSelecting) return
+    listScrollTopRef.current = contentListRef.current?.scrollTop || 0
+    setSelectedEntryId(entryId)
+    setDetailEntryId(entryId)
+  }
+
+  const closeEntryDetail = () => {
+    setDetailEntryId(null)
+    window.requestAnimationFrame(() => {
+      if (contentListRef.current) contentListRef.current.scrollTop = listScrollTopRef.current
+    })
+  }
 
   const deleteSelectedEntries = async () => {
     if (!bridge || !selectedEntryIds.size) return
@@ -514,20 +580,29 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
             newFolder: l('New folder', '新建目录', '建立目錄', '새 폴더'),
             rename: l('Rename', '重命名', '重新命名', '이름 변경'), delete: l('Delete', '删除', '刪除', '삭제'),
           }}
-          onSelect={(selection) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setItemSelection(selection.kind === 'all' ? { kind: 'root', root: 'market' } : selection) }}
-          onCreate={async (_root, name, parentId) => {
-            const folder = await bridge!.createFolder({ scope: 'items', collectionRoot: 'market', name, parentId })
-            setItemSelection({ kind: 'root', root: 'market', folderId: folder.id })
-            await load()
-          }}
+           onSelect={(selection) => {
+             const next = selection.kind === 'all' ? { kind: 'root' as const, root: 'market' as const } : selection
+             void selectFolder('items', next.folderId)
+           }}
+           onCreate={async (_root, name, parentId) => {
+             const folder = await bridge!.createFolder({ scope: 'items', collectionRoot: 'market', name, parentId })
+             setItemSelection({ kind: 'root', root: 'market', folderId: folder.id })
+             await bridge!.selectFolder('items', folder.id)
+             await load()
+           }}
           onRename={async (folderId, name) => { await bridge!.updateFolder({ id: folderId, name }); await load() }}
           onDelete={async (folder) => {
             if (!window.confirm(l(`Delete “${folder.name}”? Its contents will move to the parent folder.`, `删除“${folder.name}”？其中的装备和子目录将移到上级目录。`, `刪除「${folder.name}」？其中的裝備和子目錄將移至上層目錄。`, `“${folder.name}” 폴더를 삭제할까요? 내용은 상위 폴더로 이동합니다.`))) return
-            await bridge!.deleteFolder(folder.id)
-            setItemSelection({ kind: 'root', root: 'market' })
-            await load()
+             await bridge!.deleteFolder(folder.id)
+             setItemSelection({ kind: 'root', root: 'market' })
+             await bridge!.selectFolder('items')
+             await load()
           }}
           onToggle={async (folder) => { await bridge!.updateFolder({ id: folder.id, expanded: !folder.expanded }); await load() }}
+          dropTarget={itemDropTarget}
+          onDragOver={handleItemTreeDragOver}
+          onDrop={handleItemTreeDrop}
+          onDragLeave={() => setDragOverFolderId(null)}
         />
       </section>}
       {activeTab === 'searches' && <section className="trade-helper-directory-pane">
@@ -585,23 +660,37 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
           </div>
         </div>
         <header className="trade-helper-content-header">
-          <span><Folder /><strong>{selectedFolder ? folderPath(selectedFolder, folders) : activeTab === 'items' ? l('Market favorites', '集市收藏', '市集收藏', '거래소 즐겨찾기') : l('Default', '默认', '預設', '기본')}</strong></span>
+          {detailEntry ? <span className="trade-helper-detail-heading"><button className="trade-helper-detail-back" onClick={closeEntryDetail} title={l('Back to list', '返回列表', '返回列表', '목록으로 돌아가기')} aria-label={l('Back to list', '返回列表', '返回列表', '목록으로 돌아가기')}><ArrowLeft /><span>{l('Back', '返回', '返回', '뒤로')}</span></button><strong>{equipmentItemName(detailEntry.view, language)}</strong></span> : <span><Folder /><strong>{selectedFolder ? folderPath(selectedFolder, folders) : activeTab === 'items' ? l('Market favorites', '集市收藏', '市集收藏', '거래소 즐겨찾기') : l('Default', '默认', '預設', '기본')}</strong></span>}
           <span className="trade-helper-content-summary">
-            {activeTab === 'items' && !bulkSelecting && Boolean(visibleEntries.length) && <button onClick={startBulkSelection} title={l('Bulk select', '批量选择', '批次選擇', '일괄 선택')} aria-label={l('Bulk select', '批量选择', '批次選擇', '일괄 선택')}><ListChecks /></button>}
-            {activeTab === 'items' && bulkSelecting && <>
+            {!detailEntry && activeTab === 'items' && !bulkSelecting && Boolean(visibleEntries.length) && <button onClick={startBulkSelection} title={l('Bulk select', '批量选择', '批次選擇', '일괄 선택')} aria-label={l('Bulk select', '批量选择', '批次選擇', '일괄 선택')}><ListChecks /></button>}
+            {!detailEntry && activeTab === 'items' && bulkSelecting && <>
               <small>{l(`${selectedEntryIds.size} / ${visibleEntries.length} selected`, `已选 ${selectedEntryIds.size} / ${visibleEntries.length}`, `已選 ${selectedEntryIds.size} / ${visibleEntries.length}`, `${selectedEntryIds.size} / ${visibleEntries.length} 선택됨`)}</small>
               <button onClick={() => setSelectedEntryIds(allVisibleEntriesSelected ? new Set() : new Set(visibleEntries.map((entry) => entry.id)))} title={allVisibleEntriesSelected ? l('Deselect all', '取消全选', '取消全選', '모두 선택 해제') : l('Select all in folder', '全选当前目录', '全選目前目錄', '폴더 내 모두 선택')} aria-label={allVisibleEntriesSelected ? l('Deselect all', '取消全选', '取消全選', '모두 선택 해제') : l('Select all in folder', '全选当前目录', '全選目前目錄', '폴더 내 모두 선택')}>{allVisibleEntriesSelected ? <Square /> : <SquareCheckBig />}</button>
               <button className="danger" disabled={!selectedEntryIds.size || busyId === 'bulk-delete'} onClick={() => void deleteSelectedEntries()} title={l('Delete selected items', '删除选中装备', '刪除選取裝備', '선택한 아이템 삭제')} aria-label={l('Delete selected items', '删除选中装备', '刪除選取裝備', '선택한 아이템 삭제')}><Trash2 /></button>
               <button onClick={() => { setBulkSelecting(false); setSelectedEntryIds(new Set()) }} title={l('Exit bulk selection', '退出批量选择', '退出批次選擇', '일괄 선택 종료')} aria-label={l('Exit bulk selection', '退出批量选择', '退出批次選擇', '일괄 선택 종료')}><X /></button>
             </>}
-            {!bulkSelecting && <small>{l(`${contentCount} items`, `${contentCount} 项`, `${contentCount} 項`, `${contentCount}개`)}</small>}
+            {!detailEntry && !bulkSelecting && <small>{l(`${contentCount} items`, `${contentCount} 项`, `${contentCount} 項`, `${contentCount}개`)}</small>}
           </span>
         </header>
-        <div className="trade-helper-content-list">
+        {detailEntry ? <section className="trade-helper-detail-view" onDoubleClick={(event) => {
+          if (event.target instanceof Element && event.target.closest('button')) return
+          closeEntryDetail()
+        }}>
+          <div className="trade-helper-detail-scroll">
+            <EquipmentItemInspector
+              view={detailEntry.view}
+              language={language}
+              sourceLabels={detailEntry.sources.map((entrySource) => sourceLabel(entrySource.kind, language))}
+              price={marketSource(detailEntry)?.price?.display}
+              tags={detailEntry.tags}
+              note={detailEntry.note}
+            />
+          </div>
+        </section> : <div className="trade-helper-content-list" ref={contentListRef}>
           {activeTab === 'items' && visibleEntries.map(renderEntry)}
           {activeTab === 'searches' && visibleSearches.map(renderSearch)}
           {!contentCount && <div className="trade-helper-empty"><Bookmark /><span>{activeTab === 'items' ? l('No favorite items in this folder', '此目录还没有收藏装备', '此目錄尚無收藏裝備', '이 폴더에 즐겨찾기 장비가 없습니다') : l('No saved searches in this folder', '此目录还没有保存的搜索', '此目錄尚無已儲存搜尋', '이 폴더에 저장된 검색이 없습니다')}</span></div>}
-        </div>
+        </div>}
       </section>
       {searchEditor && <div className="trade-helper-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSearchEditor(null) }}>
         <section className="trade-helper-search-dialog" role="dialog" aria-modal="true" aria-labelledby="saved-search-dialog-title">

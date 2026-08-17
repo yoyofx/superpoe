@@ -368,7 +368,7 @@ getMiscCalculator() 产生的闭包不是线程安全对象。Worker、LuaJIT si
 
 ### 6.1 项目自有桥接，不修改上游计算文件
 
-建议新增项目自有 comparison script/helper，分别接入 Wasmoon 和 LuaJIT。它可以调用上游现有对象和方法，但不修改以下上游文件：
+项目自有 comparison bridge 放在 `lua/superpoe/EquipmentDifference.lua`，分别接入 Wasmoon 和 LuaJIT。它可以调用上游现有对象和方法，但不修改以下上游文件：
 
 - public/pob-lua/Classes/ItemsTab.lua
 - public/pob-lua/Modules/Calcs.lua

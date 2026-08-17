@@ -495,6 +495,11 @@ svg { flex: 0 0 auto; }
 .trade-helper-content-header > span { min-width: 0; display: flex; align-items: center; gap: 6px; }
 .trade-helper-content-header svg { width: 14px; height: 14px; flex: 0 0 auto; color: #a38d6d; }
 .trade-helper-content-header strong { overflow: hidden; color: #c9b990; font-size: 10px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.trade-helper-detail-heading { min-width: 0; }
+.trade-helper-detail-back { min-width: 64px; height: 25px; display: inline-flex; align-items: center; justify-content: center; gap: 4px; padding: 0 8px; border: 1px solid #45413a; border-radius: 3px; background: #1b1b18; color: #a99b7c; cursor: pointer; }
+.trade-helper-detail-back:hover { border-color: #a38d6d; color: #e0c28f; }
+.trade-helper-detail-back svg { width: 13px; height: 13px; color: currentColor; }
+.trade-helper-detail-back span { font: 10px Arial, "Microsoft YaHei", sans-serif; }
 .trade-helper-content-header small { flex: 0 0 auto; color: #68645d; font: 9px Arial, sans-serif; }
 .trade-helper-content-summary { flex: 0 0 auto; display: flex; align-items: center; gap: 4px; }
 .trade-helper-content-summary button { width: 23px; height: 23px; display: grid; place-items: center; padding: 0; border: 1px solid #45413a; border-radius: 3px; background: #1b1b18; color: #8f8778; cursor: pointer; }
@@ -505,6 +510,10 @@ svg { flex: 0 0 auto; }
 .trade-helper-tree, .trade-helper-content-list { min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: #555 #1a1a1a; }
 .trade-helper-tree { flex: 1; padding: 0 5px 10px 6px; }
 .trade-helper-content-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 270px), 1fr)); align-content: start; gap: 8px; overflow-x: hidden; padding: 8px; }
+.trade-helper-detail-view { min-width: 0; min-height: 0; display: grid; grid-template-rows: minmax(0, 1fr) auto; overflow: hidden; background: #101110; }
+.trade-helper-detail-scroll { min-width: 0; min-height: 0; overflow: auto; scrollbar-width: thin; scrollbar-color: #555 #1a1a1a; }
+.trade-helper-detail-scroll > .inspector-title { min-height: 52px; height: auto; padding: 7px 18px; }
+.trade-helper-detail-scroll > .inspector-scroll { min-height: 0; overflow: visible; padding: 12px 16px 18px; }
 .trade-helper-tree-node { margin-bottom: 2px; }
 .trade-helper-tree-children { margin-left: 15px; padding-left: 5px; border-left: 1px solid rgba(255, 255, 255, .08); }
 .trade-helper-folder { position: relative; min-height: 29px; display: grid; grid-template-columns: 20px minmax(0, 1fr); align-items: center; gap: 2px; padding: 2px 3px; border: 1px solid transparent; border-radius: 3px; background: rgba(0, 0, 0, .2); }
@@ -576,14 +585,15 @@ svg { flex: 0 0 auto; }
 .trade-helper-no-modifiers { padding: 5px 2px; color: #91897c; font: 10px/1.45 Arial, "Microsoft YaHei", sans-serif; }
 .trade-helper-item > footer, .trade-helper-search > footer { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px 5px; border-top: 1px solid #292929; }
 .trade-helper-item > .inspector-title { min-height: 44px; grid-template-columns: minmax(0, 1fr) 24px; padding: 5px 34px; }
-.trade-helper-item > .inspector-scroll { min-height: 0; flex: 1 1 auto; padding: 9px 12px 14px; }
+.trade-helper-item > .inspector-scroll { min-height: 0; flex: 1 1 auto; overflow: hidden; padding: 9px 12px 14px; }
 .trade-helper-item > .inspector-scroll .library-item-inspector-sources { margin-top: 6px; }
 .trade-helper-item > .inspector-scroll .library-item-inspector-price { margin-top: 6px; }
 .trade-helper-item > .inspector-scroll .item-metadata { padding-block: 8px; }
 .trade-helper-item > footer button, .trade-helper-search > footer button { width: 23px; height: 23px; }
+.trade-helper-item > footer button.primary-action, .trade-helper-item > footer button.trade-helper-item-detail { width: 23px; min-width: 23px; display: inline-grid; place-items: center; padding: 0; color: #b8aa8f; }
+.trade-helper-item > footer button.trade-helper-item-detail { margin-left: auto; }
+.trade-helper-item > footer button.trade-helper-item-detail svg { width: 14px; height: 14px; }
 .trade-helper-item > footer button.active { border-color: #a38d6d; color: #f0d0a0; background: #27231d; }
-.trade-helper-item > footer button.primary-action { width: auto; min-width: 62px; display: inline-flex; grid-auto-flow: column; gap: 4px; padding: 0 7px; color: #b8aa8f; }
-.trade-helper-item > footer button.primary-action span { font: 10px Arial, "Microsoft YaHei", sans-serif; white-space: nowrap; }
 .trade-helper-item button.danger:hover, .trade-helper-search button.danger:hover { border-color: #993333; background: #2a1a1a; color: #ff7777; }
 .equipment-try-on-window { width: 100%; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; overflow: hidden; border: 1px solid #4d4638; background: #111310; box-sizing: border-box; }
 .equipment-try-on-window-header { min-height: 66px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 11px 15px 10px 18px; border-bottom: 1px solid #403b30; background: #181914; -webkit-app-region: drag; }
@@ -615,7 +625,7 @@ svg { flex: 0 0 auto; }
   .trade-helper-sources .modifier-count { margin-left: 0; }
   .trade-helper-item > footer { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
   .trade-helper-item > footer button { justify-self: center; }
-  .trade-helper-item > footer button.primary-action { width: 100%; min-width: 0; grid-column: span 2; justify-content: center; }
+  .trade-helper-item > footer button.primary-action { width: 23px; min-width: 23px; grid-column: auto; justify-content: center; }
 }
 @container library-content (max-width: 240px) {
   .trade-helper-affixes > div { grid-template-columns: auto auto; }
@@ -2698,6 +2708,7 @@ svg { flex: 0 0 auto; }
 .equipment-tree-root-row { margin-top: 6px; color: #b8ae9b; }
 .equipment-tree-row:hover { border-color: #4e4739; background: rgba(55, 48, 35, .42); color: #e0c99e; }
 .equipment-tree-row.selected { border-color: #937846; border-left-color: #d0ad68; background: linear-gradient(90deg, rgba(85, 63, 31, .7), rgba(37, 31, 23, .24)); color: #efd39a; }
+.equipment-tree-row.drop-target { border-color: #c59b55; border-left-color: #e8c47d; background: rgba(100, 75, 35, .52); color: #f1d59b; box-shadow: inset 0 0 0 1px rgba(222, 178, 94, .2); }
 .equipment-tree-root-row:not(.selected) { border-bottom-color: #373229; }
 .equipment-tree-chevron { border-color: transparent; background: transparent; color: #746c5c; }
 .equipment-tree-chevron-placeholder { width: 28px; height: 28px; display: block; }
@@ -2726,6 +2737,7 @@ svg { flex: 0 0 auto; }
 .superpoe-app .equipment-tree-row { border-color: transparent; background: transparent; }
 .superpoe-app .equipment-tree-row:hover { border-color: #4e4739; background: rgba(55, 48, 35, .42); box-shadow: none; }
 .superpoe-app .equipment-tree-row.selected { border-color: #937846; border-left-color: #d0ad68; background: linear-gradient(90deg, rgba(85, 63, 31, .7), rgba(37, 31, 23, .24)); box-shadow: none; }
+.superpoe-app .equipment-tree-row.drop-target { border-color: #c59b55; border-left-color: #e8c47d; background: rgba(100, 75, 35, .52); box-shadow: inset 0 0 0 1px rgba(222, 178, 94, .2); }
 .superpoe-app .equipment-tree-chevron,
 .superpoe-app .equipment-tree-chevron:hover,
 .superpoe-app .equipment-tree-name,
@@ -2812,6 +2824,7 @@ svg { flex: 0 0 auto; }
 .library-item-card { position: relative; min-width: 0; min-height: 0; border: 1px solid #37372f; background: #191b17; }
 .library-item-card:hover,
 .library-item-card.selected { border-color: #977b48; background: #242219; box-shadow: inset 0 0 0 1px rgba(194, 157, 87, .13); }
+.library-item-card.dragging { opacity: .55; border-color: #c59b55; }
 .library-item-card-main { width: 100%; height: 100%; min-height: 0; display: grid; grid-template-rows: 52px minmax(42px, auto) minmax(0, 1fr); gap: 5px; padding: 9px; border: 0; border-radius: 0; background: transparent; color: #aaa294; text-align: left; cursor: pointer; }
 .library-item-card-main:hover { background: transparent; }
 .library-item-card-icon { width: 52px; height: 52px; display: grid; place-items: center; justify-self: center; border: 1px solid #39362c; background: #10120f; }

@@ -12,8 +12,8 @@
   "browserPatches": [
     "Classes/TradeHelpers.lua"
   ],
-  "fileCount": 1071,
-  "totalBytes": 39316284,
+  "fileCount": 1070,
+  "totalBytes": 39299525,
   "files": [
     {
       "path": "base64.lua",
@@ -4764,11 +4764,6 @@
       "path": "dkjson.lua",
       "hash": "d6ea5c4d576e42f7ae87fe0339707e4c5b73222e3f9890eaa4edcd6f4b8783b6",
       "size": 22873
-    },
-    {
-      "path": "EquipmentDifference.lua",
-      "hash": "6bb163a4dc80de391c1e61313883a6bcf5c681f938685112069d15ffceb38bae",
-      "size": 16759
     },
     {
       "path": "Export/browse.lua",
