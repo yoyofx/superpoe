@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Archive,
+  BarChart3,
   Check,
   ChevronDown,
   CircleHelp,
@@ -43,7 +44,7 @@ import {
   useTreeStore,
 } from '@/store/treeStore'
 
-export type WorkspaceView = 'passive' | 'equipment' | 'skills'
+export type WorkspaceView = 'passive' | 'equipment' | 'skills' | 'analysis'
 type ToolbarMenu = 'file' | 'export' | null
 
 interface ToolbarProps {
@@ -67,9 +68,10 @@ const VIEW_ICONS = {
   equipment: Swords,
   passive: Workflow,
   skills: Sparkles,
+  analysis: BarChart3,
 }
 
-const VIEW_ORDER: WorkspaceView[] = ['equipment', 'skills', 'passive']
+const VIEW_ORDER: WorkspaceView[] = ['equipment', 'skills', 'passive', 'analysis']
 
 export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onLibrary, onImport, onSave, onSaveCopy, onSettings }: ToolbarProps) {
   const { t, lang } = useTranslation()
@@ -176,6 +178,7 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
     passive: uiText(lang, 'Passive', '天赋', '天賦', '패시브'),
     equipment: uiText(lang, 'Equipment', '装备', '裝備', '장비'),
     skills: uiText(lang, 'Skills', '技能', '技能', '스킬'),
+    analysis: uiText(lang, 'Analysis', '分析', '分析', '분석'),
   }), [lang])
   const saveLabels = {
     saved: l('Saved', '已保存', '已儲存', '저장됨'),

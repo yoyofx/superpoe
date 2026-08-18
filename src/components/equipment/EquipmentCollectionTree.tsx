@@ -93,11 +93,11 @@ export function EquipmentCollectionTree({ roots, folders, entries, selection, al
     const expandable = children.length > 0
     const target: EquipmentCollectionSelection = { kind: 'root', root: folder.collectionRoot!, folderId: folder.id }
     return <div className="equipment-tree-node" key={folder.id} style={{ '--equipment-tree-depth': depth } as React.CSSProperties}>
-      <div className={`equipment-tree-row${selected ? ' selected' : ''}${isDropTarget(target) ? ' drop-target' : ''}`} {...directoryDropProps(target)}>
+      <div className={`equipment-tree-row${selected ? ' selected' : ''}${isDropTarget(target) ? ' drop-target' : ''}`} title={folder.name} {...directoryDropProps(target)}>
         {expandable
           ? <button className="equipment-tree-chevron" onClick={() => void onToggle(folder)} title={folder.expanded ? labels.collapse : labels.expand} aria-label={folder.expanded ? labels.collapse : labels.expand}>{folder.expanded ? <ChevronDown /> : <ChevronRight />}</button>
           : <span className="equipment-tree-leaf-marker" aria-hidden="true" />}
-        <button className="equipment-tree-name" onClick={() => onSelect({ kind: 'root', root: folder.collectionRoot!, folderId: folder.id })}><Folder /><span>{folder.name}</span><small>{count}</small></button>
+        <button className="equipment-tree-name" title={folder.name} onClick={() => onSelect({ kind: 'root', root: folder.collectionRoot!, folderId: folder.id })}><Folder /><span>{folder.name}</span><small>{count}</small></button>
       </div>
       {expandable && folder.expanded && children.map((child) => renderFolder(child, depth + 1))}
     </div>
@@ -114,7 +114,7 @@ export function EquipmentCollectionTree({ roots, folders, entries, selection, al
       <button disabled={busy || !editor.name.trim()} onClick={() => void submit()}><Save /></button>
       <button disabled={busy} onClick={() => setEditor(null)}><X /></button>
     </div>}
-    {allLabel && <button className={`equipment-tree-row equipment-tree-all-row${selection.kind === 'all' ? ' selected' : ''}`} onClick={() => onSelect({ kind: 'all' })}><span className="equipment-tree-chevron-placeholder" aria-hidden="true" /><span className="equipment-tree-all-name"><FolderTree /><span>{allLabel}</span><small>{entries.length}</small></span></button>}
+    {allLabel && <button className={`equipment-tree-row equipment-tree-all-row${selection.kind === 'all' ? ' selected' : ''}`} title={allLabel} onClick={() => onSelect({ kind: 'all' })}><span className="equipment-tree-chevron-placeholder" aria-hidden="true" /><span className="equipment-tree-all-name"><FolderTree /><span>{allLabel}</span><small>{entries.length}</small></span></button>}
     {roots.map((root) => {
       const rootFolders = itemFolders.filter((folder) => folder.collectionRoot === root.id && !folder.parentId)
       const rootEntries = entries.filter((entry) => entry.collectionRoot === root.id)
@@ -122,11 +122,11 @@ export function EquipmentCollectionTree({ roots, folders, entries, selection, al
       const collapsed = collapsedRoots.has(root.id)
       const expandable = rootFolders.length > 0
       return <section className="equipment-tree-root-group" key={root.id}>
-        <div className={`equipment-tree-row equipment-tree-root-row${selected ? ' selected' : ''}${isDropTarget({ kind: 'root', root: root.id }) ? ' drop-target' : ''}`} {...directoryDropProps({ kind: 'root', root: root.id })}>
+        <div className={`equipment-tree-row equipment-tree-root-row${selected ? ' selected' : ''}${isDropTarget({ kind: 'root', root: root.id }) ? ' drop-target' : ''}`} title={root.label} {...directoryDropProps({ kind: 'root', root: root.id })}>
           {expandable
             ? <button className="equipment-tree-chevron" onClick={() => toggleRoot(root.id)} title={collapsed ? labels.expand : labels.collapse} aria-label={collapsed ? labels.expand : labels.collapse}>{collapsed ? <ChevronRight /> : <ChevronDown />}</button>
             : <span className="equipment-tree-leaf-marker" aria-hidden="true" />}
-          <button className="equipment-tree-name" onClick={() => onSelect({ kind: 'root', root: root.id })}><Folder /><span>{root.label}</span><small>{rootEntries.length}</small></button>
+          <button className="equipment-tree-name" title={root.label} onClick={() => onSelect({ kind: 'root', root: root.id })}><Folder /><span>{root.label}</span><small>{rootEntries.length}</small></button>
         </div>
         {!collapsed && rootFolders.map((folder) => renderFolder(folder))}
       </section>

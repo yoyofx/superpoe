@@ -416,6 +416,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
     const selected = bulkSelecting ? selectedEntryIds.has(entry.id) : selectedEntryId === entry.id
     return <article
       className={`trade-helper-item rarity-${entry.view.rarity.toLowerCase()}${dragging?.kind === 'item' && (dragging.ids || [dragging.id]).includes(entry.id) ? ' dragging' : ''}${selected ? ' selected' : ''}${bulkSelecting ? ' bulk-selecting' : ''}`}
+      title={l('Double-click to view details', '双击可查看详情', '雙擊可查看詳情', '두 번 클릭하여 상세 보기')}
       draggable
       onDragStart={(event) => {
         const entryIds = bulkSelecting && selectedEntryIds.has(entry.id) ? [...selectedEntryIds] : [entry.id]
@@ -510,7 +511,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
         onDrop={(event) => dropInto(event, folder.id, dragOverPosition)}
       >
         <button onClick={() => void run(folder.id, () => bridge!.updateFolder({ id: folder.id, expanded: !folder.expanded }))} title={folder.expanded ? l('Collapse', '折叠', '收合', '접기') : l('Expand', '展开', '展開', '펼치기')}>{folder.expanded ? <ChevronDown /> : <ChevronRight />}</button>
-        <button className="folder-name" onClick={() => void selectFolder(activeTab, folder.id)} title={folderPath(folder, folders)}><Folder /><span>{folder.name}</span><small>{folderEntries.length + folderSearches.length}</small></button>
+        <button className="folder-name" onClick={() => void selectFolder(activeTab, folder.id)} title={folder.name}><Folder /><span>{folder.name}</span><small>{folderEntries.length + folderSearches.length}</small></button>
       </div>
       {folder.expanded && <div className="trade-helper-tree-children">
         {children.map((child) => renderFolder(child, depth + 1))}
@@ -660,7 +661,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
           </div>
         </div>
         <header className="trade-helper-content-header">
-          {detailEntry ? <span className="trade-helper-detail-heading"><button className="trade-helper-detail-back" onClick={closeEntryDetail} title={l('Back to list', '返回列表', '返回列表', '목록으로 돌아가기')} aria-label={l('Back to list', '返回列表', '返回列表', '목록으로 돌아가기')}><ArrowLeft /><span>{l('Back', '返回', '返回', '뒤로')}</span></button><strong>{equipmentItemName(detailEntry.view, language)}</strong></span> : <span><Folder /><strong>{selectedFolder ? folderPath(selectedFolder, folders) : activeTab === 'items' ? l('Market favorites', '集市收藏', '市集收藏', '거래소 즐겨찾기') : l('Default', '默认', '預設', '기본')}</strong></span>}
+          {detailEntry ? <span className="trade-helper-detail-heading"><button className="trade-helper-detail-back" onClick={closeEntryDetail} title={l('Double-click to return to list', '双击返回列表', '雙擊返回列表', '두 번 클릭하여 목록으로 돌아가기')} aria-label={l('Double-click to return to list', '双击返回列表', '雙擊返回列表', '두 번 클릭하여 목록으로 돌아가기')}><ArrowLeft /><span>{l('Back', '返回', '返回', '뒤로')}</span></button><strong>{equipmentItemName(detailEntry.view, language)}</strong></span> : <span><Folder /><strong>{selectedFolder ? folderPath(selectedFolder, folders) : activeTab === 'items' ? l('Market favorites', '集市收藏', '市集收藏', '거래소 즐겨찾기') : l('Default', '默认', '預設', '기본')}</strong></span>}
           <span className="trade-helper-content-summary">
             {!detailEntry && activeTab === 'items' && !bulkSelecting && Boolean(visibleEntries.length) && <button onClick={startBulkSelection} title={l('Bulk select', '批量选择', '批次選擇', '일괄 선택')} aria-label={l('Bulk select', '批量选择', '批次選擇', '일괄 선택')}><ListChecks /></button>}
             {!detailEntry && activeTab === 'items' && bulkSelecting && <>
@@ -672,7 +673,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
             {!detailEntry && !bulkSelecting && <small>{l(`${contentCount} items`, `${contentCount} 项`, `${contentCount} 項`, `${contentCount}개`)}</small>}
           </span>
         </header>
-        {detailEntry ? <section className="trade-helper-detail-view" onDoubleClick={(event) => {
+        {detailEntry ? <section className="trade-helper-detail-view" title={l('Double-click to return to list', '双击返回列表', '雙擊返回列表', '두 번 클릭하여 목록으로 돌아가기')} onDoubleClick={(event) => {
           if (event.target instanceof Element && event.target.closest('button')) return
           closeEntryDetail()
         }}>

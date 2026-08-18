@@ -49,6 +49,7 @@ const NodeTooltip = lazy(() => import('@/components/NodeTooltip').then((module) 
 const JewelSocketPanel = lazy(() => import('@/components/JewelSocketPanel').then((module) => ({ default: module.JewelSocketPanel })))
 const EquipmentPanel = lazy(() => import('@/components/EquipmentPanel').then((module) => ({ default: module.EquipmentPanel })))
 const SkillsWorkspace = lazy(() => import('@/components/SkillsWorkspace').then((module) => ({ default: module.SkillsWorkspace })))
+const AttributeAnalysisPage = lazy(() => import('@/components/AttributeAnalysisPage').then((module) => ({ default: module.AttributeAnalysisPage })))
 const MarketShell = lazy(() => import('@/components/market/MarketShell').then((module) => ({ default: module.MarketShell })))
 
 function WorkspaceLoading({ language, error }: { language: Language; error?: string | null }) {
@@ -783,6 +784,7 @@ export default function App() {
         )}
         {activeView === 'equipment' && <EquipmentPanel buildId={activeBuildId} realm={appSettings.defaultRealm} />}
         {activeView === 'skills' && <SkillsWorkspace />}
+        {activeView === 'analysis' && <AttributeAnalysisPage onOpenSkills={() => setActiveView('skills')} />}
         </Suspense>}
       </main>
       </>}

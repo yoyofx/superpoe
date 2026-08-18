@@ -445,6 +445,7 @@ end
 -- former remains the authoritative breakdown of output.FullDPS.
 local fullSkillDpsOutput = output.SkillDPS
 local allSkillDpsOutput = fullSkillDpsOutput
+local allDpsTotal = output.FullDPS
 if not characterOnly then
   local calcsTab = build.calcsTab
   local socketGroups = build.skillsTab and build.skillsTab.socketGroupList
@@ -471,6 +472,7 @@ if not characterOnly then
     end
     if rebuiltOk and rebuilt and rebuilt.skills and #rebuilt.skills > 0 then
       allSkillDpsOutput = rebuilt.skills
+      allDpsTotal = rebuilt.combinedDPS
     end
   end
 end
@@ -483,6 +485,8 @@ local function safeNum(v)
   if v == math.huge or v == -math.huge then return nil end
   return v
 end
+
+allDpsTotal = safeNum(allDpsTotal)
 
 local data = {
   Str = safeNum(output.Str),
@@ -499,6 +503,7 @@ local data = {
   ArmourPhysicalDamageReduction = safeNum(output.ArmourPhysicalDamageReduction),
   PhysicalDamageReduction = safeNum(output.PhysicalDamageReduction),
   EvadeChance = safeNum(output.EvadeChance),
+  DeflectionRating = safeNum(output.DeflectionRating),
   DeflectChance = safeNum(output.DeflectChance),
   DeflectEffect = safeNum(output.DeflectEffect),
   FireResist = safeNum(output.FireResist),
@@ -514,6 +519,9 @@ local data = {
   EffectiveBlockChance = safeNum(output.EffectiveBlockChance),
   TotalDPS = safeNum(output.TotalDPS),
   FullDPS = safeNum(output.FullDPS),
+  -- Aggregate of every positive DPS skill, used when the build has no
+  -- configured Full DPS groups and the report falls back to actual output.
+  AllDPS = allDpsTotal,
   FullDotDPS = safeNum(output.FullDotDPS),
   GemLevel = safeNum(output.GemLevel),
   AverageHit = safeNum(output.AverageHit),
@@ -541,10 +549,26 @@ local data = {
   end)() or 0,
 }
 
+-- Keep the complete PoB2 power-stat surface available to project-owned
+-- analysis views. A single calculation produces every value, so consumers
+-- can rank modifiers without multiplying the calculation by metric count.
+local powerStatList = build.data and build.data.powerStatList
+local powerStats = {}
+if powerStatList and powerStatList.GetFromOutput then
+  for _, statData in ipairs(powerStatList) do
+    if statData.stat then
+      local readOk, value = pcall(powerStatList.GetFromOutput, output, statData)
+      value = readOk and safeNum(value) or nil
+      if type(value) == "number" then powerStats[statData.stat] = value end
+    end
+  end
+end
+data.PowerStats = powerStats
+
 local mainSkill = env.player and env.player.mainSkill
 if output.GemLevel ~= nil then
   data.SkillLevel = safeNum(output.GemLevel)
-elseif output.TotalDPS ~= nil and mainSkill and mainSkill.activeEffect then
+elseif mainSkill and mainSkill.activeEffect then
   data.SkillLevel = safeNum((mainSkill.activeEffect.srcInstance and mainSkill.activeEffect.srcInstance.level) or mainSkill.activeEffect.level)
 end
 
@@ -613,6 +637,33 @@ local function readConfigSnapshot()
   return snapshot
 end
 
+-- Full DPS rows only carry their display name.  The project-owned marker added
+-- above gives us a stable group/skill identity, so recover the PoB skill flags
+-- here without changing any upstream Lua files.
+local dpsSkillTypeByKey = {}
+local function registerDpsSkillType(groupId, activeSkill)
+  if not groupId or not activeSkill then return end
+  local activeEffect = activeSkill.activeEffect
+  local grantedEffect = activeEffect and activeEffect.grantedEffect
+  local skillId = grantedEffect and grantedEffect.id
+  if not skillId then return end
+  local flags = activeEffect and (activeEffect.statSetCalcs and activeEffect.statSetCalcs.skillFlags
+    or activeEffect.statSet and activeEffect.statSet.skillFlags) or {}
+  local skillTypes = activeSkill.skillTypes or grantedEffect.skillTypes or {}
+  local isAttack = flags.attack or (SkillType and SkillType.Attack and skillTypes[SkillType.Attack])
+  local isSpell = flags.spell or (SkillType and SkillType.Spell and skillTypes[SkillType.Spell])
+  dpsSkillTypeByKey[tostring(groupId) .. ":" .. tostring(skillId)] = isAttack and "attack" or isSpell and "spell" or "other"
+end
+for groupId, socketGroup in ipairs(dpsSocketGroups or {}) do
+  local activeSkills = socketGroup.displaySkillListCalcs or socketGroup.displaySkillList or {}
+  for _, activeSkill in ipairs(activeSkills) do
+    registerDpsSkillType(groupId, activeSkill)
+  end
+end
+for _, activeSkill in ipairs((env.player and env.player.activeSkillList) or {}) do
+  registerDpsSkillType(dpsGroupId(activeSkill), activeSkill)
+end
+
 local function encodeSkillDpsEntries(skillList)
   local encoded = {}
   for _, skill in ipairs(skillList or {}) do
@@ -623,6 +674,7 @@ local function encodeSkillDpsEntries(skillList)
       groupId = markerGroupId
       skillId = markerSkillId ~= "" and markerSkillId or nil
     end
+    local skillType = groupId and skillId and dpsSkillTypeByKey[tostring(groupId) .. ":" .. tostring(skillId)] or "other"
     table.insert(encoded, {
       name = displayName,
       dps = safeNum(skill.dps),
@@ -632,6 +684,7 @@ local function encodeSkillDpsEntries(skillList)
       groupId = groupId,
       skillId = skillId,
       kind = (skill.trigger and skill.trigger ~= "") and "trigger" or (skill.source and "dot" or "main"),
+      skillType = skillType,
     })
   end
   return encoded

@@ -17,6 +17,7 @@ export interface CalcResult {
   ArmourPhysicalDamageReduction?: number
   PhysicalDamageReduction?: number
   EvadeChance?: number
+  DeflectionRating?: number
   DeflectChance?: number
   DeflectEffect?: number
   // Resistances
@@ -35,6 +36,8 @@ export interface CalcResult {
   // DPS
   TotalDPS: number
   FullDPS: number
+  /** Aggregate positive DPS across every enabled skill, independent of Full DPS selection. */
+  AllDPS?: number
   FullDotDPS?: number
   SkillLevel?: number
   AverageHit: number
@@ -55,6 +58,8 @@ export interface CalcResult {
   LifeRegen: number
   ManaRegen: number
   EnergyShieldRegen: number
+  /** Values exposed by PoB2's powerStatList for comparison and analysis surfaces. */
+  PowerStats?: Record<string, number>
   // Build info
   CharacterLevel: number
   AscendClassName?: string
@@ -81,6 +86,8 @@ export interface SkillDpsEntry {
   groupId?: string
   skillId?: string
   kind?: 'main' | 'trigger' | 'minion' | 'mirage' | 'dot' | 'other'
+  /** PoB skill flags normalized for project-owned analysis surfaces. */
+  skillType?: 'attack' | 'spell' | 'other'
 }
 
 export interface SkillCalculationSelection {

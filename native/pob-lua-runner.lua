@@ -490,6 +490,7 @@ local function calculate(payload)
 	-- former remains the authoritative breakdown of output.FullDPS.
 	local fullSkillDpsOutput = output.SkillDPS
 	local allSkillDpsOutput = fullSkillDpsOutput
+	local allDpsTotal = safeNum(output.FullDPS)
 	if not characterOnly then
 		local calcsTab = build.calcsTab
 		local socketGroups = build.skillsTab and build.skillsTab.socketGroupList
@@ -516,11 +517,13 @@ local function calculate(payload)
 			end
 			if rebuiltOk and rebuilt and rebuilt.skills and #rebuilt.skills > 0 then
 				allSkillDpsOutput = rebuilt.skills
+				allDpsTotal = safeNum(rebuilt.combinedDPS)
 			end
 		end
 	end
 	restoreDpsDisplayName()
 
+	local powerStatList = _G.data and _G.data.powerStatList
 	local data = {}
 	local fields = {
 		"Str", "Dex", "Int", "Life", "LifeUnreserved", "Mana", "ManaUnreserved", "Spirit",
@@ -533,10 +536,11 @@ local function calculate(payload)
 		"LifeRegen", "ManaRegen", "EnergyShieldRegen",
 	}
 	for _, field in ipairs(fields) do data[field] = safeNum(output[field]) end
+	data.AllDPS = allDpsTotal
 	local mainSkill = env.player and env.player.mainSkill
 	if output.GemLevel ~= nil then
 		data.SkillLevel = safeNum(output.GemLevel)
-	elseif output.TotalDPS ~= nil and mainSkill and mainSkill.activeEffect then
+	elseif mainSkill and mainSkill.activeEffect then
 		data.SkillLevel = safeNum((mainSkill.activeEffect.srcInstance and mainSkill.activeEffect.srcInstance.level) or mainSkill.activeEffect.level)
 	end
 	data.CharacterLevel = safeNum(env.player and env.player.level)
@@ -545,6 +549,47 @@ local function calculate(payload)
 	data.allocatedNodes = 0
 	if build.spec then
 		for _ in pairs(build.spec.allocNodes or {}) do data.allocatedNodes = data.allocatedNodes + 1 end
+	end
+	-- Expose the complete PoB2 power-stat surface to project-owned analysis
+	-- pages. All metrics are read from this one calculation output.
+	data.PowerStats = {}
+	if powerStatList and powerStatList.GetFromOutput then
+		for _, statData in ipairs(powerStatList) do
+			if statData.stat then
+				local readOk, value = pcall(powerStatList.GetFromOutput, output, statData)
+				if readOk then
+					value = safeNum(value)
+					if type(value) == "number" then data.PowerStats[statData.stat] = value end
+				end
+			end
+		end
+	end
+
+	-- The marker on each DPS name identifies its group and gem. Recover the
+	-- corresponding PoB flags so the attribute report can separate attacks,
+	-- spells, and shared modifiers on the native calculation path as well.
+	local dpsSkillTypeByKey = {}
+	local function registerDpsSkillType(groupId, activeSkill)
+		if not groupId or not activeSkill then return end
+		local activeEffect = activeSkill.activeEffect
+		local grantedEffect = activeEffect and activeEffect.grantedEffect
+		local skillId = grantedEffect and grantedEffect.id
+		if not skillId then return end
+		local flags = activeEffect and (activeEffect.statSetCalcs and activeEffect.statSetCalcs.skillFlags
+			or activeEffect.statSet and activeEffect.statSet.skillFlags) or {}
+		local skillTypes = activeSkill.skillTypes or grantedEffect.skillTypes or {}
+		local isAttack = flags.attack or (SkillType and SkillType.Attack and skillTypes[SkillType.Attack])
+		local isSpell = flags.spell or (SkillType and SkillType.Spell and skillTypes[SkillType.Spell])
+		dpsSkillTypeByKey[tostring(groupId) .. ":" .. tostring(skillId)] = isAttack and "attack" or isSpell and "spell" or "other"
+	end
+	for groupId, socketGroup in ipairs(dpsSocketGroups or {}) do
+		local activeSkills = socketGroup.displaySkillListCalcs or socketGroup.displaySkillList or {}
+		for _, activeSkill in ipairs(activeSkills) do
+			registerDpsSkillType(groupId, activeSkill)
+		end
+	end
+	for _, activeSkill in ipairs((env.player and env.player.activeSkillList) or {}) do
+		registerDpsSkillType(dpsGroupId(activeSkill), activeSkill)
 	end
 
 	local function encodeSkillDpsEntries(skillList)
@@ -557,6 +602,7 @@ local function calculate(payload)
 				groupId = markerGroupId
 				skillId = markerSkillId ~= "" and markerSkillId or nil
 			end
+			local skillType = groupId and skillId and dpsSkillTypeByKey[tostring(groupId) .. ":" .. tostring(skillId)] or "other"
 			table.insert(encoded, {
 				name = displayName,
 				dps = safeNum(skill.dps),
@@ -566,6 +612,7 @@ local function calculate(payload)
 				groupId = groupId,
 				skillId = skillId,
 				kind = (skill.trigger and skill.trigger ~= "") and "trigger" or (skill.source and "dot" or "main"),
+				skillType = skillType,
 			})
 		end
 		return encoded
