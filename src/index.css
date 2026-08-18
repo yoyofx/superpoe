@@ -2801,7 +2801,7 @@ svg { flex: 0 0 auto; }
 .investment-runtime.loading { border-color: #c4a25d; }.investment-runtime.error { border-color: #b76861; }
 .investment-runtime > svg { width: 16px; color: #79a88a; }.investment-runtime.loading > svg { color: #d0ad69; }
 .investment-runtime > div { display: grid; gap: 2px; }.investment-runtime span { color: #b5c2ba; font-size: 10px; }.investment-runtime small { color: #68736f; font: 8px ui-monospace, Consolas, monospace; }
-.investment-context-strip { display: grid; grid-template-columns: minmax(230px, 1.8fr) repeat(6, minmax(90px, 1fr)); gap: 1px; border-bottom: 1px solid #343a3a; background: #343a3a; }
+.investment-context-strip { display: grid; grid-template-columns: minmax(230px, 1.8fr) repeat(11, minmax(90px, 1fr)); gap: 1px; overflow-x: auto; border-bottom: 1px solid #343a3a; background: #343a3a; scrollbar-color: #806b3e #171b1b; scrollbar-width: thin; }
 .investment-context-strip > div { min-width: 0; min-height: 64px; display: grid; align-content: center; gap: 4px; padding: 9px 12px; background: #151a1b; }
 .investment-context-strip span { overflow: hidden; color: #75817f; font-size: 8px; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .investment-context-strip strong { overflow: hidden; color: #d6be79; font: 600 11px ui-monospace, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
@@ -2869,7 +2869,6 @@ svg { flex: 0 0 auto; }
 @keyframes simple-gain-loading-spin { to { transform: rotate(360deg); } }
 @keyframes simple-gain-loading-pulse { 0%, 100% { opacity: .92; } 50% { opacity: 1; } }
 .simple-gain-summary { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; margin: 16px clamp(18px, 3.5vw, 52px) 1px; background: #343a3a; }
-.simple-gain-summary.has-warnings { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .simple-gain-summary > div { min-width: 0; display: grid; grid-template-columns: 18px minmax(0, 1fr); align-content: center; gap: 3px 8px; min-height: 65px; padding: 10px 13px; background: #171c1d; }
 .simple-gain-summary > div > svg { grid-row: span 2; width: 17px; color: #c7a55e; }
 .simple-gain-summary span { overflow: hidden; color: #7e8b87; font-size: 10px; text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap; }

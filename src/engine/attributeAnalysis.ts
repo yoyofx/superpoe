@@ -12,14 +12,14 @@ export interface AttributeProbeDefinition {
   skillScope: 'shared' | 'attack' | 'spell'
   pointUnit?: 'percent' | 'level'
   mutation: { type: 'custom-mod'; format: (point: number) => string }
-  applicability: 'always' | 'full-dps' | 'life' | 'energy-shield' | 'armour' | 'evasion' | 'deflection'
+  applicability: 'always' | 'full-dps' | 'life' | 'energy-shield' | 'armour' | 'evasion' | 'deflection' | 'block' | 'spell-block' | 'ward'
   evidence: { source: 'pob-supported'; fixtureIds: string[] }
 }
 export interface ProbeMetricDelta { baseline: number | null; projected: number | null; absoluteDelta: number | null; relativeDelta: number | null }
 export interface ProbePointResult { input: number; mod: string; metrics: Record<string, ProbeMetricDelta>; error?: string }
 export interface ProbeSeriesResult { probe: AttributeProbeDefinition; points: ProbePointResult[]; curve: AnalysisCurve; confidence: AnalysisConfidence; warnings: string[] }
 
-export const PROBE_CATALOG_VERSION = '2026.08.18.3'
+export const PROBE_CATALOG_VERSION = '2026.08.18.4'
 const t = (en: string, zhCN: string, zhTW = zhCN, koKR = en): AnalysisText => ({ en, zhCN, zhTW, koKR })
 const mod = (pattern: string) => ({ type: 'custom-mod' as const, format: (point: number) => pattern.replace('{n}', String(point)) })
 
@@ -38,15 +38,23 @@ export const METRIC_DEFINITIONS: MetricDefinition[] = [
   { key: 'Life', dimension: 'defense', label: t('Life', '生命'), unit: 'number', direction: 'higher-better', epsilon: 1 },
   { key: 'EnergyShield', dimension: 'defense', label: t('Energy shield', '能量护盾'), unit: 'number', direction: 'higher-better', epsilon: 1 },
   { key: 'Armour', dimension: 'defense', label: t('Armour', '护甲'), unit: 'number', direction: 'higher-better', epsilon: 1 },
-  { key: 'Evasion', dimension: 'defense', label: t('Evasion', '闪避'), unit: 'number', direction: 'higher-better', epsilon: 1 },
+  { key: 'Evasion', dimension: 'defense', label: t('Evasion Rating', '闪避值'), unit: 'number', direction: 'higher-better', epsilon: 1 },
   { key: 'EvadeChance', dimension: 'defense', label: t('Evade chance', '闪避几率'), unit: 'percent', direction: 'higher-better', epsilon: .01 },
   { key: 'DeflectionRating', dimension: 'defense', label: t('Deflection rating', '偏斜值'), unit: 'number', direction: 'higher-better', epsilon: 1 },
   { key: 'DeflectChance', dimension: 'defense', label: t('Deflect chance', '偏斜几率'), unit: 'percent', direction: 'higher-better', epsilon: .01 },
   { key: 'DeflectEffect', dimension: 'defense', label: t('Deflect effect', '偏斜效果'), unit: 'percent', direction: 'higher-better', epsilon: .01 },
+  { key: 'BlockChance', dimension: 'defense', label: t('Block chance', '格挡几率'), unit: 'percent', direction: 'higher-better', epsilon: .01 },
+  { key: 'SpellBlockChance', dimension: 'defense', label: t('Spell block chance', '法术格挡几率'), unit: 'percent', direction: 'higher-better', epsilon: .01 },
+  { key: 'PhysicalDamageReduction', dimension: 'defense', label: t('Physical damage reduction', '物理伤害减免'), unit: 'percent', direction: 'higher-better', epsilon: .01 },
+  { key: 'Ward', dimension: 'defense', label: t('Ward', '结界'), unit: 'number', direction: 'higher-better', epsilon: 1 },
   { key: 'FireResistTotal', dimension: 'defense', label: t('Fire resistance', '火焰抗性'), unit: 'percent', direction: 'target-range', epsilon: .01 },
   { key: 'ColdResistTotal', dimension: 'defense', label: t('Cold resistance', '冰霜抗性'), unit: 'percent', direction: 'target-range', epsilon: .01 },
   { key: 'LightningResistTotal', dimension: 'defense', label: t('Lightning resistance', '闪电抗性'), unit: 'percent', direction: 'target-range', epsilon: .01 },
   { key: 'ChaosResistTotal', dimension: 'defense', label: t('Chaos resistance', '混沌抗性'), unit: 'percent', direction: 'higher-better', epsilon: .01 },
+  { key: 'FireResist', dimension: 'defense', label: t('Fire resistance', '火焰抗性'), unit: 'percent', direction: 'higher-better', epsilon: .01 },
+  { key: 'ColdResist', dimension: 'defense', label: t('Cold resistance', '冰霜抗性'), unit: 'percent', direction: 'higher-better', epsilon: .01 },
+  { key: 'LightningResist', dimension: 'defense', label: t('Lightning resistance', '闪电抗性'), unit: 'percent', direction: 'higher-better', epsilon: .01 },
+  { key: 'ChaosResist', dimension: 'defense', label: t('Chaos resistance', '混沌抗性'), unit: 'percent', direction: 'higher-better', epsilon: .01 },
 ]
 
 export const ATTRIBUTE_PROBE_CATALOG: AttributeProbeDefinition[] = [
@@ -71,10 +79,20 @@ export const ATTRIBUTE_PROBE_CATALOG: AttributeProbeDefinition[] = [
   { id: 'maximum-life', familyId: 'life', primaryDimension: 'defense', label: t('Maximum life', '最大生命'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['Life', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('{n}% increased maximum Life'), applicability: 'life', evidence: { source: 'pob-supported', fixtureIds: ['maximum-life'] } },
   { id: 'maximum-energy-shield', familyId: 'energy-shield', primaryDimension: 'defense', label: t('Maximum energy shield', '最大能量护盾'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['EnergyShield', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('{n}% increased maximum Energy Shield'), applicability: 'energy-shield', evidence: { source: 'pob-supported', fixtureIds: ['maximum-energy-shield'] } },
   { id: 'armour', familyId: 'armour', primaryDimension: 'defense', label: t('Armour', '护甲'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['Armour', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('{n}% increased Armour'), applicability: 'armour', evidence: { source: 'pob-supported', fixtureIds: ['armour'] } },
-  { id: 'evasion', familyId: 'evasion', primaryDimension: 'defense', label: t('Evasion', '闪避'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['Evasion', 'EvadeChance', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('{n}% increased Evasion Rating'), applicability: 'evasion', evidence: { source: 'pob-supported', fixtureIds: ['evasion'] } },
+  { id: 'evasion', familyId: 'evasion', primaryDimension: 'defense', label: t('Evasion Rating', '闪避值'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['Evasion', 'EvadeChance', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('{n}% increased Evasion Rating'), applicability: 'evasion', evidence: { source: 'pob-supported', fixtureIds: ['evasion'] } },
   { id: 'deflection', familyId: 'deflection', primaryDimension: 'defense', label: t('Deflection', '偏斜'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['DeflectionRating', 'DeflectChance', 'DeflectEffect', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('{n}% increased Deflection Rating'), applicability: 'deflection', evidence: { source: 'pob-supported', fixtureIds: ['deflection'] } },
-  { id: 'elemental-resistance', familyId: 'resistance', primaryDimension: 'defense', label: t('Elemental resistances', '元素抗性'), scope: 'threshold', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['FireResistTotal', 'ColdResistTotal', 'LightningResistTotal', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% to all Elemental Resistances'), applicability: 'always', evidence: { source: 'pob-supported', fixtureIds: ['elemental-resistance'] } },
+  { id: 'fire-resistance', familyId: 'resistance', primaryDimension: 'defense', label: t('Fire resistance', '火焰抗性'), scope: 'threshold', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['FireResistTotal', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% to Fire Resistance'), applicability: 'always', evidence: { source: 'pob-supported', fixtureIds: ['fire-resistance'] } },
+  { id: 'cold-resistance', familyId: 'resistance', primaryDimension: 'defense', label: t('Cold resistance', '冰霜抗性'), scope: 'threshold', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['ColdResistTotal', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% to Cold Resistance'), applicability: 'always', evidence: { source: 'pob-supported', fixtureIds: ['cold-resistance'] } },
+  { id: 'lightning-resistance', familyId: 'resistance', primaryDimension: 'defense', label: t('Lightning resistance', '闪电抗性'), scope: 'threshold', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['LightningResistTotal', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% to Lightning Resistance'), applicability: 'always', evidence: { source: 'pob-supported', fixtureIds: ['lightning-resistance'] } },
   { id: 'chaos-resistance', familyId: 'resistance', primaryDimension: 'defense', label: t('Chaos resistance', '混沌抗性'), scope: 'threshold', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['ChaosResistTotal', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% to Chaos Resistance'), applicability: 'always', evidence: { source: 'pob-supported', fixtureIds: ['chaos-resistance'] } },
+  { id: 'block-chance', familyId: 'block', primaryDimension: 'defense', label: t('Block chance', '格挡几率'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['BlockChance', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% to Block chance'), applicability: 'block', evidence: { source: 'pob-supported', fixtureIds: ['block-chance'] } },
+  { id: 'spell-block-chance', familyId: 'block', primaryDimension: 'defense', label: t('Spell block chance', '法术格挡几率'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['SpellBlockChance', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% to Spell Block chance'), applicability: 'spell-block', evidence: { source: 'pob-supported', fixtureIds: ['spell-block-chance'] } },
+  { id: 'maximum-fire-resistance', familyId: 'maximum-resistance', primaryDimension: 'defense', label: t('Maximum fire resistance', '最大火焰抗性'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% to Maximum Fire Resistance'), applicability: 'always', evidence: { source: 'pob-supported', fixtureIds: ['maximum-fire-resistance'] } },
+  { id: 'maximum-cold-resistance', familyId: 'maximum-resistance', primaryDimension: 'defense', label: t('Maximum cold resistance', '最大冰霜抗性'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% to Maximum Cold Resistance'), applicability: 'always', evidence: { source: 'pob-supported', fixtureIds: ['maximum-cold-resistance'] } },
+  { id: 'maximum-lightning-resistance', familyId: 'maximum-resistance', primaryDimension: 'defense', label: t('Maximum lightning resistance', '最大闪电抗性'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% to Maximum Lightning Resistance'), applicability: 'always', evidence: { source: 'pob-supported', fixtureIds: ['maximum-lightning-resistance'] } },
+  { id: 'maximum-chaos-resistance', familyId: 'maximum-resistance', primaryDimension: 'defense', label: t('Maximum chaos resistance', '最大混沌抗性'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% to Maximum Chaos Resistance'), applicability: 'always', evidence: { source: 'pob-supported', fixtureIds: ['maximum-chaos-resistance'] } },
+  { id: 'physical-damage-reduction', familyId: 'physical-mitigation', primaryDimension: 'defense', label: t('Physical damage reduction', '物理伤害减免'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['PhysicalDamageReduction', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% additional Physical Damage Reduction'), applicability: 'always', evidence: { source: 'pob-supported', fixtureIds: ['physical-damage-reduction'] } },
+  { id: 'ward', familyId: 'ward', primaryDimension: 'defense', label: t('Ward', '结界'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['Ward', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('{n}% increased maximum Runic Ward'), applicability: 'ward', evidence: { source: 'pob-supported', fixtureIds: ['ward'] } },
 ]
 
 export function getMetricDefinition(key: string): MetricDefinition | undefined { return METRIC_DEFINITIONS.find((metric) => metric.key === key) }
@@ -120,8 +138,13 @@ export function getAnalysisSkillScope(result: CalcResult | null | undefined, has
 
 export function getPowerStatValue(result: CalcResult | null | undefined, key: string): number | null {
   if (!result) return null
-  const value = result.PowerStats?.[key] ?? (result as unknown as Record<string, unknown>)[key]
-  if (typeof value === 'number' && Number.isFinite(value)) return value
+  // The top-level result is the canonical calculation payload for the
+  // standard metrics. Older cached reports may still contain a zero-valued
+  // PowerStats entry, so it must not mask a real direct result.
+  const directValue = (result as unknown as Record<string, unknown>)[key]
+  if (typeof directValue === 'number' && Number.isFinite(directValue)) return directValue
+  const powerValue = result.PowerStats?.[key]
+  if (typeof powerValue === 'number' && Number.isFinite(powerValue)) return powerValue
   if (key === 'AverageDamage' && Number.isFinite(result.AverageHit)) return result.AverageHit
   return null
 }
@@ -137,6 +160,9 @@ export function isProbeApplicable(probe: AttributeProbeDefinition, baseline: Cal
   if (probe.applicability === 'armour') return (getPowerStatValue(baseline, 'Armour') ?? 0) > 1
   if (probe.applicability === 'evasion') return (getPowerStatValue(baseline, 'Evasion') ?? 0) > 1
   if (probe.applicability === 'deflection') return (getPowerStatValue(baseline, 'DeflectionRating') ?? 0) > 1
+  if (probe.applicability === 'block') return (getPowerStatValue(baseline, 'BlockChance') ?? 0) > 0
+  if (probe.applicability === 'spell-block') return (getPowerStatValue(baseline, 'SpellBlockChance') ?? 0) > 0
+  if (probe.applicability === 'ward') return (getPowerStatValue(baseline, 'Ward') ?? 0) > 1
   return true
 }
 export function buildProbePoint(probe: AttributeProbeDefinition, point: number, baseline: CalcResult, projected: CalcResult): ProbePointResult {

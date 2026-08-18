@@ -5,6 +5,7 @@ import {
   classifyProbeSeries,
   detectBaselineFindings,
   getAnalysisSkillScope,
+  getPowerStatValue,
   isProbeApplicable,
 } from '@/engine/attributeAnalysis'
 import type { CalcResult } from '@/types/calc'
@@ -12,6 +13,34 @@ import type { CalcResult } from '@/types/calc'
 const result = (powerStats: Record<string, number>) => ({ PowerStats: powerStats } as CalcResult)
 
 describe('attribute analysis evidence model', () => {
+  it('prefers the canonical direct defence value over stale PowerStats cache data', () => {
+    expect(getPowerStatValue({ Evasion: 125, PowerStats: { Evasion: 0 } } as unknown as CalcResult, 'Evasion')).toBe(125)
+  })
+
+  it('contains the complete static defense probe set', () => {
+    const defenseIds = ATTRIBUTE_PROBE_CATALOG.filter((probe) => probe.primaryDimension === 'defense').map((probe) => probe.id)
+    expect(defenseIds).toHaveLength(17)
+    expect(defenseIds).toEqual(expect.arrayContaining([
+      'maximum-life',
+      'maximum-energy-shield',
+      'armour',
+      'evasion',
+      'deflection',
+      'fire-resistance',
+      'cold-resistance',
+      'lightning-resistance',
+      'chaos-resistance',
+      'block-chance',
+      'spell-block-chance',
+      'maximum-fire-resistance',
+      'maximum-cold-resistance',
+      'maximum-lightning-resistance',
+      'maximum-chaos-resistance',
+      'physical-damage-reduction',
+      'ward',
+    ]))
+  })
+
   it('declares a report metric for every catalog probe', () => {
     expect(ATTRIBUTE_PROBE_CATALOG.every((probe) => probe.affectedMetrics.includes(probe.primaryMetric))).toBe(true)
   })
@@ -21,6 +50,18 @@ describe('attribute analysis evidence model', () => {
     expect(probe.affectedMetrics).toEqual(['DeflectionRating', 'DeflectChance', 'DeflectEffect', 'TotalEHP'])
     expect(isProbeApplicable(probe, result({ DeflectionRating: 100 }), true)).toBe(true)
     expect(isProbeApplicable(probe, result({ DeflectionRating: 0 }), true)).toBe(false)
+  })
+
+  it('only includes block and Ward probes when the build has the mechanic', () => {
+    const block = ATTRIBUTE_PROBE_CATALOG.find((entry) => entry.id === 'block-chance')!
+    const spellBlock = ATTRIBUTE_PROBE_CATALOG.find((entry) => entry.id === 'spell-block-chance')!
+    const ward = ATTRIBUTE_PROBE_CATALOG.find((entry) => entry.id === 'ward')!
+    expect(isProbeApplicable(block, result({ BlockChance: 1 }), true)).toBe(true)
+    expect(isProbeApplicable(block, result({ BlockChance: 0 }), true)).toBe(false)
+    expect(isProbeApplicable(spellBlock, result({ SpellBlockChance: 1 }), true)).toBe(true)
+    expect(isProbeApplicable(spellBlock, result({ SpellBlockChance: 0 }), true)).toBe(false)
+    expect(isProbeApplicable(ward, result({ Ward: 100 }), true)).toBe(true)
+    expect(isProbeApplicable(ward, result({ Ward: 0 }), true)).toBe(false)
   })
 
   it('keeps zero baselines absolute instead of inventing a percentage', () => {

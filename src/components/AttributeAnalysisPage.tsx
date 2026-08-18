@@ -6,7 +6,7 @@ import { formatUiNumber, uiText } from '@/i18n/uiLocale'
 import { getImportedCalculationMode } from '@/engine/calculationConfig'
 import { parseSkillsXml } from '@/engine/skills'
 import { getLocalizedSkillName, loadSkillCatalog, resolveSkillCatalogEntry, type SkillCatalog } from '@/engine/skillCatalog'
-import { ANALYSIS_DIMENSIONS, ATTRIBUTE_PROBE_CATALOG, METRIC_DEFINITIONS, PROBE_CATALOG_VERSION, detectBaselineFindings, getAnalysisSkillScope, getPowerStatValue, type AnalysisDimension, type AnalysisText, type MetricDefinition, type ProbeMetricDelta, type ProbeSeriesResult } from '@/engine/attributeAnalysis'
+import { ANALYSIS_DIMENSIONS, ATTRIBUTE_PROBE_CATALOG, METRIC_DEFINITIONS, PROBE_CATALOG_VERSION, getAnalysisSkillScope, getPowerStatValue, type AnalysisDimension, type AnalysisText, type MetricDefinition, type ProbeMetricDelta, type ProbeSeriesResult } from '@/engine/attributeAnalysis'
 import { calculateAnalysisResult, runInvestmentProbeBatch } from '@/engine/investmentAnalysisService'
 import type { CalcResult } from '@/types/calc'
 
@@ -74,7 +74,7 @@ function GainTable({ dimension, series, baseline, language, dpsComposition }: { 
   const rows = usefulSeries(series)
   const isAttack = dimension === 'attack'
   const defenseDescription = uiText(language, 'Actual EHP change after adding 1% · EHP uses the current enemy setup', '增加 1% 后的实际 EHP 变化 · EHP 按当前敌人配置估算可承受总伤害', '增加 1% 後的實際 EHP 變化 · EHP 按目前敵人配置估算可承受總傷害', '1% 추가 후 실제 EHP 변화 · EHP는 현재 적 설정으로 계산')
-  const defenseMetricKeys = ['Evasion', 'EvadeChance', 'DeflectionRating', 'DeflectChance', 'DeflectEffect'] as const
+  const defenseMetricKeys = ['Armour', 'Evasion', 'EvadeChance', 'DeflectionRating', 'DeflectChance', 'DeflectEffect', 'BlockChance', 'SpellBlockChance', 'PhysicalDamageReduction', 'Ward'] as const
   return <div className="simple-gain-card">
     <header className="simple-gain-card-header">
       <div className="simple-gain-card-title"><span className={`simple-gain-icon ${dimension}`}>{isAttack ? <Swords /> : <Shield />}</span><div><h2>{uiText(language, isAttack ? 'Attack' : 'Defense', isAttack ? '攻击' : '防御', isAttack ? '攻擊' : '防禦', isAttack ? '공격' : '방어')}</h2><p>{isAttack ? uiText(language, 'Actual DPS change after adding 1%', '增加 1% 后的实际 DPS 变化', '增加 1% 後的實際 DPS 變化', '1% 추가 후 실제 DPS 변화') : defenseDescription}</p></div></div>
@@ -103,6 +103,7 @@ export function AttributeAnalysisPage({ onOpenSkills }: Props) {
   const activeProfileId = useTreeStore((state) => state.activeCalculationProfileId)
   const allocatedNodes = useTreeStore((state) => state.allocatedNodes)
   const [baseline, setBaseline] = useState<CalcResult | null>(null)
+  const [characterBaseline, setCharacterBaseline] = useState<CalcResult | null>(null)
   const [series, setSeries] = useState<ProbeSeriesResult[]>([])
   const [state, setState] = useState<LoadState>('idle')
   const [error, setError] = useState<string | null>(null)
@@ -126,7 +127,6 @@ export function AttributeAnalysisPage({ onOpenSkills }: Props) {
     if (probe.primaryDimension !== 'attack' || hasFullDpsSelection) return probe
     return { ...probe, primaryMetric: 'AllDPS', affectedMetrics: probe.affectedMetrics.map((key) => key === 'FullDPS' ? 'AllDPS' : key) }
   }), [hasFullDpsSelection])
-  const findings = useMemo(() => baseline ? detectBaselineFindings(baseline, hasFullDpsSelection) : [], [baseline, hasFullDpsSelection])
   const seriesByDimension = useMemo(() => {
     const map = new Map<AnalysisDimension, ProbeSeriesResult[]>(ANALYSIS_DIMENSIONS.map((entry) => [entry.id, []]))
     for (const entry of series) map.get(entry.probe.primaryDimension)?.push(entry)
@@ -165,14 +165,19 @@ export function AttributeAnalysisPage({ onOpenSkills }: Props) {
   useEffect(() => {
     const requestId = ++requestRef.current
     setBaseline(null)
+    setCharacterBaseline(null)
     setSeries([])
     setError(null)
     if (!code || !xml || !allocatedNodes.size) { setState('idle'); return }
     setState('loading')
     void calculateAnalysisResult(code, xml, weaponSet, calcMode, overrides).then(async (nextBaseline) => {
+      // Defence values must use the same character-only MAIN output as the
+      // equipment panel. Keep the full CALCS result for DPS analysis.
+      const nextCharacterBaseline = await calculateAnalysisResult(code, xml, weaponSet, undefined, overrides, { characterOnly: true })
       if (requestId !== requestRef.current) return
       setBaseline(nextBaseline)
-      const results = await runInvestmentProbeBatch({ code, xml, weaponSet, calcMode, baseOverrides: overrides, baseline: nextBaseline, probes: analysisProbes, hasFullDpsSelection, isCurrent: () => requestId === requestRef.current, onProgress: (completed, total) => { if (requestId === requestRef.current) setProgress({ completed, total }) } })
+      setCharacterBaseline(nextCharacterBaseline)
+      const results = await runInvestmentProbeBatch({ code, xml, weaponSet, calcMode, baseOverrides: overrides, baseline: nextBaseline, defenseBaseline: nextCharacterBaseline, probes: analysisProbes, hasFullDpsSelection, isCurrent: () => requestId === requestRef.current, onProgress: (completed, total) => { if (requestId === requestRef.current) setProgress({ completed, total }) } })
       if (requestId !== requestRef.current) return
       setSeries(results)
       setState('ready')
@@ -192,9 +197,9 @@ export function AttributeAnalysisPage({ onOpenSkills }: Props) {
   const ehpMetric = METRIC_DEFINITIONS.find((entry) => entry.key === 'TotalEHP')!
   const attackRows = usefulSeries(attackSeries)
   const defenseRows = usefulSeries(defenseSeries)
-  const riskCount = findings.filter((finding) => finding.status === 'at-risk').length
   const damageMetricKey = hasFullDpsSelection ? 'FullDPS' : 'AllDPS'
   const scopeModeLabel = analysisScope.mode === 'full-dps' ? l('Full DPS total', '完整 DPS 总和') : analysisScope.mode === 'fallback' ? l('All actual DPS fallback', '所有实际 DPS（自动回退）') : l('No effective DPS skill', '没有有效 DPS 技能')
+  const defenseDisplayBaseline = characterBaseline || baseline
 
   return <section className="investment-analysis-workspace simple-gain-workspace">
     <header className="investment-analysis-header simple-gain-header"><div><span>{l('Attribute investment impact on DPS and EHP', '属性投入对 DPS 与 EHP 的实际影响')}</span><h1>{l('Build gains analysis', '构筑收益分析')}</h1></div><div className={`investment-runtime ${state}`}>{state === 'loading' ? <LoaderCircle className="spinning" /> : state === 'error' ? <AlertTriangle /> : <Activity className="simple-gain-runtime-ecg" />}<div><span>{state === 'loading' ? l('Calculating', '正在计算') : state === 'error' ? l('Calculation failed', '计算失败') : l('Report is current', '报告为最新')}</span><small>{state === 'loading' ? `${progress.completed} / ${progress.total}` : `${calcMode} · ${PROBE_CATALOG_VERSION}`}</small></div></div></header>
@@ -207,10 +212,10 @@ export function AttributeAnalysisPage({ onOpenSkills }: Props) {
       </div>
     </div>}
     {error && <div className="attribute-analysis-error">{error}</div>}
-    <section className={`simple-gain-summary${riskCount ? ' has-warnings' : ''}`}><div className="gain-highlight attack-gain"><TrendingUp /><span>{l('Best attack gain', '攻击最高收益')}{attackRows[0] ? ` · ${l('Test', '测试')} ${probeTestLabel(attackRows[0], lang)}` : ''}</span><strong>{attackRows[0] ? `${localText(attackRows[0].probe.label, lang)} · DPS ${signedMetric(firstDelta(attackRows[0])?.absoluteDelta ?? null, fullDpsMetric, lang)}` : '—'}</strong></div><div className="gain-highlight defense-gain"><Shield /><span>{l('Best defense gain', '防御最高收益')}{defenseRows[0] ? ` · ${l('Test', '测试')} ${probeTestLabel(defenseRows[0], lang)}` : ''}</span><strong>{defenseRows[0] ? `${localText(defenseRows[0].probe.label, lang)} · EHP ${signedMetric(firstDelta(defenseRows[0])?.absoluteDelta ?? null, ehpMetric, lang)}` : '—'}</strong></div>{riskCount > 0 && <div className="warning"><span>{l('Current warnings', '当前提示')}</span><strong>{`${riskCount} ${l('items', '项')}`}</strong></div>}</section>
+    <section className="simple-gain-summary"><div className="gain-highlight attack-gain"><TrendingUp /><span>{l('Best attack gain', '攻击最高收益')}{attackRows[0] ? ` · ${l('Test', '测试')} ${probeTestLabel(attackRows[0], lang)}` : ''}</span><strong>{attackRows[0] ? `${localText(attackRows[0].probe.label, lang)} · DPS ${signedMetric(firstDelta(attackRows[0])?.absoluteDelta ?? null, fullDpsMetric, lang)}` : '—'}</strong></div><div className="gain-highlight defense-gain"><Shield /><span>{l('Best defense gain', '防御最高收益')}{defenseRows[0] ? ` · ${l('Test', '测试')} ${probeTestLabel(defenseRows[0], lang)}` : ''}</span><strong>{defenseRows[0] ? `${localText(defenseRows[0].probe.label, lang)} · EHP ${signedMetric(firstDelta(defenseRows[0])?.absoluteDelta ?? null, ehpMetric, lang)}` : '—'}</strong></div></section>
     <section className="simple-gain-note"><Activity /><div><strong>{l('How to read', '如何阅读')}</strong><span>{l('Each row simulates adding 1% of the attribute and shows the real DPS or EHP change. Skill level uses +1 level.', '每一行模拟增加 1% 的该属性，并显示实际带来的 DPS 或 EHP 变化；技能等级按增加 1 级计算。')}</span></div></section>
     <section className="simple-gain-scope-note"><div className="simple-gain-scope-copy"><span className="simple-gain-scope-icon"><Activity /></span><div><strong>{l('Automatic analysis scope', '自动分析范围')} · {scopeModeLabel}</strong><p>{hasFullDpsSelection ? l(`All ${analysisScope.entries.length} effective skills included in Full DPS are aggregated. Multiple skills are not averaged.`, `完整 DPS 中的 ${analysisScope.entries.length} 个有效技能会全部计入总和，不会取平均值。`) : analysisScope.mode === 'fallback' ? l(`Full DPS has no configured skills, so all ${analysisScope.entries.length} positive actual DPS skills are used automatically.`, `当前未配置完整 DPS，已自动使用 ${analysisScope.entries.length} 个实际 DPS 大于 0 的技能。`) : l('No effective DPS skill is available, so attack gains cannot be calculated.', '当前没有有效 DPS 技能，暂时无法计算攻击收益。')} {l('Attack-only and spell-only attributes affect matching skills only; shared attributes can affect both. DoT, ailments, and trigger frequency are excluded in this version.', '攻击专属和法术专属属性只影响对应技能，共享属性可同时影响两者。本版本暂不纳入持续伤害、异常和触发频率。')}</p></div></div><div className="simple-gain-scope-counts"><span>{l('Skills', '技能')} <b>{analysisScope.entries.length}</b></span><span className="attack">{l('Attacks', '攻击')} <b>{analysisScope.attack.length}</b></span><span className="spell">{l('Spells', '法术')} <b>{analysisScope.spell.length}</b></span></div></section>
-    <section className="investment-context-strip simple-gain-context"><div className="investment-full-dps"><span>{l('DPS skills', 'DPS 技能')}</span>{damageSourceNames.length ? <strong>{damageSourceNames.join(' + ')}</strong> : <><strong>{l('No effective damage source', '没有有效伤害来源')}</strong>{onOpenSkills && <button type="button" onClick={onOpenSkills}>{l('Manage skills', '管理技能')}</button>}</>}</div>{([damageMetricKey, 'TotalEHP', 'Life', 'EnergyShield'] as const).map((key) => { const metric = METRIC_DEFINITIONS.find((entry) => entry.key === key)!; return <div key={key}><span>{localText(metric.label, lang)}</span><strong>{formatMetric(getPowerStatValue(baseline, key), metric, lang)}</strong></div> })}</section>
-    <section className="simple-gain-grid"><GainTable dimension="attack" series={attackSeries} baseline={baseline} language={lang} dpsComposition={dpsComposition} /><GainTable dimension="defense" series={defenseSeries} baseline={baseline} language={lang} /></section>
+    <section className="investment-context-strip simple-gain-context"><div className="investment-full-dps"><span>{l('DPS skills', 'DPS 技能')}</span>{damageSourceNames.length ? <strong>{damageSourceNames.join(' + ')}</strong> : <><strong>{l('No effective damage source', '没有有效伤害来源')}</strong>{onOpenSkills && <button type="button" onClick={onOpenSkills}>{l('Manage skills', '管理技能')}</button>}</>}</div>{([damageMetricKey, 'TotalEHP', 'Life', 'EnergyShield', 'Armour', 'Evasion', 'DeflectionRating', 'FireResist', 'ColdResist', 'LightningResist', 'ChaosResist'] as const).map((key) => { const metric = METRIC_DEFINITIONS.find((entry) => entry.key === key)!; const source = key === damageMetricKey ? baseline : defenseDisplayBaseline; return <div key={key}><span>{localText(metric.label, lang)}</span><strong>{formatMetric(getPowerStatValue(source, key), metric, lang)}</strong></div> })}</section>
+    <section className="simple-gain-grid"><GainTable dimension="attack" series={attackSeries} baseline={baseline} language={lang} dpsComposition={dpsComposition} /><GainTable dimension="defense" series={defenseSeries} baseline={defenseDisplayBaseline} language={lang} /></section>
   </section>
 }
