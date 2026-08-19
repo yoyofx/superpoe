@@ -158,6 +158,11 @@ local function itemSimilar(candidate, current, isUnique, sameUnique)
 		and candidate.base.subType == current.base.subType
 end
 
+local function weaponDps(item)
+	local weaponData = item and item.weaponData and item.weaponData[1]
+	return weaponData and safeNumber(weaponData.TotalDPS) or nil
+end
+
 local function sortEntries(entries)
 	table.sort(entries, function(left, right)
 		local leftParams = {
@@ -201,6 +206,24 @@ local function isSlotShown(slot)
 		return ok and shown ~= false
 	end
 	return true
+end
+
+-- The renderer keeps the PoB slot name selected by the user, while PoB uses
+-- the base name for weapon set I and a "Swap" name for weapon set II. The
+-- same item can legitimately be referenced by both sets, so normalize the
+-- requested slot against the active item set before applying slot-only
+-- filtering. This stays in the project bridge and leaves upstream Lua intact.
+local function normalizeActiveSlotName(itemsTab, sourceSlotName)
+	if type(sourceSlotName) ~= "string" or sourceSlotName == "" then return sourceSlotName end
+	local activeSet = itemsTab and itemsTab.activeItemSet
+	local useSecondWeaponSet = activeSet and activeSet.useSecondWeaponSet == true
+	local weaponNumber, suffix = sourceSlotName:match("^Weapon ([12])(.*)$")
+	if weaponNumber then
+		local cleanSuffix = suffix:gsub("^ Swap", "")
+		local activeName = "Weapon " .. weaponNumber .. (useSecondWeaponSet and " Swap" or "") .. cleanSuffix
+		if itemsTab.slots and itemsTab.slots[activeName] then return activeName end
+	end
+	return sourceSlotName
 end
 
 -- Match PoB2's single-slot comparison path for item tooltips that do not
@@ -288,8 +311,20 @@ local function addNormalItemComparisons(session, payload, item)
 	local itemsTab = build.itemsTab
 	itemsTab:UpdateSockets()
 	local compareSlots = {}
-	local sourceSlotName = payload.sourceSlotName
+	local sourceSlotName = normalizeActiveSlotName(itemsTab, payload.sourceSlotName)
 	local slotOnly = payload.slotOnlyTooltips == true and sourceSlotName and sourceSlotName ~= ""
+	-- A Find Better request is opened from one concrete equipped item. If the
+	-- build changed while the dialog was preparing its search, comparing the
+	-- candidate against whatever now occupies the slot would produce plausible
+	-- but incorrect DPS/EHP values. Refuse that stale snapshot instead.
+	local expectedItemId = payload.context and payload.context.buildItemId
+	if slotOnly and expectedItemId and tostring(expectedItemId) ~= "" then
+		local sourceSlot = itemsTab.slots and itemsTab.slots[sourceSlotName]
+		local actualItemId = sourceSlot and sourceSlot.selItemId
+		if not actualItemId or tostring(actualItemId) ~= tostring(expectedItemId) then
+			return nil, { code = "stale-context", message = "The requested slot no longer contains the selected item" }
+		end
+	end
 	for slotName, slot in pairs(itemsTab.slots or {}) do
 		if (not slotOnly or slotName == sourceSlotName)
 			and itemsTab:IsItemValidForSlot(item, slotName)
@@ -332,12 +367,13 @@ local function addNormalItemComparisons(session, payload, item)
 				replacedItemId = selItem and tostring(selItem.id) or nil,
 				replacedItemName = selItem and selItem.name or nil,
 				changedStats = stats,
-				sort = {
-					empty = not selItem or slot.selItemId == 0,
-					similar = itemSimilar(item, selItem, isUnique, sameUnique),
+					sort = {
+						empty = not selItem or slot.selItemId == 0,
+						similar = itemSimilar(item, selItem, isUnique, sameUnique),
 					fullDps = safeNumber(output.FullDPS),
 					combinedDps = safeNumber(output.CombinedDPS),
 					totalEhp = safeNumber(output.TotalEHP),
+					weaponDps = weaponDps(item),
 				},
 				isSameUnique = sameUnique,
 			}

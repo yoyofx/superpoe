@@ -31,6 +31,26 @@ function numeric(value: string): number | undefined {
   return value.trim() && Number.isFinite(parsed) ? parsed : undefined
 }
 
+function slotLabel(slotName: string | undefined, l: (en: string, zhCN: string, zhTW: string, koKR: string) => string): string | undefined {
+  if (!slotName) return undefined
+  const labels: Record<string, [string, string, string, string]> = {
+    Helmet: ['Helmet', '头盔', '頭盔', '투구'],
+    Gloves: ['Gloves', '手套', '手套', '장갑'],
+    'Body Armour': ['Body armour', '胸甲', '胸甲', '갑옷'],
+    Boots: ['Boots', '鞋子', '鞋子', '장화'],
+    'Ring 1': ['Ring 1', '戒指 1', '戒指 1', '반지 1'],
+    'Ring 2': ['Ring 2', '戒指 2', '戒指 2', '반지 2'],
+    Amulet: ['Amulet', '项链', '項鍊', '목걸이'],
+    Belt: ['Belt', '腰带', '腰帶', '허리띠'],
+    'Weapon 1': ['Main hand', '主手', '主手', '주 무기'],
+    'Weapon 2': ['Off hand', '副手', '副手', '보조 무기'],
+    'Weapon 1 Swap': ['Main hand (swap)', '主手（切换）', '主手（切換）', '주 무기 (교체)'],
+    'Weapon 2 Swap': ['Off hand (swap)', '副手（切换）', '副手（切換）', '보조 무기 (교체)'],
+  }
+  const message = labels[slotName]
+  return message ? l(...message) : slotName
+}
+
 export function PriceCheckApp() {
   const bridge = window.superpoePriceCheck
   const [state, setState] = useState<PriceCheckContextState | null>(null)
@@ -100,7 +120,7 @@ export function PriceCheckApp() {
       min: modifier.currentValue == null ? '' : String(modifier.currentValue), max: '',
     }])))
     setFiltersOpen(true)
-  }, [draftKey, state?.initialLeagueId, state?.realm])
+  }, [draftKey, state?.initialLeagueId, state?.mode, state?.realm])
 
   useEffect(() => {
     const key = (event: KeyboardEvent) => { if (event.key === 'Escape') void bridge?.hide?.() }
@@ -202,7 +222,7 @@ export function PriceCheckApp() {
 
   return <main className="pc-shell">
     <header className="pc-titlebar">
-      <div className="pc-title"><strong>{localizedDraft?.name || l('Price checker', '装备查价', '裝備查價', '아이템 가격 확인')}</strong><span>{localizedDraft?.baseType || l('Waiting for an item', '等待装备', '等待裝備', '아이템 대기 중')}</span></div>
+      <div className="pc-title"><strong>{l('Price checker', '装备查价', '裝備查價', '아이템 가격 확인')}</strong><span>{localizedDraft?.name || l('Waiting for an item', '等待装备', '等待裝備', '아이템 대기 중')}{state?.slotName ? ` · ${slotLabel(state.slotName, l)}` : ''}</span></div>
       <div className="pc-escape-hint"><kbd>ESC</kbd><span>{l('Return to game', '返回游戏', '返回遊戲', '게임으로 돌아가기')}</span></div>
       <div className="pc-window-actions"><span>{state?.realm === 'cn' ? l('CN', '国服', '國服', '중국') : l('Global', '国际服', '國際服', '글로벌')}</span><button className="pc-cancel-button" title={l('Cancel price check', '取消查价', '取消查價', '가격 확인 취소')} onClick={() => void bridge?.hide?.()}><X /><span>{l('Cancel', '取消', '取消', '취소')}</span></button></div>
     </header>
@@ -221,7 +241,7 @@ export function PriceCheckApp() {
             ? modifier.localizedLines.map(normalizeDisplayTags)
             : modifier.lines.map((line) => normalizeDisplayTags(translateGameText(line, language)))
           const sourceLabel = modifierSourceLabel(modifier, l)
-          return <div className={`pc-modifier${modifier.searchable ? '' : ' unavailable'}`} key={modifier.id}><label><input type="checkbox" disabled={!modifier.searchable} checked={input.selected} onChange={(event) => setModifiers((current) => ({ ...current, [modifier.id]: { ...input, selected: event.target.checked } }))} /><span className="pc-modifier-copy"><em className={`pc-modifier-source source-${modifier.group}`}>{sourceLabel}</em><span>{lines.join(' / ')}</span></span></label>{modifier.searchable && modifier.valueMode === 'numeric' ? <div className="pc-range-fields"><label className="pc-range-field"><input placeholder={l('Min', '最小', '最小', '최소')} aria-label={l('Minimum value', '最小值', '最小值', '최솟값')} value={input.min} onChange={(event) => setModifiers((current) => ({ ...current, [modifier.id]: { ...input, min: event.target.value } }))} /></label><label className="pc-range-field"><input placeholder={l('Max', '最大', '最大', '최대')} aria-label={l('Maximum value', '最大值', '最大值', '최댓값')} value={input.max} onChange={(event) => setModifiers((current) => ({ ...current, [modifier.id]: { ...input, max: event.target.value } }))} /></label></div> : !modifier.searchable ? <small>{l('No match', '无法匹配', '無法匹配', '일치 없음')}</small> : null}</div>
+          return <div className={`pc-modifier${modifier.searchable ? '' : ' unavailable'}`} key={modifier.id}><label><input type="checkbox" disabled={!modifier.searchable} checked={input.selected} onChange={(event) => setModifiers((current) => ({ ...current, [modifier.id]: { ...input, selected: event.target.checked } }))} /><span className="pc-modifier-copy"><em className={`pc-modifier-source source-${modifier.group}`}>{sourceLabel}</em><span>{lines.join(' / ')}</span></span></label>{modifier.searchable && modifier.valueMode === 'numeric' ? <div className="pc-range-fields"><label className="pc-range-field"><input placeholder={l('Min', '最小', '最小', '최소')} aria-label={l('Minimum value', '最小值', '最小값', '최솟값')} value={input.min} onChange={(event) => setModifiers((current) => ({ ...current, [modifier.id]: { ...input, min: event.target.value } }))} /></label><label className="pc-range-field"><input placeholder={l('Max', '最大', '最大', '최대')} aria-label={l('Maximum value', '最大值', '最大값', '최댓값')} value={input.max} onChange={(event) => setModifiers((current) => ({ ...current, [modifier.id]: { ...input, max: event.target.value } }))} /></label></div> : !modifier.searchable ? <small>{l('No match', '无法匹配', '無法匹配', '일치 없음')}</small> : null}</div>
         })}</div>
       </section>}
       {searchActionError && <div className="pc-error pc-listing-error">{searchActionError}</div>}

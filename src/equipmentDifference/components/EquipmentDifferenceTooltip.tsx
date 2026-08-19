@@ -71,10 +71,10 @@ function formatNumber(value: number, format: string | undefined, language: Langu
   }) + suffix
 }
 
-function formatStat(stat: EquipmentDiffStat, language: Language): string {
+function formatStat(stat: EquipmentDiffStat, language: Language, labelOverride?: string): string {
   const value = formatNumber(stat.displayDelta, stat.format, language)
   const percent = stat.percent == null ? '' : ' (' + formatNumber(stat.percent, '.1f', language) + '%)'
-  return value + ' ' + translateCalculationLabel(stat.label, language) + percent
+  return value + ' ' + (labelOverride || translateCalculationLabel(stat.label, language)) + percent
 }
 
 function localizeDifferenceError(result: EquipmentDifferenceResult, language: Language): string {
@@ -112,17 +112,22 @@ function operationLabel(group: EquipmentSlotDiff, language: Language): string {
 }
 
 function DifferenceGroup({ group, language }: { group: EquipmentSlotDiff; language: Language }) {
+  const summaryStats = group.changedStats.filter((stat) => stat.key === 'FullDPS' || stat.key === 'TotalEHP')
+  const detailStats = group.changedStats.filter((stat) => stat.key !== 'FullDPS' && stat.key !== 'TotalEHP')
+  const renderStat = (stat: EquipmentDiffStat, index: number, summary = false) => {
+    const summaryLabel = stat.key === 'TotalEHP'
+      ? uiText(language, 'Total EHP', '最终总和EHP', '最終總和EHP', '최종 EHP')
+      : undefined
+    return <p key={stat.actor + '-' + stat.key + '-' + index} className={'equipment-difference-stat' + (summary ? ' summary' : '') + ' ' + stat.color}>
+      {stat.positive ? <Plus aria-hidden="true" /> : <Minus aria-hidden="true" />}
+      <span>{formatStat(stat, language, summaryLabel)}</span>
+    </p>
+  }
   return (
     <section className="equipment-difference-group">
       <h4>{operationLabel(group, language)}</h4>
-      <div className="equipment-difference-stats">
-        {group.changedStats.map((stat, index) => (
-          <p key={stat.actor + '-' + stat.key + '-' + index} className={'equipment-difference-stat ' + stat.color}>
-            {stat.positive ? <Plus aria-hidden="true" /> : <Minus aria-hidden="true" />}
-            <span>{formatStat(stat, language)}</span>
-          </p>
-        ))}
-      </div>
+      {detailStats.length > 0 && <div className="equipment-difference-stats">{detailStats.map((stat, index) => renderStat(stat, index))}</div>}
+      {summaryStats.length > 0 && <div className="equipment-difference-summary">{summaryStats.map((stat, index) => renderStat(stat, index, true))}</div>}
     </section>
   )
 }
@@ -140,6 +145,13 @@ export function EquipmentDifferenceTooltip({
   const candidateRaw = candidate?.raw || item?.raw || ''
   const candidateBuildItemId = candidate?.buildItemId || item?.id
   const candidateSource = candidate?.source || 'equipment-slot'
+  // Find Better ranks a market listing for the requested source slot. Keep
+  // its detail panel on that same slot even if the caller uses the generic
+  // multi-slot default, otherwise another valid weapon slot can show a
+  // different DPS/EHP result from the card metrics.
+  const effectiveSlotOnlyTooltips = candidateSource === 'market-listing' && Boolean(sourceSlotName)
+    ? true
+    : slotOnlyTooltips
 
   useEffect(() => {
     let disposed = false
@@ -159,7 +171,7 @@ export function EquipmentDifferenceTooltip({
           source: candidateSource,
         },
         sourceSlotName,
-        slotOnlyTooltips,
+        slotOnlyTooltips: effectiveSlotOnlyTooltips,
       }
       void requestEquipmentDifference(request).then((nextResult) => {
         if (disposed) return
@@ -182,7 +194,7 @@ export function EquipmentDifferenceTooltip({
       disposed = true
       window.clearTimeout(timer)
     }
-  }, [candidateBuildItemId, candidateRaw, candidateSource, context, slotOnlyTooltips, sourceSlotName])
+  }, [candidateBuildItemId, candidateRaw, candidateSource, context, effectiveSlotOnlyTooltips, sourceSlotName])
 
   if (state === 'idle') return null
   const title = uiText(language, 'Equipment Difference', '装备差异', '裝備差異', '장비 차이')

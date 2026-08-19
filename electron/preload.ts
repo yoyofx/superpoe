@@ -32,6 +32,10 @@ contextBridge.exposeInMainWorld('superpoePriceCheck', {
   open: (request: import('../src/types/market.js').PriceCheckOpenRequest) => ipcRenderer.invoke('price-check:open', request),
 })
 
+contextBridge.exposeInMainWorld('superpoeFindBetter', {
+  open: (request: import('../src/types/market.js').PriceCheckOpenRequest) => ipcRenderer.invoke('find-better:open', request),
+})
+
 contextBridge.exposeInMainWorld('pob2TryOn', {
   close: () => ipcRenderer.invoke('equipment-try-on:close'),
   getPayload: () => ipcRenderer.invoke('equipment-try-on:get-payload') as Promise<import('../src/types/tryOn.js').EquipmentTryOnOpenRequest | null>,

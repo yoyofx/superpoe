@@ -1,6 +1,6 @@
 import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowLeftRight, Bookmark, Check, ChevronDown, ChevronRight, Clipboard, Gem, PackageOpen, PanelRightOpen, Search, Upload, X } from 'lucide-react'
+import { ArrowLeftRight, Bookmark, Check, ChevronDown, ChevronRight, Clipboard, Gem, PackageOpen, PanelRightOpen, Search, Sparkles, Upload, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import {
   type EquipmentAffixCategory,
@@ -27,6 +27,7 @@ import type { EquipmentItem, EquipmentSet, EquipmentSlot } from '@/types/equipme
 import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
 import type { EquipmentLibraryEntry } from '@/types/market'
 import { EquipmentLibraryPicker } from '@/components/equipment/EquipmentLibraryPicker'
+import { EquipmentDetailQuickNav, type EquipmentDetailQuickNavSection } from '@/components/equipment/EquipmentDetailQuickNav'
 import type { CalcResult } from '@/types/calc'
 import { inspectEquipment } from '@/engine/pobLuaClient'
 import { EquipmentDifferenceTooltip } from '@/equipmentDifference/components/EquipmentDifferenceTooltip'
@@ -225,6 +226,7 @@ interface JewelStripEntry {
   item: EquipmentItem
   sourceLabel: string
   sourceKind: 'tree' | 'equipment'
+  slotName?: string
 }
 
 interface JewelStripTooltipState {
@@ -445,7 +447,7 @@ function AffixSummaryRow({
   summary: EquipmentAffixSummary
   expanded: boolean
   onToggle: () => void
-  onSelectSource: (itemId: string) => void
+  onSelectSource: (itemId: string, slotName?: string) => void
 }) {
   const { t, lang } = useTranslation()
   const translatedText = translateGameText(summary.text, lang)
@@ -466,7 +468,7 @@ function AffixSummaryRow({
           const slotLabel = socketSlot
             ? `${t(SLOT_KEYS[socketSlot.parent] || socketSlot.parent)} · ${uiText(lang, 'Jewel', '珠宝', '珠寶', '주얼')} ${socketSlot.index}`
             : t(SLOT_KEYS[source.slotName] || source.slotName)
-          return <button key={`${source.itemId}-${source.line}-${index}`} type="button" onClick={() => onSelectSource(source.itemId)}>
+          return <button key={`${source.itemId}-${source.line}-${index}`} type="button" onClick={() => onSelectSource(source.itemId, source.slotName)}>
             <span>{slotLabel}</span>
             <strong>{translateGameText(source.itemName, lang)}</strong>
             {source.rune && <i>{uiText(lang, 'Rune', '符文', '符文', '룬')}</i>}
@@ -572,7 +574,7 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
   onSelectSemanticView: (view: EquipmentSidebarView) => void
   onToggleCategory: (group: EquipmentAffixGroup) => void
   onToggleAffix: (key: string) => void
-  onSelectSource: (itemId: string) => void
+  onSelectSource: (itemId: string, slotName?: string) => void
   onCalculate: () => void
 }) {
   const { t, lang } = useTranslation()
@@ -666,7 +668,7 @@ function SocketedRunes({
   slotName?: string
   socketedItems?: EquipmentItem[]
   compact?: boolean
-  onSelectSocketedItem?: (item: EquipmentItem) => void
+  onSelectSocketedItem?: (item: EquipmentItem, slotName?: string) => void
 }) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
@@ -747,7 +749,7 @@ function SocketedRunes({
             onClick={(event) => {
               if (!socketedItem || !onSelectSocketedItem) return
               event.stopPropagation()
-              onSelectSocketedItem(socketedItem)
+              onSelectSocketedItem(socketedItem, `${slotName} Jewel Socket ${socketIndex + 1}`)
             }}
             onMouseOver={(event) => {
               if (!rune && !socketedItem) return
@@ -792,11 +794,17 @@ function SocketedRunes({
   )
 }
 
-function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotName, socketedItems, buildContext, onSave, onPriceCheck, onReplace, onClose }: { item: EquipmentItem; base?: ItemBaseData; semantics?: EquipmentItemSemantics; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; buildContext: BuildContextSnapshot | null; onSave: () => Promise<void>; onPriceCheck: () => void; onReplace?: () => void; onClose: () => void }) {
+function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotName, socketedItems, buildContext, onSave, onPriceCheck, onFindBetter, onReplace, onClose }: { item: EquipmentItem; base?: ItemBaseData; semantics?: EquipmentItemSemantics; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; buildContext: BuildContextSnapshot | null; onSave: () => Promise<void>; onPriceCheck: () => void; onFindBetter?: () => void; onReplace?: () => void; onClose: () => void }) {
   const { t, lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [tradeMenuOpen, setTradeMenuOpen] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const propertiesRef = useRef<HTMLDivElement>(null)
+  const requirementsRef = useRef<HTMLDivElement>(null)
+  const modifiersRef = useRef<HTMLDivElement>(null)
+  const differenceRef = useRef<HTMLDivElement>(null)
   useTreeStore((state) => state.translationRevision)
   const translateItemText = (value: string) => translateGameText(value.replace(/\{[^}]+\}/g, ''), lang)
   const rarityClass = RARITY_CLASS[item.rarity] || RARITY_CLASS.NORMAL
@@ -824,6 +832,12 @@ function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotNam
     ['int', l('Int', '智慧', '智慧', '지능')],
   ] as const).filter(([field]) => requirements[field])
   const propertyType = itemClassLabel(item, base, lang)
+  const quickNavigationSections: EquipmentDetailQuickNavSection[] = [
+    { id: 'properties', targetRef: propertiesRef },
+    ...((attributeRequirements.length > 0 || Boolean(item.levelReq) || Boolean(item.sockets)) ? [{ id: 'requirements' as const, targetRef: requirementsRef }] : []),
+    { id: 'modifiers', targetRef: modifiersRef },
+    ...((buildContext && item.raw) ? [{ id: 'difference' as const, targetRef: differenceRef, targetSelector: '.equipment-difference-summary' }] : []),
+  ]
   const handleCopyToPob = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(item.raw)
@@ -838,7 +852,24 @@ function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotNam
   useEffect(() => {
     setCopyState('idle')
     setSaveState('idle')
+    setTradeMenuOpen(false)
   }, [item.id])
+
+  useEffect(() => {
+    if (!tradeMenuOpen) return
+    const closeMenu = (event: globalThis.MouseEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest('.equipment-trade-split')) setTradeMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setTradeMenuOpen(false)
+    }
+    document.addEventListener('mousedown', closeMenu)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeMenu)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [tradeMenuOpen])
 
   return (
     <aside className="equipment-inspector equipment-inspector-floating">
@@ -863,7 +894,29 @@ function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotNam
           {saveState === 'saved' ? <Check /> : <Bookmark />}
           <span>{saveState === 'saved' ? l('Saved', '已收藏', '已收藏', '저장됨') : saveState === 'error' ? l('Save failed', '收藏失败', '收藏失敗', '저장 실패') : l('Save to library', '收藏到仓库', '收藏至倉庫', '보관함에 저장')}</span>
         </button>
-        <button
+        {onFindBetter ? <div className="equipment-trade-split">
+          <button
+            type="button"
+            className="equipment-copy-pob equipment-trade-primary"
+            onClick={onFindBetter}
+            title={l('Find a better replacement for this equipped item', '查找当前装备的更好替代品', '尋找目前裝備的更好替代品', '장착한 장비의 더 나은 대체품 찾기')}
+          >
+            <Sparkles />
+            <span>{l('Find a better item', '找到更好的', '找更好的', '더 나은 장비 찾기')}</span>
+          </button>
+          <button
+            type="button"
+            className="equipment-trade-menu-toggle"
+            aria-haspopup="menu"
+            aria-expanded={tradeMenuOpen}
+            onClick={() => setTradeMenuOpen((open) => !open)}
+            title={l('More trade actions', '更多交易操作', '更多交易操作', '추가 거래 작업')}
+            aria-label={l('More trade actions', '更多交易操作', '更多交易操作', '추가 거래 작업')}
+          ><ChevronDown /></button>
+          {tradeMenuOpen && <div className="equipment-trade-menu" role="menu">
+            <button type="button" role="menuitem" onClick={() => { setTradeMenuOpen(false); onPriceCheck() }} title={l('Configure price check', '选择词条并查价', '選擇詞綴並查價', '속성을 선택하여 가격 확인')}><Search /><span>{l('Price check', '查价', '查價', '가격 확인')}</span></button>
+          </div>}
+        </div> : <button
           type="button"
           className="equipment-copy-pob"
           onClick={onPriceCheck}
@@ -871,7 +924,7 @@ function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotNam
         >
           <Search />
           <span>{l('Price check', '查价', '查價', '가격 확인')}</span>
-        </button>
+        </button>}
         {onReplace && <button
           type="button"
           className="equipment-copy-pob"
@@ -900,10 +953,12 @@ function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotNam
         ><X /></button>
       </div>
 
-      <div className="inspector-scroll">
-        <div className="item-property-type">
+      <div className="inspector-scroll" ref={scrollRef}>
+        <EquipmentDetailQuickNav containerRef={scrollRef} sections={quickNavigationSections} language={lang} />
+        <div ref={propertiesRef} className="equipment-detail-section equipment-detail-properties">
+          <div className="item-property-type">
           {propertyType}{item.itemLevel ? `: ${t('equipment.itemLevel', { value: item.itemLevel })}` : ''}
-        </div>
+          </div>
         {displayStats.length > 0 && <div className="item-display-stats">
           {displayStats.map((stat) => <div key={stat.key}>
             <span>{ITEM_STAT_LABELS[stat.key]?.[lang] || stat.key}:</span>
@@ -914,7 +969,8 @@ function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotNam
             </strong>
           </div>)}
         </div>}
-        <div className="item-metadata">
+        </div>
+        {(attributeRequirements.length > 0 || Boolean(item.levelReq) || Boolean(item.sockets)) && <div ref={requirementsRef} className="equipment-detail-section equipment-detail-requirements item-metadata">
           {item.levelReq && <span>{t('equipment.levelReq', { value: item.levelReq })}</span>}
           {attributeRequirements.map(([field, label]) => {
             const value = displayRequirements[field] || requirements[field]
@@ -924,9 +980,9 @@ function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotNam
             </span>
           })}
           {item.sockets && <span>{t('equipment.sockets', { value: item.sockets })}</span>}
-        </div>
+        </div>}
 
-        <div className="item-modifiers">
+        <div ref={modifiersRef} className="equipment-detail-section equipment-detail-modifiers item-modifiers">
           {modifierGroups.map(({ group, entries }) => <section className={`modifier-group modifier-${group}`} key={group}>
             {entries.map((modifier, index) => {
               const styleTag = modifier.tags.find((tag) => ['crafted', 'fractured', 'mutated', 'rune', 'enchant'].includes(tag))
@@ -937,13 +993,13 @@ function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotNam
           </section>)}
         </div>
 
-        <EquipmentDifferenceTooltip
+        {buildContext && item.raw && <div ref={differenceRef} className="equipment-detail-section equipment-detail-difference"><EquipmentDifferenceTooltip
           context={buildContext}
           item={item}
           language={lang}
           sourceSlotName={slotName}
           slotOnlyTooltips={Boolean(slotName)}
-        />
+        /></div>}
 
         {weaponComparisonStats.length > 0 && <div className="weapon-comparison-stats">
           {weaponComparisonStats.map((stat) => <span key={stat.key}>
@@ -983,7 +1039,7 @@ function PaperDollSlot({
   activeWeaponSet: 1 | 2
   onSelect: () => void
   onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void
-  onSelectSocketedItem: (item: EquipmentItem) => void
+  onSelectSocketedItem: (item: EquipmentItem, slotName?: string) => void
 }) {
   const { t, lang } = useTranslation()
   useTreeStore((state) => state.translationRevision)
@@ -1056,6 +1112,8 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const calcResult = useTreeStore((state) => state.calcResult)
   const calcLoading = useTreeStore((state) => state.calcLoading)
   const calcError = useTreeStore((state) => state.calcError)
+  const calculationProfiles = useTreeStore((state) => state.calculationProfiles)
+  const activeCalculationProfileId = useTreeStore((state) => state.activeCalculationProfileId)
   const runCalculation = useTreeStore((state) => state.runCalculation)
   const weaponSet = useTreeStore((state) => state.activeWeaponSet)
   const treeData = useTreeStore((state) => state.treeData)
@@ -1068,7 +1126,9 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const [runeDetails, setRuneDetails] = useState<RuneDetailIndex | null>(null)
   const [itemBases, setItemBases] = useState<Record<string, ItemBaseData>>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
+  // Keep the concrete slot the user clicked. An item can be referenced by
+  // both weapon sets, so looking up a slot by itemId alone is ambiguous.
+  const [selectedSlotNameHint, setSelectedSlotNameHint] = useState<string | null>(null)
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const [paperDollBackgroundAvailable, setPaperDollBackgroundAvailable] = useState(true)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<EquipmentAffixGroup>>(new Set())
@@ -1083,6 +1143,10 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const lastCalculationSelection = useRef<string | null>(null)
   const activePobCode = useMemo(() => getActivePobCode() || '', [getActivePobCode, importedBuildCode, pobBuildRevision])
   const activePobXml = useMemo(() => getActivePobXml() || '', [getActivePobXml, importedBuildCode, buildId, pobBuildRevision])
+  const activeCalculationOverrides = useMemo(() => {
+    const profile = calculationProfiles.find((candidate) => candidate.id === activeCalculationProfileId)
+    return profile?.values && Object.keys(profile.values).length ? { ...profile.values } : undefined
+  }, [activeCalculationProfileId, calculationProfiles])
 
   useEffect(() => {
     let mounted = true
@@ -1126,8 +1190,10 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
       return session ? parseEquipmentObject(session.object) : parseEquipmentCode(activePobCode)
     } catch { return null }
   }, [activePobCode, pobBuildRevision])
-  const activeSetId = selectedSetId || equipment?.activeItemSetId
-  const activeSet = equipment?.itemSets.find((set) => set.id === activeSetId) || equipment?.itemSets[0]
+  // The parsed PoB XML is the source of truth for the active item set. A
+  // local set selection can outlive a build switch and make the paper doll
+  // render one set while the comparison engine evaluates another one.
+  const activeSet = equipment?.itemSets.find((set) => set.id === equipment.activeItemSetId) || equipment?.itemSets[0]
   const equipmentDifferenceContext = useMemo<BuildContextSnapshot | null>(() => {
     if (!activePobXml || !activeSet) return null
     return {
@@ -1191,9 +1257,24 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
     }
     return groups
   }, [affixSummaries, semanticView])
+  const isVisibleSelectionSlot = (slotName: string) => {
+    if (activeSlotNames.has(slotName)) return true
+    const socket = getSocketSlotInfo(slotName)
+    return Boolean(socket && activeSlotNames.has(socket.parent))
+  }
   const firstItem = equipped.map((slot) => equipment?.itemsById[slot.itemId]).find(Boolean)
-  const selected = (selectedId && equipment?.itemsById[selectedId]) || firstItem
-  const selectedSlotName = selected ? activeSet?.slots.find((slot) => slot.itemId === selected.id)?.name : undefined
+  // Do not reuse a selected id from a previous build/set. Item ids are local
+  // to a PoB document, so the same id can refer to a completely different
+  // item after loading another build.
+  const selected = selectedId && activeSet?.slots.some((slot) =>
+    slot.itemId === selectedId && slot.active && isVisibleSelectionSlot(slot.name),
+  )
+    ? equipment?.itemsById[selectedId]
+    : firstItem
+  const selectedSlotName = selected
+    ? activeSet?.slots.find((slot) => slot.itemId === selected.id && slot.name === selectedSlotNameHint && isVisibleSelectionSlot(slot.name))?.name
+      || activeSet?.slots.find((slot) => slot.itemId === selected.id && isVisibleSelectionSlot(slot.name))?.name
+    : undefined
   const libraryBuildId = buildId || 'unsaved-build'
 
   const saveItem = useCallback(async (item: EquipmentItem, slotName?: string) => {
@@ -1241,11 +1322,12 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
 
   const handleSelectSet = useCallback((setId: string) => {
     setActiveItemSet(setId)
-    setSelectedSetId(setId)
     setSelectedId(null)
+    setSelectedSlotNameHint(null)
   }, [setActiveItemSet])
-  const handleSelectItem = useCallback((itemId: string) => {
+  const handleSelectItem = useCallback((itemId: string, slotName?: string) => {
     setSelectedId(itemId)
+    setSelectedSlotNameHint(slotName || null)
     setInspectorOpen(true)
   }, [])
 
@@ -1337,6 +1419,7 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
         key: `equipment:${activeSet.id}:${slot.name}:${slot.itemId}`,
         item,
         sourceKind: 'equipment' as const,
+        slotName: slot.name,
         sourceLabel: `${l('Equipment', '装备', '裝備', '장비')} · ${parentName} · ${uiText(lang, 'Socket', '插槽', '插槽', '홈')} ${socket.index}`,
       }]
     })
@@ -1357,9 +1440,8 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
 
   const handleJewelSelect = useCallback((entry: JewelStripEntry) => {
     setJewelTooltip(null)
-    setSelectedId(entry.item.id)
-    setInspectorOpen(true)
-  }, [])
+    handleSelectItem(entry.item.id, entry.slotName)
+  }, [handleSelectItem])
 
   const paperDollStyle = {
     width: `${paperDollSize.width}px`,
@@ -1472,14 +1554,14 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
                 activeWeaponSet={weaponSet}
                 onSelect={() => {
                   if (slot.weaponSet) setWeaponSet(slot.weaponSet)
-                  if (item) handleSelectItem(item.id)
+                  if (item) handleSelectItem(item.id, slot.slotName)
                 }}
                 onContextMenu={(event) => {
                   event.preventDefault()
                   if (slot.weaponSet) setWeaponSet(slot.weaponSet)
                   if (item) handleItemContextMenu(event, item.id, slot.slotName)
                 }}
-                onSelectSocketedItem={(socketedItem) => handleSelectItem(socketedItem.id)}
+                onSelectSocketedItem={(socketedItem, socketSlotName) => handleSelectItem(socketedItem.id, socketSlotName)}
               />
             })}
           </div>
@@ -1499,6 +1581,20 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
         buildContext={equipmentDifferenceContext}
         onSave={() => saveItem(selected, selectedSlotName)}
         onPriceCheck={() => { void window.superpoePriceCheck?.open({ source: { kind: 'raw', raw: selected.raw } }) }}
+        onFindBetter={selectedSlotName && activePobXml ? () => { void window.superpoeFindBetter?.open({
+          source: { kind: 'raw', raw: selected.raw },
+          mode: 'find-better',
+          slotName: selectedSlotName,
+          buildContext: {
+            xml: activePobXml,
+            slotName: selectedSlotName,
+            buildRevision: pobBuildRevision,
+            activeItemSetId: activeSet.id,
+            activeWeaponSet: weaponSet,
+            buildItemId: selected.id,
+            configOverrides: activeCalculationOverrides,
+          },
+        }) } : undefined}
         onReplace={selectedSlotName ? () => setReplacementOpen(true) : undefined}
         onClose={() => setInspectorOpen(false)}
       />}
@@ -1527,6 +1623,7 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
         }
         const replaceFromContextMenu = () => {
           setSelectedId(contextItem.id)
+          setSelectedSlotNameHint(contextSlotName)
           setReplacementOpen(true)
           closeContextMenu()
         }

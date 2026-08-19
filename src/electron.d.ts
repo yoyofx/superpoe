@@ -45,6 +45,18 @@ declare global {
       onState?(callback: (state: import('@/types/market').PriceCheckContextState) => void): () => void
       onDetailState?(callback: (value: { state?: import('@/types/market').PriceCheckContextState; listingId?: string }) => void): () => void
     }
+    superpoeFindBetter?: {
+      open(request: import('@/types/market').PriceCheckOpenRequest): Promise<import('@/types/market').PriceCheckContextState>
+      getState?(): Promise<import('@/types/market').PriceCheckContextState>
+      search?(leagueId: string, criteria: import('@/types/market').TradePriceCheckCriteria): Promise<import('@/types/market').PriceCheckContextState>
+      fetchPage?(page: number): Promise<import('@/types/market').PriceCheckContextState>
+      openInTradeCenter?(url: string): Promise<void>
+      visitHideout?(listingId: string): Promise<import('@/types/market').MarketVisitHideoutResult>
+      favorite?(listingId: string): Promise<{ ok: true; entryId: string }>
+      hide?(): Promise<void>
+      setUiScale?(factor: number): Promise<number>
+      onState?(callback: (state: import('@/types/market').PriceCheckContextState) => void): () => void
+    }
     pob2Desktop?: {
       getSystemLocale(): string
       importWeGame(url: string): Promise<{ code: string; sourceUrl: string }>

@@ -64,6 +64,7 @@ local equipmentDifferenceSessions = {}
 local ok, loadError = pcall(dofile, join(bundlePath, "HeadlessWrapper.lua"))
 if not ok then error("PoB initialization failed: " .. tostring(loadError)) end
 if jit and jit.off then jit.off() end
+local tradeQueryWeights = require("TradeQueryWeights")
 
 local function safeNum(value)
 	if value == nil then return nil end
@@ -1106,6 +1107,46 @@ local function compareEquipment(payload)
 	return equipmentDifference.compare(payload, equipmentDifferenceSessions)
 end
 
+local function generateTradeQuery(payload)
+	local xmlText = payload and payload.xml
+	if type(xmlText) ~= "string" or xmlText == "" then
+		return { success = false, error = "Empty XML input" }
+	end
+	if type(payload.slotName) ~= "string" or payload.slotName == "" then
+		return { success = false, error = "Equipped slot is required" }
+	end
+
+	if launch then launch.promptMsg = nil end
+	local loaded, loadBuildError = pcall(loadBuildFromXML, normalizeXml(xmlText), "superpoe-trade-query")
+	if not loaded then
+		local prompt = launch and launch.promptMsg
+		if launch then launch.promptMsg = nil end
+		if prompt then return { success = false, error = "Build load error: " .. tostring(prompt) } end
+		return { success = false, error = "loadBuildFromXML failed: " .. tostring(loadBuildError) }
+	end
+
+	build = (launch and launch.main and launch.main.modes and launch.main.modes["BUILD"]) or build
+	if not build then return { success = false, error = "Build object not available after load" } end
+	if launch and launch.promptMsg then
+		local prompt = tostring(launch.promptMsg)
+		launch.promptMsg = nil
+		return { success = false, error = "Build load error: " .. prompt }
+	end
+	if type(payload.configOverrides) == "table" and build.configTab then
+		local configSet = build.configTab.configSets[build.configTab.activeConfigSetId]
+		for key, value in pairs(payload.configOverrides) do configSet.input[key] = value end
+		build.configTab:BuildModList()
+	end
+	if GlobalCache and GlobalCache.cachedData then wipeGlobalCache() end
+	if build.calcsTab then
+		build.calcsTab.mainEnv = nil
+		build.calcsTab.mainOutput = nil
+		build.buildFlag = true
+		build.calcsTab:BuildOutput()
+	end
+	return tradeQueryWeights.generate(build, payload)
+end
+
 local function send(value)
 	io.stdout:write(json.encode(value), "\n")
 	io.stdout:flush()
@@ -1123,6 +1164,7 @@ for line in io.lines() do
 			if request.type == "calculate" then return calculate(request.payload) end
 			if request.type == "rankSkills" then return rankSkills(request.payload) end
 			if request.type == "compareEquipment" then return compareEquipment(request.payload) end
+			if request.type == "generateTradeQuery" then return generateTradeQuery(request.payload) end
 			if request.type == "describeSupportGems" then return describeSupportGems(request.payload) end
 			error("Unknown request type: " .. tostring(request.type))
 		end)

@@ -1,5 +1,6 @@
-import type { HTMLAttributes, ReactNode } from 'react'
+import { useRef, type HTMLAttributes, type ReactNode } from 'react'
 import type { CanonicalItemDisplayStat, CanonicalItemModifierView, CanonicalItemView } from '@/types/market'
+import { EquipmentDetailQuickNav, type EquipmentDetailQuickNavSection } from '@/components/equipment/EquipmentDetailQuickNav'
 import { normalizeDisplayTags, translateGameText, type Language } from '@/i18n/translationLoader'
 import { uiText } from '@/i18n/uiLocale'
 
@@ -13,6 +14,7 @@ interface EquipmentItemInspectorProps {
   footer?: ReactNode
   headerAction?: ReactNode
   headerProps?: Omit<HTMLAttributes<HTMLElement>, 'className'>
+  showQuickNavigation?: boolean
 }
 
 export function translateEquipmentItemName(value: string, rarity: string, language: Language): string {
@@ -112,32 +114,47 @@ function DisplayStatList({ stats, language, className }: { stats: CanonicalItemD
   return <div className={className}>{stats.map((stat) => <span key={`${stat.key}-${stat.values.join('|')}`}><label>{displayStatLabel(stat.key, language)}</label><strong>{stat.values.join(' - ')}</strong></span>)}</div>
 }
 
-export function EquipmentItemInspector({ view, language, sourceLabels = [], price, tags = [], note, footer, headerAction, headerProps }: EquipmentItemInspectorProps) {
+export function EquipmentItemInspector({ view, language, sourceLabels = [], price, tags = [], note, footer, headerAction, headerProps, showQuickNavigation = false }: EquipmentItemInspectorProps) {
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const propertiesRef = useRef<HTMLDivElement>(null)
+  const requirementsRef = useRef<HTMLDivElement>(null)
+  const modifiersRef = useRef<HTMLDivElement>(null)
+  const differenceRef = useRef<HTMLDivElement>(null)
+  const hasFooter = footer !== undefined && footer !== null && footer !== false
   const rarityKey = view.rarity.toLowerCase()
   const modifierGroups = (['implicit', 'enchant', 'rune', 'explicit'] as const)
     .map((group) => ({ group, entries: view.modifiers.filter((modifier) => modifier.group === group) }))
     .filter(({ entries }) => entries.length)
+  const quickNavigationSections: EquipmentDetailQuickNavSection[] = [
+    { id: 'properties', targetRef: propertiesRef },
+    ...(view.requirements?.length ? [{ id: 'requirements' as const, targetRef: requirementsRef }] : []),
+    { id: 'modifiers', targetRef: modifiersRef },
+    ...(hasFooter ? [{ id: 'difference' as const, targetRef: differenceRef, targetSelector: '.equipment-difference-summary' }] : []),
+  ]
 
   return <>
     <header className={`inspector-title item-header-${rarityKey} rarity-${rarityKey}`} {...headerProps}>
       <div className="item-header-copy"><h2>{equipmentItemName(view, language)}</h2><p>{equipmentItemBaseType(view, language)}</p></div>
       {headerAction}
     </header>
-    <div className="inspector-scroll">
-      <div className="item-property-type">{equipmentItemBaseType(view, language)}</div>
-      {sourceLabels.length > 0 && <div className="library-item-inspector-sources">{sourceLabels.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}</div>}
-      {price && <div className="library-item-inspector-price">{price}</div>}
-      <div className="item-metadata">
-        <span>{l('Rarity', '稀有度', '稀有度', '희귀도')} <strong>{view.rarity}</strong></span>
-        {view.itemLevel != null && <span>{l('Item level', '物品等级', '物品等級', '아이템 레벨')} <strong>{view.itemLevel}</strong></span>}
-        {view.quality != null && <span>{l('Quality', '品质', '品質', '퀄리티')} <strong>{view.quality}%</strong></span>}
-        {view.sockets && <span>{l('Sockets', '孔位', '插槽', '홈')} <strong>{view.sockets}</strong></span>}
-        {view.corrupted && <span className="library-item-inspector-corrupted">{l('Corrupted', '已腐化', '已汙染', '타락')}</span>}
+    <div className="inspector-scroll" ref={scrollRef}>
+      {showQuickNavigation && <EquipmentDetailQuickNav containerRef={scrollRef} sections={quickNavigationSections} language={language} />}
+      <div ref={propertiesRef} className="equipment-detail-section equipment-detail-properties">
+        <div className="item-property-type">{equipmentItemBaseType(view, language)}</div>
+        {sourceLabels.length > 0 && <div className="library-item-inspector-sources">{sourceLabels.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}</div>}
+        {price && <div className="library-item-inspector-price">{price}</div>}
+        <div className="item-metadata">
+          <span>{l('Rarity', '稀有度', '稀有度', '희귀도')} <strong>{view.rarity}</strong></span>
+          {view.itemLevel != null && <span>{l('Item level', '物品等级', '物品等級', '아이템 레벨')} <strong>{view.itemLevel}</strong></span>}
+          {view.quality != null && <span>{l('Quality', '品质', '品質', '퀄리티')} <strong>{view.quality}%</strong></span>}
+          {view.sockets && <span>{l('Sockets', '孔位', '插槽', '홈')} <strong>{view.sockets}</strong></span>}
+          {view.corrupted && <span className="library-item-inspector-corrupted">{l('Corrupted', '已腐化', '已汙染', '타락')}</span>}
+        </div>
+        <DisplayStatList stats={view.properties} language={language} className="item-display-stats" />
       </div>
-      <DisplayStatList stats={view.properties} language={language} className="item-display-stats" />
-      <DisplayStatList stats={view.requirements} language={language} className="item-requirements" />
-      <div className="item-modifiers">
+      {view.requirements?.length ? <div ref={requirementsRef} className="equipment-detail-section equipment-detail-requirements"><DisplayStatList stats={view.requirements} language={language} className="item-requirements" /></div> : null}
+      <div ref={modifiersRef} className="equipment-detail-section equipment-detail-modifiers item-modifiers">
         {modifierGroups.map(({ group, entries }) => <section className={`modifier-group modifier-${group}`} key={group}>{entries.map((modifier) => {
           const styleTag = modifier.sourceTags.find((tag) => ['crafted', 'fractured', 'mutated', 'rune', 'enchant'].includes(tag))
           return <p key={modifier.id} className={[styleTag ? `mod-${styleTag}` : '', modifier.unsupported ? 'item-modifier-unsupported' : ''].filter(Boolean).join(' ')}>
@@ -150,7 +167,7 @@ export function EquipmentItemInspector({ view, language, sourceLabels = [], pric
         {l('Support status unavailable for this saved item', '此仓库装备尚未规范化，暂无法判断词缀支持状态', '此倉庫裝備尚未規範化，暫無法判斷詞綴支援狀態', '이 저장된 아이템은 아직 정규화되지 않아 속성 지원 상태를 알 수 없습니다')}
       </div>}
       {(tags.length > 0 || note) && <div className="library-item-inspector-notes">{tags.length > 0 && <span>{tags.join(' · ')}</span>}{note && <p>{note}</p>}</div>}
-      {footer}
+      {hasFooter && <div ref={differenceRef} className="equipment-detail-section equipment-detail-difference">{footer}</div>}
     </div>
   </>
 }

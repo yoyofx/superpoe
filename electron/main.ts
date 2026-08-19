@@ -2,7 +2,7 @@ import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, net, powerMo
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import path from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { parseWeGameShareCode, requestPoe2dbBuild } from './poe2dbClient.js'
@@ -22,7 +22,8 @@ import type {
   EquipmentLibraryMetadataPatch, EquipmentLibraryMoveInput, EquipmentLibrarySource, EquipmentTradeSearchRequest, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
   MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch, TradePriceCheckCriteria, TradePriceCheckPrepareRequest,
   TradePriceCheckSearchRequest,
-  PriceCheckOpenRequest, LibraryModifierGroup, LibraryItemSnapshot, TradeStatResolutionSnapshot,
+  PriceCheckOpenRequest, LibraryModifierGroup, LibraryItemSnapshot, TradeStatResolutionSnapshot, FindBetterSearchOptions,
+  PriceCheckListingView,
 } from '../src/types/market.js'
 import { OfficialTradeProvider, TradeReferenceDataCache, type CatalogSnapshot } from './tradeService.js'
 import { GameWindowService } from './gameWindowService.js'
@@ -32,17 +33,20 @@ import { CurrencyMarketService } from './currencyMarket/currencyMarketService.js
 import { desktopText, isUiLanguage, type UiLanguage } from './uiLocale.js'
 import { PriceCheckCoordinator } from './priceCheck/PriceCheckCoordinator.js'
 import { PriceCheckWindowManager } from './priceCheck/PriceCheckWindowManager.js'
+import { FindBetterWindowManager } from './findBetterWindow.js'
 import { EquipmentTryOnWindowManager } from './equipmentTryOnWindow.js'
 import { GameClipboardService, processIsElevated } from './priceCheck/GameClipboardService.js'
 import { applyXiletradeParseEvidence, parseXiletradeItemText, type CanonicalStatContext, type CanonicalStatMatch, type XiletradeItemParseResult } from './xiletradeItemParser.js'
 import { XiletradeDataCatalog, XiletradeModifierMatcher } from './xiletradeDataCatalog.js'
 import { MAX_SUPERPOE_BACKUP_FILE_SIZE, SUPERPOE_BACKUP_EXTENSION, type SuperPoeBackupMainData } from '../src/engine/superPoeBackup.js'
 import type { EquipmentTryOnOpenRequest } from '../src/types/tryOn.js'
+import type { EquipmentDiffStat, EquipmentDifferenceResult } from '../src/equipmentDifference/types.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
 const equipmentTryOnPreloadPath = path.join(currentDir, 'equipmentTryOnPreload.cjs')
 const priceCheckPreloadPath = path.join(currentDir, 'priceCheckPreload.cjs')
+const findBetterPreloadPath = path.join(currentDir, 'findBetterPreload.cjs')
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
 const packageMetadata = JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')) as {
   name?: string
@@ -278,6 +282,7 @@ let opportunityOverlay: OpportunityOverlayController | null = null
 let currencyMarketService: CurrencyMarketService | null = null
 let priceCheckCoordinator: PriceCheckCoordinator | null = null
 let priceCheckWindowManager: PriceCheckWindowManager | null = null
+let findBetterWindowManager: FindBetterWindowManager | null = null
 let equipmentTryOnWindowManager: EquipmentTryOnWindowManager | null = null
 let priceCheckHotkey = ''
 let defaultRealm: MarketRealm = 'global'
@@ -406,10 +411,159 @@ function validateOptionalNumber(value: unknown, name: string): number | undefine
   return value
 }
 
+function validateFindBetterOptions(value: unknown): FindBetterSearchOptions {
+  if (!value || typeof value !== 'object') throw new Error('Invalid find-better options')
+  const input = value as Partial<FindBetterSearchOptions>
+  const sortBy = input.sortBy
+  if (sortBy !== 'stat-value' && sortBy !== 'stat-value-price' && sortBy !== 'price' && sortBy !== 'weight') throw new Error('Invalid find-better sort mode')
+  if (!Array.isArray(input.statWeights) || input.statWeights.length > 128) throw new Error('Invalid find-better stat weights')
+  const statWeights = input.statWeights.map((candidate) => {
+    if (!candidate || typeof candidate !== 'object') throw new Error('Invalid find-better stat weight')
+    const stat = validateShortString(candidate.stat, 'find-better stat', 128)
+    const label = validateShortString(candidate.label, 'find-better stat label', 128)
+    const weightMult = validateOptionalNumber(candidate.weightMult, 'find-better stat multiplier')
+    if (weightMult == null || weightMult < 0 || weightMult > 1) throw new Error('Invalid find-better stat multiplier')
+    const lowerIsBetter = candidate.lowerIsBetter === true
+    return { stat, label, weightMult, ...(lowerIsBetter ? { lowerIsBetter } : {}) }
+  }).filter((candidate) => candidate.weightMult > 0)
+  const runeBehavior = input.runeBehavior
+  const anointBehavior = input.anointBehavior
+  if (!['copy-current', 'keep', 'remove'].includes(String(runeBehavior)) || !['copy-current', 'keep', 'remove'].includes(String(anointBehavior))) {
+    throw new Error('Invalid find-better augment behavior')
+  }
+  const maxPrice = validateOptionalNumber(input.maxPrice, 'find-better max price')
+  const maxLevel = validateOptionalNumber(input.maxLevel, 'find-better max level')
+  const sockets = validateOptionalNumber(input.sockets, 'find-better sockets')
+  const fetchPages = validateOptionalNumber(input.fetchPages, 'find-better fetch pages')
+  if (maxPrice != null && maxPrice < 0 || maxLevel != null && maxLevel < 0 || sockets != null && (sockets < 0 || !Number.isInteger(sockets)) || fetchPages != null && (fetchPages < 1 || fetchPages > 10 || !Number.isInteger(fetchPages))) {
+    throw new Error('Invalid find-better numeric option')
+  }
+  const maxPriceCurrency = input.maxPriceCurrency == null ? undefined : validateShortString(input.maxPriceCurrency, 'find-better price currency', 64)
+  const jewelType = input.jewelType == null ? undefined : input.jewelType
+  if (jewelType != null && jewelType !== 'base' && jewelType !== 'radius') throw new Error('Invalid find-better jewel type')
+  return {
+    sortBy,
+    statWeights,
+    fetchPages: fetchPages == null ? 2 : fetchPages,
+    includeCorrupted: input.includeCorrupted === true,
+    includeMirrored: input.includeMirrored === true,
+    runeBehavior: runeBehavior as FindBetterSearchOptions['runeBehavior'],
+    anointBehavior: anointBehavior as FindBetterSearchOptions['anointBehavior'],
+    ...(jewelType == null ? {} : { jewelType }),
+    ...(maxPrice == null ? {} : { maxPrice }),
+    ...(maxPriceCurrency == null ? {} : { maxPriceCurrency }),
+    ...(maxLevel == null ? {} : { maxLevel }),
+    ...(sockets == null ? {} : { sockets }),
+  }
+}
+
+function finiteRatio(baseValue: number, candidateValue: number): number {
+  if (!Number.isFinite(baseValue) || !Number.isFinite(candidateValue)) return 1
+  const ratio = candidateValue / (baseValue !== 0 ? baseValue : 1)
+  // PoB2's data.misc.maxStatIncrease is 2 (a 100% increase cap).
+  return Math.min(ratio, 2)
+}
+
+function weightedEquipmentScore(result: EquipmentDifferenceResult, weights: FindBetterSearchOptions['statWeights']): number | undefined {
+  const stats = result.groups?.flatMap((group) => group.changedStats) || []
+  const byKey = new Map<string, EquipmentDiffStat>()
+  for (const stat of stats) if (!byKey.has(stat.key)) byKey.set(stat.key, stat)
+  const ratioFor = (key: string, lowerIsBetter = false): number => {
+    const direct = byKey.get(key)
+    if (direct) {
+      const baseValue = lowerIsBetter ? -direct.baseValue : direct.baseValue
+      const candidateValue = lowerIsBetter ? -direct.candidateValue : direct.candidateValue
+      return finiteRatio(baseValue, candidateValue)
+    }
+    // PoB2's Full DPS power stat falls back to the three component outputs
+    // when the build has no selected FullDPS output.
+    if (key === 'FullDPS') {
+      const components = ['TotalDPS', 'TotalDotDPS', 'CombinedDPS']
+        .map((component) => byKey.get(component))
+        .filter((value): value is EquipmentDiffStat => Boolean(value))
+      if (components.length) {
+        const base = components.reduce((sum, value) => sum + value.baseValue, 0)
+        const candidate = components.reduce((sum, value) => sum + value.candidateValue, 0)
+        return finiteRatio(base, candidate)
+      }
+    }
+    // A stat omitted from changedStats is unchanged by definition, so its
+    // ratio is one. This keeps the score equivalent to PoB's weighted ratio.
+    return 1
+  }
+  if (!weights.length) return undefined
+  return weights.reduce((sum, weight) => {
+    const ratio = ratioFor(weight.stat, weight.lowerIsBetter === true)
+    return sum + ratio * weight.weightMult
+  }, 0)
+}
+
+function candidateCardMetrics(result: EquipmentDifferenceResult, slotName: string | undefined): NonNullable<PriceCheckListingView['candidateMetrics']> {
+  // PoB normalizes the active weapon set to names such as "Weapon 1 Swap",
+  // while the renderer can still pass the base slot name "Weapon 1". Match
+  // both spellings before falling back to the first group; otherwise a card
+  // can display the metrics for another valid weapon slot than its detail.
+  const normalizedSlotName = slotName?.replace(/\s+Swap$/, '')
+  const slotResult = result.groups?.find((group) => group.slotName === slotName)
+    || (normalizedSlotName
+      ? result.groups?.find((group) => group.slotName.replace(/\s+Swap$/, '') === normalizedSlotName)
+      : result.groups?.length === 1 ? result.groups[0] : undefined)
+  const changedStats = slotResult?.changedStats || []
+  const findStat = (key: string): EquipmentDiffStat | undefined => changedStats.find((stat) => stat.key === key && stat.actor === 'player')
+    || changedStats.find((stat) => stat.key === key)
+  const fullDpsStat = findStat('FullDPS')
+  const fullDpsParts = ['TotalDPS', 'TotalDotDPS', 'CombinedDPS']
+    .map(findStat)
+    .filter((value): value is EquipmentDiffStat => Boolean(value))
+  const fullDpsDelta = fullDpsStat?.delta ?? (fullDpsParts.length
+    ? fullDpsParts.reduce((sum, stat) => sum + stat.delta, 0)
+    : 0)
+  const totalEhpStat = findStat('TotalEHP')
+  const totalEhpDelta = totalEhpStat?.delta ?? 0
+  return {
+    ...(typeof slotResult?.sort.weaponDps === 'number' && Number.isFinite(slotResult.sort.weaponDps) ? { weaponDps: slotResult.sort.weaponDps } : {}),
+    fullDpsDelta,
+    fullDpsPercent: fullDpsStat?.percent ?? (fullDpsDelta === 0 ? 0 : undefined),
+    totalEhpDelta,
+    totalEhpPercent: totalEhpStat?.percent ?? (totalEhpDelta === 0 ? 0 : undefined),
+  }
+}
+
+async function priceToExalted(realm: MarketRealm): Promise<(currency: string, amount: number) => number | undefined> {
+  const rates = new Map<string, number>([['exalted', 1], ['exalted-orb', 1], ['exalted orb', 1]])
+  try {
+    const market = await currencyMarketService?.get(realm)
+    const snapshot = market?.snapshot
+    if (snapshot?.divineInExalted && Number.isFinite(snapshot.divineInExalted)) {
+      rates.set('divine', snapshot.divineInExalted)
+      rates.set('divine-orb', snapshot.divineInExalted)
+      rates.set('divine orb', snapshot.divineInExalted)
+    }
+    for (const item of snapshot?.items || []) {
+      const names = [item.id, item.englishName, item.name].filter((value): value is string => Boolean(value)).map((value) => value.toLocaleLowerCase())
+      const rate = item.priceExalted
+      if (!rate || !Number.isFinite(rate)) continue
+      for (const name of names) {
+        if (name.includes('chaos')) rates.set('chaos', rate)
+        if (name.includes('exalted')) rates.set('exalted', rate)
+        if (name.includes('divine')) rates.set('divine', rate)
+      }
+    }
+  } catch {
+    // Sorting remains available for a single currency when the optional
+    // currency-market cache cannot be loaded.
+  }
+  return (currency, amount) => {
+    const key = currency.trim().toLocaleLowerCase()
+    const rate = rates.get(key) || rates.get(key.replace(/[_-]+/g, ' '))
+    return rate && Number.isFinite(amount) && amount > 0 ? amount * rate : undefined
+  }
+}
+
 function validatePriceCheckCriteria(value: unknown): TradePriceCheckCriteria {
   if (!value || typeof value !== 'object') throw new Error('Invalid price check criteria')
   const input = value as Partial<TradePriceCheckCriteria>
-  if (!['securable', 'available', 'online', 'any'].includes(String(input.listedStatus))) throw new Error('Invalid listed status')
+  if (!['securable', 'available', 'onlineleague', 'online', 'any'].includes(String(input.listedStatus))) throw new Error('Invalid listed status')
   if (typeof input.useBaseType !== 'boolean' || !Array.isArray(input.modifiers) || input.modifiers.length > 128) {
     throw new Error('Invalid price check criteria')
   }
@@ -425,13 +579,46 @@ function validatePriceCheckCriteria(value: unknown): TradePriceCheckCriteria {
   const itemLevelMin = validateOptionalNumber(input.itemLevelMin, 'item level minimum')
   const itemLevelMax = validateOptionalNumber(input.itemLevelMax, 'item level maximum')
   if (itemLevelMin != null && itemLevelMax != null && itemLevelMin > itemLevelMax) throw new Error('Item level minimum cannot exceed maximum')
+  const findBetter = input.findBetter == null ? undefined : validateFindBetterOptions(input.findBetter)
   return {
     listedStatus: input.listedStatus!,
     useBaseType: input.useBaseType,
     ...(itemLevelMin == null ? {} : { itemLevelMin }),
     ...(itemLevelMax == null ? {} : { itemLevelMax }),
     modifiers,
+    ...(findBetter ? { findBetter } : {}),
   }
+}
+
+function validateFindBetterOpenRequest(value: unknown): PriceCheckOpenRequest {
+  if (!value || typeof value !== 'object') throw new Error('Invalid find-better request')
+  let serializedSize = 0
+  try { serializedSize = JSON.stringify(value).length } catch { throw new Error('Invalid find-better request') }
+  if (serializedSize > 12_000_000) throw new Error('Find-better request is too large')
+  const input = value as Partial<PriceCheckOpenRequest>
+  if (!input.source || (input.source.kind !== 'raw' && input.source.kind !== 'library')) throw new Error('Invalid find-better source')
+  if (input.source.kind === 'raw') {
+    if (typeof input.source.raw !== 'string' || !input.source.raw || input.source.raw.length > 200_000) throw new Error('Invalid find-better item')
+  } else if (typeof input.source.entryId !== 'string' || !input.source.entryId || input.source.entryId.length > 256) {
+    throw new Error('Invalid find-better library item')
+  }
+  if (typeof input.slotName !== 'string' || !input.slotName || input.slotName.length > 80) throw new Error('Invalid find-better slot')
+  const context = input.buildContext
+  if (!context || typeof context !== 'object' || typeof context.xml !== 'string' || !context.xml || context.xml.length > 10_000_000 || typeof context.slotName !== 'string' || !context.slotName || context.slotName.length > 80) {
+    throw new Error('Invalid find-better build context')
+  }
+  if (context.buildRevision != null && (typeof context.buildRevision !== 'number' || !Number.isFinite(context.buildRevision))) throw new Error('Invalid find-better build revision')
+  if (context.activeItemSetId != null && (typeof context.activeItemSetId !== 'string' || context.activeItemSetId.length > 128)) throw new Error('Invalid find-better item set')
+  if (context.activeWeaponSet != null && context.activeWeaponSet !== 1 && context.activeWeaponSet !== 2) throw new Error('Invalid find-better weapon set')
+  if (context.buildItemId != null && (typeof context.buildItemId !== 'string' || context.buildItemId.length > 128)) throw new Error('Invalid find-better build item')
+  return structuredClone({
+    source: input.source,
+    mode: 'find-better' as const,
+    slotName: input.slotName,
+    buildContext: context,
+    ...(input.initialLeagueId == null ? {} : { initialLeagueId: input.initialLeagueId }),
+    ...(input.captureWarnings == null ? {} : { captureWarnings: input.captureWarnings }),
+  })
 }
 
 function validateListingRef(value: unknown, senderRealm: MarketRealm): MarketDomListingRef {
@@ -599,6 +786,8 @@ function createWindow(): BrowserWindow {
     true,
     () => gameWindowService?.focusGame(),
   )
+  findBetterWindowManager?.dispose()
+  findBetterWindowManager = new FindBetterWindowManager(findBetterPreloadPath, rendererUrl, getAppIconPath())
   equipmentTryOnWindowManager?.dispose()
   equipmentTryOnWindowManager = new EquipmentTryOnWindowManager(equipmentTryOnPreloadPath, rendererUrl, getAppIconPath())
   priceCheckCoordinator = new PriceCheckCoordinator({
@@ -613,15 +802,119 @@ function createWindow(): BrowserWindow {
       if (!tradeProvider) throw new Error('Trade provider is unavailable')
       return tradeProvider.leagues(realm)
     },
-    search: async (realm, item, leagueId, criteria) => {
+    search: async (realm, item, leagueId, criteria, mode, buildContext) => {
       if (!tradeProvider) throw new Error('Trade provider is unavailable')
-      const result = await tradeProvider.search(realm, leagueId, item, criteria)
+      let queryOverride: { query: unknown; resolved?: number } | undefined
+      if (mode === 'find-better') {
+        if (!buildContext) throw new Error('Find a better search requires the active build context')
+        const generated = await pobLuaService.generateTradeQuery({
+          xml: buildContext.xml,
+          slotName: buildContext.slotName,
+          configOverrides: buildContext.configOverrides,
+          options: criteria.findBetter,
+        }) as { success?: boolean; data?: { query?: unknown; resolved?: number }; query?: unknown; resolved?: number; error?: string }
+        // The sidecar protocol wraps successful handler results in `data`.
+        // Accept the unwrapped shape too so this remains compatible with older
+        // development sidecars during a hot reload.
+        const resultData = generated?.data || generated
+        if (generated?.success === false || !resultData?.query) {
+          throw new Error(generated?.error || 'Unable to calculate build-aware trade weights')
+        }
+        queryOverride = { query: resultData.query, ...(typeof resultData.resolved === 'number' ? { resolved: resultData.resolved } : {}) }
+      }
+      const result = await tradeProvider.search(realm, leagueId, item, criteria, mode, queryOverride)
       const { resolvedItem: _resolvedItem, ...response } = result
       return response
     },
     fetch: async (realm, ids, searchId) => {
       if (!marketViewManager) throw new Error('Trade provider is unavailable')
       return marketViewManager.fetchListings(realm, ids, searchId)
+    },
+    rankListings: async (listings, criteria, buildContext, sourceSlotName, realm) => {
+      const options = criteria.findBetter
+      if (!options || !buildContext || !listings.length) return listings
+      const slotName = sourceSlotName || buildContext.slotName
+      const context = {
+        xml: buildContext.xml,
+        buildRevision: buildContext.buildRevision ?? 0,
+        activeItemSetId: buildContext.activeItemSetId ?? '',
+        activeWeaponSet: buildContext.activeWeaponSet ?? 1,
+        buildItemId: buildContext.buildItemId,
+        configOverrides: buildContext.configOverrides,
+      }
+      const contextKey = `find-better:${createHash('sha256').update(JSON.stringify({ ...context, slotName })).digest('hex').slice(0, 48)}`
+      const comparablePrice = options.sortBy === 'price' || options.sortBy === 'stat-value-price' ? await priceToExalted(realm) : undefined
+      const sameCurrency = new Set(listings.map((listing) => listing.price?.currency).filter((value): value is string => Boolean(value))).size <= 1
+      const ranked: Array<{ listing: typeof listings[number]; score: number; sortScore: number; index: number }> = []
+      for (const [index, listing] of listings.entries()) {
+        if (!listing.raw) continue
+        try {
+          // Card deltas come from the same single-slot PoB comparison used by
+          // the detail view. This makes every local sort mode show the same
+          // three decision values, while the current build remains untouched.
+          const comparison = await pobLuaService.compareEquipment({
+            context,
+            contextKey,
+            sourceSlotName: slotName,
+            slotOnlyTooltips: true,
+            candidate: {
+              raw: listing.raw,
+              source: 'market-listing',
+              runeBehavior: options.runeBehavior,
+              anointBehavior: options.anointBehavior,
+            },
+          })
+          const candidateMetrics = comparison.success ? candidateCardMetrics(comparison, slotName) : undefined
+          const price = listing.price && comparablePrice?.(listing.price.currency, listing.price.amount)
+          const fallbackPrice = price == null && sameCurrency ? listing.price?.amount : price
+          const withMetrics = candidateMetrics ? { ...listing, candidateMetrics } : listing
+          if (options.sortBy === 'price') {
+            ranked.push({
+              listing: withMetrics,
+              score: 0,
+              sortScore: fallbackPrice && fallbackPrice > 0 ? fallbackPrice : Number.POSITIVE_INFINITY,
+              index,
+            })
+            continue
+          }
+          if (options.sortBy === 'weight') {
+            ranked.push({
+              listing: withMetrics,
+              score: 0,
+              sortScore: index,
+              index,
+            })
+            continue
+          }
+          if (!comparison.success) continue
+          const score = weightedEquipmentScore(comparison, options.statWeights)
+          if (score == null || !Number.isFinite(score)) continue
+          let sortScore = score
+          if (options.sortBy === 'stat-value-price') {
+            // PoB2 uses currency conversion rates and subtracts 0.1 * log10
+            // of the comparable price. If all results share one currency, the
+            // amount is a valid local fallback even when rates are unavailable.
+            sortScore = fallbackPrice && fallbackPrice > 0 ? score - 0.1 * Math.log10(fallbackPrice) : Number.NEGATIVE_INFINITY
+          }
+          ranked.push({
+            listing: withMetrics,
+            score,
+            sortScore,
+            index,
+          })
+        } catch (error) {
+          console.warn(`[PriceCheck] unable to score market listing ${listing.id}`, error)
+        }
+      }
+      ranked.sort((left, right) => (options.sortBy === 'price' ? left.sortScore - right.sortScore : options.sortBy === 'weight' ? left.index - right.index : right.sortScore - left.sortScore) || left.index - right.index)
+      const rankedIds = new Set(ranked.map((entry) => entry.listing.id))
+      const ordered: PriceCheckListingView[] = ranked.map((entry) => options.sortBy === 'price'
+        ? entry.listing
+        : { ...entry.listing, tradeScore: entry.sortScore })
+      // Preserve candidates that could not be parsed/calculated at the end;
+      // PoB2 keeps the result row usable even when one item is malformed.
+      ordered.push(...listings.filter((listing) => !rankedIds.has(listing.id)))
+      return ordered
     },
     resolveListingStatText: async (realm, queryStatId) => {
       try {
@@ -638,7 +931,10 @@ function createWindow(): BrowserWindow {
       if (!marketViewManager) throw new Error('Trade provider is unavailable')
       return marketViewManager.visitHideout({ realm, listingId, queryId: searchId, sourceUrl })
     },
-    changed: (state) => priceCheckWindowManager?.publish(state),
+    changed: (state) => {
+      if (state.mode === 'find-better') findBetterWindowManager?.publish(state)
+      else priceCheckWindowManager?.publish(state)
+    },
   })
   currencyMarketService = new CurrencyMarketService(
     path.join(userDataPath, 'currency-market'),
@@ -703,6 +999,8 @@ function createWindow(): BrowserWindow {
     priceCheckCoordinator = null
     priceCheckWindowManager?.dispose()
     priceCheckWindowManager = null
+    findBetterWindowManager?.dispose()
+    findBetterWindowManager = null
     equipmentTryOnWindowManager?.dispose()
     equipmentTryOnWindowManager = null
     if (mainWindow === window) mainWindow = null
@@ -1477,9 +1775,85 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     if (!value || typeof value !== 'object' || JSON.stringify(value).length > 500_000) throw new Error('Invalid price check request')
     const input = value as PriceCheckOpenRequest
     if (!input.source || (input.source.kind !== 'raw' && input.source.kind !== 'library')) throw new Error('Invalid price check source')
+    if (input.mode != null && input.mode !== 'price-check' && input.mode !== 'find-better') throw new Error('Invalid price check mode')
+    if (input.slotName != null && (typeof input.slotName !== 'string' || input.slotName.length > 80)) throw new Error('Invalid price check slot')
+    if (input.buildContext != null) {
+      if (typeof input.buildContext !== 'object'
+        || typeof input.buildContext.xml !== 'string'
+        || !input.buildContext.xml
+        || input.buildContext.xml.length > 10_000_000
+        || typeof input.buildContext.slotName !== 'string'
+        || !input.buildContext.slotName
+        || input.buildContext.slotName.length > 80) {
+        throw new Error('Invalid price check build context')
+      }
+      if (input.buildContext.buildRevision != null
+        && (typeof input.buildContext.buildRevision !== 'number' || !Number.isFinite(input.buildContext.buildRevision))) {
+        throw new Error('Invalid price check build revision')
+      }
+      if (input.buildContext.activeItemSetId != null
+        && (typeof input.buildContext.activeItemSetId !== 'string' || input.buildContext.activeItemSetId.length > 128)) {
+        throw new Error('Invalid price check item set')
+      }
+      if (input.buildContext.activeWeaponSet != null && input.buildContext.activeWeaponSet !== 1 && input.buildContext.activeWeaponSet !== 2) {
+        throw new Error('Invalid price check weapon set')
+      }
+    }
     if (!priceCheckCoordinator || !priceCheckWindowManager) throw new Error('Price checker is unavailable')
     priceCheckWindowManager.show()
     return priceCheckCoordinator.open(input)
+  })
+  ipcMain.handle('find-better:open', async (event, value: unknown) => {
+    const parent = requireMainWindowSender(event)
+    if (!priceCheckCoordinator || !findBetterWindowManager) throw new Error('Find-better search is unavailable')
+    const input = validateFindBetterOpenRequest(value)
+    priceCheckWindowManager?.hide(false)
+    findBetterWindowManager.show(parent)
+    return priceCheckCoordinator.open(input)
+  })
+  ipcMain.handle('find-better:get-state', (event) => {
+    if (!findBetterWindowManager) throw new Error('Find-better search is unavailable')
+    return findBetterWindowManager.getState(event.sender.id)
+  })
+  ipcMain.handle('find-better:search', async (event, value: unknown) => {
+    if (!findBetterWindowManager?.owns(event.sender.id) || !priceCheckCoordinator || !value || typeof value !== 'object') throw new Error('Invalid find-better search')
+    const input = value as { leagueId?: unknown; criteria?: unknown }
+    const criteria = validatePriceCheckCriteria(input.criteria)
+    if (!criteria.findBetter) throw new Error('Find-better criteria are required')
+    return priceCheckCoordinator.search(validateShortString(input.leagueId, 'trade league', 128), criteria)
+  })
+  ipcMain.handle('find-better:fetch-page', (event, value: unknown) => {
+    if (!findBetterWindowManager?.owns(event.sender.id) || !priceCheckCoordinator || typeof value !== 'number') throw new Error('Invalid find-better page')
+    return priceCheckCoordinator.fetchPage(value)
+  })
+  ipcMain.handle('find-better:visit-hideout', (event, value: unknown) => {
+    if (!findBetterWindowManager?.owns(event.sender.id) || !priceCheckCoordinator || typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value)) throw new Error('Invalid find-better listing')
+    return priceCheckCoordinator.visitHideout(value)
+  })
+  ipcMain.handle('find-better:favorite', async (event, value: unknown) => {
+    if (!findBetterWindowManager?.owns(event.sender.id) || !priceCheckCoordinator || typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value)) throw new Error('Invalid find-better listing')
+    const reference = priceCheckCoordinator.listingReference(value)
+    const entry = await savePriceCheckListing(reference)
+    return { ok: true as const, entryId: entry.id }
+  })
+  ipcMain.handle('find-better:open-in-trade-center', (event, value: unknown) => {
+    if (!findBetterWindowManager?.owns(event.sender.id) || typeof value !== 'string') throw new Error('Invalid trade page')
+    const url = new URL(value)
+    const realm = priceCheckCoordinator?.snapshot().realm || defaultRealm
+    const expectedHost = realm === 'cn' ? 'poe.game.qq.com' : 'www.pathofexile.com'
+    if (url.hostname !== expectedHost || !url.pathname.startsWith('/trade2/')) throw new Error('Invalid trade page')
+    if (!marketViewManager || !mainWindow || mainWindow.isDestroyed()) throw new Error('Trade center is unavailable')
+    marketViewManager.openSource(realm, url.toString())
+    findBetterWindowManager.hide(event.sender.id)
+    mainWindow.show()
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+    mainWindow.moveTop()
+    mainWindow.webContents.send('market:open-trade-center')
+  })
+  ipcMain.handle('find-better:hide', (event) => {
+    if (!findBetterWindowManager) throw new Error('Find-better search is unavailable')
+    findBetterWindowManager.hide(event.sender.id)
   })
   ipcMain.handle('price-check:get-state', (event) => {
     if (!priceCheckWindowManager || (!priceCheckWindowManager.owns(event.sender.id) && !priceCheckWindowManager.ownsDetail(event.sender.id)) || !priceCheckCoordinator) throw new Error('Unauthorized price check sender')
@@ -2252,7 +2626,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
         configOverrides?: unknown
         activeSkillContext?: unknown
       }
-      candidate?: { raw?: unknown; buildItemId?: unknown; source?: unknown }
+      candidate?: { raw?: unknown; buildItemId?: unknown; source?: unknown; runeBehavior?: unknown; anointBehavior?: unknown }
       sourceSlotName?: unknown
       slotOnlyTooltips?: unknown
       contextKey?: unknown
@@ -2262,6 +2636,11 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     }
     if (!payload.candidate || typeof payload.candidate.raw !== 'string' || !payload.candidate.raw || payload.candidate.raw.length > 200_000) {
       throw new Error('Invalid equipment comparison item')
+    }
+    for (const behavior of [payload.candidate.runeBehavior, payload.candidate.anointBehavior]) {
+      if (behavior != null && behavior !== 'copy-current' && behavior !== 'keep' && behavior !== 'remove') {
+        throw new Error('Invalid equipment comparison augment behavior')
+      }
     }
     if (typeof payload.contextKey !== 'string' || !payload.contextKey || payload.contextKey.length > 128) {
       throw new Error('Invalid equipment comparison context')

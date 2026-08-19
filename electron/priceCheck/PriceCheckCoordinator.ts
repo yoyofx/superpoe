@@ -11,8 +11,15 @@ interface CoordinatorServices {
   context: () => { realm: MarketRealm; language: PriceCheckContextState['language'] }
   prepare: (realm: MarketRealm, source: PriceCheckOpenRequest['source']) => Promise<{ draft: TradePriceCheckDraft; item: LibraryItemSnapshot }>
   leagues: (realm: MarketRealm) => Promise<Array<{ id: string; text: string }>>
-  search: (realm: MarketRealm, item: LibraryItemSnapshot, leagueId: string, criteria: TradePriceCheckCriteria) => Promise<SearchOutput>
+  search: (realm: MarketRealm, item: LibraryItemSnapshot, leagueId: string, criteria: TradePriceCheckCriteria, mode: PriceCheckContextState['mode'], buildContext?: PriceCheckOpenRequest['buildContext']) => Promise<SearchOutput>
   fetch: (realm: MarketRealm, ids: string[], searchId: string) => Promise<unknown>
+  rankListings?: (
+    listings: PriceCheckListingView[],
+    criteria: TradePriceCheckCriteria,
+    buildContext: PriceCheckOpenRequest['buildContext'] | undefined,
+    sourceSlotName: string | undefined,
+    realm: MarketRealm,
+  ) => Promise<PriceCheckListingView[]>
   resolveListingStatText?: (realm: MarketRealm, queryStatId: string) => Promise<MarketStatTextResolution | undefined>
   resolveListingItemText?: (realm: MarketRealm, value: string) => { canonicalText?: string }
   visitHideout: (realm: MarketRealm, listingId: string, searchId: string, sourceUrl: string) => Promise<{ ok: true } | { ok: false; reason: 'game-offline' }>
@@ -195,6 +202,25 @@ async function listingView(
     ...stat,
     key: resolveListingItemText?.(realm, stat.key)?.canonicalText || stat.key,
   }))
+  const rawLines = [`Rarity: ${text(item.rarity) || 'RARE'}`]
+  const canonicalName = resolvedName?.canonicalText || text(item.name)
+  const canonicalBaseType = resolvedBaseType?.canonicalText || baseType
+  if (canonicalName && canonicalName !== canonicalBaseType && ['RARE', 'UNIQUE'].includes((text(item.rarity) || '').toUpperCase())) {
+    rawLines.push(canonicalName)
+  }
+  rawLines.push(canonicalBaseType)
+  if (typeof item.ilvl === 'number' && Number.isFinite(item.ilvl)) rawLines.push(`Item Level: ${item.ilvl}`)
+  const quality = properties?.find((stat) => /quality|品质|品質/i.test(stat.key))?.values[0]
+  if (quality) rawLines.push(`Quality: ${quality}`)
+  const sockets = socketText(item.sockets)
+  if (sockets) rawLines.push(`Sockets: ${sockets}`)
+  const implicitModifiers = modifiers.filter((modifier) => ['rune', 'enchant', 'implicit'].includes(modifier.group))
+  rawLines.push(`Implicits: ${implicitModifiers.length}`)
+  for (const modifier of modifiers) {
+    const tags = (modifier.sourceTags || []).filter((tag) => ['rune', 'enchant', 'fractured', 'crafted', 'desecrated', 'mutated'].includes(tag))
+    rawLines.push(`${tags.map((tag) => `{${tag}}`).join('')}${modifier.text}`)
+  }
+  if (item.corrupted === true) rawLines.push('Corrupted')
   return {
     id,
     ...(amount != null && currency ? { price: { amount, currency, display: `${amount} ${currency}` } } : {}),
@@ -218,19 +244,22 @@ async function listingView(
     listedAt: text(listing.indexed),
     whisper: text(listing.whisper),
     hideoutAvailable: Boolean(text(listing.hideout_token)),
+    raw: rawLines.join('\n'),
   }
 }
 
 export class PriceCheckCoordinator {
   private generation = 0
   private source?: PriceCheckOpenRequest['source']
+  private buildContext?: PriceCheckOpenRequest['buildContext']
+  private criteria?: TradePriceCheckCriteria
   private preparedItem?: LibraryItemSnapshot
   private searchContext?: SearchContext
   private state: PriceCheckContextState
 
   constructor(private readonly services: CoordinatorServices) {
     const context = services.context()
-    this.state = { generation: 0, ...context, phase: 'idle', leagues: [], listings: [] }
+    this.state = { generation: 0, ...context, mode: 'price-check', phase: 'idle', leagues: [], listings: [] }
   }
 
   snapshot(): PriceCheckContextState { return structuredClone(this.state) }
@@ -238,12 +267,18 @@ export class PriceCheckCoordinator {
   async open(request: PriceCheckOpenRequest): Promise<PriceCheckContextState> {
     const generation = ++this.generation
     this.source = structuredClone(request.source)
+    this.buildContext = request.buildContext ? structuredClone(request.buildContext) : undefined
+    this.criteria = undefined
     this.preparedItem = undefined
     this.searchContext = undefined
     const context = this.services.context()
+    const mode = request.mode || 'price-check'
     this.set({
       generation,
       ...context,
+      mode,
+      ...(request.slotName ? { slotName: request.slotName } : {}),
+      ...(request.buildContext ? { buildContext: request.buildContext } : {}),
       phase: 'parsing',
       leagues: [],
       listings: [],
@@ -268,9 +303,10 @@ export class PriceCheckCoordinator {
     if (!this.source || !this.preparedItem) throw new Error('No price check item is active')
     const generation = this.generation
     const { realm } = this.state
+    this.criteria = structuredClone(criteria)
     this.set({ ...this.state, phase: 'searching', listings: [], search: undefined, error: undefined })
     try {
-      const result = await this.services.search(realm, this.preparedItem, leagueId, criteria)
+      const result = await this.services.search(realm, this.preparedItem, leagueId, criteria, this.state.mode, this.buildContext)
       if (generation !== this.generation) return this.snapshot()
       const { listingIds, ...search } = result
       this.searchContext = { id: randomUUID(), generation, realm, search, ids: listingIds }
@@ -289,11 +325,45 @@ export class PriceCheckCoordinator {
     const ids = context.ids.slice((safePage - 1) * 10, safePage * 10)
     this.set({ ...this.state, phase: 'fetching-page', error: undefined })
     try {
-      const payload = ids.length ? await this.services.fetch(context.realm, ids, context.search.searchId) : { result: [] }
+      const findBetter = this.criteria?.findBetter
+      // PoB2 evaluates and sorts the complete bounded candidate batch, then
+      // displays a page. Fetching only the visible page would make page two
+      // independently sorted and could put a better candidate behind it.
+      const fetchIds = findBetter ? context.ids : ids
+      const fetchedResults: unknown[] = []
+      for (let offset = 0; offset < fetchIds.length; offset += 10) {
+        const batch = fetchIds.slice(offset, offset + 10)
+        if (!batch.length) continue
+        const payload = await this.services.fetch(context.realm, batch, context.search.searchId)
+        const batchResults = Array.isArray(record(payload).result) ? record(payload).result as unknown[] : []
+        fetchedResults.push(...batchResults)
+      }
       if (context.generation !== this.generation) return this.snapshot()
-      const results = Array.isArray(record(payload).result) ? record(payload).result as unknown[] : []
-      const listings = (await Promise.all(results.map((value) => listingView(value, context.realm, this.services.resolveListingStatText, this.services.resolveListingItemText))))
+      const results = fetchedResults
+      let listings = (await Promise.all(results.map((value) => listingView(value, context.realm, this.services.resolveListingStatText, this.services.resolveListingItemText))))
         .filter((value): value is PriceCheckListingView => Boolean(value))
+      const criteria = this.criteria
+      if (findBetter?.sortBy === 'price' && this.services.rankListings) {
+        try {
+          listings = await this.services.rankListings(listings, criteria!, this.buildContext, this.state.slotName, context.realm)
+        } catch (error) {
+          console.warn('[PriceCheck] candidate price ranking failed; keeping amount order', error)
+          listings = [...listings].sort((left, right) => (left.price?.amount ?? Number.POSITIVE_INFINITY) - (right.price?.amount ?? Number.POSITIVE_INFINITY))
+        }
+      } else if (findBetter?.sortBy === 'price') {
+        listings = [...listings].sort((left, right) => (left.price?.amount ?? Number.POSITIVE_INFINITY) - (right.price?.amount ?? Number.POSITIVE_INFINITY))
+      } else if (findBetter && this.services.rankListings) {
+        // PoB2 performs these two sorts after fetching the result page. A
+        // failed local calculation must not make the official search unusable.
+        try {
+          listings = await this.services.rankListings(listings, criteria!, this.buildContext, this.state.slotName, context.realm)
+        } catch (error) {
+          console.warn('[PriceCheck] candidate ranking failed; keeping trade order', error)
+        }
+      }
+      if (findBetter) {
+        listings = listings.slice((safePage - 1) * 10, safePage * 10)
+      }
       this.set({
         ...this.state,
         phase: 'results',
@@ -330,18 +400,23 @@ export class PriceCheckCoordinator {
     if (context.realm === this.state.realm && context.language === this.state.language) return
     this.generation += 1
     this.source = undefined
+    this.buildContext = undefined
+    this.criteria = undefined
     this.searchContext = undefined
-    this.set({ generation: this.generation, ...context, phase: 'idle', leagues: [], listings: [] })
+    this.set({ generation: this.generation, ...context, mode: 'price-check', phase: 'idle', leagues: [], listings: [] })
   }
 
   reportError(error: unknown): PriceCheckContextState {
     this.generation += 1
     this.source = undefined
+    this.buildContext = undefined
+    this.criteria = undefined
     this.searchContext = undefined
     const context = this.services.context()
     this.set({
       generation: this.generation,
       ...context,
+      mode: 'price-check',
       phase: 'error',
       leagues: [],
       listings: [],

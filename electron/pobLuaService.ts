@@ -3,7 +3,7 @@ import { createInterface, type Interface as ReadlineInterface } from 'node:readl
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
-import type { CanonicalEquipmentItem, CanonicalItemView } from '../src/types/market.js'
+import type { CanonicalEquipmentItem, CanonicalItemView, FindBetterSearchOptions } from '../src/types/market.js'
 import type { EquipmentDifferenceRequest, EquipmentDifferenceResult } from '../src/equipmentDifference/types.js'
 
 interface SidecarResponse {
@@ -199,6 +199,26 @@ export class PobLuaService {
     const status = await this.initialize()
     if (!status.available || !this.child) throw new Error(status.error || 'LuaJIT sidecar is unavailable')
     return this.request('rankSkills', input)
+  }
+
+  async generateTradeQuery(input: {
+    xml: string
+    slotName: string
+    configOverrides?: Record<string, boolean | number | string>
+    options?: FindBetterSearchOptions
+  }): Promise<unknown> {
+    const status = await this.initialize()
+    if (!status.available || !this.child) throw new Error(status.error || 'LuaJIT sidecar is unavailable')
+    // The project-owned Lua generator reads search options from the request
+    // payload itself (maxPrice, maxLevel, sockets, statWeights, ...). The
+    // renderer-facing API keeps them grouped under `options`; flatten them at
+    // this boundary so those filters are actually included in the generated
+    // official-trade query. Keep the rest of the build context unchanged.
+    const { options, ...context } = input
+    return this.request('generateTradeQuery', {
+      ...context,
+      ...(options || {}),
+    })
   }
 
   async compareEquipment(input: EquipmentDifferenceRequest & { contextKey: string }): Promise<EquipmentDifferenceResult> {

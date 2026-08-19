@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { PriceCheckCoordinator } from '../../electron/priceCheck/PriceCheckCoordinator'
-import type { LibraryItemSnapshot, TradePriceCheckDraft } from '@/types/market'
+import type { LibraryItemSnapshot, PriceCheckListingView, TradePriceCheckDraft } from '@/types/market'
 
 const draft: TradePriceCheckDraft = {
   realm: 'global', rarity: 'RARE', name: 'Test Item', baseType: 'Quarterstaff', unique: false,
@@ -45,6 +45,32 @@ describe('PriceCheckCoordinator', () => {
     expect(coordinator.snapshot().search?.pageCount).toBe(2)
     await coordinator.fetchPage(2)
     expect(coordinator.snapshot().listings.map((listing) => listing.id)).toEqual(['listing-10', 'listing-11'])
+  })
+
+  it('delegates PoB2 stat-value modes to local candidate ranking', async () => {
+    const rankListings = vi.fn(async (listings: PriceCheckListingView[]) => listings
+      .map((listing, index) => ({ ...listing, tradeScore: listings.length - index }))
+      .reverse())
+    const coordinator = new PriceCheckCoordinator({
+      context: () => ({ realm: 'global', language: 'en' }), prepare: async () => prepared(),
+      leagues: async () => [{ id: 'league', text: 'League' }], visitHideout: vi.fn(), changed: vi.fn(), rankListings,
+      search: async () => ({ searchId: 'search', url: 'https://www.pathofexile.com/trade2/search/poe2/league/search', total: 2, resolvedModifierCount: 1, unresolvedModifierCount: 0, listingIds: ['first', 'second'] }),
+      fetch: async () => ({ result: ['first', 'second'].map((id) => ({ id, item: { name: 'Item', baseType: 'Quarterstaff', explicitMods: ['+10 to Strength'] }, listing: { price: { amount: 1, currency: 'divine' }, account: { name: 'Seller', online: {} } } })) }),
+    })
+    await coordinator.open({
+      source: { kind: 'raw', raw: 'item' }, mode: 'find-better', slotName: 'Weapon 1',
+      buildContext: { xml: '<PathOfBuilding2/>', slotName: 'Weapon 1' },
+    })
+    await coordinator.search('league', {
+      listedStatus: 'online', useBaseType: true, modifiers: [],
+      findBetter: {
+        sortBy: 'stat-value', statWeights: [{ stat: 'FullDPS', label: 'Full DPS', weightMult: 1 }],
+        includeCorrupted: true, includeMirrored: false, runeBehavior: 'copy-current', anointBehavior: 'copy-current',
+      },
+    })
+    expect(rankListings).toHaveBeenCalledOnce()
+    expect(rankListings.mock.calls[0]?.[0][0].raw).toContain('Rarity:')
+    expect(coordinator.snapshot().listings.map((listing) => listing.id)).toEqual(['second', 'first'])
   })
 
   it('keeps localized capture diagnostics while allowing recognized modifiers to load', async () => {

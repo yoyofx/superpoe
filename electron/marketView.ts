@@ -59,6 +59,27 @@ const MARKET_PROFILES: Record<MarketRealm, MarketRealmProfile> = {
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const marketPreloadPath = path.join(currentDir, 'marketPreload.cjs')
 const MARKET_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+const TRADE_REQUEST_MAX_RETRIES = 3
+const TRADE_REQUEST_RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504])
+
+function isReadOnlyTradeRequest(url: string): boolean {
+  return /\/api\/trade2\/(?:search\/|fetch\/|data\/)/.test(url)
+}
+
+function retryAfterMs(value: string | null): number | undefined {
+  if (!value) return undefined
+  const seconds = Number(value)
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.min(seconds * 1_000, 10_000)
+  const timestamp = Date.parse(value)
+  if (!Number.isFinite(timestamp)) return undefined
+  return Math.min(Math.max(0, timestamp - Date.now()), 10_000)
+}
+
+function retryDelayMs(attempt: number, retryAfter: string | null): number {
+  const serverDelay = retryAfterMs(retryAfter)
+  if (serverDelay != null) return serverDelay
+  return Math.min(8_000, 500 * (2 ** attempt))
+}
 
 function parseAllowedUrl(value: string, profile: MarketRealmProfile): URL | null {
   try {
@@ -527,29 +548,45 @@ export class MarketViewManager {
     const view = this.views.get(realm) || this.getOrCreateView(realm)
     if (view.webContents.isDestroyed()) throw new Error('Market session is unavailable')
     await this.ensureSessionRestored(view.webContents, MARKET_PROFILES[realm])
-    const response = await view.webContents.session.fetch(url, init)
-    const text = await response.text()
-    if (process.env.ELECTRON_RENDERER_URL && /\/api\/trade2\/(fetch|whisper)(?:\/|$)/.test(url)) {
-      console.info(`[Market API] ${init.method || 'GET'} ${url} status=${response.status} bytes=${text.length}`)
-    }
-    if (!response.ok) {
-      let detail: string | undefined
+    const retryable = isReadOnlyTradeRequest(url)
+    for (let attempt = 0; attempt <= TRADE_REQUEST_MAX_RETRIES; attempt += 1) {
       try {
-        const payload = JSON.parse(text) as { error?: unknown; message?: unknown }
-        const error = payload.error && typeof payload.error === 'object' ? payload.error as { message?: unknown } : undefined
-        const message = error?.message ?? payload.message ?? (typeof payload.error === 'string' ? payload.error : undefined)
-        if (typeof message === 'string') detail = message
-      } catch {
-        const compact = text.replace(/\s+/g, ' ').trim()
-        if (compact && !/^<!doctype html/i.test(compact)) detail = compact.slice(0, 240)
+        const response = await view.webContents.session.fetch(url, init)
+        const text = await response.text()
+        if (process.env.ELECTRON_RENDERER_URL && /\/api\/trade2\/(fetch|whisper)(?:\/|$)/.test(url)) {
+          console.info(`[Market API] ${init.method || 'GET'} ${url} status=${response.status} bytes=${text.length}`)
+        }
+        if (!response.ok) {
+          let detail: string | undefined
+          try {
+            const payload = JSON.parse(text) as { error?: unknown; message?: unknown }
+            const error = payload.error && typeof payload.error === 'object' ? payload.error as { message?: unknown } : undefined
+            const message = error?.message ?? payload.message ?? (typeof payload.error === 'string' ? payload.error : undefined)
+            if (typeof message === 'string') detail = message
+          } catch {
+            const compact = text.replace(/\s+/g, ' ').trim()
+            if (compact && !/^<!doctype html/i.test(compact)) detail = compact.slice(0, 240)
+          }
+          if (retryable && attempt < TRADE_REQUEST_MAX_RETRIES && TRADE_REQUEST_RETRYABLE_STATUS.has(response.status)) {
+            await new Promise((resolve) => setTimeout(resolve, retryDelayMs(attempt, response.headers.get('retry-after'))))
+            continue
+          }
+          throw new OfficialTradeRequestError(response.status, detail)
+        }
+        if (text.length > 5_000_000) throw new Error('Official trade response is too large')
+        // The whisper endpoint can acknowledge a request with 204 or an empty
+        // body. It is still a successful HTTP response and must not be parsed as
+        // JSON, otherwise a sent whisper is reported as a validation failure.
+        if (!text.trim()) return null
+        return JSON.parse(text) as unknown
+      } catch (error) {
+        if (retryable && attempt < TRADE_REQUEST_MAX_RETRIES && !(error instanceof OfficialTradeRequestError)) {
+          await new Promise((resolve) => setTimeout(resolve, retryDelayMs(attempt, null)))
+          continue
+        }
+        throw error
       }
-      throw new OfficialTradeRequestError(response.status, detail)
     }
-    if (text.length > 5_000_000) throw new Error('Official trade response is too large')
-    // The whisper endpoint can acknowledge a request with 204 or an empty
-    // body. It is still a successful HTTP response and must not be parsed as
-    // JSON, otherwise a sent whisper is reported as a validation failure.
-    if (!text.trim()) return null
-    return JSON.parse(text) as unknown
+    throw new Error('Official trade request could not be completed')
   }
 }

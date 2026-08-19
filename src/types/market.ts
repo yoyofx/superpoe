@@ -545,11 +545,13 @@ export interface EquipmentTradeSearchRequest {
   criteria?: TradePriceCheckCriteria
 }
 
-export type TradeListedStatus = 'securable' | 'available' | 'online' | 'any'
+export type TradeListedStatus = 'securable' | 'available' | 'onlineleague' | 'online' | 'any'
 
 export type TradePriceCheckTarget =
   | { kind: 'library'; entryId: string }
   | { kind: 'raw'; raw: string }
+
+export type PriceCheckMode = 'price-check' | 'find-better'
 
 export interface TradePriceCheckPrepareRequest {
   realm: MarketRealm
@@ -586,12 +588,41 @@ export interface TradePriceCheckModifierCriteria {
   max?: number
 }
 
+export type FindBetterSortMode = 'stat-value' | 'stat-value-price' | 'price' | 'weight'
+export type FindBetterAugmentBehavior = 'copy-current' | 'keep' | 'remove'
+
+export interface FindBetterStatWeight {
+  stat: string
+  label: string
+  weightMult: number
+  /** PoB2 applies a sign transform to metrics where lower is better. */
+  lowerIsBetter?: boolean
+}
+
+/** PoB2 Trader's weighted-search options. Kept out of ordinary price checks. */
+export interface FindBetterSearchOptions {
+  sortBy: FindBetterSortMode
+  statWeights: FindBetterStatWeight[]
+  /** Maximum number of official trade result pages to retrieve (10 items per page, 1-10). */
+  fetchPages?: number
+  includeCorrupted: boolean
+  includeMirrored: boolean
+  runeBehavior: FindBetterAugmentBehavior
+  anointBehavior: FindBetterAugmentBehavior
+  jewelType?: 'base' | 'radius'
+  maxPrice?: number
+  maxPriceCurrency?: string
+  maxLevel?: number
+  sockets?: number
+}
+
 export interface TradePriceCheckCriteria {
   listedStatus: TradeListedStatus
   useBaseType: boolean
   itemLevelMin?: number
   itemLevelMax?: number
   modifiers: TradePriceCheckModifierCriteria[]
+  findBetter?: FindBetterSearchOptions
 }
 
 export interface TradePriceCheckSearchRequest extends TradePriceCheckPrepareRequest {
@@ -614,6 +645,20 @@ export interface TradeSearchResult {
 
 export interface PriceCheckOpenRequest {
   source: TradePriceCheckTarget
+  mode?: PriceCheckMode
+  /** Equipped slot context used by the build-aware "find better" entry. */
+  slotName?: string
+  /** Current PoB build snapshot used to calculate build-aware trade weights. */
+  buildContext?: {
+    xml: string
+    slotName: string
+    buildRevision?: number
+    activeItemSetId?: string
+    activeWeaponSet?: 1 | 2
+    /** Item currently occupying the requested slot when the dialog opened. */
+    buildItemId?: string
+    configOverrides?: Record<string, boolean | number | string>
+  }
   initialLeagueId?: string
   /** Non-blocking diagnostics produced while importing a localized game item. */
   captureWarnings?: string[]
@@ -630,6 +675,21 @@ export interface PriceCheckListingView {
   listedAt?: string
   whisper?: string
   hideoutAvailable: boolean
+  /** Internal PoB text used for Find Better post-sorting. */
+  raw?: string
+  /** Build-aware score populated for Stat Value sorting. */
+  tradeScore?: number
+  /** Three decision values shown on a Find Better result card. */
+  candidateMetrics?: {
+    /** Local weapon DPS, independent of the rest of the build. */
+    weaponDps?: number
+    /** Final FullDPS change after replacing the item. */
+    fullDpsDelta?: number
+    fullDpsPercent?: number
+    /** Final TotalEHP change after replacing the item. */
+    totalEhpDelta?: number
+    totalEhpPercent?: number
+  }
 }
 
 export interface PriceCheckListingReference {
@@ -643,6 +703,10 @@ export interface PriceCheckContextState {
   generation: number
   realm: MarketRealm
   language: 'en' | 'zh-rCN' | 'zh-rTW' | 'ko-KR'
+  mode: PriceCheckMode
+  slotName?: string
+  /** Build snapshot retained by the independent Find Better dialog for PoB difference previews. */
+  buildContext?: PriceCheckOpenRequest['buildContext']
   phase: 'idle' | 'parsing' | 'configuring' | 'searching' | 'fetching-page' | 'results' | 'error'
   draft?: TradePriceCheckDraft
   leagues: TradeLeague[]

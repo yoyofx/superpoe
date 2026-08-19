@@ -417,6 +417,7 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
     price={marketSource(entry)?.price?.display}
     tags={entry.tags}
     note={entry.note}
+    showQuickNavigation={Boolean(equipmentDifferenceContext && entry.item.raw)}
     footer={equipmentDifferenceContext && entry.item.raw ? <EquipmentDifferenceTooltip
       context={equipmentDifferenceContext}
       candidate={{ raw: entry.item.raw, source: 'equipment-library' }}

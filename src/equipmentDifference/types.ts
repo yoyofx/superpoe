@@ -11,6 +11,8 @@ export interface BuildContextSnapshot {
   buildRevision: number
   activeItemSetId: string
   activeWeaponSet: 1 | 2
+  /** Item selected when a build-aware comparison was opened. */
+  buildItemId?: string
   configFingerprint?: string
   configOverrides?: Record<string, boolean | number | string>
   activeSkillContext?: {
@@ -25,6 +27,8 @@ export interface EquipmentDifferenceRequest {
     raw: string
     buildItemId?: string
     source: EquipmentDifferenceCandidateSource
+    runeBehavior?: 'copy-current' | 'keep' | 'remove'
+    anointBehavior?: 'copy-current' | 'keep' | 'remove'
   }
   sourceSlotName?: string
   slotOnlyTooltips?: boolean
@@ -59,6 +63,7 @@ export interface EquipmentSlotDiff {
     fullDps?: number
     combinedDps?: number
     totalEhp?: number
+    weaponDps?: number
   }
 }
 

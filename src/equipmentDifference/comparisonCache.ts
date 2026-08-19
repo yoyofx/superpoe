@@ -34,6 +34,7 @@ export function createEquipmentDifferenceCacheKeys(
     context.buildRevision,
     context.activeItemSetId,
     context.activeWeaponSet,
+    context.buildItemId || '',
     context.configFingerprint || '',
     stableValues(context.configOverrides),
     context.activeSkillContext?.skillGroupId || '',

@@ -100,6 +100,7 @@ export function EquipmentTryOnWindow() {
         price={marketSource?.price?.display}
         tags={entry.tags}
         note={entry.note}
+        showQuickNavigation
         footer={differenceContent}
       />
     </section>

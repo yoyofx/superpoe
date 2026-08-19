@@ -96,6 +96,193 @@ describe('trade query builder', () => {
     } })
   })
 
+  it('keeps the lightweight fallback distinct from a price check', () => {
+    const resolved = withResolution(item(['+109 to maximum Life']), 0, 'explicit.stat_3299347043')
+    const built = buildTradeQuery(resolved, 'global', {
+      listedStatus: 'online', useBaseType: false, modifiers: [{ id: 'explicit-0' }],
+    }, 'find-better')
+    expect(built.query).toMatchObject({ query: {
+      stats: [{ type: 'weight', value: { min: 0 }, filters: [{ id: 'explicit.stat_3299347043', value: { weight: 1 } }] }],
+    }, sort: { 'statgroup.0': 'desc' } })
+    expect((built.query as { query: Record<string, unknown> }).query).not.toHaveProperty('name')
+  })
+
+  it('does not constrain a weighted replacement search to a unique item name or base', () => {
+    const unique = withResolution(item(['+109 to maximum Life']), 0, 'explicit.stat_3299347043')
+    unique.rarity = 'UNIQUE'
+    unique.name = 'Alpha\'s Howl'
+    unique.baseType = 'Secutor Casque'
+    unique.tradeCategory = 'armour.helmet'
+    const built = buildTradeQuery(unique, 'global', {
+      listedStatus: 'online', useBaseType: false, modifiers: [{ id: 'explicit-0' }],
+    }, 'find-better')
+    const query = (built.query as { query: Record<string, unknown> }).query
+    expect(query).not.toHaveProperty('name')
+    expect(query).not.toHaveProperty('type')
+    expect(query).toMatchObject({
+      filters: { type_filters: { filters: { category: { option: 'armour.helmet' } } } },
+      stats: [{ type: 'weight' }],
+    })
+  })
+
+  it('strips identity fields from a weighted query override before submission', async () => {
+    const submitted: unknown[] = []
+    const manager = {
+      fetchStats: async () => ({ result: [{ entries: [] }] }),
+      search: async (_realm: string, _leagueId: string, query: unknown) => {
+        submitted.push(query)
+        return {
+          id: 'weighted-search',
+          total: 21,
+          result: Array.from({ length: 20 }, (_, index) => `candidate-${index}`),
+        }
+      },
+      rememberGeneratedSearch: () => undefined,
+    } as unknown as MarketViewManager
+    const cache = {
+      get: async () => ({
+        realm: 'global' as const,
+        fetchedAt: '2026-08-04T00:00:00.000Z',
+        payloadHash: 'test-catalog',
+        entries: [],
+      }),
+    } as unknown as TradeReferenceDataCache
+    const provider = new OfficialTradeProvider(manager, cache, undefined, (_realm, source) => source)
+    await provider.search(
+      'global',
+      'League',
+      item([]),
+      {
+        listedStatus: 'online',
+        useBaseType: false,
+        modifiers: [],
+        findBetter: {
+          sortBy: 'weight',
+          statWeights: [],
+          includeCorrupted: true,
+          includeMirrored: true,
+          runeBehavior: 'copy-current',
+          anointBehavior: 'copy-current',
+        },
+      },
+      'find-better',
+      {
+        query: {
+          query: {
+            name: 'Alpha\'s Howl',
+            type: 'Secutor Casque',
+            status: { option: 'online' },
+            stats: [{ type: 'weight', value: { min: 1 }, filters: [] }],
+          },
+          sort: { 'statgroup.0': 'desc' },
+        },
+      },
+    )
+    const submittedRoot = (submitted[0] as { query: Record<string, unknown> }).query
+    expect(submittedRoot).not.toHaveProperty('name')
+    expect(submittedRoot).not.toHaveProperty('type')
+  })
+
+  it('matches PoB2 weighted threshold adjustment and bounded candidate batches', async () => {
+    const searches: unknown[] = []
+    const remembered: unknown[] = []
+    const manager = {
+      fetchStats: async () => ({ result: [{ entries: [] }] }),
+      search: async (_realm: string, _leagueId: string, query: unknown) => {
+        searches.push(query)
+        if (searches.length === 1) {
+          return { id: 'first-search', total: 10000, result: Array.from({ length: 30 }, (_, index) => `first-${index}`) }
+        }
+        return { id: 'final-search', total: 25, result: Array.from({ length: 25 }, (_, index) => `final-${index}`) }
+      },
+      fetchListings: async () => ({ result: [{ item: { pseudoMods: ['Sum: 100'] } }] }),
+      rememberGeneratedSearch: (_realm: string, _leagueId: string, id: string, query: unknown) => remembered.push({ id, query }),
+    } as unknown as MarketViewManager
+    const cache = {
+      get: async () => ({
+        realm: 'global' as const,
+        fetchedAt: '2026-08-04T00:00:00.000Z',
+        payloadHash: 'test-catalog',
+        entries: [],
+      }),
+    } as unknown as TradeReferenceDataCache
+    const provider = new OfficialTradeProvider(manager, cache, undefined, (_realm, source) => source)
+    const result = await provider.search(
+      'global',
+      'League',
+      item(['+109 to maximum Life']),
+      { listedStatus: 'online', useBaseType: false, modifiers: [] },
+      'find-better',
+      {
+        query: {
+          query: {
+            status: { option: 'online' },
+            stats: [{ type: 'weight', value: { min: 10 }, filters: [{ id: 'explicit.stat_life', value: { weight: 1 } }] }],
+          },
+          sort: { 'statgroup.0': 'desc' },
+        },
+        resolved: 1,
+      },
+    )
+
+    expect(searches).toHaveLength(2)
+    expect((searches[1] as { query: { stats: [{ value: { min: number } }] } }).query.stats[0].value.min).toBe(55)
+    expect(result.searchId).toBe('final-search')
+    expect(result.listingIds).toHaveLength(20)
+    expect(remembered).toHaveLength(1)
+  })
+
+  it('uses the configured Fetch Pages limit for weighted candidates', async () => {
+    const manager = {
+      fetchStats: async () => ({ result: [{ entries: [] }] }),
+      search: async () => ({
+        id: 'fetch-pages-search',
+        total: 45,
+        result: Array.from({ length: 45 }, (_, index) => `candidate-${index}`),
+      }),
+      rememberGeneratedSearch: () => undefined,
+    } as unknown as MarketViewManager
+    const cache = {
+      get: async () => ({
+        realm: 'global' as const,
+        fetchedAt: '2026-08-04T00:00:00.000Z',
+        payloadHash: 'test-catalog',
+        entries: [],
+      }),
+    } as unknown as TradeReferenceDataCache
+    const result = await new OfficialTradeProvider(manager, cache, undefined, (_realm, source) => source).search(
+      'global',
+      'League',
+      item([]),
+      {
+        listedStatus: 'online',
+        useBaseType: false,
+        modifiers: [],
+        findBetter: {
+          sortBy: 'weight',
+          statWeights: [],
+          fetchPages: 3,
+          includeCorrupted: true,
+          includeMirrored: true,
+          runeBehavior: 'copy-current',
+          anointBehavior: 'copy-current',
+        },
+      },
+      'find-better',
+      {
+        query: {
+          query: {
+            status: { option: 'online' },
+            stats: [{ type: 'weight', value: { min: 1 }, filters: [] }],
+          },
+          sort: { 'statgroup.0': 'desc' },
+        },
+      },
+    )
+
+    expect(result.listingIds).toHaveLength(30)
+  })
+
   it('falls back to a type-only search when the official API rejects detailed stats', async () => {
     const calls: unknown[] = []
     const manager = {

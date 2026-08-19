@@ -2,13 +2,18 @@
   "schemaVersion": 1,
   "name": "superpoe",
   "source": "lua/superpoe",
-  "fileCount": 1,
-  "totalBytes": 17036,
+  "fileCount": 2,
+  "totalBytes": 26079,
   "files": [
     {
       "path": "EquipmentDifference.lua",
-      "hash": "b60d6b6a8cd31b393ae56f44886fb4b4e62b34ca470f40b2b0c7313b1ac99a03",
-      "size": 17036
+      "hash": "6c8b09de7e32a39a13f49e85c6e7c45460827e730cc1f05838520d0260637633",
+      "size": 19077
+    },
+    {
+      "path": "TradeQueryWeights.lua",
+      "hash": "2652612a8c80dd69d6d2f53c3308b4806ca8988fea9ada5d4f648c3af51e7173",
+      "size": 8065
     }
   ]
 }
