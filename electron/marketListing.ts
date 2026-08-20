@@ -270,6 +270,19 @@ function propertyNumber(item: Record<string, unknown>, label: RegExp): number | 
   return undefined
 }
 
+function propertyText(item: Record<string, unknown>, label: RegExp, realm: MarketDomListingRef['realm']): string | undefined {
+  const properties = Array.isArray(item.properties) ? item.properties : []
+  for (const rawProperty of properties) {
+    const property = record(rawProperty)
+    if (!label.test(cleanText(property.name))) continue
+    const values = Array.isArray(property.values) ? property.values : []
+    const first = Array.isArray(values[0]) ? values[0][0] : values[0]
+    const value = localizedText(first, realm)
+    if (value) return value
+  }
+  return undefined
+}
+
 function socketText(item: Record<string, unknown>): string | undefined {
   if (!Array.isArray(item.sockets) || !item.sockets.length) return undefined
   return item.sockets.map((socket) => {
@@ -323,7 +336,11 @@ export function normalizeMarketListing(
   rawLines.push(englishBaseType)
   const itemLevel = numberValue(item.ilvl)
   const quality = propertyNumber(item, /quality|品质|品質/i)
+  const radius = propertyText(item, /^(?:radius|范围|範圍)$/i, ref.realm)
+  const limitedTo = numberValue(item.limit) ?? numberValue(item.limitedTo)
   const sockets = socketText(item)
+  if (limitedTo != null) rawLines.push(`Limited to: ${limitedTo}`)
+  if (radius) rawLines.push(`Radius: ${radius}`)
   if (itemLevel != null) rawLines.push(`Item Level: ${itemLevel}`)
   if (quality != null) rawLines.push(`Quality: ${quality}`)
   if (sockets) rawLines.push(`Sockets: ${sockets}`)
@@ -357,6 +374,9 @@ export function normalizeMarketListing(
       capturedAt,
       updatedAt: capturedAt,
       realm: ref.realm,
+      ...(ref.slotName ? { slotName: ref.slotName } : {}),
+      ...(ref.runeBehavior ? { runeBehavior: ref.runeBehavior } : {}),
+      ...(ref.anointBehavior ? { anointBehavior: ref.anointBehavior } : {}),
       leagueId: leagueId ? decodeURIComponent(leagueId) : undefined,
       listingId: ref.listingId,
       queryId: ref.queryId,

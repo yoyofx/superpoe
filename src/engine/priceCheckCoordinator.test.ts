@@ -71,6 +71,8 @@ describe('PriceCheckCoordinator', () => {
     expect(rankListings).toHaveBeenCalledOnce()
     expect(rankListings.mock.calls[0]?.[0][0].raw).toContain('Rarity:')
     expect(coordinator.snapshot().listings.map((listing) => listing.id)).toEqual(['second', 'first'])
+    expect(coordinator.snapshot().findBetterComparison).toEqual({ runeBehavior: 'copy-current', anointBehavior: 'copy-current' })
+    expect(coordinator.listingReference('second')).toMatchObject({ slotName: 'Weapon 1', runeBehavior: 'copy-current', anointBehavior: 'copy-current' })
   })
 
   it('keeps localized capture diagnostics while allowing recognized modifiers to load', async () => {

@@ -14,6 +14,8 @@ import { uiText, type UiMessage } from '@/i18n/uiLocale'
 import { EquipmentItemInspector, equipmentItemName } from '@/components/equipment/EquipmentItemInspector'
 import { EquipmentCollectionTree, type EquipmentCollectionSelection } from '@/components/equipment/EquipmentCollectionTree'
 import { parseEquipmentXml } from '@/engine/equipment'
+import { deriveWeaponComparisonStatsFromRaw } from '@/engine/itemDisplayStats'
+import { loadItemBaseData, type ItemBaseData } from '@/engine/itemBaseData'
 import { useTreeStore } from '@/store/treeStore'
 import type { BuildContextSnapshot } from '@/equipmentDifference'
 
@@ -92,9 +94,15 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
   const pobBuildRevision = useTreeStore((state) => state.pobBuildRevision)
   const activeWeaponSet = useTreeStore((state) => state.activeWeaponSet)
+  const activeCalculationProfileId = useTreeStore((state) => state.activeCalculationProfileId)
+  const calculationProfiles = useTreeStore((state) => state.calculationProfiles)
   const getActivePobXml = useTreeStore((state) => state.getActivePobXml)
   const activePobXml = useMemo(() => getActivePobXml() || '', [getActivePobXml, importedBuildCode, pobBuildRevision])
   const activeEquipment = useMemo(() => activePobXml ? parseEquipmentXml(activePobXml) : null, [activePobXml])
+  const activeCalculationOverrides = useMemo(() => {
+    const profile = calculationProfiles.find((candidate) => candidate.id === activeCalculationProfileId)
+    return profile?.values && Object.keys(profile.values).length ? { ...profile.values } : undefined
+  }, [activeCalculationProfileId, calculationProfiles])
   const equipmentDifferenceContext = useMemo<BuildContextSnapshot | null>(() => {
     if (!activePobXml || !activeEquipment?.activeItemSetId) return null
     return {
@@ -102,10 +110,12 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
       buildRevision: pobBuildRevision,
       activeItemSetId: activeEquipment.activeItemSetId,
       activeWeaponSet,
+      ...(activeCalculationOverrides ? { configOverrides: activeCalculationOverrides } : {}),
     }
-  }, [activeEquipment?.activeItemSetId, activePobXml, activeWeaponSet, pobBuildRevision])
+  }, [activeCalculationOverrides, activeEquipment?.activeItemSetId, activePobXml, activeWeaponSet, pobBuildRevision])
   const bridge = window.pob2Market
   const [entries, setEntries] = useState<EquipmentLibraryEntry[]>([])
+  const [itemBases, setItemBases] = useState<Record<string, ItemBaseData>>({})
   const [sidebar, setSidebar] = useState<EquipmentLibrarySidebarSnapshot>(EMPTY_SIDEBAR)
   const [query, setQuery] = useState('')
   const [itemSelection, setItemSelection] = useState<EquipmentCollectionSelection>({ kind: 'root', root: 'market' })
@@ -128,6 +138,14 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   const [searchEditor, setSearchEditor] = useState<SearchEditorState | null>(null)
   const contentListRef = useRef<HTMLDivElement | null>(null)
   const listScrollTopRef = useRef(0)
+
+  useEffect(() => {
+    let active = true
+    void loadItemBaseData().then((index) => {
+      if (active) setItemBases(index.bases)
+    }).catch(() => {})
+    return () => { active = false }
+  }, [])
 
   const load = useCallback(async () => {
     if (!bridge) return
@@ -186,6 +204,9 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
 
   const folders = useMemo(() => sidebar.folders.filter((folder) => folder.scope === activeTab
     && (activeTab !== 'items' || folder.collectionRoot === 'market')), [activeTab, sidebar.folders])
+  const weaponStatsByEntryId = useMemo(() => new Map(
+    entries.map((entry) => [entry.id, deriveWeaponComparisonStatsFromRaw(entry.item.raw, itemBases, entry.id)]),
+  ), [entries, itemBases])
   const selectedFolderId = activeTab === 'items' && itemSelection.kind === 'root' ? itemSelection.folderId : sidebar.selectedSearchFolderId
 
   const run = async (id: string, operation: () => Promise<unknown>, success?: string) => {
@@ -445,10 +466,11 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
         price={source?.price?.display}
         tags={entry.tags}
         note={entry.note}
+        weaponStats={weaponStatsByEntryId.get(entry.id) || []}
         headerAction={bulkSelecting
           ? <button className="trade-helper-item-select" aria-pressed={selected} onClick={(event) => { event.stopPropagation(); toggleEntrySelection(entry.id) }} title={selected ? l('Deselect', '取消选择', '取消選擇', '선택 해제') : l('Select item', '选择装备', '選擇裝備', '아이템 선택')} aria-label={selected ? l('Deselect', '取消选择', '取消選擇', '선택 해제') : l('Select item', '选择装备', '選擇裝備', '아이템 선택')}>{selected ? <SquareCheckBig /> : <Square />}</button>
           : undefined}
-      />
+        />
       {!bulkSelecting && renderEntryActions(entry, '', true, true)}
     </article>
   }
@@ -685,6 +707,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
               price={marketSource(detailEntry)?.price?.display}
               tags={detailEntry.tags}
               note={detailEntry.note}
+              weaponStats={weaponStatsByEntryId.get(detailEntry.id) || []}
             />
           </div>
         </section> : <div className="trade-helper-content-list" ref={contentListRef}>

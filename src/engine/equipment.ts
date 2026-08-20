@@ -63,6 +63,11 @@ function parseItem(id: string, rawValue: unknown): EquipmentItem {
   }
 }
 
+/** Parse a standalone PoB item text without requiring a complete build XML. */
+export function parseEquipmentItemRaw(raw: string, id = 'item'): EquipmentItem {
+  return parseItem(id, raw)
+}
+
 export function parseEquipmentXml(xml: string): EquipmentData | null {
   const parser = new XMLParser({
     ignoreAttributes: false,

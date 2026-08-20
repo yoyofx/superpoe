@@ -1,6 +1,8 @@
 import { useRef, type HTMLAttributes, type ReactNode } from 'react'
 import type { CanonicalItemDisplayStat, CanonicalItemModifierView, CanonicalItemView } from '@/types/market'
 import { EquipmentDetailQuickNav, type EquipmentDetailQuickNavSection } from '@/components/equipment/EquipmentDetailQuickNav'
+import { EquipmentWeaponStats } from '@/components/equipment/EquipmentWeaponStats'
+import type { WeaponComparisonStat } from '@/engine/itemDisplayStats'
 import { normalizeDisplayTags, translateGameText, type Language } from '@/i18n/translationLoader'
 import { uiText } from '@/i18n/uiLocale'
 
@@ -11,6 +13,7 @@ interface EquipmentItemInspectorProps {
   price?: string
   tags?: string[]
   note?: string
+  weaponStats?: WeaponComparisonStat[]
   footer?: ReactNode
   headerAction?: ReactNode
   headerProps?: Omit<HTMLAttributes<HTMLElement>, 'className'>
@@ -114,7 +117,7 @@ function DisplayStatList({ stats, language, className }: { stats: CanonicalItemD
   return <div className={className}>{stats.map((stat) => <span key={`${stat.key}-${stat.values.join('|')}`}><label>{displayStatLabel(stat.key, language)}</label><strong>{stat.values.join(' - ')}</strong></span>)}</div>
 }
 
-export function EquipmentItemInspector({ view, language, sourceLabels = [], price, tags = [], note, footer, headerAction, headerProps, showQuickNavigation = false }: EquipmentItemInspectorProps) {
+export function EquipmentItemInspector({ view, language, sourceLabels = [], price, tags = [], note, weaponStats, footer, headerAction, headerProps, showQuickNavigation = false }: EquipmentItemInspectorProps) {
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
   const scrollRef = useRef<HTMLDivElement>(null)
   const propertiesRef = useRef<HTMLDivElement>(null)
@@ -168,6 +171,7 @@ export function EquipmentItemInspector({ view, language, sourceLabels = [], pric
       </div>}
       {(tags.length > 0 || note) && <div className="library-item-inspector-notes">{tags.length > 0 && <span>{tags.join(' · ')}</span>}{note && <p>{note}</p>}</div>}
       {hasFooter && <div ref={differenceRef} className="equipment-detail-section equipment-detail-difference">{footer}</div>}
+      {weaponStats && <EquipmentWeaponStats stats={weaponStats} language={language} className="equipment-inspector-weapon-stats" />}
     </div>
   </>
 }

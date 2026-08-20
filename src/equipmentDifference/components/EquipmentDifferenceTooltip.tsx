@@ -22,6 +22,8 @@ interface EquipmentDifferenceTooltipProps {
     raw: string
     buildItemId?: string
     source?: EquipmentDifferenceCandidateSource
+    runeBehavior?: 'copy-current' | 'keep' | 'remove'
+    anointBehavior?: 'copy-current' | 'keep' | 'remove'
   }
   language: Language
   sourceSlotName?: string
@@ -145,6 +147,8 @@ export function EquipmentDifferenceTooltip({
   const candidateRaw = candidate?.raw || item?.raw || ''
   const candidateBuildItemId = candidate?.buildItemId || item?.id
   const candidateSource = candidate?.source || 'equipment-slot'
+  const candidateRuneBehavior = candidate?.runeBehavior
+  const candidateAnointBehavior = candidate?.anointBehavior
   // Find Better ranks a market listing for the requested source slot. Keep
   // its detail panel on that same slot even if the caller uses the generic
   // multi-slot default, otherwise another valid weapon slot can show a
@@ -169,6 +173,8 @@ export function EquipmentDifferenceTooltip({
           raw: candidateRaw,
           ...(candidateBuildItemId ? { buildItemId: candidateBuildItemId } : {}),
           source: candidateSource,
+          ...(candidateRuneBehavior ? { runeBehavior: candidateRuneBehavior } : {}),
+          ...(candidateAnointBehavior ? { anointBehavior: candidateAnointBehavior } : {}),
         },
         sourceSlotName,
         slotOnlyTooltips: effectiveSlotOnlyTooltips,
@@ -194,7 +200,7 @@ export function EquipmentDifferenceTooltip({
       disposed = true
       window.clearTimeout(timer)
     }
-  }, [candidateBuildItemId, candidateRaw, candidateSource, context, effectiveSlotOnlyTooltips, sourceSlotName])
+  }, [candidateAnointBehavior, candidateBuildItemId, candidateRaw, candidateRuneBehavior, candidateSource, context, effectiveSlotOnlyTooltips, sourceSlotName])
 
   if (state === 'idle') return null
   const title = uiText(language, 'Equipment Difference', '装备差异', '裝備差異', '장비 차이')

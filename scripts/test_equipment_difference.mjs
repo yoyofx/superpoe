@@ -90,6 +90,7 @@ lines.on('line', (line) => {
         },
         sourceSlotName,
         slotOnlyTooltips: true,
+        weightSpec: [{ stat: 'TotalEHP', weightMult: 0.5 }],
         ...(debug ? { debug: true } : {}),
       },
     })}\n`)
@@ -108,6 +109,10 @@ lines.on('line', (line) => {
     if (!buildJsonPath && !buildCodePath && !groups[0].changedStats.some((stat) => stat.key === 'Life')) {
       child.kill()
       throw new Error(`expected Life difference was not returned: ${JSON.stringify(groups[0])}`)
+    }
+    if (!Number.isFinite(groups[0].ranking?.weightedRatio)) {
+      child.kill()
+      throw new Error(`expected PoB2 weighted evaluation was not returned: ${JSON.stringify(groups[0])}`)
     }
     if (verbose) {
       console.log(JSON.stringify({

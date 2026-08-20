@@ -5,7 +5,7 @@ import { EquipmentDifferenceTooltip } from '@/equipmentDifference/components/Equ
 import { loadTranslations } from '@/i18n/translationLoader'
 import { uiText } from '@/i18n/uiLocale'
 import type { EquipmentTryOnOpenRequest } from '@/types/tryOn'
-import type { MarketFavoriteSource } from '@/types/market'
+import type { EquipmentFavoriteSource, MarketFavoriteSource } from '@/types/market'
 
 export function EquipmentTryOnWindow() {
   const [payload, setPayload] = useState<EquipmentTryOnOpenRequest | null>(null)
@@ -68,14 +68,22 @@ export function EquipmentTryOnWindow() {
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
   const close = () => void window.pob2TryOn?.close()
   const marketSource = entry.sources.find((source): source is MarketFavoriteSource => source.kind === 'market-favorite')
+  const equipmentSource = entry.sources.find((source): source is EquipmentFavoriteSource => source.kind === 'equipment-favorite')
+  const comparisonSlotName = marketSource?.slotName || equipmentSource?.slotName
   const differenceContent = !translationsReady
     ? <div className="equipment-try-on-window-no-build">{l('Loading translations...', '正在加载翻译...', '正在載入翻譯...', '번역을 불러오는 중...')}</div>
     : context && entry.item.raw
       ? <EquipmentDifferenceTooltip
           context={context}
-          candidate={{ raw: entry.item.raw, source: 'equipment-library' }}
+          candidate={{
+            raw: entry.item.raw,
+            source: 'equipment-library',
+            ...(marketSource?.runeBehavior ? { runeBehavior: marketSource.runeBehavior } : {}),
+            ...(marketSource?.anointBehavior ? { anointBehavior: marketSource.anointBehavior } : {}),
+          }}
           language={language}
-          slotOnlyTooltips={false}
+          sourceSlotName={comparisonSlotName}
+          slotOnlyTooltips={Boolean(comparisonSlotName)}
         />
       : <div className="equipment-try-on-window-no-build">{l('Open a build first to calculate equipment differences.', '请先打开一个构筑，才能计算装备差异。', '請先開啟一個構築，才能計算裝備差異。', '장비 차이를 계산하려면 먼저 빌드를 여세요.')}</div>
 

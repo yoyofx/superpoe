@@ -47,4 +47,24 @@ describe('equipment difference cache', () => {
       context: { ...baseRequest.context, configOverrides: { enemyIsBoss: true } },
     }))).toBeNull()
   })
+
+  it('does not reuse a result across augment behavior or weighted ranking changes', () => {
+    const keys = createEquipmentDifferenceCacheKeys({
+      ...baseRequest,
+      candidate: { ...baseRequest.candidate, runeBehavior: 'copy-current', anointBehavior: 'keep' },
+      weightSpec: [{ stat: 'FullDPS', weightMult: 1 }],
+    })
+    equipmentDifferenceCache.set(keys, result)
+
+    expect(equipmentDifferenceCache.get(createEquipmentDifferenceCacheKeys({
+      ...baseRequest,
+      candidate: { ...baseRequest.candidate, runeBehavior: 'remove', anointBehavior: 'keep' },
+      weightSpec: [{ stat: 'FullDPS', weightMult: 1 }],
+    }))).toBeNull()
+    expect(equipmentDifferenceCache.get(createEquipmentDifferenceCacheKeys({
+      ...baseRequest,
+      candidate: { ...baseRequest.candidate, runeBehavior: 'copy-current', anointBehavior: 'keep' },
+      weightSpec: [{ stat: 'TotalEHP', weightMult: 0.5 }],
+    }))).toBeNull()
+  })
 })

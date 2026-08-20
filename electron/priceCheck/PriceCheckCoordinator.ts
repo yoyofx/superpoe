@@ -209,6 +209,14 @@ async function listingView(
     rawLines.push(canonicalName)
   }
   rawLines.push(canonicalBaseType)
+  const limitedTo = typeof item.limit === 'number' && Number.isFinite(item.limit)
+    ? item.limit
+    : typeof item.limitedTo === 'number' && Number.isFinite(item.limitedTo)
+      ? item.limitedTo
+      : undefined
+  const radius = properties?.find((stat) => /^(?:radius|范围|範圍)$/i.test(stat.key))?.values[0]
+  if (limitedTo != null) rawLines.push(`Limited to: ${limitedTo}`)
+  if (radius) rawLines.push(`Radius: ${radius}`)
   if (typeof item.ilvl === 'number' && Number.isFinite(item.ilvl)) rawLines.push(`Item Level: ${item.ilvl}`)
   const quality = properties?.find((stat) => /quality|品质|品質/i.test(stat.key))?.values[0]
   if (quality) rawLines.push(`Quality: ${quality}`)
@@ -304,7 +312,16 @@ export class PriceCheckCoordinator {
     const generation = this.generation
     const { realm } = this.state
     this.criteria = structuredClone(criteria)
-    this.set({ ...this.state, phase: 'searching', listings: [], search: undefined, error: undefined })
+    this.set({
+      ...this.state,
+      phase: 'searching',
+      listings: [],
+      search: undefined,
+      error: undefined,
+      ...(criteria.findBetter
+        ? { findBetterComparison: { runeBehavior: criteria.findBetter.runeBehavior, anointBehavior: criteria.findBetter.anointBehavior } }
+        : { findBetterComparison: undefined }),
+    })
     try {
       const result = await this.services.search(realm, this.preparedItem, leagueId, criteria, this.state.mode, this.buildContext)
       if (generation !== this.generation) return this.snapshot()
@@ -347,8 +364,21 @@ export class PriceCheckCoordinator {
         try {
           listings = await this.services.rankListings(listings, criteria!, this.buildContext, this.state.slotName, context.realm)
         } catch (error) {
-          console.warn('[PriceCheck] candidate price ranking failed; keeping amount order', error)
-          listings = [...listings].sort((left, right) => (left.price?.amount ?? Number.POSITIVE_INFINITY) - (right.price?.amount ?? Number.POSITIVE_INFINITY))
+          if (error instanceof Error && error.message === 'MissingConversionRates') {
+            console.warn('[PriceCheck] currency conversion unavailable; falling back to PoB2 Stat Value sort')
+            const fallbackCriteria = {
+              ...criteria!,
+              findBetter: { ...criteria!.findBetter!, sortBy: 'stat-value' as const },
+            }
+            try {
+              listings = await this.services.rankListings(listings, fallbackCriteria, this.buildContext, this.state.slotName, context.realm)
+            } catch (fallbackError) {
+              console.warn('[PriceCheck] candidate Stat Value fallback failed; keeping trade order', fallbackError)
+            }
+          } else {
+            console.warn('[PriceCheck] candidate price ranking failed; keeping amount order', error)
+            listings = [...listings].sort((left, right) => (left.price?.amount ?? Number.POSITIVE_INFINITY) - (right.price?.amount ?? Number.POSITIVE_INFINITY))
+          }
         }
       } else if (findBetter?.sortBy === 'price') {
         listings = [...listings].sort((left, right) => (left.price?.amount ?? Number.POSITIVE_INFINITY) - (right.price?.amount ?? Number.POSITIVE_INFINITY))
@@ -358,7 +388,20 @@ export class PriceCheckCoordinator {
         try {
           listings = await this.services.rankListings(listings, criteria!, this.buildContext, this.state.slotName, context.realm)
         } catch (error) {
-          console.warn('[PriceCheck] candidate ranking failed; keeping trade order', error)
+          if (criteria!.findBetter?.sortBy === 'stat-value-price' && error instanceof Error && error.message === 'MissingConversionRates') {
+            console.warn('[PriceCheck] currency conversion unavailable; falling back to PoB2 Stat Value sort')
+            const fallbackCriteria = {
+              ...criteria!,
+              findBetter: { ...criteria!.findBetter!, sortBy: 'stat-value' as const },
+            }
+            try {
+              listings = await this.services.rankListings(listings, fallbackCriteria, this.buildContext, this.state.slotName, context.realm)
+            } catch (fallbackError) {
+              console.warn('[PriceCheck] candidate Stat Value fallback failed; keeping trade order', fallbackError)
+            }
+          } else {
+            console.warn('[PriceCheck] candidate ranking failed; keeping trade order', error)
+          }
         }
       }
       if (findBetter) {
@@ -387,11 +430,15 @@ export class PriceCheckCoordinator {
     if (!context || context.generation !== this.generation || !context.ids.includes(listingId)) {
       throw new Error('Price check listing has expired')
     }
+    const listing = this.state.listings.find((candidate) => candidate.id === listingId)
     return {
       realm: context.realm,
       listingId,
       queryId: context.search.searchId,
       sourceUrl: context.search.url,
+      ...(this.state.slotName ? { slotName: this.state.slotName } : {}),
+      ...(this.state.findBetterComparison ? this.state.findBetterComparison : {}),
+      ...(listing?.raw ? { candidateRaw: listing.raw } : {}),
     }
   }
 

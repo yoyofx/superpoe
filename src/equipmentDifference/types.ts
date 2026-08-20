@@ -32,6 +32,12 @@ export interface EquipmentDifferenceRequest {
   }
   sourceSlotName?: string
   slotOnlyTooltips?: boolean
+  /** Optional PoB2 stat weights used only for Find Better ranking. */
+  weightSpec?: Array<{
+    stat: string
+    weightMult: number
+    lowerIsBetter?: boolean
+  }>
 }
 
 export interface EquipmentDiffStat {
@@ -50,6 +56,24 @@ export interface EquipmentDiffStat {
   color: 'positive' | 'negative'
 }
 
+/**
+ * PoB2's weighted search value for one concrete replacement slot. This is
+ * calculated by the project-owned Lua bridge with the upstream
+ * TradeQueryGenerator implementation; the renderer must not reconstruct it
+ * from display deltas.
+ */
+export interface EquipmentWeightedEvaluation {
+  weightedRatio: number
+  stats: Array<{
+    stat: string
+    baseValue: number
+    candidateValue: number
+    ratio: number
+    weightMult: number
+    transformedRatio: number
+  }>
+}
+
 export interface EquipmentSlotDiff {
   slotName: string
   slotLabel: string
@@ -57,6 +81,7 @@ export interface EquipmentSlotDiff {
   replacedItemId?: string
   replacedItemName?: string
   changedStats: EquipmentDiffStat[]
+  ranking?: EquipmentWeightedEvaluation
   sort: {
     empty: boolean
     similar: boolean

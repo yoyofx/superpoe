@@ -3,12 +3,12 @@
   "name": "superpoe",
   "source": "lua/superpoe",
   "fileCount": 2,
-  "totalBytes": 26079,
+  "totalBytes": 31409,
   "files": [
     {
       "path": "EquipmentDifference.lua",
-      "hash": "6c8b09de7e32a39a13f49e85c6e7c45460827e730cc1f05838520d0260637633",
-      "size": 19077
+      "hash": "c4bb19367b833d329ca0a3818f3eaaa5e98b8fc4222532028e718756d230ff29",
+      "size": 23344
     },
     {
       "path": "TradeQueryWeights.lua",

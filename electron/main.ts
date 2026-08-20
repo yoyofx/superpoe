@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, net, powerMonitor, protocol, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, net, powerMonitor, protocol, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import path from 'node:path'
@@ -295,6 +295,7 @@ const equipmentLibrary = new EquipmentLibraryRepository(
 )
 const favoriteOperations = new Map<string, Promise<void>>()
 const tryOnOperations = new Map<string, Promise<void>>()
+const copyPobOperations = new Map<string, Promise<void>>()
 
 function registerPriceCheckHotkey(enabled: boolean, requestedHotkey: string): { registered: boolean; error?: string } {
   if (priceCheckHotkey) globalShortcut.unregister(priceCheckHotkey)
@@ -457,73 +458,39 @@ function validateFindBetterOptions(value: unknown): FindBetterSearchOptions {
   }
 }
 
-function finiteRatio(baseValue: number, candidateValue: number): number {
-  if (!Number.isFinite(baseValue) || !Number.isFinite(candidateValue)) return 1
-  const ratio = candidateValue / (baseValue !== 0 ? baseValue : 1)
-  // PoB2's data.misc.maxStatIncrease is 2 (a 100% increase cap).
-  return Math.min(ratio, 2)
-}
-
-function weightedEquipmentScore(result: EquipmentDifferenceResult, weights: FindBetterSearchOptions['statWeights']): number | undefined {
-  const stats = result.groups?.flatMap((group) => group.changedStats) || []
-  const byKey = new Map<string, EquipmentDiffStat>()
-  for (const stat of stats) if (!byKey.has(stat.key)) byKey.set(stat.key, stat)
-  const ratioFor = (key: string, lowerIsBetter = false): number => {
-    const direct = byKey.get(key)
-    if (direct) {
-      const baseValue = lowerIsBetter ? -direct.baseValue : direct.baseValue
-      const candidateValue = lowerIsBetter ? -direct.candidateValue : direct.candidateValue
-      return finiteRatio(baseValue, candidateValue)
-    }
-    // PoB2's Full DPS power stat falls back to the three component outputs
-    // when the build has no selected FullDPS output.
-    if (key === 'FullDPS') {
-      const components = ['TotalDPS', 'TotalDotDPS', 'CombinedDPS']
-        .map((component) => byKey.get(component))
-        .filter((value): value is EquipmentDiffStat => Boolean(value))
-      if (components.length) {
-        const base = components.reduce((sum, value) => sum + value.baseValue, 0)
-        const candidate = components.reduce((sum, value) => sum + value.candidateValue, 0)
-        return finiteRatio(base, candidate)
-      }
-    }
-    // A stat omitted from changedStats is unchanged by definition, so its
-    // ratio is one. This keeps the score equivalent to PoB's weighted ratio.
-    return 1
-  }
-  if (!weights.length) return undefined
-  return weights.reduce((sum, weight) => {
-    const ratio = ratioFor(weight.stat, weight.lowerIsBetter === true)
-    return sum + ratio * weight.weightMult
-  }, 0)
-}
-
-function candidateCardMetrics(result: EquipmentDifferenceResult, slotName: string | undefined): NonNullable<PriceCheckListingView['candidateMetrics']> {
+function comparisonSlotResult(result: EquipmentDifferenceResult, slotName: string | undefined) {
   // PoB normalizes the active weapon set to names such as "Weapon 1 Swap",
   // while the renderer can still pass the base slot name "Weapon 1". Match
-  // both spellings before falling back to the first group; otherwise a card
-  // can display the metrics for another valid weapon slot than its detail.
+  // both spellings. A build-aware comparison must never fall back to another
+  // valid slot, because that would produce a plausible but wrong DPS/EHP.
   const normalizedSlotName = slotName?.replace(/\s+Swap$/, '')
-  const slotResult = result.groups?.find((group) => group.slotName === slotName)
+  return result.groups?.find((group) => group.slotName === slotName)
     || (normalizedSlotName
       ? result.groups?.find((group) => group.slotName.replace(/\s+Swap$/, '') === normalizedSlotName)
       : result.groups?.length === 1 ? result.groups[0] : undefined)
+}
+
+function weightedEquipmentScore(result: EquipmentDifferenceResult, slotName: string | undefined): number | undefined {
+  return comparisonSlotResult(result, slotName)?.ranking?.weightedRatio
+}
+
+function candidateCardMetrics(result: EquipmentDifferenceResult, slotName: string | undefined): NonNullable<PriceCheckListingView['candidateMetrics']> {
+  const slotResult = comparisonSlotResult(result, slotName)
   const changedStats = slotResult?.changedStats || []
   const findStat = (key: string): EquipmentDiffStat | undefined => changedStats.find((stat) => stat.key === key && stat.actor === 'player')
     || changedStats.find((stat) => stat.key === key)
   const fullDpsStat = findStat('FullDPS')
-  const fullDpsParts = ['TotalDPS', 'TotalDotDPS', 'CombinedDPS']
-    .map(findStat)
-    .filter((value): value is EquipmentDiffStat => Boolean(value))
-  const fullDpsDelta = fullDpsStat?.delta ?? (fullDpsParts.length
-    ? fullDpsParts.reduce((sum, stat) => sum + stat.delta, 0)
-    : 0)
+  const combinedDpsStat = findStat('CombinedDPS')
+  const dpsStat = fullDpsStat || combinedDpsStat
+  const hasFullDpsOutput = typeof slotResult?.sort.fullDps === 'number' && Number.isFinite(slotResult.sort.fullDps)
+  const dpsMetric = fullDpsStat || hasFullDpsOutput ? 'FullDPS' as const : 'CombinedDPS' as const
   const totalEhpStat = findStat('TotalEHP')
   const totalEhpDelta = totalEhpStat?.delta ?? 0
   return {
     ...(typeof slotResult?.sort.weaponDps === 'number' && Number.isFinite(slotResult.sort.weaponDps) ? { weaponDps: slotResult.sort.weaponDps } : {}),
-    fullDpsDelta,
-    fullDpsPercent: fullDpsStat?.percent ?? (fullDpsDelta === 0 ? 0 : undefined),
+    dpsMetric,
+    fullDpsDelta: dpsStat?.delta ?? 0,
+    fullDpsPercent: dpsStat?.percent ?? 0,
     totalEhpDelta,
     totalEhpPercent: totalEhpStat?.percent ?? (totalEhpDelta === 0 ? 0 : undefined),
   }
@@ -844,11 +811,18 @@ function createWindow(): BrowserWindow {
       }
       const contextKey = `find-better:${createHash('sha256').update(JSON.stringify({ ...context, slotName })).digest('hex').slice(0, 48)}`
       const comparablePrice = options.sortBy === 'price' || options.sortBy === 'stat-value-price' ? await priceToExalted(realm) : undefined
-      const sameCurrency = new Set(listings.map((listing) => listing.price?.currency).filter((value): value is string => Boolean(value))).size <= 1
       const ranked: Array<{ listing: typeof listings[number]; score: number; sortScore: number; index: number }> = []
+      const canonicalRawCache = new Map<string, string>()
+      let missingPriceConversion = false
       for (const [index, listing] of listings.entries()) {
         if (!listing.raw) continue
         try {
+          let candidateRaw = canonicalRawCache.get(listing.id) || listing.raw
+          if (!canonicalRawCache.has(listing.id)) {
+            const normalized = await pobLuaService.normalizeItem(candidateRaw).catch(() => undefined)
+            if (normalized?.success && normalized.item?.raw) candidateRaw = normalized.item.raw
+            canonicalRawCache.set(listing.id, candidateRaw)
+          }
           // Card deltas come from the same single-slot PoB comparison used by
           // the detail view. This makes every local sort mode show the same
           // three decision values, while the current build remains untouched.
@@ -858,16 +832,23 @@ function createWindow(): BrowserWindow {
             sourceSlotName: slotName,
             slotOnlyTooltips: true,
             candidate: {
-              raw: listing.raw,
+              raw: candidateRaw,
               source: 'market-listing',
               runeBehavior: options.runeBehavior,
               anointBehavior: options.anointBehavior,
             },
+            ...((options.sortBy === 'stat-value' || options.sortBy === 'stat-value-price')
+              ? { weightSpec: options.statWeights.map((weight) => ({ stat: weight.stat, weightMult: weight.weightMult, ...(weight.lowerIsBetter ? { lowerIsBetter: true } : {}) })) }
+              : {}),
           })
           const candidateMetrics = comparison.success ? candidateCardMetrics(comparison, slotName) : undefined
           const price = listing.price && comparablePrice?.(listing.price.currency, listing.price.amount)
-          const fallbackPrice = price == null && sameCurrency ? listing.price?.amount : price
-          const withMetrics = candidateMetrics ? { ...listing, candidateMetrics } : listing
+          const fallbackPrice = price
+          if ((options.sortBy === 'price' || options.sortBy === 'stat-value-price') && fallbackPrice == null) {
+            missingPriceConversion = true
+          }
+          const canonicalListing = candidateRaw === listing.raw ? listing : { ...listing, raw: candidateRaw }
+          const withMetrics = candidateMetrics ? { ...canonicalListing, candidateMetrics } : canonicalListing
           if (options.sortBy === 'price') {
             ranked.push({
               listing: withMetrics,
@@ -887,13 +868,13 @@ function createWindow(): BrowserWindow {
             continue
           }
           if (!comparison.success) continue
-          const score = weightedEquipmentScore(comparison, options.statWeights)
+          const score = weightedEquipmentScore(comparison, slotName)
           if (score == null || !Number.isFinite(score)) continue
           let sortScore = score
           if (options.sortBy === 'stat-value-price') {
             // PoB2 uses currency conversion rates and subtracts 0.1 * log10
-            // of the comparable price. If all results share one currency, the
-            // amount is a valid local fallback even when rates are unavailable.
+            // of the comparable price. Missing conversion rates are reported
+            // to the coordinator so it can use PoB2's Stat Value fallback.
             sortScore = fallbackPrice && fallbackPrice > 0 ? score - 0.1 * Math.log10(fallbackPrice) : Number.NEGATIVE_INFINITY
           }
           ranked.push({
@@ -906,6 +887,7 @@ function createWindow(): BrowserWindow {
           console.warn(`[PriceCheck] unable to score market listing ${listing.id}`, error)
         }
       }
+      if (missingPriceConversion) throw new Error('MissingConversionRates')
       ranked.sort((left, right) => (options.sortBy === 'price' ? left.sortScore - right.sortScore : options.sortBy === 'weight' ? left.index - right.index : right.sortScore - left.sortScore) || left.index - right.index)
       const rankedIds = new Set(ranked.map((entry) => entry.listing.id))
       const ordered: PriceCheckListingView[] = ranked.map((entry) => options.sortBy === 'price'
@@ -1521,7 +1503,7 @@ async function createMarketListingPreviewEntry(ref: MarketDomListingRef): Promis
   }
 }
 
-async function savePriceCheckListing(ref: MarketDomListingRef) {
+async function savePriceCheckListing(ref: MarketDomListingRef & { candidateRaw?: string }) {
   if (!marketViewManager) throw new Error('Market browser is unavailable')
   const payload = await marketViewManager.fetchListing(ref)
   const resolveStatText = await createMarketStatTextResolver(ref.realm)
@@ -1532,7 +1514,11 @@ async function savePriceCheckListing(ref: MarketDomListingRef) {
     (text) => itemTranslations.statToEnglish(text),
     resolveStatText,
   )
-  const normalized = await pobItemBridge.normalize(imported.item.raw)
+  // Find Better cards already use this canonical raw. Reuse it when the
+  // listing came from the active result page so saving cannot create a second
+  // PoB interpretation of the same official item.
+  const canonicalRaw = ref.candidateRaw || imported.item.raw
+  const normalized = await pobItemBridge.normalize(canonicalRaw)
   normalized.view.iconUrl = imported.item.iconUrl
   normalized.view.localized = imported.item.localized
   const officialByGroup = new Map<LibraryModifierGroup, typeof imported.item.preview.modifiers>()
@@ -2121,6 +2107,40 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       const message = error instanceof Error ? error.message : String(error)
       if (!event.sender.isDestroyed() && listingId) {
         event.sender.send('market-enhancement:try-on-result', { listingId, error: message.slice(0, 300) })
+      }
+    }
+  })
+
+  ipcMain.on('market-enhancement:copy-pob', (event, value: unknown) => {
+    let listingId = ''
+    try {
+      const realm = requireMarketSender(event)
+      const input = value && typeof value === 'object' ? value as { requestId?: unknown; ref?: unknown } : {}
+      if (input.ref && typeof input.ref === 'object') {
+        const candidateId = (input.ref as { listingId?: unknown }).listingId
+        if (typeof candidateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(candidateId)) listingId = candidateId
+      }
+      const requestId = validateShortString(input.requestId, 'copy request ID', 128)
+      const ref = validateListingRef(input.ref, realm)
+      listingId = ref.listingId
+      const operationKey = `${realm}:${ref.listingId}`
+      const previous = copyPobOperations.get(operationKey) || Promise.resolve()
+      const operation = previous.catch(() => {}).then(async () => {
+        const entry = await createMarketListingPreviewEntry(ref)
+        if (!entry.item.raw) throw new Error('The listing did not provide a PoB item text')
+        clipboard.writeText(entry.item.raw)
+        if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:copy-pob-result', { requestId, listingId: ref.listingId })
+      }).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:copy-pob-result', { requestId, listingId: ref.listingId, error: message.slice(0, 300) })
+      }).finally(() => {
+        if (copyPobOperations.get(operationKey) === operation) copyPobOperations.delete(operationKey)
+      })
+      copyPobOperations.set(operationKey, operation)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!event.sender.isDestroyed() && listingId) {
+        event.sender.send('market-enhancement:copy-pob-result', { listingId, error: message.slice(0, 300) })
       }
     }
   })

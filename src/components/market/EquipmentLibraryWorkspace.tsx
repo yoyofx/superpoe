@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom'
 import { Check, Clipboard, ClipboardPaste, FileText, PanelLeftClose, PanelLeftOpen, Plus, Search, Tags, Trash2, X } from 'lucide-react'
 import type {
   EquipmentCollectionRoot, EquipmentLibraryEntry, EquipmentLibraryFolder, EquipmentLibrarySourceKind,
-  MarketFavoriteSource, MarketRealm, TradeLeague,
+  EquipmentFavoriteSource, MarketFavoriteSource, MarketRealm, TradeLeague,
 } from '@/types/market'
 import { useTranslation } from '@/i18n/useTranslation'
 import type { Language } from '@/i18n/translationLoader'
@@ -11,6 +11,8 @@ import { uiText, type UiMessage } from '@/i18n/uiLocale'
 import { EquipmentItemInspector, equipmentItemBaseType, equipmentItemName } from '@/components/equipment/EquipmentItemInspector'
 import { EquipmentCollectionTree, type EquipmentCollectionSelection } from '@/components/equipment/EquipmentCollectionTree'
 import { parseEquipmentXml } from '@/engine/equipment'
+import { deriveWeaponComparisonStatsFromRaw } from '@/engine/itemDisplayStats'
+import { loadItemBaseData, type ItemBaseData } from '@/engine/itemBaseData'
 import { useTreeStore } from '@/store/treeStore'
 import { EquipmentDifferenceTooltip } from '@/equipmentDifference/components/EquipmentDifferenceTooltip'
 import type { BuildContextSnapshot } from '@/equipmentDifference'
@@ -54,6 +56,10 @@ function marketSource(entry: EquipmentLibraryEntry): MarketFavoriteSource | unde
   return entry.sources.find((source): source is MarketFavoriteSource => source.kind === 'market-favorite')
 }
 
+function equipmentSource(entry: EquipmentLibraryEntry): EquipmentFavoriteSource | undefined {
+  return entry.sources.find((source): source is EquipmentFavoriteSource => source.kind === 'equipment-favorite')
+}
+
 function sourceLabel(kind: EquipmentLibrarySourceKind, language: Language): string {
   const labels: Record<EquipmentLibrarySourceKind, UiMessage> = {
     'market-favorite': { en: 'Market', 'zh-rCN': '集市', 'zh-rTW': '市集', 'ko-KR': '거래소' },
@@ -79,9 +85,15 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
   const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
   const pobBuildRevision = useTreeStore((state) => state.pobBuildRevision)
   const activeWeaponSet = useTreeStore((state) => state.activeWeaponSet)
+  const activeCalculationProfileId = useTreeStore((state) => state.activeCalculationProfileId)
+  const calculationProfiles = useTreeStore((state) => state.calculationProfiles)
   const getActivePobXml = useTreeStore((state) => state.getActivePobXml)
   const activePobXml = useMemo(() => getActivePobXml() || '', [getActivePobXml, importedBuildCode, pobBuildRevision])
   const activeEquipment = useMemo(() => activePobXml ? parseEquipmentXml(activePobXml) : null, [activePobXml])
+  const activeCalculationOverrides = useMemo(() => {
+    const profile = calculationProfiles.find((candidate) => candidate.id === activeCalculationProfileId)
+    return profile?.values && Object.keys(profile.values).length ? { ...profile.values } : undefined
+  }, [activeCalculationProfileId, calculationProfiles])
   const equipmentDifferenceContext = useMemo<BuildContextSnapshot | null>(() => {
     if (!activePobXml || !activeEquipment?.activeItemSetId) return null
     return {
@@ -89,10 +101,12 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
       buildRevision: pobBuildRevision,
       activeItemSetId: activeEquipment.activeItemSetId,
       activeWeaponSet,
+      ...(activeCalculationOverrides ? { configOverrides: activeCalculationOverrides } : {}),
     }
-  }, [activeEquipment?.activeItemSetId, activePobXml, activeWeaponSet, pobBuildRevision])
+  }, [activeCalculationOverrides, activeEquipment?.activeItemSetId, activePobXml, activeWeaponSet, pobBuildRevision])
   const bridge = window.pob2Market
   const [entries, setEntries] = useState<EquipmentLibraryEntry[]>([])
+  const [itemBases, setItemBases] = useState<Record<string, ItemBaseData>>({})
   const [folders, setFolders] = useState<EquipmentLibraryFolder[]>([])
   const [view, setView] = useState<EquipmentCollectionSelection>({ kind: 'all' })
   const [query, setQuery] = useState('')
@@ -112,6 +126,14 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
   const [error, setError] = useState<string | null>(null)
   const [copyPobState, setCopyPobState] = useState<'idle' | 'copied' | 'error'>('idle')
   const [customItemRaw, setCustomItemRaw] = useState<string | null>(null)
+
+  useEffect(() => {
+    let active = true
+    void loadItemBaseData().then((index) => {
+      if (active) setItemBases(index.bases)
+    }).catch(() => {})
+    return () => { active = false }
+  }, [])
 
   const load = useCallback(async () => {
     if (!bridge) return
@@ -149,6 +171,9 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
     if (view.kind === 'root') return entry.collectionRoot === view.root && entry.folderId === view.folderId
     return true
   }), [entries, view])
+  const weaponStatsByEntryId = useMemo(() => new Map(
+    entries.map((entry) => [entry.id, deriveWeaponComparisonStatsFromRaw(entry.item.raw, itemBases, entry.id)]),
+  ), [entries, itemBases])
   const selectedEntry = selectedEntryId ? visibleEntries.find((entry) => entry.id === selectedEntryId) : undefined
   const tooltipEntry = tooltip ? entries.find((entry) => entry.id === tooltip.entryId) : undefined
   const floatingEntry = floatingDetail ? entries.find((entry) => entry.id === floatingDetail.entryId) : undefined
@@ -410,28 +435,39 @@ export function EquipmentLibraryWorkspace({ realm }: EquipmentLibraryWorkspacePr
     }
   }
 
-  const renderItemInspector = (entry: EquipmentLibraryEntry, floating = false) => <EquipmentItemInspector
-    view={entry.view}
-    language={lang}
-    sourceLabels={entry.sources.map((source) => sourceLabel(source.kind, lang))}
-    price={marketSource(entry)?.price?.display}
-    tags={entry.tags}
-    note={entry.note}
-    showQuickNavigation={Boolean(equipmentDifferenceContext && entry.item.raw)}
-    footer={equipmentDifferenceContext && entry.item.raw ? <EquipmentDifferenceTooltip
-      context={equipmentDifferenceContext}
-      candidate={{ raw: entry.item.raw, source: 'equipment-library' }}
+  const renderItemInspector = (entry: EquipmentLibraryEntry, floating = false) => {
+    const comparisonSource = marketSource(entry)
+    const comparisonSlotName = comparisonSource?.slotName || equipmentSource(entry)?.slotName
+    return <EquipmentItemInspector
+      view={entry.view}
       language={lang}
-      slotOnlyTooltips={false}
-    /> : undefined}
+      sourceLabels={entry.sources.map((source) => sourceLabel(source.kind, lang))}
+      price={marketSource(entry)?.price?.display}
+      tags={entry.tags}
+      note={entry.note}
+      weaponStats={weaponStatsByEntryId.get(entry.id) || []}
+      showQuickNavigation={Boolean(equipmentDifferenceContext && entry.item.raw)}
+      footer={equipmentDifferenceContext && entry.item.raw ? <EquipmentDifferenceTooltip
+        context={equipmentDifferenceContext}
+        candidate={{
+          raw: entry.item.raw,
+          source: 'equipment-library',
+          ...(comparisonSource?.runeBehavior ? { runeBehavior: comparisonSource.runeBehavior } : {}),
+          ...(comparisonSource?.anointBehavior ? { anointBehavior: comparisonSource.anointBehavior } : {}),
+        }}
+        language={lang}
+        sourceSlotName={comparisonSlotName}
+        slotOnlyTooltips={Boolean(comparisonSlotName)}
+      /> : undefined}
     headerProps={floating ? {
       onPointerDown: handleFloatingPointerDown,
       onPointerMove: handleFloatingPointerMove,
       onPointerUp: finishFloatingDrag,
       onPointerCancel: finishFloatingDrag,
     } : undefined}
-    headerAction={floating ? <button className="library-item-floating-close" onPointerDown={(event) => event.stopPropagation()} onClick={() => setFloatingDetail(null)} title={l('Close item details', '关闭装备详情', '關閉裝備詳情', '아이템 상세 정보 닫기')} aria-label={l('Close item details', '关闭装备详情', '關閉裝備詳情', '아이템 상세 정보 닫기')}><X /></button> : undefined}
-  />
+      headerAction={floating ? <button className="library-item-floating-close" onPointerDown={(event) => event.stopPropagation()} onClick={() => setFloatingDetail(null)} title={l('Close item details', '关闭装备详情', '關閉裝備詳情', '아이템 상세 정보 닫기')} aria-label={l('Close item details', '关闭装备详情', '關閉裝備詳情', '아이템 상세 정보 닫기')}><X /></button> : undefined}
+    />
+  }
 
   const renderCard = (entry: EquipmentLibraryEntry) => {
     return <article

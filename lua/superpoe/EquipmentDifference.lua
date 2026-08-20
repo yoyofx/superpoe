@@ -138,6 +138,99 @@ local function collectDiff(build, baseOutput, candidateOutput)
 	return groups
 end
 
+local function weightedRatioForOutputs(baseOutput, candidateOutput, statTables)
+	local baseModSum = 0
+	local candidateModSum = 0
+	for _, statTable in ipairs(statTables) do
+		local baseValue = data.powerStatList.GetFromOutput(baseOutput, statTable, true)
+		local candidateValue = data.powerStatList.GetFromOutput(candidateOutput, statTable, true)
+		baseModSum = baseModSum + (type(baseValue) == "number" and baseValue or 0)
+		candidateModSum = candidateModSum + (type(candidateValue) == "number" and candidateValue or 0)
+	end
+	local maxIncrease = data.misc and safeNumber(data.misc.maxStatIncrease) or 2
+	if baseModSum == math.huge then return 0 end
+	if candidateModSum == math.huge then return maxIncrease end
+	return math.min(candidateModSum / ((baseModSum ~= 0) and baseModSum or 1), maxIncrease)
+end
+
+-- Keep the weighted-search calculation in Lua and delegate the actual stat
+-- aggregation to PoB2's upstream TradeQueryGenerator. The renderer receives
+-- this as a separate result from display deltas and must never reconstruct it
+-- from changedStats.
+local function weightedEvaluation(build, baseOutput, candidateOutput, weightSpec)
+	if type(weightSpec) ~= "table" or #weightSpec == 0 then return nil end
+	local weights = {}
+	for _, entry in ipairs(weightSpec) do
+		if type(entry) == "table" and type(entry.stat) == "string" and entry.stat ~= "" then
+			local weightMult = safeNumber(entry.weightMult)
+			if weightMult and weightMult > 0 then
+				local statTable = {
+					stat = entry.stat,
+					weightMult = weightMult,
+				}
+				if entry.lowerIsBetter == true then
+					statTable.transform = function(value) return -value end
+				end
+				table.insert(weights, statTable)
+			end
+		end
+	end
+	if #weights == 0 then return nil end
+
+	local generator = new("TradeQueryGenerator", { itemsTab = build.itemsTab })
+	local score = generator.WeightedRatioOutputs(baseOutput, candidateOutput, weights)
+	local stats = {}
+	local function ratioFor(statTable)
+		if statTable.stat == "FullDPS" and not (baseOutput.FullDPS and candidateOutput.FullDPS) then
+			return weightedRatioForOutputs(baseOutput, candidateOutput, {
+				{ stat = "TotalDPS" },
+				{ stat = "TotalDotDPS" },
+				{ stat = "CombinedDPS" },
+			})
+		end
+		return weightedRatioForOutputs(baseOutput, candidateOutput, { statTable })
+	end
+	for _, statTable in ipairs(weights) do
+		local baseValue = data.powerStatList.GetFromOutput(baseOutput, statTable, true)
+		local candidateValue = data.powerStatList.GetFromOutput(candidateOutput, statTable, true)
+		local ratio = ratioFor(statTable)
+		local transformedRatio = statTable.transform and statTable.transform(ratio) or ratio
+		table.insert(stats, {
+			stat = statTable.stat,
+			baseValue = safeNumber(baseValue) or 0,
+			candidateValue = safeNumber(candidateValue) or 0,
+			ratio = ratio,
+			weightMult = statTable.weightMult,
+			transformedRatio = transformedRatio,
+		})
+	end
+	return { weightedRatio = safeNumber(score) or 0, stats = stats }
+end
+
+local function applyCandidateBehavior(itemsTab, item, payload, sourceSlotName)
+	local candidate = payload.candidate or {}
+	local runeBehavior = candidate.runeBehavior
+	local anointBehavior = candidate.anointBehavior
+	-- This intentionally mirrors TradeQuery.lua's precedence: Copy Current
+	-- wins when either augment control requests it, otherwise Remove applies to
+	-- runes before anoint removal.
+	if runeBehavior == "copy-current" or anointBehavior == "copy-current" then
+		itemsTab:CopyAnointsAndAugments(item, true, true, sourceSlotName)
+	elseif runeBehavior == "remove" then
+		local validRunes = itemsTab:GetValidRunesForItem(item)
+		for runeIndex, rune in ipairs(item.runes or {}) do
+			if not itemsTab:IsSocketBoundRune(item, rune, validRunes) then
+				item.runes[runeIndex] = "None"
+			end
+		end
+		item:UpdateRunes()
+	elseif anointBehavior == "remove" then
+		item.enchantModLines = {}
+	end
+	item:BuildAndParseRaw()
+	return item
+end
+
 local function itemIsCurrent(item, selItem, buildItemId)
 	if not selItem then return false end
 	if buildItemId and tostring(buildItemId) ~= "" then
@@ -346,15 +439,20 @@ local function addNormalItemComparisons(session, payload, item)
 		local sameUnique = isUnique and selItem and item.name == selItem.name
 		if sameUnique and item.limit then sameUniqueCount = sameUniqueCount + 1 end
 		local output
+		local replacementItem
+		if itemIsCurrent(item, selItem, payload.candidate and payload.candidate.buildItemId) then
+			replacementItem = new("Item", "Rarity: NORMAL\n" .. (selItem.baseName or "Gloves") .. "\nItem Level: 1\nImplicits: 0")
+		else
+			local cloned = new("Item", item:BuildRaw())
+			replacementItem = applyCandidateBehavior(itemsTab, cloned, payload, sourceSlotName)
+		end
 		local calculated, result = pcall(function()
 			return session.calcFunc({
 				repSlotName = slot.slotName,
 				-- Keep the override key present for removals. Lua omits a table key
 				-- assigned nil, which lets PoB's calculator reuse the equipped item
 				-- in some cached comparisons instead of evaluating an empty slot.
-				repItem = itemIsCurrent(item, selItem, payload.candidate and payload.candidate.buildItemId)
-					and new("Item", "Rarity: NORMAL\n" .. (selItem.baseName or "Gloves") .. "\nItem Level: 1\nImplicits: 0")
-					or item,
+				repItem = replacementItem,
 			})
 		end)
 		if calculated then output = result end
@@ -367,7 +465,8 @@ local function addNormalItemComparisons(session, payload, item)
 				replacedItemId = selItem and tostring(selItem.id) or nil,
 				replacedItemName = selItem and selItem.name or nil,
 				changedStats = stats,
-					sort = {
+				ranking = weightedEvaluation(build, session.baseOutput, output, payload.weightSpec),
+				sort = {
 						empty = not selItem or slot.selItemId == 0,
 						similar = itemSimilar(item, selItem, isUnique, sameUnique),
 					fullDps = safeNumber(output.FullDPS),
@@ -420,6 +519,7 @@ local function addToggleComparison(session, payload, item, kind)
 		slotLabel = slotName,
 		operation = active and "toggle-off" or "toggle-on",
 		changedStats = collectDiff(build, session.baseOutput, output),
+		ranking = weightedEvaluation(build, session.baseOutput, output, payload.weightSpec),
 		sort = { empty = false, similar = false, fullDps = safeNumber(output.FullDPS), combinedDps = safeNumber(output.CombinedDPS), totalEhp = safeNumber(output.TotalEHP) },
 	}}, nil
 end

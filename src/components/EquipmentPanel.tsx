@@ -1201,8 +1201,9 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
       buildRevision: pobBuildRevision,
       activeItemSetId: activeSet.id,
       activeWeaponSet: weaponSet,
+      ...(activeCalculationOverrides ? { configOverrides: activeCalculationOverrides } : {}),
     }
-  }, [activePobXml, activeSet?.id, pobBuildRevision, weaponSet])
+  }, [activeCalculationOverrides, activePobXml, activeSet?.id, pobBuildRevision, weaponSet])
 
   const calculateCharacter = useCallback(() => runCalculation({
     itemSetId: activeSet?.id,
@@ -1275,6 +1276,14 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
     ? activeSet?.slots.find((slot) => slot.itemId === selected.id && slot.name === selectedSlotNameHint && isVisibleSelectionSlot(slot.name))?.name
       || activeSet?.slots.find((slot) => slot.itemId === selected.id && isVisibleSelectionSlot(slot.name))?.name
     : undefined
+  // The replacement picker compares against the concrete equipped item that
+  // opened it. Keep this identity in the comparison context so a build/set
+  // change cannot silently show a difference for a different item in the
+  // same slot.
+  const replacementDifferenceContext = useMemo<BuildContextSnapshot | null>(() => {
+    if (!equipmentDifferenceContext || !selected?.id) return equipmentDifferenceContext
+    return { ...equipmentDifferenceContext, buildItemId: selected.id }
+  }, [equipmentDifferenceContext, selected?.id])
   const libraryBuildId = buildId || 'unsaved-build'
 
   const saveItem = useCallback(async (item: EquipmentItem, slotName?: string) => {
@@ -1602,7 +1611,7 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
         mode={selectedSlotName && getSocketSlotInfo(selectedSlotName) ? 'jewel' : 'equipment'}
         title={{ en: 'Change equipment', 'zh-rCN': '更换装备', 'zh-rTW': '更換裝備', 'ko-KR': '장비 변경' }}
         currentSlot={selectedSlotName}
-        differenceContext={equipmentDifferenceContext}
+        differenceContext={replacementDifferenceContext}
         differenceSlotName={selectedSlotName}
         queryContext={{ kind: selectedSlotName && getSocketSlotInfo(selectedSlotName) ? 'jewel-slot' : 'equipment-slot', slotName: selectedSlotName }}
         onClose={() => setReplacementOpen(false)}

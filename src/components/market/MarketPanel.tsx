@@ -60,9 +60,15 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
   const importedBuildCode = useTreeStore((store) => store.importedBuildCode)
   const pobBuildRevision = useTreeStore((store) => store.pobBuildRevision)
   const activeWeaponSet = useTreeStore((store) => store.activeWeaponSet)
+  const activeCalculationProfileId = useTreeStore((store) => store.activeCalculationProfileId)
+  const calculationProfiles = useTreeStore((store) => store.calculationProfiles)
   const getActivePobXml = useTreeStore((store) => store.getActivePobXml)
   const activePobXml = useMemo(() => getActivePobXml() || '', [getActivePobXml, importedBuildCode, pobBuildRevision])
   const activeEquipment = useMemo(() => activePobXml ? parseEquipmentXml(activePobXml) : null, [activePobXml])
+  const activeCalculationOverrides = useMemo(() => {
+    const profile = calculationProfiles.find((candidate) => candidate.id === activeCalculationProfileId)
+    return profile?.values && Object.keys(profile.values).length ? { ...profile.values } : undefined
+  }, [activeCalculationProfileId, calculationProfiles])
   const equipmentDifferenceContext = useMemo<BuildContextSnapshot | null>(() => {
     if (!activePobXml || !activeEquipment?.activeItemSetId) return null
     return {
@@ -70,8 +76,9 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
       buildRevision: pobBuildRevision,
       activeItemSetId: activeEquipment.activeItemSetId,
       activeWeaponSet,
+      ...(activeCalculationOverrides ? { configOverrides: activeCalculationOverrides } : {}),
     }
-  }, [activeEquipment?.activeItemSetId, activePobXml, activeWeaponSet, pobBuildRevision])
+  }, [activeCalculationOverrides, activeEquipment?.activeItemSetId, activePobXml, activeWeaponSet, pobBuildRevision])
   const viewSuspended = suspended
   const bridge = window.pob2Market
   const realmLabel = realm === 'cn' ? l('Tencent CN', '腾讯服', '騰訊服', 'Tencent 중국') : l('Global', '国际服', '國際服', '글로벌')

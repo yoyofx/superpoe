@@ -41,13 +41,21 @@ export function createEquipmentDifferenceCacheKeys(
     context.activeSkillContext?.calcMode || '',
   ].join('|')
   const contextKey = hashText(contextSource)
+  const weightSource = (request.weightSpec || []).map((weight) => ({
+    stat: weight.stat,
+    weightMult: weight.weightMult,
+    lowerIsBetter: weight.lowerIsBetter === true,
+  }))
   const candidateSource = [
     contextKey,
     hashText(request.candidate.raw),
     request.candidate.buildItemId || '',
     request.candidate.source,
+    request.candidate.runeBehavior || '',
+    request.candidate.anointBehavior || '',
     request.sourceSlotName || '',
     request.slotOnlyTooltips ? 'slot-only' : 'all-slots',
+    JSON.stringify(weightSource),
   ].join('|')
   return { contextKey, candidateKey: hashText(candidateSource) }
 }

@@ -227,6 +227,11 @@ interface EquipmentLibrarySourceBase {
 export interface MarketFavoriteSource extends EquipmentLibrarySourceBase {
   kind: 'market-favorite'
   realm: MarketRealm
+  /** Build slot used when this item was saved from Find Better. */
+  slotName?: string
+  /** PoB2 candidate augment behavior used by the Find Better result set. */
+  runeBehavior?: FindBetterAugmentBehavior
+  anointBehavior?: FindBetterAugmentBehavior
   leagueId?: string
   listingId: string
   queryId?: string
@@ -511,6 +516,11 @@ export interface MarketDomListingRef {
   listingId: string
   queryId?: string
   sourceUrl: string
+  /** Optional build slot carried by Find Better saves. */
+  slotName?: string
+  /** Optional PoB2 candidate augment behavior carried by Find Better saves. */
+  runeBehavior?: FindBetterAugmentBehavior
+  anointBehavior?: FindBetterAugmentBehavior
 }
 
 export type MarketVisitHideoutResult =
@@ -683,7 +693,9 @@ export interface PriceCheckListingView {
   candidateMetrics?: {
     /** Local weapon DPS, independent of the rest of the build. */
     weaponDps?: number
-    /** Final FullDPS change after replacing the item. */
+    /** Displayed DPS metric after replacing the item. */
+    dpsMetric?: 'FullDPS' | 'CombinedDPS'
+    /** Final DPS change after replacing the item. */
     fullDpsDelta?: number
     fullDpsPercent?: number
     /** Final TotalEHP change after replacing the item. */
@@ -697,6 +709,13 @@ export interface PriceCheckListingReference {
   listingId: string
   queryId: string
   sourceUrl: string
+  /** Build slot used to evaluate this listing, when the search is build-aware. */
+  slotName?: string
+  /** PoB2 candidate augment behavior used by the build-aware search. */
+  runeBehavior?: FindBetterAugmentBehavior
+  anointBehavior?: FindBetterAugmentBehavior
+  /** Canonical PoB raw already used by the result card, when available. */
+  candidateRaw?: string
 }
 
 export interface PriceCheckContextState {
@@ -707,6 +726,8 @@ export interface PriceCheckContextState {
   slotName?: string
   /** Build snapshot retained by the independent Find Better dialog for PoB difference previews. */
   buildContext?: PriceCheckOpenRequest['buildContext']
+  /** Augment behavior used by the active Find Better result set. */
+  findBetterComparison?: Pick<FindBetterSearchOptions, 'runeBehavior' | 'anointBehavior'>
   phase: 'idle' | 'parsing' | 'configuring' | 'searching' | 'fetching-page' | 'results' | 'error'
   draft?: TradePriceCheckDraft
   leagues: TradeLeague[]
