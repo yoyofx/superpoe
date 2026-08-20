@@ -1,4 +1,6 @@
 import { XMLParser } from 'fast-xml-parser'
+import { decodeCodeToXml } from '@/engine/buildCode'
+import type { PobBuildObject } from '@/engine/pobBuildObject'
 
 function asArray<T>(value: T | T[] | undefined): T[] {
   if (value == null) return []
@@ -22,8 +24,14 @@ export interface BuildSkillGroup {
   gems: BuildGem[]
 }
 
+export interface BuildSkillSet {
+  id: string
+  title: string
+}
+
 export interface BuildSkills {
   activeSkillSetId: string
+  skillSets: BuildSkillSet[]
   activeGroupId: string
   groups: BuildSkillGroup[]
 }
@@ -36,10 +44,14 @@ export function parseSkillsXml(xml: string): BuildSkills {
   })
   const build = parser.parse(xml)?.PathOfBuilding2
   const skills = build?.Skills
-  if (!skills) return { activeSkillSetId: '', activeGroupId: '', groups: [] }
+  if (!skills) return { activeSkillSetId: '', skillSets: [], activeGroupId: '', groups: [] }
   const sets = asArray<Record<string, unknown>>(skills.SkillSet as Record<string, unknown> | Record<string, unknown>[] | undefined)
   const activeId = String(skills.activeSkillSet ?? sets[0]?.id ?? '')
   const activeSet = sets.find((set) => String(set.id ?? '') === activeId) || sets[0]
+  const skillSets = sets.map((set, index) => ({
+    id: String(set.id ?? index + 1),
+    title: String(set.title ?? set.name ?? `Skill Set ${index + 1}`),
+  }))
   const groups = asArray<Record<string, unknown>>(activeSet?.Skill as Record<string, unknown> | Record<string, unknown>[] | undefined).map((skill, index) => ({
     id: String(index + 1),
     enabled: String(skill.enabled ?? 'true') === 'true',
@@ -55,5 +67,13 @@ export function parseSkillsXml(xml: string): BuildSkills {
     })),
   })).filter((group) => group.gems.length > 0)
   const activeGroupId = String(build?.Build?.mainSocketGroup ?? groups[0]?.id ?? '')
-  return { activeSkillSetId: activeId, activeGroupId, groups }
+  return { activeSkillSetId: activeId, skillSets, activeGroupId, groups }
+}
+
+export function parseSkillsObject(object: PobBuildObject): BuildSkills {
+  return parseSkillsXml(object.toXml())
+}
+
+export function parseSkillsCode(code: string): BuildSkills {
+  return parseSkillsXml(decodeCodeToXml(code))
 }

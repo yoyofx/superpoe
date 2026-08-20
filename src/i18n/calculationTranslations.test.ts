@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { translateCalculationStat, translateCalculationTerm, translateCalculationText } from '@/i18n/calculationTranslations'
+import { translateCalculationLabel, translateCalculationStat, translateCalculationTerm, translateCalculationText } from '@/i18n/calculationTranslations'
 
 describe('calculation translations', () => {
   it('localizes current PoB2 damage breakdown fragments', () => {
@@ -21,5 +21,39 @@ describe('calculation translations', () => {
 
   it('localizes PoB2 internal calculation terms', () => {
     expect(translateCalculationTerm('Zap', 'zh-rCN')).toBe('电击')
+  })
+
+  it('localizes display-stat labels stored with trailing punctuation', async () => {
+    // The production manifest contains these labels in BuildDisplayStats.csv,
+    // CalcSections.csv, and related language files.
+    const { loadTranslations, resetTranslationsForTest } = await import('@/i18n/translationLoader')
+    const originalFetch = globalThis.fetch
+    const files = [
+      'BuildDisplayStats.csv',
+      'CalcSections.csv',
+      'SkillsTab.csv',
+      'GUI.csv',
+    ]
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url.endsWith('/translation-files.json')) {
+        return new Response(JSON.stringify({ languages: { 'zh-rCN': files } }), { status: 200 })
+      }
+      const file = url.split('/').pop() || ''
+      const rows: Record<string, string> = {
+        'CalcSections.csv': 'Mana Cost:,魔力消耗:\nEffective Hit Pool:,击中伤有效生命值:\n',
+        'SkillsTab.csv': 'Full DPS,最终总和DPS\n',
+      }
+      return new Response(rows[file] || '', { status: 200 })
+    }) as typeof globalThis.fetch
+    try {
+      await loadTranslations('zh-rCN')
+      expect(translateCalculationLabel('Mana Cost', 'zh-rCN')).toBe('魔力消耗')
+      expect(translateCalculationLabel('Effective Hit Pool', 'zh-rCN')).toBe('击中伤有效生命值')
+      expect(translateCalculationLabel('Full DPS', 'zh-rCN')).toBe('最终总和DPS')
+    } finally {
+      globalThis.fetch = originalFetch
+      resetTranslationsForTest()
+    }
   })
 })

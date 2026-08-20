@@ -277,36 +277,16 @@ export function deallocateNode(
   const roots = getImplicitRootIds(ctx)
   if (roots.has(targetId)) return buildAvailableAndDepends(ctx, allocatedNodes, nodeWeaponSets)
 
+  // Keep imported XML nodes intact. PoB2 may later decide that a node is not
+  // connected to a valid start (for example when a special jewel is missing),
+  // but the editor must not silently delete that user's data while toggling a
+  // different node. Only the explicitly selected node is removed here; PoB
+  // Lua remains the authority for effective allocation during calculation.
   const remaining = new Set(allocatedNodes)
   remaining.delete(targetId)
-  const effective = makeAllocatedSet(remaining, roots)
-  const reachable = new Set<string>()
-  const queue = [...roots]
-  for (const root of roots) reachable.add(root)
-
-  for (let i = 0; i < queue.length; i++) {
-    const id = queue[i]
-    const mode = getNodeAllocMode(id, nodeWeaponSets)
-    const node = ctx.treeData.nodes[id]
-    if (!node) continue
-    for (const otherId of neighbors(ctx.treeData, id)) {
-      if (!effective.has(otherId) || reachable.has(otherId)) continue
-      const other = ctx.treeData.nodes[otherId]
-      if (!other) continue
-      const otherMode = getNodeAllocMode(otherId, nodeWeaponSets)
-      if (mode !== 0 && otherMode !== 0 && mode !== otherMode) continue
-      if (node.ascendancyName && other.ascendancyName && node.ascendancyName !== other.ascendancyName) continue
-      reachable.add(otherId)
-      queue.push(otherId)
-    }
-  }
-
-  const nextAllocated = new Set<string>()
-  for (const id of remaining) {
-    if (reachable.has(id)) nextAllocated.add(id)
-  }
-
-  return buildAvailableAndDepends(ctx, nextAllocated, cleanWeaponSets(nextAllocated, nodeWeaponSets))
+  const nextWeaponSets = { ...nodeWeaponSets }
+  delete nextWeaponSets[targetId]
+  return buildAvailableAndDepends(ctx, remaining, nextWeaponSets)
 }
 
 export function getPreviewPath(

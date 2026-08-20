@@ -30,13 +30,15 @@ export const PAPER_DOLL_SLOTS: readonly PaperDollSlotLayout[] = [
   { slotName: 'Weapon 2', weaponSet: 1, rect: { x: 1135, y: 106, width: 239, height: 476 } },
   { slotName: 'Weapon 2 Swap', weaponSet: 2, rect: { x: 1390, y: 105, width: 101, height: 230 } },
   { slotName: 'Helmet', rect: { x: 663, y: 73, width: 240, height: 240 } },
-  { slotName: 'Body Armour', rect: { x: 697, y: 348, width: 204, height: 350 } },
+  // The native body frame is wider than the item silhouette. Keep the full
+  // frame as the hit target so clicking its left edge selects the body item.
+  { slotName: 'Body Armour', rect: { x: 654, y: 348, width: 257, height: 350 } },
   { slotName: 'Gloves', rect: { x: 371, y: 614, width: 237, height: 232 } },
   { slotName: 'Boots', rect: { x: 958, y: 614, width: 235, height: 232 } },
   { slotName: 'Ring 1', rect: { x: 488, y: 465, width: 120, height: 116 } },
   { slotName: 'Amulet', rect: { x: 957, y: 313, width: 119, height: 119 } },
   { slotName: 'Ring 2', rect: { x: 957, y: 465, width: 119, height: 116 } },
-  { slotName: 'Belt', rect: { x: 697, y: 737, width: 204, height: 109 } },
+  { slotName: 'Belt', rect: { x: 654, y: 737, width: 257, height: 109 } },
   { slotName: 'Flask 1', rect: { x: 434, y: 883, width: 108, height: 224 } },
   { slotName: 'Flask 2', rect: { x: 1024, y: 883, width: 108, height: 224 } },
   { slotName: 'Charm 1', rect: { x: 598, y: 940, width: 124, height: 112 } },

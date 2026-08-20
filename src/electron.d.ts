@@ -6,6 +6,7 @@ export interface UpdateInfo {
   channel: 'release' | 'dev'
   downloadUrl: string
   fileName: string
+  size?: number
   releaseDate: string
 }
 
@@ -44,12 +45,28 @@ declare global {
       onState?(callback: (state: import('@/types/market').PriceCheckContextState) => void): () => void
       onDetailState?(callback: (value: { state?: import('@/types/market').PriceCheckContextState; listingId?: string }) => void): () => void
     }
+    superpoeFindBetter?: {
+      open(request: import('@/types/market').PriceCheckOpenRequest): Promise<import('@/types/market').PriceCheckContextState>
+      getState?(): Promise<import('@/types/market').PriceCheckContextState>
+      search?(leagueId: string, criteria: import('@/types/market').TradePriceCheckCriteria): Promise<import('@/types/market').PriceCheckContextState>
+      fetchPage?(page: number): Promise<import('@/types/market').PriceCheckContextState>
+      openInTradeCenter?(url: string): Promise<void>
+      visitHideout?(listingId: string): Promise<import('@/types/market').MarketVisitHideoutResult>
+      favorite?(listingId: string): Promise<{ ok: true; entryId: string }>
+      hide?(): Promise<void>
+      setUiScale?(factor: number): Promise<number>
+      onState?(callback: (state: import('@/types/market').PriceCheckContextState) => void): () => void
+    }
     pob2Desktop?: {
       getSystemLocale(): string
       importWeGame(url: string): Promise<{ code: string; sourceUrl: string }>
       importPoeNinja(url: string): Promise<{ code: string; sourceUrl: string; suggestedName: string }>
       openBuildFile(): Promise<{ canceled: boolean; filePath?: string; content?: string }>
       saveBuildFileCopy(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
+      openBackupFile(): Promise<{ canceled: boolean; filePath?: string; content?: string }>
+      saveBackupFile(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
+      collectBackupData(): Promise<import('@/engine/superPoeBackup').SuperPoeBackupMainData>
+      restoreBackupData(main: import('@/engine/superPoeBackup').SuperPoeBackupMainData): Promise<void>
       registerBuildFileAssociation(): Promise<{ registered: boolean; isDefault: boolean; settingsOpened: boolean; reason?: 'unsupported-platform' }>
       onOpenBuildFile(callback: (result: { canceled: boolean; filePath?: string; content?: string; error?: string }) => void): () => void
       saveGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
@@ -65,6 +82,13 @@ declare global {
       }>
       calculatePobLua(payload: import('@/types/calc').SkillCalculationSelection & { xml: string }): Promise<import('@/types/calc').CalcApiResponse>
       rankPobLuaSkills(payload: import('@/types/calc').RankSkillsInput): Promise<import('@/types/calc').SkillDpsRankResponse>
+      comparePobLuaEquipment(payload: import('@/equipmentDifference/types').EquipmentDifferenceRequest & { contextKey: string }): Promise<import('@/equipmentDifference/types').EquipmentDifferenceResult>
+      openEquipmentTryOn(payload: import('@/types/tryOn').EquipmentTryOnOpenRequest): Promise<void>
+    }
+    pob2TryOn?: {
+      close(): Promise<void>
+      getPayload(): Promise<import('@/types/tryOn').EquipmentTryOnOpenRequest | null>
+      onPayload(callback: (payload: import('@/types/tryOn').EquipmentTryOnOpenRequest) => void): () => void
     }
     pob2Market?: {
       activate(bounds: import('@/types/market').MarketBounds): Promise<import('@/types/market').MarketViewState>
@@ -88,6 +112,7 @@ declare global {
       openSearch(id: string): Promise<void>
       visitHideout(entryId: string): Promise<import('@/types/market').MarketVisitHideoutResult>
       updateLibrary(patch: import('@/types/market').EquipmentLibraryMetadataPatch): Promise<import('@/types/market').EquipmentLibraryEntry>
+      moveLibrary(input: import('@/types/market').EquipmentLibraryMoveInput): Promise<import('@/types/market').EquipmentLibraryMoveResult>
       deleteLibrary(id: string): Promise<boolean>
       deleteLibraries(ids: string[]): Promise<number>
       removeLibrarySource(sourceKey: string): Promise<{ removedEntryId?: string; entry?: import('@/types/market').EquipmentLibraryEntry }>
@@ -112,6 +137,7 @@ declare global {
       onStateChanged(callback: (state: import('@/types/market').MarketViewState) => void): () => void
       onLibraryChanged(callback: () => void): () => void
       onSidebarRequest(callback: (scope: import('@/types/market').LibraryTreeScope) => void): () => void
+      onTryOnRequest(callback: (entry: import('@/types/market').EquipmentLibraryEntry) => void): () => void
       onMonitoringChanged(callback: (snapshot: import('@/types/market').MarketMonitoringSnapshot) => void): () => void
       onOpenMonitoring(callback: () => void): () => void
       onOpenTradeCenter(callback: () => void): () => void
@@ -122,7 +148,8 @@ declare global {
     }
     pob2Updater?: {
       check(channel?: 'release' | 'dev'): Promise<UpdateCheckResult>
-      download(info: UpdateInfo): Promise<void>
+      download(info: UpdateInfo, options?: { forceInstall?: boolean }): Promise<void>
+      ready(): void
       setConfig(config: { channel?: string; intervalMinutes?: number }): void
       setProxyDomains(domains: string[]): void
       getProxyDomains(): Promise<ProxyDomainsInfo>

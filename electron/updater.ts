@@ -1,5 +1,5 @@
 import { app, BrowserWindow, ipcMain, shell } from 'electron'
-import { createWriteStream, mkdirSync, existsSync, unlinkSync, readFileSync } from 'node:fs'
+import { appendFileSync, createWriteStream, mkdirSync, existsSync, unlinkSync, readFileSync } from 'node:fs'
 import { get as httpsGet } from 'node:https'
 import { get as httpGet, type IncomingMessage } from 'node:http'
 import path from 'node:path'
@@ -10,17 +10,8 @@ export type UpdateChannel = 'release' | 'dev'
 
 // Built-in GitHub proxy domains
 const BUILTIN_PROXY_DOMAINS: string[] = [
-  'https://gh.h233.eu.org',
-  'https://rapidgit.jjda.de5.net',
-  'https://gh-proxy.org',
-  'https://cdn.gh-proxy.org',
-  'https://edgeone.gh-proxy.org',
-  'https://ghproxy.it',
   'https://github.boki.moe',
-  'https://gh.jasonzeng.dev',
-  'https://gh.monlor.com',
-  'https://github.geekery.cn',
-  'https://github.ednovas.xyz',
+  'https://gh-proxy.com',
 ]
 
 // User-configured proxy domains (set at runtime via IPC)
@@ -53,7 +44,13 @@ export interface UpdateInfo {
   channel: UpdateChannel
   downloadUrl: string
   fileName: string
+  size?: number
   releaseDate: string
+}
+
+export interface UpdateInstallOptions {
+  /** Use the installer's unattended/automatic mode when true. */
+  forceInstall?: boolean
 }
 
 export type UpdateCheckStatus = 'available' | 'up-to-date' | 'error'
@@ -71,6 +68,28 @@ export interface UpdateCheckResult {
 const DEFAULT_REPO_OWNER = 'yoyofx'
 const DEFAULT_REPO_NAME = 'superpoe'
 const GITHUB_BASE = 'https://github.com'
+const DOWNLOAD_IDLE_TIMEOUT_MS = 15_000
+
+function describeUrl(value: string): string {
+  try {
+    const url = new URL(value)
+    return `${url.origin}${url.pathname}`
+  } catch {
+    return value.replace(/[?#].*$/, '')
+  }
+}
+
+function updateLog(event: string, details: Record<string, unknown> = {}): void {
+  const line = `${new Date().toISOString()} ${event} ${JSON.stringify(details)}\n`
+  try {
+    const directory = path.join(app.getPath('userData'), 'logs')
+    mkdirSync(directory, { recursive: true })
+    appendFileSync(path.join(directory, 'updater.log'), line, { encoding: 'utf8' })
+  } catch {
+    // Logging must never interrupt update checks or downloads.
+  }
+  console.info(`[Updater] ${event}`, details)
+}
 
 interface GithubRepoIdentity {
   owner: string
@@ -139,52 +158,43 @@ function getLatestYmlUrl(channel: UpdateChannel): string {
 
 function getAssetDownloadUrl(channel: UpdateChannel, fileName: string, version: string): string {
   const { owner, name } = resolveGithubRepo()
+  const encodedFileName = encodeURIComponent(fileName)
   if (channel === 'dev') {
-    return `${GITHUB_BASE}/${owner}/${name}/releases/download/dev/${fileName}`
+    return `${GITHUB_BASE}/${owner}/${name}/releases/download/dev/${encodedFileName}`
   }
-  return `${GITHUB_BASE}/${owner}/${name}/releases/download/v${version}/${fileName}`
+  return `${GITHUB_BASE}/${owner}/${name}/releases/download/v${version}/${encodedFileName}`
 }
 
-/**
- * Try fetching from the direct URL first; if it fails, retry through each proxy domain.
- * Proxy URL pattern: {proxyDomain}/{originalUrl}
- */
+/** Fetch through the configured proxy domains. Direct GitHub access is not
+ * attempted because it is unavailable in the target network environment. */
 async function fetchWithProxyFallback(originalUrl: string): Promise<string> {
-  // Try direct first
-  try {
-    return await httpsFetch(originalUrl)
-  } catch {
-    // direct failed, try proxies
-  }
-
+  updateLog('manifest-fetch-start', { url: describeUrl(originalUrl), direct: false })
   const proxies = getAllProxyDomains()
   let lastError: Error | undefined
   for (const proxy of proxies) {
     try {
-      return await httpsFetch(toProxiedUrl(proxy, originalUrl))
+      const proxyUrl = toProxiedUrl(proxy, originalUrl)
+      updateLog('manifest-fetch-attempt', { route: proxy, url: describeUrl(proxyUrl) })
+      const result = await httpsFetch(proxyUrl)
+      updateLog('manifest-fetch-success', { route: proxy, bytes: Buffer.byteLength(result, 'utf8') })
+      return result
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
+      updateLog('manifest-fetch-failed', { route: proxy, error: lastError.message })
     }
   }
   throw lastError ?? new Error(`Failed to fetch ${originalUrl} (no proxies configured)`)
 }
 
-/**
- * Try downloading from the direct URL first; if it fails, retry through each proxy domain.
- */
+/** Download through the configured proxy domains. Direct GitHub access is not
+ * attempted because it is unavailable in the target network environment. */
 async function downloadWithProxyFallback(
   originalUrl: string,
   destPath: string,
   onProgress: (percent: number) => void,
+  expectedSize?: number,
 ): Promise<void> {
-  // Try direct first
-  try {
-    await httpsDownload(originalUrl, destPath, onProgress)
-    return
-  } catch {
-    // direct failed, try proxies
-  }
-
+  updateLog('download-start', { route: 'proxy', url: describeUrl(originalUrl), expectedSize, direct: false })
   const proxies = getAllProxyDomains()
   let lastError: Error | undefined
   for (const proxy of proxies) {
@@ -193,10 +203,14 @@ async function downloadWithProxyFallback(
       if (existsSync(destPath)) {
         try { unlinkSync(destPath) } catch { /* ignore */ }
       }
-      await httpsDownload(toProxiedUrl(proxy, originalUrl), destPath, onProgress)
+      const proxyUrl = toProxiedUrl(proxy, originalUrl)
+      updateLog('download-attempt', { route: proxy, url: describeUrl(proxyUrl), expectedSize })
+      await httpsDownload(proxyUrl, destPath, onProgress, expectedSize)
+      updateLog('download-success', { route: proxy, bytes: expectedSize })
       return
     } catch (err) {
       lastError = err instanceof Error ? err : new Error(String(err))
+      updateLog('download-failed', { route: proxy, error: lastError.message })
     }
   }
   throw lastError ?? new Error(`Failed to download ${originalUrl} (no proxies configured)`)
@@ -212,11 +226,14 @@ function httpsFetch(url: string): Promise<string> {
       const getter = requestUrl.startsWith('https://') ? httpsGet : httpGet
       getter(requestUrl, (res: IncomingMessage) => {
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          doRequest(res.headers.location, redirectCount + 1)
+          const nextUrl = new URL(res.headers.location, requestUrl).toString()
+          updateLog('manifest-redirect', { from: describeUrl(requestUrl), to: describeUrl(nextUrl), status: res.statusCode })
+          doRequest(nextUrl, redirectCount + 1)
           return
         }
         if (res.statusCode !== 200) {
           res.resume()
+          updateLog('manifest-http-error', { url: describeUrl(requestUrl), status: res.statusCode })
           reject(new Error(`HTTP ${res.statusCode}`))
           return
         }
@@ -231,7 +248,7 @@ function httpsFetch(url: string): Promise<string> {
   })
 }
 
-function httpsDownload(url: string, destPath: string, onProgress: (percent: number) => void): Promise<void> {
+function httpsDownload(url: string, destPath: string, onProgress: (percent: number) => void, expectedSize?: number): Promise<void> {
   return new Promise<void>((resolve, reject) => {
     const doRequest = (requestUrl: string, redirectCount: number) => {
       if (redirectCount > 5) {
@@ -239,28 +256,64 @@ function httpsDownload(url: string, destPath: string, onProgress: (percent: numb
         return
       }
       const getter = requestUrl.startsWith('https://') ? httpsGet : httpGet
-      getter(requestUrl, (res: IncomingMessage) => {
+      let requestRef: ReturnType<typeof httpsGet> | undefined
+      let idleTimer: ReturnType<typeof setTimeout> | undefined
+      const clearIdleTimer = () => {
+        if (idleTimer) clearTimeout(idleTimer)
+        idleTimer = undefined
+      }
+      const armIdleTimer = () => {
+        clearIdleTimer()
+        idleTimer = setTimeout(() => {
+          updateLog('download-idle-timeout', { url: describeUrl(requestUrl), timeoutMs: DOWNLOAD_IDLE_TIMEOUT_MS })
+          requestRef?.destroy(new Error('Download stalled'))
+        }, DOWNLOAD_IDLE_TIMEOUT_MS)
+      }
+      requestRef = getter(requestUrl, (res: IncomingMessage) => {
+        armIdleTimer()
         if (res.statusCode && res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-          doRequest(res.headers.location, redirectCount + 1)
+          clearIdleTimer()
+          const nextUrl = new URL(res.headers.location, requestUrl).toString()
+          updateLog('download-redirect', { from: describeUrl(requestUrl), to: describeUrl(nextUrl), status: res.statusCode })
+          doRequest(nextUrl, redirectCount + 1)
           return
         }
         if (res.statusCode !== 200) {
+          clearIdleTimer()
           res.resume()
+          updateLog('download-http-error', { url: describeUrl(requestUrl), status: res.statusCode })
           reject(new Error(`HTTP ${res.statusCode}`))
           return
         }
-        const totalSize = parseInt(res.headers['content-length'] || '0', 10)
+        const contentLength = parseInt(res.headers['content-length'] || '0', 10)
+        const totalSize = contentLength > 0 ? contentLength : (expectedSize && expectedSize > 0 ? expectedSize : 0)
         let downloaded = 0
         const file = createWriteStream(destPath)
         res.on('data', (chunk: Buffer) => {
+          armIdleTimer()
           downloaded += chunk.length
           if (totalSize > 0) onProgress(Math.round((downloaded / totalSize) * 100))
         })
         res.pipe(file)
-        file.on('finish', () => { file.close(); resolve() })
-        file.on('error', (err) => { file.close(); reject(err) })
-        res.on('error', reject)
-      }).on('error', reject)
+        file.on('finish', () => {
+          clearIdleTimer()
+          file.close()
+          updateLog('download-stream-finished', { url: describeUrl(requestUrl), downloaded, totalSize })
+          resolve()
+        })
+        file.on('error', (err) => { clearIdleTimer(); file.close(); reject(err) })
+        file.on('error', (err) => updateLog('download-file-error', { error: err.message }))
+        res.on('error', (error) => {
+          clearIdleTimer()
+          updateLog('download-stream-error', { error: error instanceof Error ? error.message : String(error), downloaded })
+          reject(error)
+        })
+      })
+      armIdleTimer()
+      requestRef.on('error', (error) => {
+        clearIdleTimer()
+        reject(error)
+      })
     }
     doRequest(url, 0)
   })
@@ -270,6 +323,8 @@ function httpsDownload(url: string, destPath: string, onProgress: (percent: numb
 
 let checkTimer: ReturnType<typeof setInterval> | undefined
 let isDownloading = false
+let updaterRendererReady = false
+let pendingUpdate: UpdateInfo | null = null
 
 function sendToAllWindows(channel: string, ...args: unknown[]) {
   for (const win of BrowserWindow.getAllWindows()) {
@@ -277,10 +332,19 @@ function sendToAllWindows(channel: string, ...args: unknown[]) {
   }
 }
 
+function flushPendingUpdate(): void {
+  if (!updaterRendererReady || !pendingUpdate || BrowserWindow.getAllWindows().length === 0) return
+  const update = pendingUpdate
+  pendingUpdate = null
+  updateLog('update-available-dispatched', { version: update.version, channel: update.channel })
+  sendToAllWindows('updater:update-available', update)
+}
+
 async function checkForUpdate(updateChannel: UpdateChannel): Promise<UpdateCheckResult> {
   const currentVersion = app.getVersion()
   try {
     const url = getLatestYmlUrl(updateChannel)
+    updateLog('check-start', { channel: updateChannel, currentVersion, url: describeUrl(url) })
     const raw = await fetchWithProxyFallback(url)
     const yml = parseLatestYml(raw)
     if (!yml) {
@@ -304,6 +368,8 @@ async function checkForUpdate(updateChannel: UpdateChannel): Promise<UpdateCheck
 
     const fileName = pickInstallerFileName(yml)
     const downloadUrl = getAssetDownloadUrl(updateChannel, fileName, yml.version)
+    const file = yml.files.find((candidate) => candidate.url === fileName)
+    updateLog('check-available', { channel: updateChannel, currentVersion, version: yml.version, fileName, size: file?.size, url: describeUrl(downloadUrl) })
 
     return {
       status: 'available',
@@ -315,6 +381,7 @@ async function checkForUpdate(updateChannel: UpdateChannel): Promise<UpdateCheck
         channel: updateChannel,
         downloadUrl,
         fileName,
+        ...(file && Number.isFinite(file.size) && file.size > 0 ? { size: file.size } : {}),
         releaseDate: yml.releaseDate || '',
       },
     }
@@ -328,7 +395,7 @@ async function checkForUpdate(updateChannel: UpdateChannel): Promise<UpdateCheck
   }
 }
 
-async function downloadAndInstall(info: UpdateInfo): Promise<void> {
+async function downloadAndInstall(info: UpdateInfo, options: UpdateInstallOptions = {}): Promise<void> {
   if (isDownloading) return
   isDownloading = true
 
@@ -338,27 +405,37 @@ async function downloadAndInstall(info: UpdateInfo): Promise<void> {
     // Some older electron-builder manifests used `-Setup`, while the
     // uploaded Windows installer uses `.Setup`. Try both names so an
     // otherwise valid update is not blocked by a stale/mismatched manifest.
-    const fileNames = [info.fileName]
-    if (process.platform === 'win32' && /[-.]Setup\./i.test(info.fileName)) {
-      const alternate = info.fileName.replace(/-Setup\./i, '.Setup.')
-      if (!fileNames.includes(alternate)) fileNames.push(alternate)
+    const fileNames: string[] = process.platform === 'win32' ? [] : [info.fileName]
+    if (process.platform === 'win32') {
+      const alternates = [
+        info.fileName.replace(/-Setup\./i, '.Setup.'),
+        info.fileName.replace(/-Setup-/i, '.Setup.'),
+        info.fileName.replace(/\s+Setup\s+/i, '.Setup.'),
+        info.fileName.replace(/\s+/g, '.'),
+      ]
+      for (const alternate of alternates) {
+        if (alternate !== info.fileName && !fileNames.includes(alternate)) fileNames.push(alternate)
+      }
+      // Recent Windows releases use `.Setup.` in the uploaded asset name.
+      // Try those normalized candidates before the stale manifest name.
+      if (!fileNames.includes(info.fileName)) fileNames.push(info.fileName)
     }
 
     let destPath = ''
     let lastError: unknown
-    for (const [index, fileName] of fileNames.entries()) {
+    for (const fileName of fileNames) {
       const candidatePath = path.join(tempDir, fileName)
       if (existsSync(candidatePath)) {
         try { unlinkSync(candidatePath) } catch { /* ignore */ }
       }
       sendToAllWindows('updater:download-progress', 0)
-      const candidateUrl = index === 0
+      const candidateUrl = fileName === info.fileName
         ? info.downloadUrl
         : getAssetDownloadUrl(info.channel, fileName, info.version)
       try {
         await downloadWithProxyFallback(candidateUrl, candidatePath, (percent) => {
           sendToAllWindows('updater:download-progress', percent)
-        })
+        }, info.size)
         destPath = candidatePath
         break
       } catch (error) {
@@ -370,7 +447,10 @@ async function downloadAndInstall(info: UpdateInfo): Promise<void> {
     sendToAllWindows('updater:download-complete')
 
     if (process.platform === 'win32') {
-      spawn(destPath, ['/S', '--force-run'], { detached: true, stdio: 'ignore' }).unref()
+      // Keep the default unattended update behavior, but let the user opt out
+      // from the renderer and run the normal installer UI instead.
+      const installerArgs = options?.forceInstall === false ? [] : ['/S', '--force-run']
+      spawn(destPath, installerArgs, { detached: true, stdio: 'ignore', windowsHide: false }).unref()
       setTimeout(() => app.quit(), 1000)
     } else if (process.platform === 'darwin') {
       await shell.openPath(destPath)
@@ -393,12 +473,18 @@ export function setupAutoUpdater(getChannel: () => UpdateChannel, getIntervalMin
     return checkForUpdate(channel)
   })
 
-  ipcMain.handle('updater:download', async (_event, info: UpdateInfo) => {
-    await downloadAndInstall(info)
+  ipcMain.handle('updater:download', async (_event, info: UpdateInfo, options?: UpdateInstallOptions) => {
+    await downloadAndInstall(info, options)
   })
 
   ipcMain.on('updater:restart-timer', () => {
     startTimer()
+  })
+
+  ipcMain.on('updater:renderer-ready', () => {
+    updaterRendererReady = true
+    updateLog('renderer-ready')
+    flushPendingUpdate()
   })
 
   ipcMain.on('updater:set-proxy-domains', (_event, domains: string[]) => {
@@ -414,7 +500,8 @@ export function setupAutoUpdater(getChannel: () => UpdateChannel, getIntervalMin
   const runCheck = async () => {
     const result = await checkForUpdate(getChannel())
     if (result.status === 'available' && result.update) {
-      sendToAllWindows('updater:update-available', result.update)
+      pendingUpdate = result.update
+      flushPendingUpdate()
     }
   }
 

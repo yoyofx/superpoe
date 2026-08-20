@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto'
 import type {
   CanonicalItemDisplayStat, LibraryModifierGroup, LibraryModifierTag, MarketRealm, PriceCheckContextState, PriceCheckListingReference, PriceCheckListingView, PriceCheckOpenRequest,
-  TradePriceCheckCriteria, TradePriceCheckDraft, TradeSearchResult,
+  TradePriceCheckCriteria, TradePriceCheckDraft, TradeSearchResult, LibraryItemSnapshot,
 } from '../../src/types/market.js'
 import type { MarketStatTextResolution } from '../marketListing.js'
 
@@ -9,10 +9,17 @@ type SearchOutput = TradeSearchResult & { listingIds: string[] }
 
 interface CoordinatorServices {
   context: () => { realm: MarketRealm; language: PriceCheckContextState['language'] }
-  prepare: (realm: MarketRealm, source: PriceCheckOpenRequest['source']) => Promise<TradePriceCheckDraft>
+  prepare: (realm: MarketRealm, source: PriceCheckOpenRequest['source']) => Promise<{ draft: TradePriceCheckDraft; item: LibraryItemSnapshot }>
   leagues: (realm: MarketRealm) => Promise<Array<{ id: string; text: string }>>
-  search: (realm: MarketRealm, source: PriceCheckOpenRequest['source'], leagueId: string, criteria: TradePriceCheckCriteria) => Promise<SearchOutput>
+  search: (realm: MarketRealm, item: LibraryItemSnapshot, leagueId: string, criteria: TradePriceCheckCriteria, mode: PriceCheckContextState['mode'], buildContext?: PriceCheckOpenRequest['buildContext']) => Promise<SearchOutput>
   fetch: (realm: MarketRealm, ids: string[], searchId: string) => Promise<unknown>
+  rankListings?: (
+    listings: PriceCheckListingView[],
+    criteria: TradePriceCheckCriteria,
+    buildContext: PriceCheckOpenRequest['buildContext'] | undefined,
+    sourceSlotName: string | undefined,
+    realm: MarketRealm,
+  ) => Promise<PriceCheckListingView[]>
   resolveListingStatText?: (realm: MarketRealm, queryStatId: string) => Promise<MarketStatTextResolution | undefined>
   resolveListingItemText?: (realm: MarketRealm, value: string) => { canonicalText?: string }
   visitHideout: (realm: MarketRealm, listingId: string, searchId: string, sourceUrl: string) => Promise<{ ok: true } | { ok: false; reason: 'game-offline' }>
@@ -78,13 +85,29 @@ function hasPlaceholderText(value: string): boolean {
   return /(?:\?{2,}|\uFFFD)/u.test(value)
 }
 
+function directStatId(value: unknown): string | undefined {
+  const hash = text(record(value).hash)
+  return hash?.replace(/^stat\.(?=(?:explicit|implicit|enchant|rune|fractured|crafted|desecrated)\.)/, '')
+}
+
+function comparableStatTemplate(value: string, realm: MarketRealm): string {
+  return value
+    .replace(/\[([^|\]]+)\|([^\]]+)\]/g, (_match, global: string, cn: string) => realm === 'cn' ? cn : global)
+    .replace(/[-+]?\d+(?:\.\d+)?/g, '#')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLocaleLowerCase()
+}
+
 function fillStatTemplate(template: string, source: string): string {
   const values = [...source.matchAll(/[-+]?\d+(?:\.\d+)?%?/g)].map((match) => match[0])
   let next = 0
   return template.replace(/#|\{(\d+)\}/g, (_match, index: string | undefined, offset: number) => {
     let value = values[index == null ? next++ : Number(index)]
     const preceding = template[offset - 1]
+    const following = template[offset + 1]
     if (value && (preceding === '+' || preceding === '-') && value.startsWith(preceding)) value = value.slice(1)
+    if (value && following === '%' && value.endsWith('%')) value = value.slice(0, -1)
     return value ?? _match
   })
 }
@@ -116,37 +139,49 @@ async function listingView(
     return values.flatMap((raw, index) => {
       const rawLine = typeof raw === 'string' ? text(raw) : text(record(raw).text) || text(record(raw).description)
       const canonicalGroup: LibraryModifierGroup = group === 'enchant' || group === 'rune' || group === 'implicit' ? group : 'explicit'
+      const indexedStatIds = hashesByIndex(hashGroups[group]).get(index) || []
+      const statIds = [...new Set([directStatId(raw), ...indexedStatIds].filter((id): id is string => Boolean(id)))]
       return rawLine ? [{
         id: `${group}-${index}`,
         displayOrder: displayOrder++,
         group: canonicalGroup,
         sourceTags: [group as LibraryModifierTag],
         text: rawLine,
-        tradeStatIds: [] as string[],
+        ...(realm === 'cn' && !hasPlaceholderText(rawLine) ? { localized: { 'zh-CN': rawLine } } : {}),
+        tradeStatIds: statIds,
       }] : []
     })
   })
-  // Resolve placeholder descriptions asynchronously without changing the
-  // listing schema. The hashes are index-based, so rebuild only affected
-  // modifier text while retaining the API order.
+  // Official listing text is authoritative for display. Catalog text may
+  // supply canonical English only when its localized template matches the
+  // listing line; one stat ID can have multiple context-dependent templates.
   if (resolveListingStatText) {
     const resolvedModifiers = await Promise.all(modifiers.map(async (modifier) => {
       const [group, indexText] = modifier.id.split('-')
       const index = Number(indexText)
-      const hashes = hashesByIndex(hashGroups[group])
-      for (const queryStatId of hashes.get(index) || []) {
+      const rawValues = Array.isArray(item[`${group}Mods`]) ? item[`${group}Mods`] as unknown[] : []
+      const statIds = [...new Set([
+        directStatId(rawValues[index]),
+        ...(hashesByIndex(hashGroups[group]).get(index) || []),
+      ].filter((id): id is string => Boolean(id)))]
+      for (const queryStatId of statIds) {
         const resolved = await resolveListingStatText(realm, queryStatId)
         if (resolved) {
+          const placeholder = hasPlaceholderText(modifier.text)
+          const displayMatches = resolved.displayText
+            ? comparableStatTemplate(resolved.displayText, realm) === comparableStatTemplate(modifier.text, realm)
+            : false
+          if (!placeholder && !displayMatches) continue
           const canonicalText = resolved.canonicalText && !hasPlaceholderText(resolved.canonicalText)
             ? fillStatTemplate(resolved.canonicalText, modifier.text)
             : modifier.text
           const displayText = resolved.displayText && !hasPlaceholderText(resolved.displayText)
-            ? fillStatTemplate(resolved.displayText, modifier.text)
+            ? (placeholder ? fillStatTemplate(resolved.displayText, modifier.text) : modifier.text)
             : undefined
           return {
             ...modifier,
             text: canonicalText,
-            tradeStatIds: [queryStatId],
+            tradeStatIds: statIds,
             ...(displayText
               ? { localized: { 'zh-CN': displayText } }
               : {}),
@@ -167,6 +202,33 @@ async function listingView(
     ...stat,
     key: resolveListingItemText?.(realm, stat.key)?.canonicalText || stat.key,
   }))
+  const rawLines = [`Rarity: ${text(item.rarity) || 'RARE'}`]
+  const canonicalName = resolvedName?.canonicalText || text(item.name)
+  const canonicalBaseType = resolvedBaseType?.canonicalText || baseType
+  if (canonicalName && canonicalName !== canonicalBaseType && ['RARE', 'UNIQUE'].includes((text(item.rarity) || '').toUpperCase())) {
+    rawLines.push(canonicalName)
+  }
+  rawLines.push(canonicalBaseType)
+  const limitedTo = typeof item.limit === 'number' && Number.isFinite(item.limit)
+    ? item.limit
+    : typeof item.limitedTo === 'number' && Number.isFinite(item.limitedTo)
+      ? item.limitedTo
+      : undefined
+  const radius = properties?.find((stat) => /^(?:radius|范围|範圍)$/i.test(stat.key))?.values[0]
+  if (limitedTo != null) rawLines.push(`Limited to: ${limitedTo}`)
+  if (radius) rawLines.push(`Radius: ${radius}`)
+  if (typeof item.ilvl === 'number' && Number.isFinite(item.ilvl)) rawLines.push(`Item Level: ${item.ilvl}`)
+  const quality = properties?.find((stat) => /quality|品质|品質/i.test(stat.key))?.values[0]
+  if (quality) rawLines.push(`Quality: ${quality}`)
+  const sockets = socketText(item.sockets)
+  if (sockets) rawLines.push(`Sockets: ${sockets}`)
+  const implicitModifiers = modifiers.filter((modifier) => ['rune', 'enchant', 'implicit'].includes(modifier.group))
+  rawLines.push(`Implicits: ${implicitModifiers.length}`)
+  for (const modifier of modifiers) {
+    const tags = (modifier.sourceTags || []).filter((tag) => ['rune', 'enchant', 'fractured', 'crafted', 'desecrated', 'mutated'].includes(tag))
+    rawLines.push(`${tags.map((tag) => `{${tag}}`).join('')}${modifier.text}`)
+  }
+  if (item.corrupted === true) rawLines.push('Corrupted')
   return {
     id,
     ...(amount != null && currency ? { price: { amount, currency, display: `${amount} ${currency}` } } : {}),
@@ -190,18 +252,22 @@ async function listingView(
     listedAt: text(listing.indexed),
     whisper: text(listing.whisper),
     hideoutAvailable: Boolean(text(listing.hideout_token)),
+    raw: rawLines.join('\n'),
   }
 }
 
 export class PriceCheckCoordinator {
   private generation = 0
   private source?: PriceCheckOpenRequest['source']
+  private buildContext?: PriceCheckOpenRequest['buildContext']
+  private criteria?: TradePriceCheckCriteria
+  private preparedItem?: LibraryItemSnapshot
   private searchContext?: SearchContext
   private state: PriceCheckContextState
 
   constructor(private readonly services: CoordinatorServices) {
     const context = services.context()
-    this.state = { generation: 0, ...context, phase: 'idle', leagues: [], listings: [] }
+    this.state = { generation: 0, ...context, mode: 'price-check', phase: 'idle', leagues: [], listings: [] }
   }
 
   snapshot(): PriceCheckContextState { return structuredClone(this.state) }
@@ -209,11 +275,18 @@ export class PriceCheckCoordinator {
   async open(request: PriceCheckOpenRequest): Promise<PriceCheckContextState> {
     const generation = ++this.generation
     this.source = structuredClone(request.source)
+    this.buildContext = request.buildContext ? structuredClone(request.buildContext) : undefined
+    this.criteria = undefined
+    this.preparedItem = undefined
     this.searchContext = undefined
     const context = this.services.context()
+    const mode = request.mode || 'price-check'
     this.set({
       generation,
       ...context,
+      mode,
+      ...(request.slotName ? { slotName: request.slotName } : {}),
+      ...(request.buildContext ? { buildContext: request.buildContext } : {}),
       phase: 'parsing',
       leagues: [],
       listings: [],
@@ -221,12 +294,13 @@ export class PriceCheckCoordinator {
       ...(request.captureWarnings?.length ? { captureWarnings: [...new Set(request.captureWarnings)].slice(0, 20) } : {}),
     })
     try {
-      const [draft, leagues] = await Promise.all([
+      const [prepared, leagues] = await Promise.all([
         this.services.prepare(context.realm, request.source),
         this.services.leagues(context.realm),
       ])
       if (generation !== this.generation) return this.snapshot()
-      this.set({ ...this.state, phase: 'configuring', draft, leagues })
+      this.preparedItem = prepared.item
+      this.set({ ...this.state, phase: 'configuring', draft: prepared.draft, leagues })
     } catch (error) {
       if (generation === this.generation) this.fail(error)
     }
@@ -234,12 +308,22 @@ export class PriceCheckCoordinator {
   }
 
   async search(leagueId: string, criteria: TradePriceCheckCriteria): Promise<PriceCheckContextState> {
-    if (!this.source) throw new Error('No price check item is active')
+    if (!this.source || !this.preparedItem) throw new Error('No price check item is active')
     const generation = this.generation
     const { realm } = this.state
-    this.set({ ...this.state, phase: 'searching', listings: [], search: undefined, error: undefined })
+    this.criteria = structuredClone(criteria)
+    this.set({
+      ...this.state,
+      phase: 'searching',
+      listings: [],
+      search: undefined,
+      error: undefined,
+      ...(criteria.findBetter
+        ? { findBetterComparison: { runeBehavior: criteria.findBetter.runeBehavior, anointBehavior: criteria.findBetter.anointBehavior } }
+        : { findBetterComparison: undefined }),
+    })
     try {
-      const result = await this.services.search(realm, this.source, leagueId, criteria)
+      const result = await this.services.search(realm, this.preparedItem, leagueId, criteria, this.state.mode, this.buildContext)
       if (generation !== this.generation) return this.snapshot()
       const { listingIds, ...search } = result
       this.searchContext = { id: randomUUID(), generation, realm, search, ids: listingIds }
@@ -258,11 +342,71 @@ export class PriceCheckCoordinator {
     const ids = context.ids.slice((safePage - 1) * 10, safePage * 10)
     this.set({ ...this.state, phase: 'fetching-page', error: undefined })
     try {
-      const payload = ids.length ? await this.services.fetch(context.realm, ids, context.search.searchId) : { result: [] }
+      const findBetter = this.criteria?.findBetter
+      // PoB2 evaluates and sorts the complete bounded candidate batch, then
+      // displays a page. Fetching only the visible page would make page two
+      // independently sorted and could put a better candidate behind it.
+      const fetchIds = findBetter ? context.ids : ids
+      const fetchedResults: unknown[] = []
+      for (let offset = 0; offset < fetchIds.length; offset += 10) {
+        const batch = fetchIds.slice(offset, offset + 10)
+        if (!batch.length) continue
+        const payload = await this.services.fetch(context.realm, batch, context.search.searchId)
+        const batchResults = Array.isArray(record(payload).result) ? record(payload).result as unknown[] : []
+        fetchedResults.push(...batchResults)
+      }
       if (context.generation !== this.generation) return this.snapshot()
-      const results = Array.isArray(record(payload).result) ? record(payload).result as unknown[] : []
-      const listings = (await Promise.all(results.map((value) => listingView(value, context.realm, this.services.resolveListingStatText, this.services.resolveListingItemText))))
+      const results = fetchedResults
+      let listings = (await Promise.all(results.map((value) => listingView(value, context.realm, this.services.resolveListingStatText, this.services.resolveListingItemText))))
         .filter((value): value is PriceCheckListingView => Boolean(value))
+      const criteria = this.criteria
+      if (findBetter?.sortBy === 'price' && this.services.rankListings) {
+        try {
+          listings = await this.services.rankListings(listings, criteria!, this.buildContext, this.state.slotName, context.realm)
+        } catch (error) {
+          if (error instanceof Error && error.message === 'MissingConversionRates') {
+            console.warn('[PriceCheck] currency conversion unavailable; falling back to PoB2 Stat Value sort')
+            const fallbackCriteria = {
+              ...criteria!,
+              findBetter: { ...criteria!.findBetter!, sortBy: 'stat-value' as const },
+            }
+            try {
+              listings = await this.services.rankListings(listings, fallbackCriteria, this.buildContext, this.state.slotName, context.realm)
+            } catch (fallbackError) {
+              console.warn('[PriceCheck] candidate Stat Value fallback failed; keeping trade order', fallbackError)
+            }
+          } else {
+            console.warn('[PriceCheck] candidate price ranking failed; keeping amount order', error)
+            listings = [...listings].sort((left, right) => (left.price?.amount ?? Number.POSITIVE_INFINITY) - (right.price?.amount ?? Number.POSITIVE_INFINITY))
+          }
+        }
+      } else if (findBetter?.sortBy === 'price') {
+        listings = [...listings].sort((left, right) => (left.price?.amount ?? Number.POSITIVE_INFINITY) - (right.price?.amount ?? Number.POSITIVE_INFINITY))
+      } else if (findBetter && this.services.rankListings) {
+        // PoB2 performs these two sorts after fetching the result page. A
+        // failed local calculation must not make the official search unusable.
+        try {
+          listings = await this.services.rankListings(listings, criteria!, this.buildContext, this.state.slotName, context.realm)
+        } catch (error) {
+          if (criteria!.findBetter?.sortBy === 'stat-value-price' && error instanceof Error && error.message === 'MissingConversionRates') {
+            console.warn('[PriceCheck] currency conversion unavailable; falling back to PoB2 Stat Value sort')
+            const fallbackCriteria = {
+              ...criteria!,
+              findBetter: { ...criteria!.findBetter!, sortBy: 'stat-value' as const },
+            }
+            try {
+              listings = await this.services.rankListings(listings, fallbackCriteria, this.buildContext, this.state.slotName, context.realm)
+            } catch (fallbackError) {
+              console.warn('[PriceCheck] candidate Stat Value fallback failed; keeping trade order', fallbackError)
+            }
+          } else {
+            console.warn('[PriceCheck] candidate ranking failed; keeping trade order', error)
+          }
+        }
+      }
+      if (findBetter) {
+        listings = listings.slice((safePage - 1) * 10, safePage * 10)
+      }
       this.set({
         ...this.state,
         phase: 'results',
@@ -286,11 +430,15 @@ export class PriceCheckCoordinator {
     if (!context || context.generation !== this.generation || !context.ids.includes(listingId)) {
       throw new Error('Price check listing has expired')
     }
+    const listing = this.state.listings.find((candidate) => candidate.id === listingId)
     return {
       realm: context.realm,
       listingId,
       queryId: context.search.searchId,
       sourceUrl: context.search.url,
+      ...(this.state.slotName ? { slotName: this.state.slotName } : {}),
+      ...(this.state.findBetterComparison ? this.state.findBetterComparison : {}),
+      ...(listing?.raw ? { candidateRaw: listing.raw } : {}),
     }
   }
 
@@ -299,18 +447,23 @@ export class PriceCheckCoordinator {
     if (context.realm === this.state.realm && context.language === this.state.language) return
     this.generation += 1
     this.source = undefined
+    this.buildContext = undefined
+    this.criteria = undefined
     this.searchContext = undefined
-    this.set({ generation: this.generation, ...context, phase: 'idle', leagues: [], listings: [] })
+    this.set({ generation: this.generation, ...context, mode: 'price-check', phase: 'idle', leagues: [], listings: [] })
   }
 
   reportError(error: unknown): PriceCheckContextState {
     this.generation += 1
     this.source = undefined
+    this.buildContext = undefined
+    this.criteria = undefined
     this.searchContext = undefined
     const context = this.services.context()
     this.set({
       generation: this.generation,
       ...context,
+      mode: 'price-check',
       phase: 'error',
       leagues: [],
       listings: [],

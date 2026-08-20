@@ -6,6 +6,10 @@ contextBridge.exposeInMainWorld('pob2Desktop', {
   importPoeNinja: (url: string) => ipcRenderer.invoke('pob2:import-poe-ninja', url),
   openBuildFile: () => ipcRenderer.invoke('pob2:open-build-file'),
   saveBuildFileCopy: (payload: { content: string; fileName: string }) => ipcRenderer.invoke('pob2:save-build-file-copy', payload),
+  openBackupFile: () => ipcRenderer.invoke('pob2:open-backup-file'),
+  saveBackupFile: (payload: { content: string; fileName: string }) => ipcRenderer.invoke('pob2:save-backup-file', payload),
+  collectBackupData: () => ipcRenderer.invoke('pob2:collect-backup-data'),
+  restoreBackupData: (main: import('../src/engine/superPoeBackup.js').SuperPoeBackupMainData) => ipcRenderer.invoke('pob2:restore-backup-data', main),
   registerBuildFileAssociation: () => ipcRenderer.invoke('pob2:register-build-file-association'),
   onOpenBuildFile: (callback: (result: { canceled: boolean; filePath?: string; content?: string; error?: string }) => void) => {
     const handler = (_event: unknown, result: { canceled: boolean; filePath?: string; content?: string; error?: string }) => callback(result)
@@ -20,10 +24,26 @@ contextBridge.exposeInMainWorld('pob2Desktop', {
   initPobLua: () => ipcRenderer.invoke('pob2:lua-init'),
   calculatePobLua: (payload: import('../src/types/calc.js').SkillCalculationSelection & { xml: string }) => ipcRenderer.invoke('pob2:lua-calculate', payload),
   rankPobLuaSkills: (payload: import('../src/types/calc.js').RankSkillsInput) => ipcRenderer.invoke('pob2:lua-rank-skills', payload),
+  comparePobLuaEquipment: (payload: import('../src/equipmentDifference/types.js').EquipmentDifferenceRequest & { contextKey: string }) => ipcRenderer.invoke('pob2:lua-compare-equipment', payload),
+  openEquipmentTryOn: (payload: import('../src/types/tryOn.js').EquipmentTryOnOpenRequest) => ipcRenderer.invoke('equipment-try-on:open', payload),
 })
 
 contextBridge.exposeInMainWorld('superpoePriceCheck', {
   open: (request: import('../src/types/market.js').PriceCheckOpenRequest) => ipcRenderer.invoke('price-check:open', request),
+})
+
+contextBridge.exposeInMainWorld('superpoeFindBetter', {
+  open: (request: import('../src/types/market.js').PriceCheckOpenRequest) => ipcRenderer.invoke('find-better:open', request),
+})
+
+contextBridge.exposeInMainWorld('pob2TryOn', {
+  close: () => ipcRenderer.invoke('equipment-try-on:close'),
+  getPayload: () => ipcRenderer.invoke('equipment-try-on:get-payload') as Promise<import('../src/types/tryOn.js').EquipmentTryOnOpenRequest | null>,
+  onPayload: (callback: (payload: import('../src/types/tryOn.js').EquipmentTryOnOpenRequest) => void) => {
+    const handler = (_event: unknown, payload: import('../src/types/tryOn.js').EquipmentTryOnOpenRequest) => callback(payload)
+    ipcRenderer.on('equipment-try-on:payload', handler)
+    return () => { ipcRenderer.removeListener('equipment-try-on:payload', handler) }
+  },
 })
 
 contextBridge.exposeInMainWorld('pob2Market', {
@@ -48,6 +68,7 @@ contextBridge.exposeInMainWorld('pob2Market', {
   openSearch: (id: string) => ipcRenderer.invoke('market:open-search', id) as Promise<void>,
   visitHideout: (entryId: string) => ipcRenderer.invoke('market:visit-hideout', entryId) as Promise<import('../src/types/market.js').MarketVisitHideoutResult>,
   updateLibrary: (patch: import('../src/types/market.js').EquipmentLibraryMetadataPatch) => ipcRenderer.invoke('market:update-library', patch) as Promise<import('../src/types/market.js').EquipmentLibraryEntry>,
+  moveLibrary: (input: import('../src/types/market.js').EquipmentLibraryMoveInput) => ipcRenderer.invoke('market:move-library', input) as Promise<import('../src/types/market.js').EquipmentLibraryMoveResult>,
   deleteLibrary: (id: string) => ipcRenderer.invoke('market:delete-library', id) as Promise<boolean>,
   deleteLibraries: (ids: string[]) => ipcRenderer.invoke('market:delete-libraries', ids) as Promise<number>,
   removeLibrarySource: (sourceKey: string) => ipcRenderer.invoke('market:remove-library-source', sourceKey),
@@ -84,6 +105,13 @@ contextBridge.exposeInMainWorld('pob2Market', {
     ipcRenderer.on('market:sidebar-request', handler)
     return () => { ipcRenderer.removeListener('market:sidebar-request', handler) }
   },
+  onTryOnRequest: (callback: (entry: import('../src/types/market.js').EquipmentLibraryEntry) => void) => {
+    const handler = (_event: unknown, payload: { entry?: import('../src/types/market.js').EquipmentLibraryEntry }) => {
+      if (payload?.entry) callback(payload.entry)
+    }
+    ipcRenderer.on('market:try-on-request', handler)
+    return () => { ipcRenderer.removeListener('market:try-on-request', handler) }
+  },
   onMonitoringChanged: (callback: (snapshot: import('../src/types/market.js').MarketMonitoringSnapshot) => void) => {
     const handler = (_event: unknown, snapshot: import('../src/types/market.js').MarketMonitoringSnapshot) => callback(snapshot)
     ipcRenderer.on('market:monitoring-changed', handler)
@@ -112,7 +140,8 @@ contextBridge.exposeInMainWorld('pob2CurrencyMarket', {
 
 contextBridge.exposeInMainWorld('pob2Updater', {
   check: (channel?: string) => ipcRenderer.invoke('updater:check', channel),
-  download: (info: unknown) => ipcRenderer.invoke('updater:download', info),
+  download: (info: unknown, options?: { forceInstall?: boolean }) => ipcRenderer.invoke('updater:download', info, options),
+  ready: () => ipcRenderer.send('updater:renderer-ready'),
   setConfig: (config: { channel?: string; intervalMinutes?: number }) => ipcRenderer.send('updater:set-config', config),
   setProxyDomains: (domains: string[]) => ipcRenderer.send('updater:set-proxy-domains', domains),
   getProxyDomains: () => ipcRenderer.invoke('updater:get-proxy-domains') as Promise<{ builtin: string[]; user: string[] }>,

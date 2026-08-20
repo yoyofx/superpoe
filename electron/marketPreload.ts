@@ -162,9 +162,18 @@ interface ListingRef {
 }
 
 const BUTTON_CLASS = 'superpoe-market-favorite'
+const TRY_ON_BUTTON_CLASS = 'superpoe-market-try-on'
+const COPY_POB_BUTTON_CLASS = 'superpoe-market-copy-pob'
+const ACTIONS_CLASS = 'superpoe-market-actions'
 const CARD_MARKER = 'data-superpoe-market-listing'
 const buttonsByListing = new Map<string, Set<HTMLButtonElement>>()
 const stateByListing = new Map<string, FavoriteVisualState>()
+const tryOnButtonsByListing = new Map<string, Set<HTMLButtonElement>>()
+const tryOnStateByListing = new Map<string, FavoriteVisualState>()
+type CopyPobState = 'idle' | 'pending' | 'copied' | 'error'
+const copyPobButtonsByListing = new Map<string, Set<HTMLButtonElement>>()
+const copyPobStateByListing = new Map<string, CopyPobState>()
+const copyPobResetTimers = new Map<string, ReturnType<typeof setTimeout>>()
 let scanTimer: ReturnType<typeof setTimeout> | undefined
 let statusTimer: ReturnType<typeof setTimeout> | undefined
 
@@ -241,6 +250,50 @@ function setListingState(listingId: string, state: FavoriteVisualState): void {
   for (const button of buttonsByListing.get(listingId) || []) applyButtonState(button, state)
 }
 
+function applyTryOnButtonState(button: HTMLButtonElement, state: FavoriteVisualState): void {
+  button.dataset.state = state
+  button.disabled = state === 'pending'
+  button.textContent = state === 'pending' ? '…' : '👕'
+  button.title = state === 'error'
+    ? l('Try-on failed; click to retry', '试穿失败，点击重试', '試穿失敗，點擊重試', '시험 착용 실패, 클릭하여 다시 시도')
+    : l('Try on this item in SuperPoE2', '在 SuperPoE2 中试穿这件装备', '在 SuperPoE2 中試穿這件裝備', 'SuperPoE2에서 이 장비 시험 착용')
+  button.dataset.tooltip = button.title
+  button.setAttribute('aria-label', button.title)
+}
+
+function setTryOnState(listingId: string, state: FavoriteVisualState): void {
+  tryOnStateByListing.set(listingId, state)
+  for (const button of tryOnButtonsByListing.get(listingId) || []) applyTryOnButtonState(button, state)
+}
+
+function applyCopyPobButtonState(button: HTMLButtonElement, state: CopyPobState): void {
+  button.dataset.state = state
+  button.disabled = state === 'pending'
+  button.textContent = state === 'pending' ? '…' : state === 'copied' ? '✓' : '⧉'
+  button.title = state === 'copied'
+    ? l('PoB item text copied', 'PoB 词条已复制', 'PoB 詞綴已複製', 'PoB 아이템 속성을 복사했습니다')
+    : state === 'error'
+      ? l('Copy failed; click to retry', '复制失败，点击重试', '複製失敗，點擊重試', '복사 실패, 클릭하여 다시 시도')
+      : l('Copy PoB item text', '复制 PoB 词条', '複製 PoB 詞綴', 'PoB 아이템 속성 복사')
+  button.dataset.tooltip = button.title
+  button.setAttribute('aria-label', button.title)
+}
+
+function setCopyPobState(listingId: string, state: CopyPobState): void {
+  const existingTimer = copyPobResetTimers.get(listingId)
+  if (existingTimer) clearTimeout(existingTimer)
+  copyPobResetTimers.delete(listingId)
+  copyPobStateByListing.set(listingId, state)
+  for (const button of copyPobButtonsByListing.get(listingId) || []) applyCopyPobButtonState(button, state)
+  if (state === 'copied') {
+    const timer = setTimeout(() => {
+      copyPobResetTimers.delete(listingId)
+      setCopyPobState(listingId, 'idle')
+    }, 2_000)
+    copyPobResetTimers.set(listingId, timer)
+  }
+}
+
 function scheduleStatusRequest(): void {
   if (statusTimer) clearTimeout(statusTimer)
   statusTimer = setTimeout(() => {
@@ -268,21 +321,84 @@ function decorateCard(card: Element): void {
       ref: { ...ref, sourceUrl: window.location.href.slice(0, 2_048) },
     })
   }, true)
+  const tryOnButton = document.createElement('button')
+  tryOnButton.type = 'button'
+  tryOnButton.className = TRY_ON_BUTTON_CLASS
+  tryOnButton.dataset.listingId = ref.listingId
+  applyTryOnButtonState(tryOnButton, tryOnStateByListing.get(ref.listingId) || 'idle')
+  tryOnButton.addEventListener('click', (event) => {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    const requestId = crypto.randomUUID()
+    setTryOnState(ref.listingId, 'pending')
+    ipcRenderer.send('market-enhancement:try-on', {
+      requestId,
+      ref: { ...ref, sourceUrl: window.location.href.slice(0, 2_048) },
+    })
+  }, true)
+  const copyPobButton = document.createElement('button')
+  copyPobButton.type = 'button'
+  copyPobButton.className = COPY_POB_BUTTON_CLASS
+  copyPobButton.dataset.listingId = ref.listingId
+  applyCopyPobButtonState(copyPobButton, copyPobStateByListing.get(ref.listingId) || 'idle')
+  copyPobButton.addEventListener('click', (event) => {
+    event.preventDefault()
+    event.stopImmediatePropagation()
+    setCopyPobState(ref.listingId, 'pending')
+    ipcRenderer.send('market-enhancement:copy-pob', {
+      requestId: crypto.randomUUID(),
+      ref: { ...ref, sourceUrl: window.location.href.slice(0, 2_048) },
+    })
+  }, true)
   const target = card.querySelector('.left, .item, .item-container, [class*="item"]') || card
-  target.insertBefore(button, target.firstChild)
+  const actions = document.createElement('span')
+  actions.className = ACTIONS_CLASS
+  actions.append(button, tryOnButton, copyPobButton)
+  target.insertBefore(actions, target.firstChild)
   const buttons = buttonsByListing.get(ref.listingId) || new Set<HTMLButtonElement>()
   buttons.add(button)
   buttonsByListing.set(ref.listingId, buttons)
+  const tryOnButtons = tryOnButtonsByListing.get(ref.listingId) || new Set<HTMLButtonElement>()
+  tryOnButtons.add(tryOnButton)
+  tryOnButtonsByListing.set(ref.listingId, tryOnButtons)
+  const copyPobButtons = copyPobButtonsByListing.get(ref.listingId) || new Set<HTMLButtonElement>()
+  copyPobButtons.add(copyPobButton)
+  copyPobButtonsByListing.set(ref.listingId, copyPobButtons)
 }
 
 function scan(root: ParentNode = document): void {
-  for (const [listingId, buttons] of buttonsByListing) {
-    for (const button of buttons) {
-      if (!button.isConnected) buttons.delete(button)
+  const listingIds = new Set([
+    ...buttonsByListing.keys(),
+    ...tryOnButtonsByListing.keys(),
+    ...copyPobButtonsByListing.keys(),
+  ])
+  for (const listingId of listingIds) {
+    const buttons = buttonsByListing.get(listingId)
+    const tryOnButtons = tryOnButtonsByListing.get(listingId)
+    const copyPobButtons = copyPobButtonsByListing.get(listingId)
+    for (const button of buttons || []) {
+      if (!button.isConnected) buttons?.delete(button)
     }
-    if (!buttons.size) {
+    for (const button of tryOnButtons || []) {
+      if (!button.isConnected) tryOnButtons?.delete(button)
+    }
+    for (const button of copyPobButtons || []) {
+      if (!button.isConnected) copyPobButtons?.delete(button)
+    }
+    if (!buttons?.size) {
       buttonsByListing.delete(listingId)
       stateByListing.delete(listingId)
+    }
+    if (!tryOnButtons?.size) {
+      tryOnButtonsByListing.delete(listingId)
+      tryOnStateByListing.delete(listingId)
+    }
+    if (!copyPobButtons?.size) {
+      copyPobButtonsByListing.delete(listingId)
+      copyPobStateByListing.delete(listingId)
+      const timer = copyPobResetTimers.get(listingId)
+      if (timer) clearTimeout(timer)
+      copyPobResetTimers.delete(listingId)
     }
   }
   const selectors = [
@@ -322,7 +438,15 @@ function installStyle(): void {
       background-clip: padding-box !important;
     }
     *::-webkit-scrollbar-thumb:hover { background-color: #8f7b58 !important; }
-    .${BUTTON_CLASS} {
+    .${ACTIONS_CLASS} {
+      display: inline-flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      vertical-align: top !important;
+      position: relative !important;
+      z-index: 20 !important;
+    }
+    .${BUTTON_CLASS}, .${TRY_ON_BUTTON_CLASS}, .${COPY_POB_BUTTON_CLASS} {
       box-sizing: border-box !important;
       width: 32px !important;
       height: 32px !important;
@@ -341,12 +465,13 @@ function installStyle(): void {
       z-index: 20 !important;
       transition: transform .2s ease, color .2s ease, border-color .2s ease, box-shadow .2s ease !important;
     }
-    .${BUTTON_CLASS}:hover { border-color: #f0d0a0 !important; color: #d4b483 !important; transform: scale(1.1) rotate(15deg); box-shadow: 0 0 10px rgba(212,180,131,.4) !important; z-index: 2147483647 !important; }
+    .${BUTTON_CLASS}:hover, .${TRY_ON_BUTTON_CLASS}:hover, .${COPY_POB_BUTTON_CLASS}:hover { border-color: #f0d0a0 !important; color: #d4b483 !important; transform: scale(1.05); box-shadow: 0 0 10px rgba(212,180,131,.4) !important; z-index: 2147483647 !important; }
     .${BUTTON_CLASS}[data-state="active"] { color: #d4b483 !important; border-color: #d4b483 !important; background: linear-gradient(135deg, #332a1b, #1a1a1a) !important; text-shadow: 0 0 8px rgba(255,215,0,.6) !important; }
-    .${BUTTON_CLASS}[data-state="pending"] { cursor: wait !important; color: #aaa !important; }
-    .${BUTTON_CLASS}[data-state="error"] { color: #d88678 !important; border-color: #9b5047 !important; }
-    .${BUTTON_CLASS}::after { content: attr(data-tooltip); position: absolute; right: 0; bottom: 125%; width: max-content; max-width: 260px; padding: 7px 10px; border: 1px solid #a38d6d; border-left: 3px solid #d4b483; border-radius: 4px; background: #0f0f0f; color: #d4b483; font: 600 12px/1.35 Arial, sans-serif; white-space: normal; opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(8px); transition: opacity .18s ease, transform .18s ease; box-shadow: 0 5px 20px rgba(0,0,0,.8); }
-    .${BUTTON_CLASS}:hover::after { opacity: 1; visibility: visible; transform: translateY(0); }
+    .${BUTTON_CLASS}[data-state="pending"], .${TRY_ON_BUTTON_CLASS}[data-state="pending"], .${COPY_POB_BUTTON_CLASS}[data-state="pending"] { cursor: wait !important; color: #aaa !important; }
+    .${BUTTON_CLASS}[data-state="error"], .${TRY_ON_BUTTON_CLASS}[data-state="error"], .${COPY_POB_BUTTON_CLASS}[data-state="error"] { color: #d88678 !important; border-color: #9b5047 !important; }
+    .${COPY_POB_BUTTON_CLASS}[data-state="copied"] { color: #86c49a !important; border-color: #6a9d76 !important; }
+    .${BUTTON_CLASS}::after, .${TRY_ON_BUTTON_CLASS}::after, .${COPY_POB_BUTTON_CLASS}::after { content: attr(data-tooltip); position: absolute; right: 0; bottom: 125%; width: max-content; max-width: 260px; padding: 7px 10px; border: 1px solid #a38d6d; border-left: 3px solid #d4b483; border-radius: 4px; background: #0f0f0f; color: #d4b483; font: 600 12px/1.35 Arial, sans-serif; white-space: normal; opacity: 0; visibility: hidden; pointer-events: none; transform: translateY(8px); transition: opacity .18s ease, transform .18s ease; box-shadow: 0 5px 20px rgba(0,0,0,.8); }
+    .${BUTTON_CLASS}:hover::after, .${TRY_ON_BUTTON_CLASS}:hover::after, .${COPY_POB_BUTTON_CLASS}:hover::after { opacity: 1; visibility: visible; transform: translateY(0); }
   `
   document.head.appendChild(style)
 }
@@ -376,12 +501,50 @@ ipcRenderer.on('market-enhancement:favorite-result', (_event, payload: unknown) 
   }
 })
 
+ipcRenderer.on('market-enhancement:try-on-result', (_event, payload: unknown) => {
+  if (!payload || typeof payload !== 'object') return
+  const result = payload as { listingId?: unknown; error?: unknown }
+  if (typeof result.listingId !== 'string') return
+  setTryOnState(result.listingId, result.error ? 'error' : 'idle')
+  if (typeof result.error === 'string') {
+    const message = result.error.slice(0, 240)
+    for (const button of tryOnButtonsByListing.get(result.listingId) || []) {
+      button.title = `${l('Try-on failed', '试穿失败', '試穿失敗', '시험 착용 실패')}：${message}`
+      button.dataset.tooltip = button.title
+      button.setAttribute('aria-label', button.title)
+    }
+  }
+})
+
+ipcRenderer.on('market-enhancement:copy-pob-result', (_event, payload: unknown) => {
+  if (!payload || typeof payload !== 'object') return
+  const result = payload as { listingId?: unknown; error?: unknown }
+  if (typeof result.listingId !== 'string') return
+  setCopyPobState(result.listingId, result.error ? 'error' : 'copied')
+  if (typeof result.error === 'string') {
+    const message = result.error.slice(0, 240)
+    for (const button of copyPobButtonsByListing.get(result.listingId) || []) {
+      button.title = `${l('Copy failed', '复制失败', '複製失敗', '복사 실패')}：${message}`
+      button.dataset.tooltip = button.title
+      button.setAttribute('aria-label', button.title)
+    }
+  }
+})
+
 ipcRenderer.on('market-enhancement:set-language', (_event, value: unknown) => {
   if (!isUiLanguage(value)) return
   language = value
   for (const [listingId, buttons] of buttonsByListing) {
     const state = stateByListing.get(listingId) || 'idle'
     for (const button of buttons) applyButtonState(button, state)
+  }
+  for (const [listingId, buttons] of tryOnButtonsByListing) {
+    const state = tryOnStateByListing.get(listingId) || 'idle'
+    for (const button of buttons) applyTryOnButtonState(button, state)
+  }
+  for (const [listingId, buttons] of copyPobButtonsByListing) {
+    const state = copyPobStateByListing.get(listingId) || 'idle'
+    for (const button of buttons) applyCopyPobButtonState(button, state)
   }
 })
 

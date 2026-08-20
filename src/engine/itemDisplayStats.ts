@@ -1,5 +1,6 @@
 import type { EquipmentItem } from '@/types/equipment'
-import type { ItemBaseData } from './itemBaseData'
+import { parseEquipmentItemRaw } from './equipment'
+import { resolveItemBaseData, type ItemBaseData } from './itemBaseData'
 
 export type ItemDisplayStatTone = 'physical' | 'fire' | 'cold' | 'lightning' | 'chaos' | 'magic'
 
@@ -137,6 +138,21 @@ export function deriveWeaponComparisonStats(item: EquipmentItem, base?: ItemBase
   if (elementalDps > 0) result.push({ key: 'eDPS', value: elementalDps.toFixed(1) })
 
   return result
+}
+
+/**
+ * Derive the local weapon DPS metrics used by library cards from persisted PoB
+ * item text. This deliberately stays independent of the active build and its
+ * calculation runtime.
+ */
+export function deriveWeaponComparisonStatsFromRaw(
+  raw: string,
+  bases: Record<string, ItemBaseData>,
+  id = 'library-item',
+): WeaponComparisonStat[] {
+  if (!raw.trim()) return []
+  const item = parseEquipmentItemRaw(raw, id)
+  return deriveWeaponComparisonStats(item, resolveItemBaseData(item.baseType, bases))
 }
 
 export function deriveItemDisplayRequirements(item: EquipmentItem, base?: ItemBaseData): ItemDisplayRequirements {

@@ -1,11 +1,15 @@
 import type { CalcApiResponse, SkillCalculationSelection } from '@/types/calc'
 import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
+import type { JewelRadiusSnapshot } from '@/types/jewelRadius'
+import type { EquipmentDifferenceRequest, EquipmentDifferenceResult } from '@/equipmentDifference/types'
 import type { LuaFactory } from 'wasmoon'
 
 type LuaEngine = Awaited<ReturnType<LuaFactory['createEngine']>>
 
 export interface PobLuaManifest {
-  version: string
+  version?: string
+  schemaVersion?: number
+  name?: string
   files: Array<{ path: string; hash: string; size: number }>
 }
 
@@ -52,7 +56,7 @@ export function installHostCompatibility(engine: LuaEngine) {
       error(formatted)
     end
     jit = jit or { version = "wasmoon-lua5.4", off = function() end, opt = { start = function() end } }
-    package.path = "/?.lua;/?/init.lua;/Classes/?.lua;/Modules/?.lua;/Data/?.lua;" .. package.path
+    package.path = "/?.lua;/?/init.lua;/Classes/?.lua;/Modules/?.lua;/Data/?.lua;/superpoe-lua/?.lua;/superpoe-lua/?/init.lua;" .. package.path
 
     local nativeRequire = require
     local loaded = package.loaded
@@ -146,9 +150,30 @@ export function installBuildHelpers(engine: LuaEngine) {
         local normalizedLine = line
         if type(normalizedLine) == "string" then
           normalizedLine = normalizedLine:gsub(
-            "^(Fire|Cold|Lightning|Chaos) Resistance is ([%+%-]?[%d%.]+)%%$",
-            "%2%% to %1 Resistance"
+            "^(%a+) Resistance is ([%+%-]?[%d%.]+)%%$",
+            function(element, value)
+              if element == "Fire" or element == "Cold" or element == "Lightning" or element == "Chaos" then
+                return value .. "% to " .. element .. " Resistance"
+              end
+              return element .. " Resistance is " .. value .. "%"
+            end
           )
+          normalizedLine = normalizedLine:gsub(
+            "^([%+%-]?[%d%.]+) to maximum Runic Ward$",
+            "%1 to maximum Ward"
+          )
+          normalizedLine = normalizedLine:gsub(
+            "^(%d+[%d%.]*)%% increased Runic Ward$",
+            "%1%% increased Ward"
+          )
+          local prefixEffect = normalizedLine:match("^(%d+[%d%.]*)%% increased Effect of Prefixes$")
+          if prefixEffect then
+            return { modLib.createMod("LocalPrefixEffect", "INC", tonumber(prefixEffect)) }, nil
+          end
+          local suffixEffect = normalizedLine:match("^(%d+[%d%.]*)%% increased Effect of Suffixes$")
+          if suffixEffect then
+            return { modLib.createMod("LocalSuffixEffect", "INC", tonumber(suffixEffect)) }, nil
+          end
         end
         local mods, extra = nativeParseMod(normalizedLine, ...)
         if type(extra) == "string" and not extra:find("%S") then
@@ -272,6 +297,8 @@ if not xmlText or xmlText == "" then
   return { success = false, error = "Empty XML input" }
 end
 
+local characterOnly = __pobCharacterOnly == true
+
 xmlText = xmlText:gsub(
   "(Fire|Cold|Lightning|Chaos) Resistance is ([%+%-]?[%d%.]+)%%",
   "%2%% to %1 Resistance"
@@ -279,6 +306,11 @@ xmlText = xmlText:gsub(
 
 local loadOk, loadErr = pcall(loadBuildFromXML, xmlText, "browser-build")
 if not loadOk then
+  local prompt = launch and launch.promptMsg
+  if launch then launch.promptMsg = nil end
+  if prompt then
+    return { success = false, error = "Build load error: " .. tostring(prompt) }
+  end
   return { success = false, error = "loadBuildFromXML failed: " .. tostring(loadErr) }
 end
 
@@ -289,7 +321,42 @@ end
 
 local mo = mainObject or launch
 if mo and mo.promptMsg then
-  return { success = false, error = "Build load error: " .. tostring(mo.promptMsg) }
+  local prompt = tostring(mo.promptMsg)
+  mo.promptMsg = nil
+  if launch then launch.promptMsg = nil end
+  return { success = false, error = "Build load error: " .. prompt }
+end
+
+local calcsModule = build.calcsTab and build.calcsTab.calcs
+local dpsSocketGroups = build.skillsTab and build.skillsTab.socketGroupList or {}
+local dpsDisplayNameOriginal
+local dpsMarkerPrefix = "@@SUPERPOE_DPS:"
+local dpsMarkerSuffix = "@@"
+local function dpsGroupId(activeSkill)
+  local socketGroup = activeSkill and activeSkill.socketGroup
+  if not socketGroup then return nil end
+  for index, candidate in ipairs(dpsSocketGroups) do
+    if candidate == socketGroup then return tostring(index) end
+  end
+  return nil
+end
+local function restoreDpsDisplayName()
+  if dpsDisplayNameOriginal and calcsModule then
+    calcsModule.getActiveSkillDisplayName = dpsDisplayNameOriginal
+    dpsDisplayNameOriginal = nil
+  end
+end
+if not characterOnly and calcsModule and calcsModule.getActiveSkillDisplayName then
+  dpsDisplayNameOriginal = calcsModule.getActiveSkillDisplayName
+  calcsModule.getActiveSkillDisplayName = function(activeSkill)
+    local name = dpsDisplayNameOriginal(activeSkill)
+    local groupId = dpsGroupId(activeSkill)
+    if not groupId then return name end
+    local activeEffect = activeSkill and activeSkill.activeEffect
+    local grantedEffect = activeEffect and activeEffect.grantedEffect
+    local skillId = grantedEffect and grantedEffect.id or ""
+    return name .. dpsMarkerPrefix .. groupId .. ":" .. skillId .. dpsMarkerSuffix
+  end
 end
 
 local calcOk, calcErr = pcall(function()
@@ -297,11 +364,25 @@ local calcOk, calcErr = pcall(function()
   if not calcsTab then
     error("calcs tab not available")
   end
-  if __pobConfigOverridesJson and __pobConfigOverridesJson ~= "" and build.configTab then
-    local overrides = require("dkjson").decode(__pobConfigOverridesJson)
+  local overrides = {}
+  if __pobConfigOverridesJson and __pobConfigOverridesJson ~= "" then
+    overrides = require("dkjson").decode(__pobConfigOverridesJson) or {}
+  end
+  local hasOverrides = next(overrides) ~= nil
+  if hasOverrides and build.configTab then
     local configSet = build.configTab.configSets[build.configTab.activeConfigSetId]
     for key, value in pairs(overrides or {}) do configSet.input[key] = value end
     build.configTab:BuildModList()
+  end
+
+  -- Loading a build already runs BuildOutput() in PoB's BUILD mode. The
+  -- character panel only reads the MAIN output, so reuse that result when no
+  -- configuration override was requested instead of calculating MAIN + CALCS
+  -- and every Full DPS skill a second time.
+  local mainSocketGroup = tonumber(build.mainSocketGroup) or 1
+  if characterOnly and not hasOverrides and calcsTab.mainEnv
+    and (tonumber(calcsTab.input.skill_number) or 1) == mainSocketGroup then
+    return calcsTab.mainEnv
   end
   local validModes = { UNBUFFED = true, BUFFED = true, COMBAT = true, EFFECTIVE = true }
   if validModes[__pobCalcMode] then
@@ -348,14 +429,54 @@ local calcOk, calcErr = pcall(function()
 end)
 
 if not calcOk then
+  restoreDpsDisplayName()
   return { success = false, error = "Calculation failed: " .. tostring(calcErr) }
 end
 
 local env = calcErr
 local output = env and env.player and env.player.output
 if not output then
+  restoreDpsDisplayName()
   return { success = false, error = "No output data produced" }
 end
+
+-- Keep PoB's selected Full DPS entries separate from the complete list of
+-- enabled runtime skills. The UI uses the latter for ranking, while the
+-- former remains the authoritative breakdown of output.FullDPS.
+local fullSkillDpsOutput = output.SkillDPS
+local allSkillDpsOutput = fullSkillDpsOutput
+local allDpsTotal = output.FullDPS
+if not characterOnly then
+  local calcsTab = build.calcsTab
+  local socketGroups = build.skillsTab and build.skillsTab.socketGroupList
+  local needsAllSkillPass = not fullSkillDpsOutput or #fullSkillDpsOutput == 0
+  if socketGroups then
+    for _, socketGroup in ipairs(socketGroups) do
+      if socketGroup.enabled and not socketGroup.includeInFullDPS then
+        needsAllSkillPass = true
+        break
+      end
+    end
+  end
+  if needsAllSkillPass and calcsTab and calcsTab.calcs and socketGroups then
+    local originalInclude = {}
+    for index, socketGroup in ipairs(socketGroups) do
+      originalInclude[index] = socketGroup.includeInFullDPS
+      if socketGroup.enabled then socketGroup.includeInFullDPS = true end
+    end
+    local rebuiltOk, rebuilt = pcall(function()
+      return calcsTab.calcs.calcFullDPS(build, "CALCULATOR", {}, { env = nil })
+    end)
+    for index, socketGroup in ipairs(socketGroups) do
+      socketGroup.includeInFullDPS = originalInclude[index]
+    end
+    if rebuiltOk and rebuilt and rebuilt.skills and #rebuilt.skills > 0 then
+      allSkillDpsOutput = rebuilt.skills
+      allDpsTotal = rebuilt.combinedDPS
+    end
+  end
+end
+restoreDpsDisplayName()
 
 local function safeNum(v)
   if v == nil then return nil end
@@ -364,6 +485,8 @@ local function safeNum(v)
   if v == math.huge or v == -math.huge then return nil end
   return v
 end
+
+allDpsTotal = safeNum(allDpsTotal)
 
 local data = {
   Str = safeNum(output.Str),
@@ -380,6 +503,7 @@ local data = {
   ArmourPhysicalDamageReduction = safeNum(output.ArmourPhysicalDamageReduction),
   PhysicalDamageReduction = safeNum(output.PhysicalDamageReduction),
   EvadeChance = safeNum(output.EvadeChance),
+  DeflectionRating = safeNum(output.DeflectionRating),
   DeflectChance = safeNum(output.DeflectChance),
   DeflectEffect = safeNum(output.DeflectEffect),
   FireResist = safeNum(output.FireResist),
@@ -395,6 +519,9 @@ local data = {
   EffectiveBlockChance = safeNum(output.EffectiveBlockChance),
   TotalDPS = safeNum(output.TotalDPS),
   FullDPS = safeNum(output.FullDPS),
+  -- Aggregate of every positive DPS skill, used when the build has no
+  -- configured Full DPS groups and the report falls back to actual output.
+  AllDPS = allDpsTotal,
   FullDotDPS = safeNum(output.FullDotDPS),
   GemLevel = safeNum(output.GemLevel),
   AverageHit = safeNum(output.AverageHit),
@@ -422,10 +549,26 @@ local data = {
   end)() or 0,
 }
 
+-- Keep the complete PoB2 power-stat surface available to project-owned
+-- analysis views. A single calculation produces every value, so consumers
+-- can rank modifiers without multiplying the calculation by metric count.
+local powerStatList = build.data and build.data.powerStatList
+local powerStats = {}
+if powerStatList and powerStatList.GetFromOutput then
+  for _, statData in ipairs(powerStatList) do
+    if statData.stat then
+      local readOk, value = pcall(powerStatList.GetFromOutput, output, statData)
+      value = readOk and safeNum(value) or nil
+      if type(value) == "number" then powerStats[statData.stat] = value end
+    end
+  end
+end
+data.PowerStats = powerStats
+
 local mainSkill = env.player and env.player.mainSkill
 if output.GemLevel ~= nil then
   data.SkillLevel = safeNum(output.GemLevel)
-elseif output.TotalDPS ~= nil and mainSkill and mainSkill.activeEffect then
+elseif mainSkill and mainSkill.activeEffect then
   data.SkillLevel = safeNum((mainSkill.activeEffect.srcInstance and mainSkill.activeEffect.srcInstance.level) or mainSkill.activeEffect.level)
 end
 
@@ -494,19 +637,67 @@ local function readConfigSnapshot()
   return snapshot
 end
 
-if output.SkillDPS and #output.SkillDPS > 0 then
-  data.SkillDPS = {}
-  for _, skill in ipairs(output.SkillDPS) do
-    table.insert(data.SkillDPS, {
-      name = skill.name,
+-- Full DPS rows only carry their display name.  The project-owned marker added
+-- above gives us a stable group/skill identity, so recover the PoB skill flags
+-- here without changing any upstream Lua files.
+local dpsSkillTypeByKey = {}
+local function registerDpsSkillType(groupId, activeSkill)
+  if not groupId or not activeSkill then return end
+  local activeEffect = activeSkill.activeEffect
+  local grantedEffect = activeEffect and activeEffect.grantedEffect
+  local skillId = grantedEffect and grantedEffect.id
+  if not skillId then return end
+  local flags = activeEffect and (activeEffect.statSetCalcs and activeEffect.statSetCalcs.skillFlags
+    or activeEffect.statSet and activeEffect.statSet.skillFlags) or {}
+  local skillTypes = activeSkill.skillTypes or grantedEffect.skillTypes or {}
+  local isAttack = flags.attack or (SkillType and SkillType.Attack and skillTypes[SkillType.Attack])
+  local isSpell = flags.spell or (SkillType and SkillType.Spell and skillTypes[SkillType.Spell])
+  dpsSkillTypeByKey[tostring(groupId) .. ":" .. tostring(skillId)] = isAttack and "attack" or isSpell and "spell" or "other"
+end
+for groupId, socketGroup in ipairs(dpsSocketGroups or {}) do
+  local activeSkills = socketGroup.displaySkillListCalcs or socketGroup.displaySkillList or {}
+  for _, activeSkill in ipairs(activeSkills) do
+    registerDpsSkillType(groupId, activeSkill)
+  end
+end
+for _, activeSkill in ipairs((env.player and env.player.activeSkillList) or {}) do
+  registerDpsSkillType(dpsGroupId(activeSkill), activeSkill)
+end
+
+local function encodeSkillDpsEntries(skillList)
+  local encoded = {}
+  for _, skill in ipairs(skillList or {}) do
+    local displayName, groupId, skillId = tostring(skill.name or ""), nil, nil
+    local plainName, markerGroupId, markerSkillId = displayName:match("^(.-)@@SUPERPOE_DPS:([^:]+):(.-)@@$")
+    if plainName then
+      displayName = plainName
+      groupId = markerGroupId
+      skillId = markerSkillId ~= "" and markerSkillId or nil
+    end
+    local skillType = groupId and skillId and dpsSkillTypeByKey[tostring(groupId) .. ":" .. tostring(skillId)] or "other"
+    table.insert(encoded, {
+      name = displayName,
       dps = safeNum(skill.dps),
       count = skill.count,
       trigger = skill.trigger,
       skillPart = skill.skillPart,
+      groupId = groupId,
+      skillId = skillId,
+      kind = (skill.trigger and skill.trigger ~= "") and "trigger" or (skill.source and "dot" or "main"),
+      skillType = skillType,
     })
   end
+  return encoded
 end
 
+if not characterOnly then
+  data.FullSkillDPS = encodeSkillDpsEntries(fullSkillDpsOutput)
+  data.AllSkillDPS = encodeSkillDpsEntries(allSkillDpsOutput)
+  -- Keep the old field useful for existing stat panels and older callers.
+  data.SkillDPS = #data.FullSkillDPS > 0 and data.FullSkillDPS or data.AllSkillDPS
+end
+
+if not characterOnly then
 local playerMainSkill = mainSkill
 if playerMainSkill and playerMainSkill.activeEffect then
   local calcsTab = build.calcsTab
@@ -550,6 +741,9 @@ if playerMainSkill and playerMainSkill.activeEffect then
     skillDamage = {},
     weaponDamage = {},
     gains = {},
+    gainTotals = {},
+    conversions = {},
+    conversionTotals = {},
     effects = { aurasAndBuffs = {}, combatBuffs = {}, cursesAndDebuffs = {} },
     averageHit = safeNum(actorOutput.AverageHit),
     speed = safeNum(actorOutput.Speed),
@@ -558,7 +752,15 @@ if playerMainSkill and playerMainSkill.activeEffect then
     critMultiplier = safeNum(actorOutput.CritMultiplier),
   }
   for index, skill in ipairs(displaySkills) do
-    table.insert(details.activeSkills, { index = index, label = calcsTab.calcs.getActiveSkillDisplayName(skill) })
+    local activeEffect = skill.activeEffect
+    local grantedEffect = activeEffect and activeEffect.grantedEffect
+    table.insert(details.activeSkills, {
+      index = index,
+      label = calcsTab.calcs.getActiveSkillDisplayName(skill),
+      skillId = grantedEffect and grantedEffect.id,
+      trigger = skill.infoTrigger,
+      skillPart = skill.skillPartName,
+    })
   end
   for index, statSet in ipairs(playerActiveEffect.grantedEffect.statSets or {}) do
     table.insert(details.statSets, { index = index, label = statSet.label })
@@ -765,6 +967,17 @@ if playerMainSkill and playerMainSkill.activeEffect then
       })
     end
   end
+  local function addConversionModifiers(fromType, toType, stat)
+    for _, entry in ipairs(modList:Tabulate("BASE", cfg, stat)) do
+      table.insert(details.conversions, {
+        fromType = fromType,
+        toType = toType,
+        stat = entry.mod.name,
+        value = safeNum(entry.value) or 0,
+        source = StripEscapes(entry.mod.source or "Unknown"),
+      })
+    end
+  end
   details.averageHitBreakdown = copyLines(sourceBreakdown.AverageHit)
   details.dpsFormula = copyLines(detailActor.breakdown and detailActor.breakdown.TotalDPS)
   details.effects.aurasAndBuffs = splitList(actorOutput.BuffList)
@@ -788,28 +1001,96 @@ if playerMainSkill and playerMainSkill.activeEffect then
   })
   addModifiers("increased", "all", "INC", { "Damage" })
   addModifiers("more", "all", "MORE", { "Damage" })
-  for _, toType in ipairs({ "physical", "lightning", "cold", "fire", "chaos" }) do
+  local damageTypeKeys = { "physical", "lightning", "cold", "fire", "chaos" }
+  for _, toType in ipairs(damageTypeKeys) do
     local toTitle = toType:sub(1, 1):upper() .. toType:sub(2)
+    addGainModifiers("all", toType, "DamageAs" .. toTitle)
     addGainModifiers("all", toType, "DamageGainAs" .. toTitle)
+    addGainModifiers("all", toType, "SkillDamageGainAs" .. toTitle)
+    addGainModifiers("elemental", toType, "SkillElementalDamageGainAs" .. toTitle)
+    addGainModifiers("nonChaos", toType, "NonChaosDamageAs" .. toTitle)
+    addGainModifiers("nonChaos", toType, "NonChaosDamageGainAs" .. toTitle)
+    addGainModifiers("nonChaos", toType, "SkillNonChaosDamageGainAs" .. toTitle)
     addGainModifiers("elemental", toType, "ElementalDamageGainAs" .. toTitle)
-    for _, fromType in ipairs({ "physical", "lightning", "cold", "fire", "chaos" }) do
+    addConversionModifiers("all", toType, "SkillDamageConvertTo" .. toTitle)
+    addConversionModifiers("all", toType, "DamageConvertTo" .. toTitle)
+    for _, fromType in ipairs(damageTypeKeys) do
       local fromTitle = fromType:sub(1, 1):upper() .. fromType:sub(2)
+      addGainModifiers(fromType, toType, fromTitle .. "DamageAs" .. toTitle)
       addGainModifiers(fromType, toType, fromTitle .. "DamageGainAs" .. toTitle)
+      addGainModifiers(fromType, toType, "Skill" .. fromTitle .. "DamageGainAs" .. toTitle)
+      addConversionModifiers(fromType, toType, "Skill" .. fromTitle .. "DamageConvertTo" .. toTitle)
+      addConversionModifiers(fromType, toType, fromTitle .. "DamageConvertTo" .. toTitle)
+      if fromType ~= "chaos" then
+        addConversionModifiers(fromType, toType, "NonChaosDamageConvertTo" .. toTitle)
+      end
+      if fromType == "lightning" or fromType == "cold" or fromType == "fire" then
+        addGainModifiers(fromType, toType, "ElementalDamageAs" .. toTitle)
+        addConversionModifiers(fromType, toType, "ElementalDamageConvertTo" .. toTitle)
+      end
     end
   end
   addGainModifiers("all", "random", "DamageGainAsRandom")
-  for _, damageType in ipairs({ "physical", "lightning", "cold", "fire", "chaos" }) do
+  addGainModifiers("physical", "random", "PhysicalDamageGainAsRandom")
+  addGainModifiers("physical", "random", "PhysicalDamageGainAsColdOrLightning")
+  local randomGainMods = {}
+  for _, entry in ipairs(details.gains) do
+    if entry.stat == "DamageGainAsRandom" or entry.stat == "PhysicalDamageGainAsRandom" or entry.stat == "PhysicalDamageGainAsColdOrLightning" then
+      table.insert(randomGainMods, entry)
+    end
+  end
+  if #randomGainMods > 0 then
+    local filteredGains = {}
+    for _, entry in ipairs(details.gains) do
+      local derived = false
+      for _, randomEntry in ipairs(randomGainMods) do
+        local prefix = randomEntry.stat == "DamageGainAsRandom" and "DamageGainAs" or "PhysicalDamageGainAs"
+        local isDerivedName = entry.stat == prefix .. "Fire" or entry.stat == prefix .. "Cold" or entry.stat == prefix .. "Lightning"
+        local sameValue = math.abs(entry.value - randomEntry.value) < 0.0001 or math.abs(entry.value * 3 - randomEntry.value) < 0.0001
+        if entry.source == randomEntry.source and isDerivedName and sameValue then derived = true break end
+      end
+      if not derived then table.insert(filteredGains, entry) end
+    end
+    details.gains = filteredGains
+  end
+  local gainTable = mainSkill.gainTable or {}
+  local conversionTable = mainSkill.conversionTable or {}
+  for _, fromType in ipairs(damageTypeKeys) do
+    local fromTitle = fromType:sub(1, 1):upper() .. fromType:sub(2)
+    for _, toType in ipairs(damageTypeKeys) do
+      local toTitle = toType:sub(1, 1):upper() .. toType:sub(2)
+      local gain = safeNum(gainTable[fromTitle] and gainTable[fromTitle][toTitle]) or 0
+      local conversion = safeNum(conversionTable[fromTitle] and conversionTable[fromTitle][toTitle]) or 0
+      if gain ~= 0 then table.insert(details.gainTotals, { fromType = fromType, toType = toType, value = gain * 100 }) end
+      if conversion ~= 0 then table.insert(details.conversionTotals, { fromType = fromType, toType = toType, value = conversion * 100 }) end
+    end
+  end
+  for _, damageType in ipairs(damageTypeKeys) do
     local title = damageType:sub(1, 1):upper() .. damageType:sub(2)
     local names = damageNames[damageType]
-    local more = modList:More(cfg, unpack(names))
+    local more = modList:More(cfg, "Damage", unpack(names))
+    local moreMin = modList:More(cfg, "Min" .. title .. "Damage")
+    local moreMax = modList:More(cfg, "Max" .. title .. "Damage")
+    local nonCritAverage = safeNum(sourceOutput[title .. "HitAverage"])
+    local critAverage = safeNum(sourceOutput[title .. "CritAverage"])
+    local critChance = (safeNum(sourceOutput.CritChance or actorOutput.CritChance) or 0) / 100
+    local finalAverage
+    if nonCritAverage ~= nil or critAverage ~= nil then
+      finalAverage = (nonCritAverage or 0) * (1 - critChance) + (critAverage or 0) * critChance
+    end
     table.insert(details.damageTypes, {
       type = damageType,
       addedMin = safeNum(modList:Sum("BASE", cfg, title .. "Min")),
       addedMax = safeNum(modList:Sum("BASE", cfg, title .. "Max")),
-      increased = safeNum(modList:Sum("INC", cfg, unpack(names))) or 0,
+      increased = safeNum(modList:Sum("INC", cfg, "Damage", unpack(names))) or 0,
       more = safeNum((more - 1) * 100) or 0,
+      moreMin = safeNum((moreMin - 1) * 100) or 0,
+      moreMax = safeNum((moreMax - 1) * 100) or 0,
       hitMin = safeNum(sourceOutput[title .. "Min"]),
       hitMax = safeNum(sourceOutput[title .. "Max"]),
+      nonCritAverage = nonCritAverage,
+      critAverage = critAverage,
+      finalAverage = finalAverage,
       effectiveMultiplier = safeNum(sourceOutput[title .. "EffMult"]),
       breakdown = copyLines(sourceBreakdown[title]),
       effectiveBreakdown = copyLines(sourceBreakdown[title .. "EffMult"]),
@@ -818,8 +1099,10 @@ if playerMainSkill and playerMainSkill.activeEffect then
     addModifiers("addedMax", damageType, "BASE", { title .. "Max" })
     addModifiers("increased", damageType, "INC", names)
     addModifiers("more", damageType, "MORE", names)
+    addModifiers("more", damageType, "MORE", { "Min" .. title .. "Damage", "Max" .. title .. "Damage" })
   end
   data.SkillDetails = details
+end
 end
 
 if __pobIncludeConfig then data.CalculationConfig = readConfigSnapshot() end
@@ -840,10 +1123,22 @@ xmlText = xmlText:gsub(
 
 local loadOk, loadErr = pcall(loadBuildFromXML, xmlText, "browser-skill-ranking")
 if not loadOk then
+  local prompt = launch and launch.promptMsg
+  if launch then launch.promptMsg = nil end
+  if prompt then
+    return { success = false, error = "Build load error: " .. tostring(prompt) }
+  end
   return { success = false, error = "loadBuildFromXML failed: " .. tostring(loadErr) }
 end
 
 build = (launch and launch.main and launch.main.modes and launch.main.modes["BUILD"]) or build
+local mo = mainObject or launch
+if mo and mo.promptMsg then
+  local prompt = tostring(mo.promptMsg)
+  mo.promptMsg = nil
+  if launch then launch.promptMsg = nil end
+  return { success = false, error = "Build load error: " .. prompt }
+end
 if not build or not build.calcsTab then
   return { success = false, error = "Build calculation object not available after load" }
 end
@@ -1055,7 +1350,10 @@ local function inspectItem(raw)
       local entry = {
         text = tostring(modLine.line or modLine.extra or ""),
         group = group.name,
-        parsed = not modLine.extra and modLine.modList ~= nil,
+        -- Empty mod lists are PoB's "Not supported in PoB yet" lines. Keep
+        -- the original text so the UI can expose them without adding them to
+        -- the calculation.
+        parsed = not modLine.extra and modLine.modList ~= nil and #modLine.modList > 0,
         modifiers = {},
       }
       for _, mod in ipairs(modLine.modList or {}) do
@@ -1115,6 +1413,128 @@ for index = 1, (__pobEquipmentItemCount or 0) do
 end
 
 return { results = results, errors = errors }
+`
+
+export const JEWEL_RADIUS_SCRIPT = `
+local xmlText = __pobBuildXml
+if type(xmlText) ~= "string" or xmlText == "" then
+  return { success = false, error = "Empty build XML" }
+end
+
+local loaded, loadError = pcall(loadBuildFromXML, xmlText, "superpoe-jewel-radius")
+if not loaded then
+  -- A failed PoB mode switch can leave a prompt message in the shared Lua
+  -- runtime. This inspection is optional and must not poison later builds.
+  if launch then launch.promptMsg = nil end
+  if mainObject then mainObject.promptMsg = nil end
+  return { success = false, error = "loadBuildFromXML failed: " .. tostring(loadError) }
+end
+
+local mo = mainObject or launch
+if mo and mo.promptMsg then
+  local prompt = tostring(mo.promptMsg)
+  mo.promptMsg = nil
+  if launch then launch.promptMsg = nil end
+  return { success = false, error = "Build load error: " .. prompt }
+end
+
+build = (launch and launch.main and launch.main.modes and launch.main.modes["BUILD"]) or build
+if not build or not build.spec then
+  return { success = false, error = "Build object unavailable after load" }
+end
+
+local runtimeData = build.data or data
+local radiusDefinitions = {}
+-- These indices mirror Controlled Metamorphosis' ring variants in Data/Uniques/jewel.lua.
+local variableRadiusLabels = {
+  [5] = "Very Small Ring",
+  [6] = "Small Ring",
+  [7] = "Medium-Small Ring",
+  [8] = "Medium Ring",
+  [9] = "Medium-Large Ring",
+  [10] = "Large Ring",
+  [11] = "Very Large Ring",
+  [12] = "Massive Ring",
+}
+for index, radius in ipairs(runtimeData.jewelRadius or {}) do
+  local label = tostring(radius.label or "")
+  if label == "Variable" and variableRadiusLabels[index] then
+    label = variableRadiusLabels[index]
+  end
+  table.insert(radiusDefinitions, {
+    index = index,
+    label = label,
+    inner = tonumber(radius.inner) or 0,
+    outer = tonumber(radius.outer) or 0,
+    color = type(radius.col) == "string" and radius.col or nil,
+  })
+end
+
+local function socketCenters(item, socketNodeId)
+  local centers = {}
+  if item and item.title == "From Nothing" and item.jewelData and item.jewelData.fromNothingKeystones then
+    for keystoneName in pairs(item.jewelData.fromNothingKeystones) do
+      local keystone = build.spec.tree and build.spec.tree.keystoneMap and build.spec.tree.keystoneMap[keystoneName]
+      if keystone and keystone.id then
+        table.insert(centers, tostring(keystone.id))
+      end
+    end
+  end
+  if #centers == 0 then table.insert(centers, tostring(socketNodeId)) end
+  return centers
+end
+
+local effects = {}
+for socketNodeId, itemId in pairs(build.spec.jewels or {}) do
+  local item = build.itemsTab and build.itemsTab.items and (build.itemsTab.items[itemId] or build.itemsTab.items[tonumber(itemId)])
+  if not item and build.itemsTab and type(build.itemsTab.GetSocketAndJewelForNodeID) == "function" then
+    local ok, _, resolvedItem = pcall(function()
+      return build.itemsTab:GetSocketAndJewelForNodeID(socketNodeId)
+    end)
+    if ok then item = resolvedItem end
+  end
+  if item then
+    local radiusIndex = tonumber(item.jewelRadiusIndex)
+    local radius = radiusIndex and runtimeData.jewelRadius and runtimeData.jewelRadius[radiusIndex]
+    if radiusIndex and radius then
+      local label = tostring(item.jewelRadiusLabel or radius.label or "")
+      local kind = label == "Variable" and "variable" or "normal"
+      local visual = "standard"
+      local conqueror = nil
+      if item.title == "From Nothing" then
+        kind = "special"
+        visual = "from-nothing"
+      elseif item.jewelData and item.jewelData.conqueredBy
+        and item.jewelData.conqueredBy.conqueror
+        and item.jewelData.conqueredBy.conqueror.type then
+        kind = "special"
+        visual = "conqueror"
+        conqueror = tostring(item.jewelData.conqueredBy.conqueror.type)
+        if conqueror == "kalguur" then conqueror = "kalguuran" end
+      end
+      table.insert(effects, {
+        socketNodeId = tostring(socketNodeId),
+        itemId = tostring(itemId),
+        label = label,
+        radiusIndex = radiusIndex,
+        inner = tonumber(radius.inner),
+        outer = tonumber(radius.outer),
+        color = type(radius.col) == "string" and radius.col or nil,
+        kind = kind,
+        visual = visual,
+        conqueror = conqueror,
+        centerNodeIds = socketCenters(item, socketNodeId),
+      })
+    end
+  end
+end
+
+return {
+  success = true,
+  multiplier = tonumber(runtimeData.gameConstants and runtimeData.gameConstants["PassiveTreeJewelDistanceMultiplier"]) or 1.2,
+  definitions = radiusDefinitions,
+  effects = effects,
+}
 `
 
 interface DetachedEquipmentInspection {
@@ -1193,6 +1613,37 @@ export function inspectEquipmentWithLuaEngine(engine: LuaEngine, rawItems: strin
   }
 }
 
+export function inspectJewelRadiusWithLuaEngine(engine: LuaEngine, xml: string): JewelRadiusSnapshot {
+  if (!xml) {
+    return { success: false, multiplier: 1.2, definitions: [], effects: [], error: 'Missing build XML' }
+  }
+  try {
+    engine.global.set('__pobBuildXml', xml)
+    const result = detachLuaValue(engine.doStringSync(JEWEL_RADIUS_SCRIPT)) as Partial<JewelRadiusSnapshot> | undefined
+    return {
+      success: result?.success === true,
+      multiplier: typeof result?.multiplier === 'number' ? result.multiplier : 1.2,
+      definitions: Array.isArray(result?.definitions) ? result.definitions as JewelRadiusSnapshot['definitions'] : [],
+      effects: Array.isArray(result?.effects) ? result.effects as JewelRadiusSnapshot['effects'] : [],
+      error: typeof result?.error === 'string' ? result.error : undefined,
+    }
+  } catch (err) {
+    return {
+      success: false,
+      multiplier: 1.2,
+      definitions: [],
+      effects: [],
+      error: err instanceof Error ? err.message : String(err),
+    }
+  } finally {
+    try {
+      engine.global.set('__pobBuildXml', undefined)
+    } catch {
+      // The next request overwrites the input global.
+    }
+  }
+}
+
 export function calculateWithLuaEngine(engine: LuaEngine, xml: string, selection: SkillCalculationSelection = {}): CalcApiResponse {
   if (!xml) return { success: false, error: 'Missing build XML for front-end calculation' }
   try {
@@ -1204,6 +1655,7 @@ export function calculateWithLuaEngine(engine: LuaEngine, xml: string, selection
     engine.global.set('__pobActor', selection.actor)
     engine.global.set('__pobMinionSkillIndex', selection.minionSkillIndex)
     engine.global.set('__pobMinionStatSetIndex', selection.minionStatSetIndex)
+    engine.global.set('__pobCharacterOnly', selection.characterOnly == true)
     engine.global.set('__pobConfigOverridesJson', JSON.stringify(selection.configOverrides || {}))
     engine.global.set('__pobIncludeConfig', selection.includeConfig || false)
     return detachLuaValue(engine.doStringSync(CALCULATION_SCRIPT)) as CalcApiResponse
@@ -1222,6 +1674,7 @@ export function calculateWithLuaEngine(engine: LuaEngine, xml: string, selection
       engine.global.set('__pobActor', undefined)
       engine.global.set('__pobMinionSkillIndex', undefined)
       engine.global.set('__pobMinionStatSetIndex', undefined)
+      engine.global.set('__pobCharacterOnly', undefined)
       engine.global.set('__pobConfigOverridesJson', undefined)
       engine.global.set('__pobIncludeConfig', undefined)
     } catch {
@@ -1251,6 +1704,49 @@ export function rankSkillsWithLuaEngine(
       engine.global.set('__pobConfigOverridesJson', undefined)
     } catch {
       // The next operation overwrites all ranking inputs.
+    }
+  }
+}
+
+const EQUIPMENT_DIFFERENCE_SCRIPT = [
+  'local json = require("dkjson")',
+  'local bridge = require("EquipmentDifference")',
+  'local payload = json.decode(__pobEquipmentDifferenceJson or "")',
+  'if type(payload) ~= "table" then',
+  '  return { success = false, error = { code = "invalid-item", message = "Invalid equipment comparison payload" } }',
+  'end',
+  'local sessions = rawget(_G, "__superpoeEquipmentDifferenceSessions")',
+  'if not sessions then',
+  '  sessions = {}',
+  '  rawset(_G, "__superpoeEquipmentDifferenceSessions", sessions)',
+  'end',
+  'return bridge.compare(payload, sessions)',
+].join('\n')
+
+export function compareEquipmentWithLuaEngine(
+  engine: LuaEngine,
+  request: EquipmentDifferenceRequest,
+  contextKey: string,
+): EquipmentDifferenceResult {
+  if (!request?.context?.xml) {
+    return { success: false, error: { code: 'invalid-build', message: 'Missing build XML' } }
+  }
+  try {
+    engine.global.set('__pobEquipmentDifferenceJson', JSON.stringify({ ...request, contextKey }))
+    return detachLuaValue(engine.doStringSync(EQUIPMENT_DIFFERENCE_SCRIPT)) as EquipmentDifferenceResult
+  } catch (err) {
+    return {
+      success: false,
+      error: {
+        code: 'calculation-failed',
+        message: err instanceof Error ? err.message : String(err),
+      },
+    }
+  } finally {
+    try {
+      engine.global.set('__pobEquipmentDifferenceJson', undefined)
+    } catch {
+      // The next request overwrites the input global.
     }
   }
 }

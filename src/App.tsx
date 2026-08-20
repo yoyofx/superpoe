@@ -13,6 +13,7 @@ import { EquipmentLibraryPage } from '@/components/EquipmentLibraryPage'
 import { NewBuildDialog, type NewBuildInput } from '@/components/NewBuildDialog'
 import { UnifiedImportDialog, type ImportConfirmation } from '@/components/UnifiedImportDialog'
 import { importPobBuildCode } from '@/engine/importPobBuildCode'
+import { normalizePobBuildCodeResult } from '@/engine/pobItemCompatibility'
 import { requestPoe2dbImport } from '@/engine/poe2dbImport'
 import { requestPoeNinjaImport } from '@/engine/poeNinjaImport'
 import type { SavedBuild } from '@/types/tree'
@@ -24,10 +25,19 @@ import {
   type ParsedSuperPoeBuildFile,
 } from '@/engine/superPoeBuildFile'
 import { encodeBuildCode, getEncodeClassPayload } from '@/engine/buildCode'
-import { compareBuildCodes, type BuildUpdateDiff } from '@/engine/buildDiff'
+import { compareBuildCodes, type BuildUpdateDiff, type BuildUpdateSection } from '@/engine/buildDiff'
+import { mergeBuildUpdateCode } from '@/engine/buildUpdateMerge'
 import { SUPERPOE_PACKAGE_VERSION } from '@/engine/appVersion'
 import { GlobalSettingsDialog } from '@/components/GlobalSettingsDialog'
 import { loadAppSettings, saveAppSettings, type AppSettings } from '@/engine/appSettings'
+import {
+  applyRendererStorage,
+  buildBackupFileName,
+  collectRendererStorage,
+  createSuperPoeBackup,
+  parseSuperPoeBackup,
+  type BackupStorageKey,
+} from '@/engine/superPoeBackup'
 import { UpdateDialog } from '@/components/UpdateDialog'
 import type { MarketWorkspaceView } from '@/components/market/MarketShell'
 import type { MarketMonitoringSnapshot } from '@/types/market'
@@ -36,8 +46,10 @@ import { uiText } from '@/i18n/uiLocale'
 
 const TreePixiCanvas = lazy(() => import('@/components/TreePixiCanvas').then((module) => ({ default: module.TreePixiCanvas })))
 const NodeTooltip = lazy(() => import('@/components/NodeTooltip').then((module) => ({ default: module.NodeTooltip })))
+const JewelSocketPanel = lazy(() => import('@/components/JewelSocketPanel').then((module) => ({ default: module.JewelSocketPanel })))
 const EquipmentPanel = lazy(() => import('@/components/EquipmentPanel').then((module) => ({ default: module.EquipmentPanel })))
 const SkillsWorkspace = lazy(() => import('@/components/SkillsWorkspace').then((module) => ({ default: module.SkillsWorkspace })))
+const AttributeAnalysisPage = lazy(() => import('@/components/AttributeAnalysisPage').then((module) => ({ default: module.AttributeAnalysisPage })))
 const MarketShell = lazy(() => import('@/components/market/MarketShell').then((module) => ({ default: module.MarketShell })))
 
 function WorkspaceLoading({ language, error }: { language: Language; error?: string | null }) {
@@ -53,7 +65,10 @@ export default function App() {
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const hashLoadedRef = useRef(false)
   const cleanSignatureRef = useRef('')
-  const [screen, setScreen] = useState<'center' | 'utilities' | 'about' | 'library' | 'editor' | 'trade'>('center')
+  type AppScreen = 'center' | 'utilities' | 'about' | 'library' | 'editor' | 'trade'
+  type LibraryReturnScreen = Exclude<AppScreen, 'library'>
+  const [screen, setScreen] = useState<AppScreen>('center')
+  const [libraryReturnScreen, setLibraryReturnScreen] = useState<LibraryReturnScreen>('center')
   const [activeView, setActiveView] = useState<WorkspaceView>('equipment')
   const [marketWorkspace, setMarketWorkspace] = useState<MarketWorkspaceView>('market')
   const [tradeReturnScreen, setTradeReturnScreen] = useState<'center' | 'editor' | 'library'>('center')
@@ -72,11 +87,14 @@ export default function App() {
   const [buildUpdateTarget, setBuildUpdateTarget] = useState<SavedBuild | null>(null)
   const [buildUpdateCode, setBuildUpdateCode] = useState<string | null>(null)
   const [buildUpdateDiff, setBuildUpdateDiff] = useState<BuildUpdateDiff | null>(null)
+  const [buildUpdateSections, setBuildUpdateSections] = useState<BuildUpdateSection[]>([])
   const [buildUpdateChecking, setBuildUpdateChecking] = useState(false)
   const [buildUpdateBusy, setBuildUpdateBusy] = useState(false)
   const [buildUpdateError, setBuildUpdateError] = useState<string | null>(null)
   const buildUpdateRequestRef = useRef(0)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [backupBusy, setBackupBusy] = useState(false)
+  const [backupNotice, setBackupNotice] = useState<string | null>(null)
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [appSettings, setAppSettings] = useState(loadAppSettings)
   const { treeData, error, loadTreeData, loadSavedBuilds } = useTreeStore()
@@ -85,6 +103,8 @@ export default function App() {
   const nodeAttributeSelections = useTreeStore((s) => s.nodeAttributeSelections)
   const treeVersion = useTreeStore((s) => s.treeVersion)
   const importedBuildCode = useTreeStore((s) => s.importedBuildCode)
+  const pobBuildRevision = useTreeStore((s) => s.pobBuildRevision)
+  const getActivePobCode = useTreeStore((s) => s.getActivePobCode)
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
   const encodeToHash = useTreeStore((s) => s.encodeToHash)
@@ -102,6 +122,10 @@ export default function App() {
   const calculationProfiles = useTreeStore((s) => s.calculationProfiles)
   const activeCalculationProfileId = useTreeStore((s) => s.activeCalculationProfileId)
 
+  const activePobCode = useMemo(() => {
+    return getActivePobCode() || ''
+  }, [getActivePobCode, importedBuildCode, pobBuildRevision])
+
   const buildSignature = useMemo(() => JSON.stringify({
     nodes: [...allocatedNodes].sort(),
     nodeWeaponSets,
@@ -112,7 +136,8 @@ export default function App() {
     buildRealm,
     calculationProfiles,
     activeCalculationProfileId,
-  }), [allocatedNodes, nodeWeaponSets, nodeAttributeSelections, treeVersion, selectedClassId, selectedAscendancyId, buildRealm, calculationProfiles, activeCalculationProfileId])
+    pobCode: activePobCode,
+  }), [allocatedNodes, nodeWeaponSets, nodeAttributeSelections, treeVersion, selectedClassId, selectedAscendancyId, buildRealm, calculationProfiles, activeCalculationProfileId, activePobCode])
 
   useEffect(() => {
     loadSavedBuilds()
@@ -165,6 +190,11 @@ export default function App() {
       if (!(event.target instanceof Element)) return
       const button = event.target.closest('button')
       if (!(button instanceof HTMLButtonElement) || !root.contains(button)) return
+      if (button.matches('.paper-doll-slot, .paper-doll-weapon-set-control')) {
+        clearButtonPointer(activeButton)
+        activeButton = null
+        return
+      }
       if (activeButton !== button) {
         clearButtonPointer(activeButton)
         activeButton = button
@@ -315,6 +345,7 @@ export default function App() {
       buildRealm: state.buildRealm,
       calculationProfiles: state.calculationProfiles,
       activeCalculationProfileId: state.activeCalculationProfileId,
+      pobCode: state.getActivePobCode() || '',
     })
     setSaveStatus('saved')
   }, [])
@@ -340,6 +371,7 @@ export default function App() {
     setBuildUpdateTarget(build)
     setBuildUpdateCode(null)
     setBuildUpdateDiff(null)
+    setBuildUpdateSections([])
     setBuildUpdateError(null)
     setBuildUpdateChecking(true)
     try {
@@ -347,18 +379,33 @@ export default function App() {
         ? await requestPoeNinjaImport(build.sourceUrl)
         : await requestPoe2dbImport(build.sourceUrl)
       if (requestId !== buildUpdateRequestRef.current) return
+      const previousCompatibility = build.importedBuildCode
+        ? normalizePobBuildCodeResult(build.importedBuildCode)
+        : { changed: false, matchedRules: [] as string[] }
       const diff = compareBuildCodes(build.importedBuildCode || '', result.code)
-      if (!diff.hasChanges) {
+      const compatibilityMigration = previousCompatibility.changed
+      const updateDiff = compatibilityMigration && !diff.hasChanges
+        ? {
+          ...diff,
+          other: { ...diff.other, changed: diff.other.changed + 1 },
+          total: diff.total + 1,
+          hasChanges: true,
+        }
+        : diff
+      if (!updateDiff.hasChanges) {
         setBuildUpdateTarget(null)
+        setBuildUpdateSections([])
         setSaveNotice({ type: 'success', message: l('Build is already up to date', '构筑已是最新版本', '構築已是最新版本', '빌드가 최신 버전입니다') })
         return
       }
       setBuildUpdateCode(result.code)
-      setBuildUpdateDiff(diff)
+      setBuildUpdateDiff(updateDiff)
+      setBuildUpdateSections([])
     } catch (reason) {
       if (requestId !== buildUpdateRequestRef.current) return
       setBuildUpdateTarget(null)
       setBuildUpdateDiff(null)
+      setBuildUpdateSections([])
       setSaveNotice({ type: 'error', message: reason instanceof Error ? reason.message : String(reason) })
     } finally {
       if (requestId === buildUpdateRequestRef.current) setBuildUpdateChecking(false)
@@ -371,6 +418,7 @@ export default function App() {
     setBuildUpdateTarget(null)
     setBuildUpdateCode(null)
     setBuildUpdateDiff(null)
+    setBuildUpdateSections([])
     setBuildUpdateError(null)
     setBuildUpdateChecking(false)
   }, [buildUpdateBusy])
@@ -381,7 +429,12 @@ export default function App() {
     setBuildUpdateBusy(true)
     setBuildUpdateError(null)
     try {
-      await importPobBuildCode(buildUpdateCode)
+      const mergedCode = mergeBuildUpdateCode(
+        target.importedBuildCode || '',
+        buildUpdateCode,
+        new Set(buildUpdateSections),
+      )
+      await importPobBuildCode(mergedCode)
       setBuildRealm(target.realm)
       const now = new Date().toISOString()
       const savedId = saveBuild(target.name, target.id, target.source, target.sourceUrl, {
@@ -398,6 +451,7 @@ export default function App() {
       setBuildUpdateTarget(null)
       setBuildUpdateCode(null)
       setBuildUpdateDiff(null)
+      setBuildUpdateSections([])
       setActiveView('equipment')
       setScreen('editor')
       window.setTimeout(markClean, 0)
@@ -407,7 +461,7 @@ export default function App() {
     } finally {
       setBuildUpdateBusy(false)
     }
-  }, [buildUpdateCode, buildUpdateTarget, lang, markClean, saveBuild, setBuildRealm])
+  }, [buildUpdateCode, buildUpdateSections, buildUpdateTarget, lang, markClean, saveBuild, setBuildRealm])
 
   const handleCreateBuild = useCallback(async (input: NewBuildInput) => {
     if (input.treeVersion !== useTreeStore.getState().treeVersion) await setTreeVersion(input.treeVersion)
@@ -450,18 +504,21 @@ export default function App() {
   }, [activeBuildId, buildName, buildSource, buildSourceUrl, lang, markClean, saveBuild])
 
   const createCurrentNativeBuildFile = useCallback(async (id: string, timestamp: string, revision: number) => {
-    const state = useTreeStore.getState()
-    const existing = state.savedBuilds.find((build) => build.id === id)
-    const classPayload = getEncodeClassPayload(state.treeData || undefined, state.selectedClassId, state.selectedAscendancyId)
-    const encoded = encodeBuildCode({
-      nodes: [...state.allocatedNodes],
-      nodeWeaponSets: state.nodeWeaponSets,
-      nodeAttributeSelections: state.nodeAttributeSelections,
-      treeVersion: state.treeVersion,
-      baseCode: state.importedBuildCode || undefined,
-      useSecondWeaponSet: state.activeWeaponSet === 2,
-      ...classPayload,
-    })
+      const state = useTreeStore.getState()
+      const existing = state.savedBuilds.find((build) => build.id === id)
+      const baseCode = state.getActivePobCode()
+      const activeXml = state.getActivePobXml()
+      const classPayload = getEncodeClassPayload(state.treeData || undefined, state.selectedClassId, state.selectedAscendancyId)
+      const encoded = baseCode && activeXml
+        ? { code: baseCode, xml: activeXml }
+        : encodeBuildCode({
+          nodes: [...state.allocatedNodes],
+          nodeWeaponSets: state.nodeWeaponSets,
+          nodeAttributeSelections: state.nodeAttributeSelections,
+          treeVersion: state.treeVersion,
+          useSecondWeaponSet: state.activeWeaponSet === 2,
+          ...classPayload,
+        })
     return createSuperPoeBuildFile({
       id,
       name: buildName.trim() || l('Untitled build', '未命名构筑', '未命名構築', '이름 없는 빌드'),
@@ -616,6 +673,73 @@ export default function App() {
     setSaveStatus('dirty')
   }, [])
 
+  const handleBackupExport = useCallback(async () => {
+    const bridge = window.pob2Desktop
+    if (!bridge) {
+      setBackupNotice(l('Backups require the desktop app', '备份功能需要桌面版应用', '備份功能需要桌面版應用程式', '백업은 데스크톱 앱에서만 지원됩니다'))
+      return
+    }
+    setBackupBusy(true)
+    setBackupNotice(null)
+    try {
+      const currentHash = encodeToHash()
+      const rendererStorage = collectRendererStorage()
+      const currentCode = getActivePobCode() || ''
+      if (currentCode) {
+        rendererStorage['pob2-imported-build' as BackupStorageKey] = JSON.stringify({ hash: currentHash, code: currentCode })
+      }
+      const content = await createSuperPoeBackup({
+        main: await bridge.collectBackupData(),
+        appVersion: SUPERPOE_PACKAGE_VERSION,
+        channel: appSettings.updateChannel,
+        platform: /Macintosh|Mac OS X/i.test(navigator.userAgent) ? 'darwin' : 'win32',
+        rendererStorage,
+        urlHash: currentHash,
+      })
+      const result = await bridge.saveBackupFile({ content, fileName: buildBackupFileName() })
+      if (!result.canceled) setBackupNotice(l('Backup saved', '备份已保存', '備份已儲存', '백업이 저장되었습니다'))
+    } catch (error) {
+      console.error('[Backup] export failed', error)
+      setBackupNotice(l('Backup failed', '备份失败', '備份失敗', '백업 실패'))
+    } finally {
+      setBackupBusy(false)
+    }
+  }, [appSettings.updateChannel, encodeToHash, getActivePobCode, l])
+
+  const handleBackupImport = useCallback(async () => {
+    const bridge = window.pob2Desktop
+    if (!bridge) {
+      setBackupNotice(l('Backups require the desktop app', '备份功能需要桌面版应用', '備份功能需要桌面版應用程式', '백업은 데스크톱 앱에서만 지원됩니다'))
+      return
+    }
+    setBackupBusy(true)
+    setBackupNotice(null)
+    try {
+      const result = await bridge.openBackupFile()
+      if (result.canceled || !result.content) return
+      const backup = await parseSuperPoeBackup(result.content)
+      const writtenAt = new Date(backup.writtenAt).toLocaleString()
+      const confirmed = window.confirm(l(
+        `Restore this backup from ${writtenAt}? Current local data and settings will be replaced.`,
+        `确定恢复 ${writtenAt} 的备份吗？当前本地数据和设置将被替换。`,
+        `確定要恢復 ${writtenAt} 的備份嗎？目前本機資料與設定將被取代。`,
+        `이 백업(${writtenAt})을 복원할까요? 현재 로컬 데이터와 설정이 교체됩니다.`,
+      ))
+      if (!confirmed) return
+      await bridge.restoreBackupData(backup.data.main)
+      applyRendererStorage(backup.data.rendererStorage)
+      const nextUrl = `${window.location.pathname}${window.location.search}${backup.data.urlHash ? `#${backup.data.urlHash}` : ''}`
+      window.history.replaceState(null, '', nextUrl)
+      setBackupNotice(l('Backup restored; restarting...', '备份已恢复，正在重启...', '備份已恢復，正在重新啟動...', '백업 복원 완료. 다시 시작하는 중...'))
+      window.setTimeout(() => window.location.reload(), 500)
+    } catch (error) {
+      console.error('[Backup] import failed', error)
+      setBackupNotice(l('Backup restore failed', '恢复备份失败', '恢復備份失敗', '백업 복원 실패'))
+    } finally {
+      setBackupBusy(false)
+    }
+  }, [l])
+
   const handleSettingsChange = useCallback((settings: AppSettings) => {
     setAppSettings(settings)
     saveAppSettings(settings)
@@ -629,38 +753,53 @@ export default function App() {
   const nativeBuildConflict = nativeBuildCandidate
     ? savedBuilds.find((build) => build.id === nativeBuildCandidate.parsed.envelope.data.id)
     : undefined
+  const openLibrary = (returnScreen: LibraryReturnScreen) => {
+    setLibraryReturnScreen(returnScreen)
+    setScreen('library')
+  }
   const tradeSuspended = settingsOpen || importOpen || newBuildOpen || leaveConfirmOpen || Boolean(nativeBuildCandidate)
 
   return (
     <div className={`superpoe-app${screen === 'library' ? ' library-screen' : ''}`}>
       {screen === 'center'
-        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onOpenFile={() => void handleOpenNativeBuildFile()} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onCheckForUpdate={(build) => void handleCheckBuildUpdate(build)} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onLibrary={() => setScreen('library')} onUtilities={() => setScreen('utilities')} onAbout={() => setScreen('about')} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} />
+        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onOpenFile={() => void handleOpenNativeBuildFile()} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onCheckForUpdate={(build) => void handleCheckBuildUpdate(build)} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onLibrary={() => openLibrary('center')} onUtilities={() => setScreen('utilities')} onAbout={() => setScreen('about')} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} />
         : screen === 'utilities'
-          ? <UtilityCenter onCenter={() => setScreen('center')} onLibrary={() => setScreen('library')} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onAbout={() => setScreen('about')} onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} />
+          ? <UtilityCenter onCenter={() => setScreen('center')} onLibrary={() => openLibrary('utilities')} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onAbout={() => setScreen('about')} onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} />
           : screen === 'about'
-            ? <AboutPage onCenter={() => setScreen('center')} onLibrary={() => setScreen('library')} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onUtilities={() => setScreen('utilities')} />
+            ? <AboutPage onCenter={() => setScreen('center')} onLibrary={() => openLibrary('about')} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onUtilities={() => setScreen('utilities')} />
           : screen === 'library'
-            ? <EquipmentLibraryPage realm={appSettings.defaultRealm} onCenter={() => setScreen('center')} onSettings={() => setSettingsOpen(true)} />
+            ? <EquipmentLibraryPage realm={appSettings.defaultRealm} onBack={() => setScreen(libraryReturnScreen)} onSettings={() => setSettingsOpen(true)} />
         : screen === 'trade'
-          ? <Suspense fallback={<WorkspaceLoading language={lang} />}><MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onSettings={() => setSettingsOpen(true)} /></Suspense>
+          ? <Suspense fallback={<WorkspaceLoading language={lang} />}><MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onLibrary={() => openLibrary('trade')} onSettings={() => setSettingsOpen(true)} /></Suspense>
           : <>
-      <Toolbar activeView={activeView} onViewChange={setActiveView} onTradeCenter={() => { setTradeReturnScreen('editor'); setScreen('trade') }} monitoring={monitoring} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onImport={() => setImportOpen(true)} onSave={handleSave} onSaveCopy={() => void handleSaveCopy()} onSettings={() => setSettingsOpen(true)} />
+      <Toolbar activeView={activeView} onViewChange={setActiveView} onTradeCenter={() => { setTradeReturnScreen('editor'); setScreen('trade') }} monitoring={monitoring} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onLibrary={() => openLibrary('editor')} onImport={() => setImportOpen(true)} onSave={handleSave} onSaveCopy={() => void handleSaveCopy()} onSettings={() => setSettingsOpen(true)} />
       <main className="workspace-view">
         {!treeData ? <WorkspaceLoading language={lang} error={error} /> : <Suspense fallback={<WorkspaceLoading language={lang} />}>
         {activeView === 'passive' && (
           <section className="passive-workspace">
             <TreePixiCanvas />
             <NodeTooltip />
+            <JewelSocketPanel />
           </section>
         )}
         {activeView === 'equipment' && <EquipmentPanel buildId={activeBuildId} realm={appSettings.defaultRealm} />}
         {activeView === 'skills' && <SkillsWorkspace />}
+        {activeView === 'analysis' && <AttributeAnalysisPage onOpenSkills={() => setActiveView('skills')} />}
         </Suspense>}
       </main>
       </>}
       <NewBuildDialog open={newBuildOpen} defaultRealm={appSettings.defaultRealm} onClose={() => setNewBuildOpen(false)} onCreate={(input) => void handleCreateBuild(input)} />
       <UnifiedImportDialog open={importOpen} hasCurrentBuild={screen === 'editor'} defaultRealm={appSettings.defaultRealm} onClose={() => setImportOpen(false)} onConfirm={handleImportConfirmation} />
-      <GlobalSettingsDialog open={settingsOpen} settings={appSettings} onChange={handleSettingsChange} onClose={() => setSettingsOpen(false)} />
+      <GlobalSettingsDialog
+        open={settingsOpen}
+        settings={appSettings}
+        onChange={handleSettingsChange}
+        onClose={() => setSettingsOpen(false)}
+        backupBusy={backupBusy}
+        backupNotice={backupNotice}
+        onBackupExport={() => void handleBackupExport()}
+        onBackupImport={() => void handleBackupImport()}
+      />
       <UpdateDialog settings={appSettings} />
       {buildUpdateTarget && <BuildUpdateDialog
         build={buildUpdateTarget}
@@ -668,6 +807,8 @@ export default function App() {
         busy={buildUpdateBusy}
         error={buildUpdateError}
         diff={buildUpdateDiff}
+        selectedSections={buildUpdateSections}
+        onSelectionChange={setBuildUpdateSections}
         onCancel={cancelBuildUpdate}
         onConfirm={() => void handleConfirmBuildUpdate()}
       />}

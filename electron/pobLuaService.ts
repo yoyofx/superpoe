@@ -3,7 +3,8 @@ import { createInterface, type Interface as ReadlineInterface } from 'node:readl
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { app } from 'electron'
-import type { CanonicalEquipmentItem, CanonicalItemView } from '../src/types/market.js'
+import type { CanonicalEquipmentItem, CanonicalItemView, FindBetterSearchOptions } from '../src/types/market.js'
+import type { EquipmentDifferenceRequest, EquipmentDifferenceResult } from '../src/equipmentDifference/types.js'
 
 interface SidecarResponse {
   id?: number
@@ -49,7 +50,7 @@ export class PobLuaService {
   private cachedInput: string | null = null
   private cachedResult: unknown = null
 
-  private resourcePaths(): { executable: string; runner: string; bundle: string } {
+  private resourcePaths(): { executable: string; runner: string; bundle: string; projectBundle: string } {
     const platformArch = process.platform === 'darwin' ? 'darwin-arm64' : `${process.platform}-${process.arch}`
     const executableName = process.platform === 'win32' ? 'luajit.exe' : 'luajit'
     if (app.isPackaged) {
@@ -57,6 +58,7 @@ export class PobLuaService {
         executable: path.join(process.resourcesPath, 'pob-lua-runtime', platformArch, executableName),
         runner: path.join(process.resourcesPath, 'pob-lua-sidecar', 'pob-lua-runner.lua'),
         bundle: path.join(process.resourcesPath, 'pob-lua'),
+        projectBundle: path.join(process.resourcesPath, 'superpoe-lua'),
       }
     }
     const root = app.getAppPath()
@@ -64,6 +66,7 @@ export class PobLuaService {
       executable: path.join(root, 'native', 'bin', platformArch, executableName),
       runner: path.join(root, 'native', 'pob-lua-runner.lua'),
       bundle: path.join(root, 'public', 'pob-lua'),
+      projectBundle: path.join(root, 'public', 'superpoe-lua'),
     }
   }
 
@@ -87,7 +90,7 @@ export class PobLuaService {
 
     const startedAt = Date.now()
     return new Promise<PobLuaStatus>((resolve, reject) => {
-      const child = spawn(resources.executable, [resources.runner, resources.bundle], {
+      const child = spawn(resources.executable, [resources.runner, resources.bundle, resources.projectBundle], {
         cwd: resources.bundle,
         windowsHide: true,
         stdio: ['pipe', 'pipe', 'pipe'],
@@ -166,6 +169,7 @@ export class PobLuaService {
 
   async calculate(input: {
     xml: string
+    characterOnly?: boolean
     skillGroupId?: string
     calcMode?: 'UNBUFFED' | 'BUFFED' | 'COMBAT' | 'EFFECTIVE'
     activeSkillIndex?: number
@@ -195,6 +199,32 @@ export class PobLuaService {
     const status = await this.initialize()
     if (!status.available || !this.child) throw new Error(status.error || 'LuaJIT sidecar is unavailable')
     return this.request('rankSkills', input)
+  }
+
+  async generateTradeQuery(input: {
+    xml: string
+    slotName: string
+    configOverrides?: Record<string, boolean | number | string>
+    options?: FindBetterSearchOptions
+  }): Promise<unknown> {
+    const status = await this.initialize()
+    if (!status.available || !this.child) throw new Error(status.error || 'LuaJIT sidecar is unavailable')
+    // The project-owned Lua generator reads search options from the request
+    // payload itself (maxPrice, maxLevel, sockets, statWeights, ...). The
+    // renderer-facing API keeps them grouped under `options`; flatten them at
+    // this boundary so those filters are actually included in the generated
+    // official-trade query. Keep the rest of the build context unchanged.
+    const { options, ...context } = input
+    return this.request('generateTradeQuery', {
+      ...context,
+      ...(options || {}),
+    })
+  }
+
+  async compareEquipment(input: EquipmentDifferenceRequest & { contextKey: string }): Promise<EquipmentDifferenceResult> {
+    const status = await this.initialize()
+    if (!status.available || !this.child) throw new Error(status.error || 'LuaJIT sidecar is unavailable')
+    return this.request('compareEquipment', input) as Promise<EquipmentDifferenceResult>
   }
 
   async normalizeItem(raw: string): Promise<PobItemNormalizationResult> {

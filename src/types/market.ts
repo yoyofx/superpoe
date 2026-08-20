@@ -76,6 +76,8 @@ export interface LibraryModifier {
   displayOrder: number
   group: LibraryModifierGroup
   sourceTags: LibraryModifierTag[]
+  /** True when PoB retained no parsed modifiers for this line. */
+  unsupported?: boolean
   affixKind?: 'prefix' | 'suffix'
   original: {
     locale: LibraryTextLocale
@@ -107,6 +109,8 @@ export interface LibraryItemSnapshot {
   rawText?: string
   localized?: Partial<Record<LibraryTextLocale, { name: string; baseType: string }>>
   tradeCategory?: string
+  /** Canonical PoE item class used for context-sensitive trade stat resolution. */
+  itemClass?: string
   properties?: CanonicalItemDisplayStat[]
   requirements?: CanonicalItemDisplayStat[]
   modifiers: LibraryModifier[]
@@ -115,8 +119,50 @@ export interface LibraryItemSnapshot {
 export interface CanonicalEquipmentItem {
   format: 'pob2-item'
   raw: string
+  /** Stable Lua-normalized modifier projection used after repository restart. */
+  modifierSnapshots?: CanonicalItemModifierView[]
+  /** Lossless evidence captured when the item originated from game clipboard text. */
+  parseEvidence?: ItemParseEvidence
+  /** Per-modifier support captured by the existing PoB normalization pass. */
+  modifierSupport?: CanonicalModifierSupportSnapshot[]
+  /** PoB TradeQueryGenerator category captured during normalization. */
+  tradeCategory?: string
+  /** Canonical PoE item class captured by the source adapter. */
+  itemClass?: string
   pobVersion?: string
   gameDataVersion?: string
+  /** Versioned authority used to resolve persisted trade stat IDs. */
+  tradeDataVersion?: string
+}
+
+export interface ParsedItemModifierEvidence {
+  displayOrder: number
+  group: LibraryModifierGroup
+  sourceTags: LibraryModifierTag[]
+  original: LibraryLocalizedText & { locale: LibraryTextLocale }
+  canonicalText?: string
+  currentValues: number[]
+  tierRanges: Array<{ min: number; max: number }>
+  queryStatId?: string
+  candidateStatIds: string[]
+  status: 'resolved' | 'ambiguous' | 'unresolved'
+}
+
+export interface ItemParseEvidence {
+  parser: 'xiletrade-compatible'
+  schemaVersion: 1
+  upstreamCommit: string
+  parsedAt: string
+  locale: LibraryTextLocale
+  originalText: string
+  itemClass?: string
+  modifiers: ParsedItemModifierEvidence[]
+}
+
+export interface CanonicalModifierSupportSnapshot {
+  group: LibraryModifierGroup
+  text: string
+  supported: boolean
 }
 
 export interface CanonicalItemModifierView {
@@ -125,6 +171,8 @@ export interface CanonicalItemModifierView {
   group: LibraryModifierGroup
   sourceTags: LibraryModifierTag[]
   text: string
+  /** True when PoB retained no parsed modifiers for this line. */
+  unsupported?: boolean
   localized?: Partial<Record<LibraryTextLocale, string>>
   tradeStatIds: string[]
   tradeValue?: number
@@ -148,8 +196,12 @@ export interface CanonicalItemView {
   iconUrl?: string
   localized?: Partial<Record<LibraryTextLocale, { name: string; baseType: string }>>
   tradeCategory?: string
+  /** Canonical PoE item class used by the Xiletrade-compatible matcher. */
+  itemClass?: string
   properties?: CanonicalItemDisplayStat[]
   requirements?: CanonicalItemDisplayStat[]
+  /** False/undefined for legacy entries that predate support snapshots. */
+  normalizationKnown?: boolean
   modifiers: CanonicalItemModifierView[]
 }
 
@@ -175,6 +227,11 @@ interface EquipmentLibrarySourceBase {
 export interface MarketFavoriteSource extends EquipmentLibrarySourceBase {
   kind: 'market-favorite'
   realm: MarketRealm
+  /** Build slot used when this item was saved from Find Better. */
+  slotName?: string
+  /** PoB2 candidate augment behavior used by the Find Better result set. */
+  runeBehavior?: FindBetterAugmentBehavior
+  anointBehavior?: FindBetterAugmentBehavior
   leagueId?: string
   listingId: string
   queryId?: string
@@ -246,6 +303,17 @@ export interface EquipmentLibraryMetadataPatch {
   tags?: string[]
   note?: string
   archived?: boolean
+}
+
+export interface EquipmentLibraryMoveInput {
+  entryIds: string[]
+  targetFolderId?: string
+}
+
+export interface EquipmentLibraryMoveResult {
+  movedIds: string[]
+  collectionRoot: EquipmentCollectionRoot
+  targetFolderId?: string
 }
 
 export type LibraryTreeScope = 'items' | 'searches'
@@ -448,6 +516,11 @@ export interface MarketDomListingRef {
   listingId: string
   queryId?: string
   sourceUrl: string
+  /** Optional build slot carried by Find Better saves. */
+  slotName?: string
+  /** Optional PoB2 candidate augment behavior carried by Find Better saves. */
+  runeBehavior?: FindBetterAugmentBehavior
+  anointBehavior?: FindBetterAugmentBehavior
 }
 
 export type MarketVisitHideoutResult =
@@ -482,11 +555,13 @@ export interface EquipmentTradeSearchRequest {
   criteria?: TradePriceCheckCriteria
 }
 
-export type TradeListedStatus = 'securable' | 'available' | 'online' | 'any'
+export type TradeListedStatus = 'securable' | 'available' | 'onlineleague' | 'online' | 'any'
 
 export type TradePriceCheckTarget =
   | { kind: 'library'; entryId: string }
   | { kind: 'raw'; raw: string }
+
+export type PriceCheckMode = 'price-check' | 'find-better'
 
 export interface TradePriceCheckPrepareRequest {
   realm: MarketRealm
@@ -523,12 +598,41 @@ export interface TradePriceCheckModifierCriteria {
   max?: number
 }
 
+export type FindBetterSortMode = 'stat-value' | 'stat-value-price' | 'price' | 'weight'
+export type FindBetterAugmentBehavior = 'copy-current' | 'keep' | 'remove'
+
+export interface FindBetterStatWeight {
+  stat: string
+  label: string
+  weightMult: number
+  /** PoB2 applies a sign transform to metrics where lower is better. */
+  lowerIsBetter?: boolean
+}
+
+/** PoB2 Trader's weighted-search options. Kept out of ordinary price checks. */
+export interface FindBetterSearchOptions {
+  sortBy: FindBetterSortMode
+  statWeights: FindBetterStatWeight[]
+  /** Maximum number of official trade result pages to retrieve (10 items per page, 1-10). */
+  fetchPages?: number
+  includeCorrupted: boolean
+  includeMirrored: boolean
+  runeBehavior: FindBetterAugmentBehavior
+  anointBehavior: FindBetterAugmentBehavior
+  jewelType?: 'base' | 'radius'
+  maxPrice?: number
+  maxPriceCurrency?: string
+  maxLevel?: number
+  sockets?: number
+}
+
 export interface TradePriceCheckCriteria {
   listedStatus: TradeListedStatus
   useBaseType: boolean
   itemLevelMin?: number
   itemLevelMax?: number
   modifiers: TradePriceCheckModifierCriteria[]
+  findBetter?: FindBetterSearchOptions
 }
 
 export interface TradePriceCheckSearchRequest extends TradePriceCheckPrepareRequest {
@@ -551,6 +655,20 @@ export interface TradeSearchResult {
 
 export interface PriceCheckOpenRequest {
   source: TradePriceCheckTarget
+  mode?: PriceCheckMode
+  /** Equipped slot context used by the build-aware "find better" entry. */
+  slotName?: string
+  /** Current PoB build snapshot used to calculate build-aware trade weights. */
+  buildContext?: {
+    xml: string
+    slotName: string
+    buildRevision?: number
+    activeItemSetId?: string
+    activeWeaponSet?: 1 | 2
+    /** Item currently occupying the requested slot when the dialog opened. */
+    buildItemId?: string
+    configOverrides?: Record<string, boolean | number | string>
+  }
   initialLeagueId?: string
   /** Non-blocking diagnostics produced while importing a localized game item. */
   captureWarnings?: string[]
@@ -567,6 +685,23 @@ export interface PriceCheckListingView {
   listedAt?: string
   whisper?: string
   hideoutAvailable: boolean
+  /** Internal PoB text used for Find Better post-sorting. */
+  raw?: string
+  /** Build-aware score populated for Stat Value sorting. */
+  tradeScore?: number
+  /** Three decision values shown on a Find Better result card. */
+  candidateMetrics?: {
+    /** Local weapon DPS, independent of the rest of the build. */
+    weaponDps?: number
+    /** Displayed DPS metric after replacing the item. */
+    dpsMetric?: 'FullDPS' | 'CombinedDPS'
+    /** Final DPS change after replacing the item. */
+    fullDpsDelta?: number
+    fullDpsPercent?: number
+    /** Final TotalEHP change after replacing the item. */
+    totalEhpDelta?: number
+    totalEhpPercent?: number
+  }
 }
 
 export interface PriceCheckListingReference {
@@ -574,12 +709,25 @@ export interface PriceCheckListingReference {
   listingId: string
   queryId: string
   sourceUrl: string
+  /** Build slot used to evaluate this listing, when the search is build-aware. */
+  slotName?: string
+  /** PoB2 candidate augment behavior used by the build-aware search. */
+  runeBehavior?: FindBetterAugmentBehavior
+  anointBehavior?: FindBetterAugmentBehavior
+  /** Canonical PoB raw already used by the result card, when available. */
+  candidateRaw?: string
 }
 
 export interface PriceCheckContextState {
   generation: number
   realm: MarketRealm
   language: 'en' | 'zh-rCN' | 'zh-rTW' | 'ko-KR'
+  mode: PriceCheckMode
+  slotName?: string
+  /** Build snapshot retained by the independent Find Better dialog for PoB difference previews. */
+  buildContext?: PriceCheckOpenRequest['buildContext']
+  /** Augment behavior used by the active Find Better result set. */
+  findBetterComparison?: Pick<FindBetterSearchOptions, 'runeBehavior' | 'anointBehavior'>
   phase: 'idle' | 'parsing' | 'configuring' | 'searching' | 'fetching-page' | 'results' | 'error'
   draft?: TradePriceCheckDraft
   leagues: TradeLeague[]

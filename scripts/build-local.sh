@@ -113,6 +113,9 @@ if [[ "$SKIP_UPSTREAMS" -eq 0 ]]; then
   ensure_upstream_repo \
     "https://github.com/Chuanhsing/PoeCharm2.git" \
     "$ROOT/upstreams/PoeCharm2"
+  ensure_upstream_repo \
+    "https://github.com/maxensas/xiletrade.git" \
+    "$ROOT/upstreams/Xiletrade"
 else
   step "Skipping upstreams (--skip-upstreams)"
 fi
@@ -157,3 +160,4 @@ if [[ "$SKIP_PACKAGE" -eq 0 ]]; then
 else
   step "Skipping package (--skip-package)"
   echo "Done (setup only)."
+fi

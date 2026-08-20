@@ -1,6 +1,6 @@
 # SuperPoE2 产品路线图
 
-> 更新日期：2026-08-03
+> 更新日期：2026-08-11
 > 产品方向：面向 Windows 与 macOS Apple Silicon 桌面端的 PoE2 离线构筑规划工具。Electron 是唯一应用入口，renderer 使用 React、PixiJS 与 Web Worker；桌面计算优先使用 LuaJIT sidecar，WASM Lua 作为 fallback。
 
 ## 1. 路线图目标
@@ -10,10 +10,10 @@ SuperPoE2 的目标不是只展示天赋树，而是形成一套可以长期维�
 1. 新建或导入构筑。
 2. 编辑天赋、装备、技能和计算配置。
 3. 使用原版 PoB 数据与计算逻辑得到可信结果。
-4. 在本地可靠保存、备份、恢复和管理构筑。
+4. 在本地可靠管理构筑，并通过用户明确操作的原生文件提供备份、恢复和跨设备传递能力。
 5. 随 PoB2 与 PoeCharm2 上游更新，一键生成新版本运行资源。
 
-本文描述产品能力和交付顺序。工程历史与细粒度任务继续记录在 [TASKS.md](./TASKS.md)；早期 WASM 迁移方案保留在 [pob-wasm-frontend-migration-plan.md](./pob-wasm-frontend-migration-plan.md)，当前运行时以 [pob-lua-runtime.md](./pob-lua-runtime.md) 为准。
+本文描述产品能力和交付顺序。工程历史与细粒度任务继续记录在 [TASKS.md](./TASKS.md)；早期 WASM 迁移方案保留在 [pob-wasm-frontend-migration-plan.md](./pob-wasm-frontend-migration-plan.md)，当前运行时以 [pob-lua-runtime.md](./pob-lua-runtime.md) 为准。WeGame 装备兼容规则单独维护在 [pob-item-compatibility.md](./pob-item-compatibility.md)。
 
 ## 2. 状态定义
 
@@ -55,7 +55,7 @@ SuperPoE2 的目标不是只展示天赋树，而是形成一套可以长期维�
 | 属性节点 | 已完成 | 支持 Strength、Dexterity、Intelligence 导入、显示和右键切换 |
 | 搜索 | 已完成 | 支持英文与当前翻译文本搜索、数量、定位、高亮和回车循环 |
 | Tooltip | 已完成 | 使用 DOM 浮层和原版风格 header 资源，不阻塞 Pixi 交互 |
-| 珠宝 | 可用，待完善 | 可从 PoB 构筑读取珠宝并显示图形；珠宝半径、影响节点和完整词缀效果仍需补齐 |
+| 珠宝 | 可用，待完善 | 从 `PobBuildObject` active Spec 读取 `<Sockets>` 和 Item 记录并显示图形；已分配孔可从装备仓库绑定、替换和解除 PoB 识别的 Jewel；珠宝半径、影响节点和完整词缀效果仍需补齐 |
 
 ### 3.3 构筑数据、外部导入与原生文件
 
@@ -76,8 +76,8 @@ SuperPoE2 的目标不是只展示天赋树，而是形成一套可以长期维�
 | 装备孔 | 已完成 | 每行两个、22px、居中显示 Rune、Soul Core、Idol，并与技能宝石分离 |
 | 物品图片资源 | 可用，待完善 | 支持唯一物品、底材和 PoE2DB 图片索引；仍需持续做缺图覆盖检查 |
 | 技能展示 | 可用，待完善 | 解析 Skills/SkillSet/Gem，显示主技能、辅助技能、等级、品质、变体和启用状态 |
-| 装备编辑 | 规划中 | 当前只读，尚不能添加、删除、替换或编辑词缀与孔位 |
-| 技能编辑 | 规划中 | 当前只读，尚不能创建技能组、切换主技能、增删辅助或修改等级品质 |
+| 装备编辑 | 可用，待完善 | 已支持通过对象命令切换 ItemSet/武器组、替换槽位和写入 canonical Item Raw；词缀/孔位细粒度编辑仍待补齐 |
+| 技能编辑 | 可用，待完善 | 默认只读；详情编辑模式支持技能组启用/完整 DPS、主技能组、主技能与辅助宝石等级、品质和启用状态 |
 | 前端计算 | 可用，待完善 | Electron 优先通过 LuaJIT sidecar 计算；缺失或失败时回退 Web Worker + wasmoon，并显示核心属性、攻防、抗性与技能 DPS |
 | 原版计算一致性 | 可用，待完善 | 已有原生/浏览器运行时 fixture 和关键指标测试；仍需扩大多职业、多技能、多装备条件的 parity 覆盖与误差报告 |
 | 计算配置 | 可用，待完善 | 已提供本地配置方案、PoB 配置定义读取、条件值编辑、翻译和参与技能/装备计算；复杂条件覆盖仍需扩展 |
@@ -114,7 +114,7 @@ SuperPoE2 的目标不是只展示天赋树，而是形成一套可以长期维�
 这些方向的依赖关系如下：
 
 ```text
-集市页面 + 游戏内查价 ── 共享 Session / TradeProvider / TradeStatResolver
+集市页面 + 游戏内查价 ── 共享 Session / Xiletrade Projection / TradeProvider
              │
              └────────────── 统一装备仓库 ── 候选比较与构筑装备 Adapter
 
@@ -145,9 +145,9 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 - 内嵌集市、认证窗口和查价 API 共用 realm persistent session；Cookie 原文不得进入 renderer、仓库或日志。
 - 使用隔离 market preload 和国服/国际服 DOM Adapter，在新版 listing 卡片注入轻量收藏按钮；Adapter 失效时降级为原始官网。
 - 页面按钮只发送 `realm + queryId + listingId + sourceUrl`；主进程调用官方 Fetch 并校验为可信 `TradeListingView` 后才允许入库。
-- 建立共享 `TradeReferenceDataCache`、`TradeStatResolver`、`OfficialTradeProvider`、限流器和 query builder；运行时数据只来自对应 realm 官方接口。
+- 建立共享 Xiletrade 四语言解析与上下文消歧、`OfficialTradeProvider`、限流器和 query builder；官方 listing hash 优先，Search/Fetch/session 只使用对应 realm 官方接口。
 - 建立 `EquipmentLibraryRepository`。仓库装备是主体，`market-favorite`、`pob-import`、`equipment-favorite`、`price-check` 和 `manual` 是可并存来源。
-- 仓库词缀同时保存原始文本、结构化观察值和带 realm/catalog hash 的 Stat resolution；例如 `explicit.stat_3299347043` 只能作为可重新验证的解析快照，不能作为装备永久主键。
+- 仓库词缀同时保存原始文本、结构化观察值、Stat ID 候选和 `tradeDataVersion`；例如 `explicit.stat_3299347043` 只能作为可重新投影的查询快照，不能作为装备永久主键。
 - 同一装备多来源幂等合并；取消一个来源不误删其他来源、目录、标签或备注；市场下架只更新来源状态并保留装备快照。
 - 提供仓库侧栏和独立仓库界面，支持全部装备、市场收藏、PoB 导入、装备收藏和查价记录等来源视图，以及目录、标签、备注、归档和来源页。
 - 支持从仓库装备和当前构筑装备生成同一 `TradeSearchForm`，显示对应 realm/赛季的官方挂牌结果。
@@ -184,29 +184,28 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 
 ### M2：布局、工作流与构筑管理可靠化（P0）
 
-目标：先把当前第一版界面打磨成稳定工作台，并确保用户编辑数小时的构筑不会因为清理缓存、升级应用或误操作而丢失。
+目标：先把当前第一版界面打磨成稳定工作台，明确构筑中心与原生文件的边界，并减少误操作造成的当前会话丢失。
 
-持久化、版本兼容、迁移、草稿和恢复的完整方案见 [`persistent-storage-design.md`](./persistent-storage-design.md)；构筑状态收敛以 [`pob-build-object-design.md`](./pob-build-object-design.md) 定义的完整 PoB2 XML 内存对象为准。旧 `BuildDocument` 重建 XML 的方案已作废。开发版与正式版默认共享 `userData`；每个构筑使用独立 JSON，装备仓库整体使用一个 JSON；自动化测试使用隔离目录。
+构筑状态收敛以 [`pob-build-object-design.md`](./pob-build-object-design.md) 定义的完整 PoB2 XML 内存对象为准。旧 `BuildDocument` 重建 XML 的方案已作废。当前构筑中心继续使用现有 `localStorage` 保存；`.spoe` 文件仅作为用户明确打开、保存副本和导入导出的原生文件格式，不迁移为 Electron `userData/builds/` 内部构筑库。`persistent-storage-design.md` 中的文件库迁移方案仅作历史参考，自动化测试使用隔离目录。
 
 - 按真实使用流程继续优化构筑中心、双层工具栏、天赋、装备、技能和计算页面。
 - 统一面板密度、空状态、加载状态、错误状态、菜单、确认框、tooltip 和操作反馈。
 - 保证常用桌面窗口尺寸连续自适应，不要求用户使用指定分辨率。
-- 将命名构筑从 `localStorage` 迁移到 Electron `userData/builds/`。
-- 每个构筑使用独立 SuperPoE 原生文件；当前内部序列化可以是 JSON，启动时扫描目录生成内存摘要，不保存永久构筑索引。
-- 首次启动自动迁移已有 `pob2-saved-builds`，迁移成功后保留一次回滚备份。
-- 实现自动草稿、显式保存、另存为、重命名、复制和删除确认。
+- 保持构筑中心现有保存、打开、搜索、最近打开和删除流程稳定；不新增内部构筑文件库迁移或自动草稿。
+- 继续完善 `.spoe` 文件的显式打开、保存副本、校验和系统文件关联。
+- 完善显式保存、另存为、重命名、复制和删除确认，并明确区分当前构筑会话与外部文件。
 - 关闭窗口、替换当前构筑、切换版本时统一处理未保存修改。
-- 增加单构筑原生文件复制、全量备份和批量恢复，文件格式带 `schemaVersion`。
 - 构筑中心补齐装备数量、技能数量和最近打开时间的可靠统计。
-- 增加保存、迁移、损坏文件和磁盘写入失败测试。
+- 增加显式文件打开/保存失败、未保存离开和数据校验测试。
 
-**完成标准**：核心流程在常用桌面窗口下无重叠和不可达操作；升级应用和重新安装同版本后构筑仍可恢复；异常退出最多丢失最后一次自动草稿间隔内的修改。
+**完成标准**：核心流程在常用桌面窗口下无重叠和不可达操作；`.spoe` 文件可通过显式打开和保存副本完成可靠往返；切换页面、替换构筑和退出时对未保存修改给出明确反馈。内部构筑库文件化、自动草稿和 localStorage 迁移不属于本里程碑。
 
 ### M3：统一 PoB XML 对象与可编辑装备/技能（P0）
 
 目标：从“展示导入的 PoB XML”升级为“真正编辑完整构筑”。
 
 - 建立前端统一 `PobBuildObject`，完整映射 PoB2 XML 的元素、属性和有序子节点。
+- 由根级 Store/Session 持有当前激活构筑的唯一 `PobBuildObject`；对象只在当前 BD 生命周期内存在，切换构筑或关闭时释放。
 - 导入 PoB Code 后只创建一次对象，不再由装备页和技能页各自重复解码 XML。
 - 所有编辑操作更新同一 XML 对象，并能无损重新导出 PoB Code。
 - 装备页支持装备组、武器组、槽位替换、删除和基础物品编辑。
@@ -273,7 +272,7 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 
 - 推荐使用“游戏内复制物品文本 + 可配置全局快捷键 + Electron 浮层”的方式获取装备，不读取游戏内存、不注入进程、不分析网络包。
 - 服务器统一读取全局默认值；解析剪贴板物品文本的语言、底材、稀有度、词缀、孔位和需求，赛季从对应区服官方列表选择。
-- 调用 M0 建立的共享 `TradeProvider` 和 `TradeStatResolver` 查询价格，显示价格区间、样本数量、来源和更新时间。
+- 调用 M0 建立的共享 Xiletrade Projection 和 `TradeProvider` 查询价格，显示价格区间、样本数量、来源和更新时间。
 - 将物品临时代入当前激活构筑和对应装备槽，调用与 M5 相同的增量计算流程。
 - 浮层显示主技能 DPS、Full DPS、生命、护盾、抗性、护甲、闪避等关键变化，并标记属性或抗性不满足。
 - 支持固定/取消固定、切换目标槽位、展开详细构成、打开交易页面和加入候选列表。
@@ -360,7 +359,7 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 
 1. 完成 M0 真实站点 smoke test：验证双区服登录分区、listing 引用、收藏/取消收藏、Fetch Stat/hash、Search 和 Live 长时运行。
 2. 完成通货行情数据源验收：验证当前赛季选择、缓存新鲜度、异常报价、断网回退和区服切换。
-3. 继续完善 M2 文件级保存、自动草稿和损坏恢复；当前 localStorage 方案仍需迁移到 Electron `userData`。
+3. 继续完善 M2 工作台可靠性：未保存离开保护、`.spoe` 显式文件往返、加载状态和构筑摘要统计。
 4. 收敛 M3 的可编辑装备/技能模型，同时保持仓库装备通过 Adapter 进入构筑，不能合并两套模型。
 5. 扩大 M4 parity fixtures，覆盖召唤、持续伤害、触发技能、技能阶段和更多 Config，并继续补齐伤害/防御来源追踪。
 6. 保持 M1 自动发布工作流可用，并用阶段性版本持续做 Windows/macOS 安装包 smoke test。
@@ -392,13 +391,13 @@ Electron 文件能力 ─────────── 游戏内 BD 规划器�
 以下默认建议可直接作为实施基线，也可以由产品方向调整：
 
 1. **应用平台**：只支持 Windows Electron 桌面应用，不提供独立浏览器版入口。
-2. **保存格式**：每个构筑一个 SuperPoE 原生文件，当前内部可使用可读 JSON 序列化，索引损坏时仍能扫描恢复；不优先引入 SQLite。
+2. **保存格式**：构筑中心继续使用现有 `localStorage`；`.spoe` 作为用户明确打开、保存副本和导入导出的原生文件格式。当前不建设内部构筑文件库，也不引入 SQLite。
 3. **首个稳定版范围**：建议必须包含天赋、装备、技能的基础编辑和可信计算，而不是只读装备/技能。
 4. **计算标准**：建议以选定回归构筑的关键指标与原版 PoB 一致为发布门槛，而不是要求所有 Lua 内部状态逐位一致。
 5. **WeGame 导入**：建议保留 PoE2DB 外部依赖，并在失败时允许用户手动粘贴 PoB Code，不尝试模拟网页。
 6. **多语言优先级**：建议简体中文和英文作为发布阻塞项，繁体中文和韩文保持可用但允许较低覆盖率。
 7. **DPS 排名范围**：建议第一阶段只比较当前构筑已有技能组和候选辅助宝石，不直接做全服玩家排行榜。
-8. **市场数据源**：国际服和腾讯国服都使用各自官方 Trade2 API；Stat、物品、过滤器与赛季数据按区服隔离并只缓存官方响应，不依赖 Xiletrade。
+8. **市场数据源**：国际服和腾讯国服都使用各自官方 Trade2 API；Stat、物品、过滤器与赛季数据按区服隔离并只缓存官方响应。Xiletrade 只提供剪贴板结构解析参考和版本化 ParsingRules，不作为市场数据源。
 9. **装备建议目标**：建议先做“指定槽位 + 指定预算”的候选排序，不在第一版做全身自动配装。
 10. **游戏规划器**：实现前需要提供或采集一个游戏生成的规划器文件样本和实际目录，先验证格式再设计写入接口。
 11. **游戏内查价交互**：建议采用复制物品文本后按快捷键弹出浮层；需要确认是否符合你预期的使用方式。

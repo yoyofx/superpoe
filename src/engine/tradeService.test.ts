@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { buildTradeQuery, createPriceCheckDraft, OfficialTradeProvider, TradeStatResolver } from '../../electron/tradeService'
+import { buildTradeQuery, createPriceCheckDraft, OfficialTradeProvider } from '../../electron/tradeService'
 import { OfficialTradeRequestError } from '../../electron/officialTradeRequestError'
 import type { MarketViewManager } from '../../electron/marketView'
 import type { TradeReferenceDataCache } from '../../electron/tradeService'
@@ -18,164 +18,44 @@ function item(lines: string[]): LibraryItemSnapshot {
   }
 }
 
-const catalog = {
-  realm: 'global' as const,
-  fetchedAt: '2026-07-29T00:00:00.000Z', payloadHash: 'catalog-hash',
-  entries: [
-    { id: 'explicit.stat_3299347043', text: '# to maximum Life' },
-    { id: 'enchant.stat_10', text: 'Allocates #', option: { options: [{ id: '42', text: 'Beef' }] } },
-  ],
+function withResolution(source: LibraryItemSnapshot, index: number, statId: string, realm: 'global' | 'cn' = 'global', valueMode: 'numeric' | 'presence' | 'fixed-option' = 'numeric'): LibraryItemSnapshot {
+  const resolved = structuredClone(source)
+  resolved.modifiers[index].tradeResolutions = [{
+    realm, queryStatId: statId, candidateStatIds: [statId], source: 'explicit',
+    valueMode, valueTransform: 'identity', resolvedBy: 'exact-text', status: 'resolved',
+  }]
+  return resolved
 }
 
-describe('shared trade resolver and query builder', () => {
-  it('resolves numeric templates and builds queries only from resolved snapshots', () => {
-    const resolved = new TradeStatResolver().resolve(item(['+109 to maximum Life', 'Unknown modifier']), catalog)
-    expect(resolved.modifiers[0].tradeResolutions[0]).toMatchObject({
-      queryStatId: 'explicit.stat_3299347043', status: 'resolved', catalogPayloadHash: 'catalog-hash',
-    })
-    expect(resolved.modifiers[1].tradeResolutions[0].status).toBe('unresolved')
+describe('trade query builder', () => {
+  it('builds queries only from Xiletrade-resolved snapshots', () => {
+    const resolved = withResolution(item(['+109 to maximum Life', 'Unknown modifier']), 0, 'explicit.stat_3299347043')
     const built = buildTradeQuery(resolved, 'global')
     expect(built).toMatchObject({ resolved: 1, unresolved: 1 })
     expect(built.query).toMatchObject({ query: { status: { option: 'online' }, stats: [{ filters: [{ id: 'explicit.stat_3299347043', value: { min: 109 } }] }] } })
   })
 
   it('keeps fixed option IDs intact and does not submit a numeric range', () => {
-    const resolved = new TradeStatResolver().resolve(item(['Allocates Beef']), catalog)
-    expect(resolved.modifiers[0].tradeResolutions[0]).toMatchObject({
-      queryStatId: 'enchant.stat_10|42', baseStatId: 'enchant.stat_10', optionId: '42', valueMode: 'fixed-option', status: 'resolved',
-    })
+    const resolved = withResolution(item(['Allocates Beef']), 0, 'enchant.stat_10|42', 'global', 'fixed-option')
     const built = buildTradeQuery(resolved, 'global')
     expect(built.query).toMatchObject({ query: { stats: [{ filters: [{ id: 'enchant.stat_10|42' }] }] } })
   })
 
-  it('deduplicates repeated catalog IDs before deciding ambiguity', () => {
-    const duplicateCatalog = { ...catalog, entries: [catalog.entries[0], catalog.entries[0]] }
-    const resolved = new TradeStatResolver().resolve(item(['+109 to maximum Life']), duplicateCatalog)
-    expect(resolved.modifiers[0].tradeResolutions[0].status).toBe('resolved')
-  })
-
-  it('matches positive numeric values against signed catalog placeholders', () => {
-    const signedCatalog = {
-      ...catalog,
-      entries: [{ id: 'explicit.stat_spirit', text: '+# to Spirit' }],
-    }
-    const resolved = new TradeStatResolver().resolve(item(['+2 to Spirit']), signedCatalog)
-    expect(resolved.modifiers[0].tradeResolutions[0]).toMatchObject({
-      queryStatId: 'explicit.stat_spirit', status: 'resolved',
-    })
-  })
-
-  it('uses the modifier group to disambiguate repeated official stat templates', () => {
-    const scopedCatalog = {
-      ...catalog,
-      entries: [
-        { id: 'explicit.stat_spirit', text: '# to Spirit' },
-        { id: 'implicit.stat_spirit', text: '# to Spirit' },
-      ],
-    }
-    const implicit = item(['+2 to Spirit'])
-    implicit.modifiers[0].group = 'implicit'
-    implicit.modifiers[0].sourceTags = []
-    const resolved = new TradeStatResolver().resolve(implicit, scopedCatalog)
-    expect(resolved.modifiers[0].tradeResolutions[0]).toMatchObject({
-      queryStatId: 'implicit.stat_spirit', status: 'resolved', candidateStatIds: ['implicit.stat_spirit'],
-    })
-  })
-
-  it('queries duplicate same-scope stat IDs as an OR-like count group', () => {
-    const duplicateCatalog = {
-      ...catalog,
-      entries: [
-        { id: 'explicit.stat_spirit_a', text: '# to Spirit' },
-        { id: 'explicit.stat_spirit_b', text: '# to Spirit' },
-      ],
-    }
-    const resolved = new TradeStatResolver().resolve(item(['+2 to Spirit']), duplicateCatalog)
-    const built = buildTradeQuery(resolved, 'global')
-    expect(built).toMatchObject({ resolved: 1, unresolved: 0 })
-    expect(built.query).toMatchObject({ query: { stats: [{ type: 'count', value: { min: 1 }, filters: [{ id: 'explicit.stat_spirit_a' }, { id: 'explicit.stat_spirit_b' }] }] } })
-  })
-
-  it('uses the Tencent securable status instead of the empty online market scope', () => {
-    const resolved = new TradeStatResolver().resolve(item(['+109 to maximum Life']), { ...catalog, realm: 'cn' })
-    expect(buildTradeQuery(resolved, 'cn').query).toMatchObject({ query: { status: { option: 'securable' } } })
-  })
-
-  it('does not submit an untranslated English base type to Tencent', () => {
-    const resolved = new TradeStatResolver().resolve(item(['+109 to maximum Life']), { ...catalog, realm: 'cn' })
-    expect(buildTradeQuery(resolved, 'cn').query).not.toHaveProperty('query.type')
-  })
-
-  it('uses localized base types and modifier text for Tencent searches', () => {
-    const localizedItem = item(['+109 to maximum Life'])
-    localizedItem.localized = { 'zh-CN': { name: '灾厄之壳', baseType: '专家咒术长袍' } }
-    localizedItem.modifiers[0].localized = {
-      'zh-CN': { lines: ['+109 最大生命'], displayText: '+109 最大生命' },
-    }
-    const cnCatalog = {
-      ...catalog,
-      realm: 'cn' as const,
-      entries: [{ id: 'explicit.stat_3299347043', text: '# 最大生命' }],
-    }
-
-    const resolved = new TradeStatResolver().resolve(localizedItem, cnCatalog)
-    const built = buildTradeQuery(resolved, 'cn')
-
-    expect(resolved.modifiers[0].tradeResolutions[0]).toMatchObject({
-      queryStatId: 'explicit.stat_3299347043', status: 'resolved',
-    })
-    expect(built.query).toMatchObject({
-      query: {
-        status: { option: 'securable' },
-        type: '专家咒术长袍',
-        stats: [{ filters: [{ id: 'explicit.stat_3299347043', value: { min: 109 } }] }],
-      },
-    })
-  })
-
-  it('matches Chinese skill level stats when the catalog adds the Bonded presentation prefix', () => {
-    const localizedItem = item(['+3 to Level of all Attack Skills'])
-    localizedItem.modifiers[0].group = 'rune'
-    localizedItem.modifiers[0].sourceTags = ['rune']
-    localizedItem.modifiers[0].localized = {
-      'zh-CN': { lines: ['所有攻击技能等级 +3'], displayText: '所有攻击技能等级 +3' },
-    }
-    const cnCatalog = {
-      ...catalog,
-      realm: 'cn' as const,
-      entries: [{ id: 'rune.stat_attack_level', text: '羁绊： 所有攻击技能等级 #' }],
-    }
-
-    const resolved = new TradeStatResolver().resolve(localizedItem, cnCatalog)
-    expect(resolved.modifiers[0].tradeResolutions[0]).toMatchObject({
-      queryStatId: 'rune.stat_attack_level', status: 'resolved',
-    })
-  })
-
-  it('matches Chinese granted skills despite the catalog and UI using different level order', () => {
-    const localizedItem = item(['Grants Skill: Level 19 The Stars Answer'])
-    localizedItem.modifiers[0].group = 'implicit'
-    localizedItem.modifiers[0].sourceTags = ['implicit']
-    localizedItem.modifiers[0].localized = {
-      'zh-CN': { lines: ['获得技能: 19 级群星召唤'], displayText: '获得技能: 19 级群星召唤' },
-    }
-    const cnCatalog = {
-      ...catalog,
-      realm: 'cn' as const,
-      entries: [{ id: 'skill.the_stars_answer', text: '获得技能: 等级 # 群星召唤', type: 'skill' }],
-    }
-
-    const resolved = new TradeStatResolver().resolve(localizedItem, cnCatalog)
-    expect(resolved.modifiers[0].tradeResolutions[0]).toMatchObject({
-      queryStatId: 'skill.the_stars_answer', status: 'resolved',
-    })
+  it('uses Tencent status and localized base type without rematching text', () => {
+    const source = item(['+109 to maximum Life'])
+    source.localized = { 'zh-CN': { name: '灾厄之壳', baseType: '专家咒术长袍' } }
+    const resolved = withResolution(source, 0, 'explicit.stat_3299347043', 'cn')
+    expect(buildTradeQuery(resolved, 'cn').query).toMatchObject({ query: {
+      status: { option: 'securable' }, type: '专家咒术长袍',
+      stats: [{ filters: [{ id: 'explicit.stat_3299347043', value: { min: 109 } }] }],
+    } })
   })
 
   it('builds a PoB-style query from only the user-selected modifiers and ranges', () => {
     const source = item(['+109 to maximum Life', 'Unknown modifier'])
     source.tradeCategory = 'armour.chest'
     source.itemLevel = 82
-    const resolved = new TradeStatResolver().resolve(source, catalog)
+    const resolved = withResolution(source, 0, 'explicit.stat_3299347043')
     const draft = createPriceCheckDraft(resolved, 'global')
     expect(draft.modifiers).toMatchObject([
       { id: 'explicit-0', searchable: true, currentValue: 109, sourceTags: ['explicit'] },
@@ -216,6 +96,193 @@ describe('shared trade resolver and query builder', () => {
     } })
   })
 
+  it('keeps the lightweight fallback distinct from a price check', () => {
+    const resolved = withResolution(item(['+109 to maximum Life']), 0, 'explicit.stat_3299347043')
+    const built = buildTradeQuery(resolved, 'global', {
+      listedStatus: 'online', useBaseType: false, modifiers: [{ id: 'explicit-0' }],
+    }, 'find-better')
+    expect(built.query).toMatchObject({ query: {
+      stats: [{ type: 'weight', value: { min: 0 }, filters: [{ id: 'explicit.stat_3299347043', value: { weight: 1 } }] }],
+    }, sort: { 'statgroup.0': 'desc' } })
+    expect((built.query as { query: Record<string, unknown> }).query).not.toHaveProperty('name')
+  })
+
+  it('does not constrain a weighted replacement search to a unique item name or base', () => {
+    const unique = withResolution(item(['+109 to maximum Life']), 0, 'explicit.stat_3299347043')
+    unique.rarity = 'UNIQUE'
+    unique.name = 'Alpha\'s Howl'
+    unique.baseType = 'Secutor Casque'
+    unique.tradeCategory = 'armour.helmet'
+    const built = buildTradeQuery(unique, 'global', {
+      listedStatus: 'online', useBaseType: false, modifiers: [{ id: 'explicit-0' }],
+    }, 'find-better')
+    const query = (built.query as { query: Record<string, unknown> }).query
+    expect(query).not.toHaveProperty('name')
+    expect(query).not.toHaveProperty('type')
+    expect(query).toMatchObject({
+      filters: { type_filters: { filters: { category: { option: 'armour.helmet' } } } },
+      stats: [{ type: 'weight' }],
+    })
+  })
+
+  it('strips identity fields from a weighted query override before submission', async () => {
+    const submitted: unknown[] = []
+    const manager = {
+      fetchStats: async () => ({ result: [{ entries: [] }] }),
+      search: async (_realm: string, _leagueId: string, query: unknown) => {
+        submitted.push(query)
+        return {
+          id: 'weighted-search',
+          total: 21,
+          result: Array.from({ length: 20 }, (_, index) => `candidate-${index}`),
+        }
+      },
+      rememberGeneratedSearch: () => undefined,
+    } as unknown as MarketViewManager
+    const cache = {
+      get: async () => ({
+        realm: 'global' as const,
+        fetchedAt: '2026-08-04T00:00:00.000Z',
+        payloadHash: 'test-catalog',
+        entries: [],
+      }),
+    } as unknown as TradeReferenceDataCache
+    const provider = new OfficialTradeProvider(manager, cache, undefined, (_realm, source) => source)
+    await provider.search(
+      'global',
+      'League',
+      item([]),
+      {
+        listedStatus: 'online',
+        useBaseType: false,
+        modifiers: [],
+        findBetter: {
+          sortBy: 'weight',
+          statWeights: [],
+          includeCorrupted: true,
+          includeMirrored: true,
+          runeBehavior: 'copy-current',
+          anointBehavior: 'copy-current',
+        },
+      },
+      'find-better',
+      {
+        query: {
+          query: {
+            name: 'Alpha\'s Howl',
+            type: 'Secutor Casque',
+            status: { option: 'online' },
+            stats: [{ type: 'weight', value: { min: 1 }, filters: [] }],
+          },
+          sort: { 'statgroup.0': 'desc' },
+        },
+      },
+    )
+    const submittedRoot = (submitted[0] as { query: Record<string, unknown> }).query
+    expect(submittedRoot).not.toHaveProperty('name')
+    expect(submittedRoot).not.toHaveProperty('type')
+  })
+
+  it('matches PoB2 weighted threshold adjustment and bounded candidate batches', async () => {
+    const searches: unknown[] = []
+    const remembered: unknown[] = []
+    const manager = {
+      fetchStats: async () => ({ result: [{ entries: [] }] }),
+      search: async (_realm: string, _leagueId: string, query: unknown) => {
+        searches.push(query)
+        if (searches.length === 1) {
+          return { id: 'first-search', total: 10000, result: Array.from({ length: 30 }, (_, index) => `first-${index}`) }
+        }
+        return { id: 'final-search', total: 25, result: Array.from({ length: 25 }, (_, index) => `final-${index}`) }
+      },
+      fetchListings: async () => ({ result: [{ item: { pseudoMods: ['Sum: 100'] } }] }),
+      rememberGeneratedSearch: (_realm: string, _leagueId: string, id: string, query: unknown) => remembered.push({ id, query }),
+    } as unknown as MarketViewManager
+    const cache = {
+      get: async () => ({
+        realm: 'global' as const,
+        fetchedAt: '2026-08-04T00:00:00.000Z',
+        payloadHash: 'test-catalog',
+        entries: [],
+      }),
+    } as unknown as TradeReferenceDataCache
+    const provider = new OfficialTradeProvider(manager, cache, undefined, (_realm, source) => source)
+    const result = await provider.search(
+      'global',
+      'League',
+      item(['+109 to maximum Life']),
+      { listedStatus: 'online', useBaseType: false, modifiers: [] },
+      'find-better',
+      {
+        query: {
+          query: {
+            status: { option: 'online' },
+            stats: [{ type: 'weight', value: { min: 10 }, filters: [{ id: 'explicit.stat_life', value: { weight: 1 } }] }],
+          },
+          sort: { 'statgroup.0': 'desc' },
+        },
+        resolved: 1,
+      },
+    )
+
+    expect(searches).toHaveLength(2)
+    expect((searches[1] as { query: { stats: [{ value: { min: number } }] } }).query.stats[0].value.min).toBe(55)
+    expect(result.searchId).toBe('final-search')
+    expect(result.listingIds).toHaveLength(20)
+    expect(remembered).toHaveLength(1)
+  })
+
+  it('uses the configured Fetch Pages limit for weighted candidates', async () => {
+    const manager = {
+      fetchStats: async () => ({ result: [{ entries: [] }] }),
+      search: async () => ({
+        id: 'fetch-pages-search',
+        total: 45,
+        result: Array.from({ length: 45 }, (_, index) => `candidate-${index}`),
+      }),
+      rememberGeneratedSearch: () => undefined,
+    } as unknown as MarketViewManager
+    const cache = {
+      get: async () => ({
+        realm: 'global' as const,
+        fetchedAt: '2026-08-04T00:00:00.000Z',
+        payloadHash: 'test-catalog',
+        entries: [],
+      }),
+    } as unknown as TradeReferenceDataCache
+    const result = await new OfficialTradeProvider(manager, cache, undefined, (_realm, source) => source).search(
+      'global',
+      'League',
+      item([]),
+      {
+        listedStatus: 'online',
+        useBaseType: false,
+        modifiers: [],
+        findBetter: {
+          sortBy: 'weight',
+          statWeights: [],
+          fetchPages: 3,
+          includeCorrupted: true,
+          includeMirrored: true,
+          runeBehavior: 'copy-current',
+          anointBehavior: 'copy-current',
+        },
+      },
+      'find-better',
+      {
+        query: {
+          query: {
+            status: { option: 'online' },
+            stats: [{ type: 'weight', value: { min: 1 }, filters: [] }],
+          },
+          sort: { 'statgroup.0': 'desc' },
+        },
+      },
+    )
+
+    expect(result.listingIds).toHaveLength(30)
+  })
+
   it('falls back to a type-only search when the official API rejects detailed stats', async () => {
     const calls: unknown[] = []
     const manager = {
@@ -235,7 +302,12 @@ describe('shared trade resolver and query builder', () => {
         entries: [{ id: 'explicit.stat_life', text: '# to maximum Life' }],
       }),
     } as unknown as TradeReferenceDataCache
-    const result = await new OfficialTradeProvider(manager, cache).search('global', 'Runes of Aldur', item(['+109 to maximum Life']))
+    const result = await new OfficialTradeProvider(
+      manager,
+      cache,
+      undefined,
+      (_realm, source) => withResolution(source, 0, 'explicit.stat_life'),
+    ).search('global', 'Runes of Aldur', item(['+109 to maximum Life']))
 
     expect(result).toMatchObject({ searchId: 'fallback-search', resolvedModifierCount: 0, unresolvedModifierCount: 1 })
     expect(calls).toHaveLength(3)

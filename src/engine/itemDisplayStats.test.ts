@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { deriveItemDisplayRequirements, deriveItemDisplayStats, deriveWeaponComparisonStats } from './itemDisplayStats'
+import { deriveItemDisplayRequirements, deriveItemDisplayStats, deriveWeaponComparisonStats, deriveWeaponComparisonStatsFromRaw } from './itemDisplayStats'
 import type { EquipmentItem } from '@/types/equipment'
 
 describe('deriveItemDisplayStats', () => {
@@ -91,6 +91,29 @@ describe('deriveItemDisplayStats', () => {
       expect.objectContaining({ key: 'elementalDamage', value: '5-15' }),
       expect.objectContaining({ key: 'chaosDamage', value: '10-20' }),
     ]))
+  })
+
+  it('derives library weapon metrics from standalone PoB item text', () => {
+    const raw = [
+      'Rarity: RARE',
+      'Storm Edge',
+      'Dull Hatchet',
+      'Quality: +20%',
+      'Adds 10 to 20 Fire Damage',
+      '25% increased Attack Speed',
+    ].join('\n')
+
+    expect(deriveWeaponComparisonStatsFromRaw(raw, {
+      'Dull Hatchet': {
+        type: 'One Hand Axe',
+        weapon: { PhysicalMin: 4, PhysicalMax: 10, AttackRateBase: 1.5 },
+      },
+    })).toEqual([
+      { key: 'APS', value: '1.88' },
+      { key: 'DPS', value: '44.1' },
+      { key: 'pDPS', value: '15.9' },
+      { key: 'eDPS', value: '28.1' },
+    ])
   })
 
   it('reproduces runeforged glove defences and quality-adjusted requirements', () => {

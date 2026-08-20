@@ -290,6 +290,13 @@ export const GRANTED_SKILLS: Record<string, GrantedSkillInfo> = {
     tagString: 'Trigger',
     gemType: 'Buff',
   },
+  "Queen's Procession": {
+    skill: "Queen's Procession",
+    skillId: 'RitualistQueenInTheMistsSkill',
+    name: "Queen's Procession",
+    description: "While active, Sprinting turns you into a locust swarm which deals Physical Attack damage, which is not based on your Weapon's damage, in an area around you. You take damage and gain Heavy Stun buildup if this Hits any targets, but damage you take from other sources while sprinting will not apply Heavy Stun or interrupt your sprinting.",
+    gemType: 'Attack',
+  },
   'Ritual Sacrifice': {
     skill: 'Ritual Sacrifice',
     skillId: 'RitualSacrificePlayer',

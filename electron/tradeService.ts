@@ -3,18 +3,21 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import type {
   LibraryItemSnapshot, LibraryModifier, MarketRealm, TradeLeague, TradePriceCheckCriteria,
-  TradePriceCheckDraft, TradeSearchResult, TradeStatResolutionSnapshot,
+  PriceCheckMode, TradePriceCheckDraft, TradeSearchResult, TradeStatResolutionSnapshot,
 } from '../src/types/market.js'
 import type { MarketViewManager } from './marketView.js'
 import { OfficialTradeRequestError } from './officialTradeRequestError.js'
 
-interface CatalogOption { id: string; text: string }
-interface CatalogEntry { id: string; text: string; type?: string; option?: { options?: CatalogOption[] } }
-interface CatalogSnapshot { realm: MarketRealm; fetchedAt: string; payloadHash: string; entries: CatalogEntry[] }
+export interface CatalogOption { id: string; text: string }
+export interface CatalogEntry { id: string; text: string; type?: string; option?: { options?: CatalogOption[] } }
+export interface CatalogSnapshot { realm: MarketRealm; fetchedAt: string; payloadHash: string; entries: CatalogEntry[] }
 
 interface SearchResponse { id?: unknown; total?: unknown; result?: unknown }
 
-type TradeStatMatch = { entry: CatalogEntry; queryStatId: string; option?: CatalogOption }
+const WEIGHTED_SEARCH_PAGE_SIZE = 10
+const WEIGHTED_SEARCH_FETCH_PAGES_DEFAULT = 2
+const WEIGHTED_SEARCH_FETCH_PAGES_MAX = 10
+const WEIGHTED_SEARCH_MAX_RECURSION = 5
 
 const CATALOG_TTL = 24 * 60 * 60 * 1_000
 
@@ -26,47 +29,63 @@ function clean(value: unknown): string {
   return typeof value === 'string' ? value.replace(/<<[^>]+>>/g, '').trim() : ''
 }
 
-function normalizeTemplate(value: string): string {
-  return value
-    // The Chinese advanced clipboard/catalog may include the Bonded label
-    // as presentation context. It is not part of the searchable stat text.
-    .replace(/^(?:bonded|羁绊|羈絆)\s*[:：]\s*/iu, '')
-    .replace(/[-+]?\d+(?:\.\d+)?/g, (number) => number.startsWith('-') ? '-#' : '#')
-    .replace(/\+(?=#)/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .toLocaleLowerCase()
+function searchResultIds(response: SearchResponse): string[] {
+  return Array.isArray(response.result)
+    ? response.result.filter((value): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]+$/.test(value))
+    : []
 }
 
-function normalizeTemplateVariants(value: string): string[] {
-  const normalized = normalizeTemplate(value)
-  const variants = new Set([normalized])
-
-  // PoB's Chinese presentation uses "# 级技能", while the official CN
-  // catalog uses "等级 # 技能" for granted skills.
-  const grantedSkill = normalized.match(/^获得技能\s*[:：]\s*#\s*级\s*(.+)$/iu)
-  if (grantedSkill) variants.add(`获得技能: 等级 # ${grantedSkill[1]}`)
-
-  const catalogOrder = normalized.match(/^获得技能\s*[:：]\s*等级\s*#\s*(.+)$/iu)
-  if (catalogOrder) variants.add(`获得技能: # 级${catalogOrder[1]}`)
-
-  return [...variants]
+function weightedMin(query: unknown): number | undefined {
+  const root = record(query)
+  const body = record(root.query)
+  const stats = Array.isArray(body.stats) ? body.stats : []
+  const weight = record(stats[0])
+  const value = record(weight.value)
+  return finiteValue(typeof value.min === 'number' ? value.min : undefined)
 }
 
-function normalizeText(value: string): string {
-  return value.replace(/\s+/g, ' ').trim().toLocaleLowerCase()
+function setWeightedMin(query: unknown, min: number): unknown {
+  const next = structuredClone(query) as Record<string, unknown>
+  const body = record(next.query)
+  const stats = Array.isArray(body.stats) ? body.stats : []
+  const weight = record(stats[0])
+  const value = record(weight.value)
+  value.min = min
+  weight.value = value
+  stats[0] = weight
+  body.stats = stats
+  next.query = body
+  return next
 }
 
-function statScope(queryStatId: string): string {
-  return queryStatId.split('.')[0] || ''
+function isWeightedQuery(query: unknown): boolean {
+  const body = record(record(query).query)
+  const stats = Array.isArray(body.stats) ? body.stats : []
+  return record(stats[0]).type === 'weight' && weightedMin(query) != null
 }
 
-function preferredStatScopes(modifier: LibraryModifier): Set<string> {
-  const known = new Set(['explicit', 'implicit', 'enchant', 'rune', 'fractured', 'crafted', 'desecrated'])
-  const tagged = modifier.sourceTags.filter((tag) => known.has(tag))
-  if (tagged.length) return new Set(tagged)
-  if (modifier.group === 'implicit' || modifier.group === 'enchant' || modifier.group === 'rune') return new Set([modifier.group])
-  return new Set(['explicit'])
+function weightedFetchLimit(fetchPages: number | undefined): number {
+  const pages = Number.isInteger(fetchPages) && fetchPages != null
+    ? Math.min(Math.max(fetchPages, 1), WEIGHTED_SEARCH_FETCH_PAGES_MAX)
+    : WEIGHTED_SEARCH_FETCH_PAGES_DEFAULT
+  return pages * WEIGHTED_SEARCH_PAGE_SIZE
+}
+
+function listedWeight(value: unknown): number | undefined {
+  const item = record(record(value).item)
+  const candidates = [item.weight, item.pseudoMods, item.pseudo_mods]
+  for (const candidate of candidates) {
+    const values = Array.isArray(candidate) ? candidate : [candidate]
+    for (const entry of values) {
+      const text = typeof entry === 'string' ? entry : clean(record(entry).text || record(entry).description)
+      const match = text.match(/(?:^|\b)Sum:\s*([+-]?(?:\d+(?:\.\d*)?|\.\d+))/i)
+      if (match) {
+        const value = Number(match[1])
+        if (Number.isFinite(value)) return value
+      }
+    }
+  }
+  return undefined
 }
 
 function parseEntries(payload: unknown): CatalogEntry[] {
@@ -139,63 +158,6 @@ export class TradeReferenceDataCache {
 
 }
 
-export class TradeStatResolver {
-  resolve(item: LibraryItemSnapshot, catalog: CatalogSnapshot): LibraryItemSnapshot {
-    return {
-      ...structuredClone(item),
-      modifiers: item.modifiers.map((modifier) => this.resolveModifier(modifier, catalog)),
-    }
-  }
-
-  private resolveModifier(modifier: LibraryModifier, catalog: CatalogSnapshot): LibraryModifier {
-    const previous = modifier.tradeResolutions.find((resolution) => resolution.realm === catalog.realm)
-    const existing = previous?.status === 'resolved' ? previous : undefined
-    if (existing) {
-      const [baseId] = existing.queryStatId?.split('|') || []
-      if (baseId && catalog.entries.some((entry) => entry.id === baseId)) return structuredClone(modifier)
-    }
-    const sourceText = catalog.realm === 'cn'
-      ? modifier.localized?.['zh-CN']?.displayText || modifier.original.displayText
-      : modifier.original.displayText
-    const templates = normalizeTemplateVariants(sourceText)
-    const directMatches: TradeStatMatch[] = catalog.entries
-      .filter((entry) => templates.includes(normalizeTemplate(entry.text)))
-      .map((entry) => ({ entry, queryStatId: entry.id }))
-    const optionMatches: TradeStatMatch[] = catalog.entries.flatMap((entry) => (entry.option?.options || []).flatMap((option) => (
-      normalizeText(entry.text.replace('#', option.text)) === normalizeText(sourceText)
-        ? [{ entry, option, queryStatId: `${entry.id}|${option.id}` }]
-        : []
-    )))
-    const allMatches = [...new Map([...optionMatches, ...directMatches].map((match) => [match.queryStatId, match])).values()]
-    const scopes = preferredStatScopes(modifier)
-    const scopedMatches = allMatches.filter((match) => scopes.has(statScope(match.queryStatId)))
-    const matches = scopedMatches.length ? scopedMatches : allMatches
-    const candidates = matches.map((match) => match.queryStatId).slice(0, 20)
-    const match = matches.length === 1 ? matches[0] : undefined
-    const scopedResolution = scopedMatches.length > 0 && matches.length > 0
-    const fixedOption = match ? (match as { option?: CatalogOption }).option : undefined
-    const resolution: TradeStatResolutionSnapshot = {
-      realm: catalog.realm,
-      queryStatId: scopedResolution || match ? matches[0]?.queryStatId : undefined,
-      baseStatId: match?.entry.id,
-      optionId: fixedOption?.id,
-      candidateStatIds: candidates,
-      source: modifier.sourceTags.find((tag) => ['enchant', 'rune', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated'].includes(tag)) as TradeStatResolutionSnapshot['source'] || 'unknown',
-      catalogTemplate: match?.entry.text,
-      valueMode: fixedOption ? 'fixed-option' : modifier.valueMode,
-      valueTransform: previous?.valueTransform || 'identity',
-      resolvedBy: 'exact-text',
-      catalogFetchedAt: catalog.fetchedAt,
-      catalogPayloadHash: catalog.payloadHash,
-      status: matches.length === 0 ? 'unresolved' : (matches.length === 1 || scopedResolution) ? 'resolved' : 'ambiguous',
-    }
-    return {
-      ...structuredClone(modifier),
-      tradeResolutions: [...modifier.tradeResolutions.filter((candidate) => candidate.realm !== catalog.realm), resolution],
-    }
-  }
-}
-
 function localizedTradeBaseType(item: LibraryItemSnapshot): string | undefined {
   const localized = clean(item.localized?.['zh-CN']?.baseType)
   if (!localized) return undefined
@@ -224,8 +186,7 @@ function resolutionFor(modifier: LibraryModifier, realm: MarketRealm): TradeStat
 
 function resolutionIds(resolution: TradeStatResolutionSnapshot | undefined): string[] {
   if (!resolution) return []
-  return [...new Set((resolution.candidateStatIds.length ? resolution.candidateStatIds : [resolution.queryStatId])
-    .filter((id): id is string => Boolean(id)))]
+  return resolution.queryStatId ? [resolution.queryStatId] : []
 }
 
 function finiteValue(value: number | undefined): number | undefined {
@@ -278,9 +239,9 @@ export function createPriceCheckDraft(item: LibraryItemSnapshot, realm: MarketRe
   }
 }
 
-export function buildTradeQuery(item: LibraryItemSnapshot, realm: MarketRealm, criteria?: TradePriceCheckCriteria): { query: unknown; resolved: number; unresolved: number } {
+export function buildTradeQuery(item: LibraryItemSnapshot, realm: MarketRealm, criteria?: TradePriceCheckCriteria, mode: PriceCheckMode = 'price-check'): { query: unknown; resolved: number; unresolved: number } {
   const selected = criteria ? new Map(criteria.modifiers.map((modifier) => [modifier.id, modifier])) : undefined
-  const statGroups = item.modifiers.flatMap((modifier) => {
+  const statFilters = item.modifiers.flatMap((modifier) => {
     const selection = selected?.get(modifier.id)
     if (selected && !selection) return []
     const resolution = resolutionFor(modifier, realm)
@@ -289,13 +250,16 @@ export function buildTradeQuery(item: LibraryItemSnapshot, realm: MarketRealm, c
     const value = resolution.valueMode === 'numeric'
       ? (criteria ? selectedRange(resolution, selection?.min, selection?.max) : { min: modifier.currentValues[0] })
       : undefined
-    const filters = statIds.map((id) => ({ id, ...(value ? { value } : {}) }))
-    return [{
-      type: statIds.length > 1 ? 'count' : 'and',
-      ...(statIds.length > 1 ? { value: { min: 1 } } : {}),
-      filters,
-    }]
+    return statIds.map((id) => ({ id, ...(value ? { value } : {}) }))
   })
+  const weighted = mode === 'find-better'
+  const queryStats = weighted
+    ? (statFilters.length ? [{
+      type: 'weight',
+      value: { min: 0 },
+      filters: statFilters.map((filter) => ({ id: filter.id, value: { weight: 1 } })),
+    }] : [])
+    : (statFilters.length ? [{ type: 'and', filters: statFilters }] : [])
   const unique = isUniqueItem(item)
   const type = queryItemType(item, realm)
   const miscFilters = criteria && (criteria.itemLevelMin != null || criteria.itemLevelMax != null)
@@ -303,22 +267,28 @@ export function buildTradeQuery(item: LibraryItemSnapshot, realm: MarketRealm, c
     : undefined
   const queryFilters = {
     ...(miscFilters ? { misc_filters: miscFilters } : {}),
-    ...(!unique && item.tradeCategory ? { type_filters: { filters: { category: { option: item.tradeCategory } } } } : {}),
+    ...((weighted || !unique) && item.tradeCategory ? { type_filters: { filters: { category: { option: item.tradeCategory } } } } : {}),
   }
   const requestedCount = selected?.size ?? item.modifiers.length
+  // PoB2 weighted searches use the slot category and nonunique rarity filter
+  // as their default. A unique item in that slot is still a replacement
+  // candidate, so its name/base type must not silently constrain the query.
+  const includeType = weighted
+    ? criteria?.useBaseType === true
+    : (unique || criteria?.useBaseType !== false)
   return {
     query: {
       query: {
         status: { option: criteria?.listedStatus || (realm === 'cn' ? 'securable' : 'online') },
-        ...(unique && queryItemName(item, realm) ? { name: queryItemName(item, realm) } : {}),
-        ...((unique || criteria?.useBaseType !== false) && type ? { type } : {}),
-        stats: statGroups,
+        ...(!weighted && unique && queryItemName(item, realm) ? { name: queryItemName(item, realm) } : {}),
+        ...(includeType && type ? { type } : {}),
+        stats: queryStats,
         ...(Object.keys(queryFilters).length ? { filters: queryFilters } : {}),
       },
-      sort: { price: 'asc' },
+      sort: weighted ? { 'statgroup.0': 'desc' } : { price: 'asc' },
     },
-    resolved: statGroups.length,
-    unresolved: requestedCount - statGroups.length,
+    resolved: statFilters.length,
+    unresolved: requestedCount - statFilters.length,
   }
 }
 
@@ -338,6 +308,7 @@ function logTradeQuery(
   realm: MarketRealm,
   leagueId: string,
   phase: 'detailed' | 'type-only',
+  mode: PriceCheckMode,
   item: LibraryItemSnapshot,
   query: unknown,
   resolvedModifierCount: number,
@@ -347,7 +318,10 @@ function logTradeQuery(
     realm,
     leagueId,
     phase,
-    item: {
+    mode,
+    // Keep the source item metadata visibly separate from the API query.
+    // This prevents the diagnostic name from being mistaken for query.name.
+    sourceItem: {
       name: item.name,
       baseType: item.baseType,
       rarity: item.rarity,
@@ -375,7 +349,12 @@ export class OfficialTradeProvider {
   private queue: Promise<void> = Promise.resolve()
   private lastRequestAt = 0
 
-  constructor(private readonly manager: MarketViewManager, private readonly cache: TradeReferenceDataCache) {}
+  constructor(
+    private readonly manager: MarketViewManager,
+    private readonly cache: TradeReferenceDataCache,
+    private readonly embeddedCatalog?: (realm: MarketRealm) => Promise<CatalogSnapshot>,
+    private readonly projectItem?: (realm: MarketRealm, item: LibraryItemSnapshot, catalog: CatalogSnapshot) => Promise<LibraryItemSnapshot> | LibraryItemSnapshot,
+  ) {}
 
   stats(realm: MarketRealm): Promise<CatalogSnapshot> {
     return this.cache.get(realm, () => this.limited(() => this.manager.fetchStats(realm)))
@@ -393,27 +372,130 @@ export class OfficialTradeProvider {
   }
 
   async prepare(realm: MarketRealm, item: LibraryItemSnapshot): Promise<{ draft: TradePriceCheckDraft; resolvedItem: LibraryItemSnapshot }> {
-    const catalog = await this.stats(realm)
-    const resolvedItem = new TradeStatResolver().resolve(item, catalog)
+    const catalog = this.embeddedCatalog ? await this.embeddedCatalog(realm) : await this.stats(realm)
+    const resolvedItem = this.projectItem ? await this.projectItem(realm, item, catalog) : structuredClone(item)
     return { draft: createPriceCheckDraft(resolvedItem, realm), resolvedItem }
   }
 
-  async search(realm: MarketRealm, leagueId: string, item: LibraryItemSnapshot, criteria?: TradePriceCheckCriteria): Promise<TradeSearchResult & { resolvedItem: LibraryItemSnapshot; listingIds: string[] }> {
+  /**
+   * Mirrors PoB2's SearchWithQueryWeightAdjusted loop. A weighted query is
+   * repeatedly narrowed or widened until the API can provide a useful,
+   * bounded candidate set. The final query remains the one used for the
+   * generated trade URL.
+   */
+  private async searchWeighted(
+    realm: MarketRealm,
+    leagueId: string,
+    initialQuery: unknown,
+    maxFetchPerSearch: number,
+  ): Promise<{ query: unknown; response: SearchResponse; listingIds: string[] }> {
+    let query = structuredClone(initialQuery)
+    let previousResponse: SearchResponse | undefined
+    for (let attempt = 0; attempt < WEIGHTED_SEARCH_MAX_RECURSION; attempt += 1) {
+      const response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
+      const ids = searchResultIds(response)
+      const total = typeof response.total === 'number' && Number.isFinite(response.total) ? response.total : ids.length
+      const min = weightedMin(query)
+       if (!isWeightedQuery(query) || min == null) return { query, response, listingIds: ids.slice(0, maxFetchPerSearch) }
+
+       if (ids.length > 0 && total > maxFetchPerSearch && total < 10_000) {
+         return { query, response, listingIds: ids.slice(0, maxFetchPerSearch) }
+       }
+       if (attempt === WEIGHTED_SEARCH_MAX_RECURSION - 1) {
+         return { query, response, listingIds: ids.slice(0, maxFetchPerSearch) }
+       }
+
+       if (total < maxFetchPerSearch || ids.length === 0) {
+        // PoB2 halves the lower bound when too few listings match.
+        query = setWeightedMin(query, min / 2)
+        previousResponse = response
+        continue
+      }
+
+      // The API is clipped at 10,000 results. Fetch the highest-weight item
+      // from the current search and bisect between its score and the bound.
+      const searchId = clean(response.id)
+      if (!searchId || !this.manager.fetchListings) {
+        return { query, response, listingIds: ids.slice(0, maxFetchPerSearch) }
+       }
+       const firstBatch = ids.slice(0, WEIGHTED_SEARCH_PAGE_SIZE)
+      const fetched = record(await this.limited(() => this.manager.fetchListings(realm, firstBatch, searchId)))
+      const entries = Array.isArray(fetched.result) ? fetched.result : []
+      const highestWeight = entries.map(listedWeight).find((value): value is number => value != null)
+      if (highestWeight == null || !Number.isFinite(highestWeight)) {
+        return { query, response, listingIds: ids.slice(0, maxFetchPerSearch) }
+      }
+      query = setWeightedMin(query, (highestWeight + min) / 2)
+      previousResponse = response
+    }
+    // The loop always returns, but keep the fallback explicit for type safety.
+    return { query, response: previousResponse || {}, listingIds: [] }
+  }
+
+  async search(
+    realm: MarketRealm,
+    leagueId: string,
+    item: LibraryItemSnapshot,
+    criteria?: TradePriceCheckCriteria,
+    mode: PriceCheckMode = 'price-check',
+    queryOverride?: { query: unknown; resolved?: number },
+  ): Promise<TradeSearchResult & { resolvedItem: LibraryItemSnapshot; listingIds: string[] }> {
     const { resolvedItem } = await this.prepare(realm, item)
-    const built = buildTradeQuery(resolvedItem, realm, criteria)
+    const built = queryOverride
+      ? { query: queryOverride.query, resolved: queryOverride.resolved ?? 0, unresolved: 0 }
+      : buildTradeQuery(resolvedItem, realm, criteria, mode)
     let query = built.query
+    if (queryOverride && query && typeof query === 'object') {
+      const overrideQuery = structuredClone(query) as { query?: Record<string, unknown> }
+      const root = overrideQuery.query
+      if (root) {
+        root.status = { option: criteria?.listedStatus || (realm === 'cn' ? 'securable' : 'online') }
+        if (mode === 'find-better') {
+          // PoB2's ordinary weighted replacement search is category based.
+          // Item names are only used by its separate special-jewel paths;
+          // this bridge does not expose those paths, so never let an item
+          // identity from a future/older Lua payload narrow the search.
+          delete root.name
+          if (criteria?.useBaseType !== true) delete root.type
+        }
+        if (criteria?.useBaseType) {
+          const type = queryItemType(resolvedItem, realm)
+          if (type) root.type = type
+        }
+        const min = finiteValue(criteria?.itemLevelMin)
+        const max = finiteValue(criteria?.itemLevelMax)
+        if (min != null || max != null) {
+          const filters = (root.filters && typeof root.filters === 'object' ? root.filters : {}) as Record<string, unknown>
+          const misc = (filters.misc_filters && typeof filters.misc_filters === 'object' ? filters.misc_filters : {}) as Record<string, unknown>
+          misc.filters = { ilvl: { ...(min == null ? {} : { min }), ...(max == null ? {} : { max }) } }
+          filters.misc_filters = misc
+          root.filters = filters
+        }
+      }
+      query = overrideQuery
+    }
     let resolvedModifierCount = built.resolved
     let unresolvedModifierCount = built.unresolved
     let response: SearchResponse
+    let weightedListingIds: string[] | undefined
     try {
-      logTradeQuery(realm, leagueId, 'detailed', resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
-      response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
+      if (mode === 'find-better' && isWeightedQuery(query)) {
+        const adjusted = await this.searchWeighted(realm, leagueId, query, weightedFetchLimit(criteria?.findBetter?.fetchPages))
+        query = adjusted.query
+        response = adjusted.response
+        weightedListingIds = adjusted.listingIds
+      } else {
+        response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
+      }
+      // Log the final query that produced the visible result URL. For a
+      // weighted search this includes PoB2's threshold adjustment.
+      logTradeQuery(realm, leagueId, 'detailed', mode, resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
     } catch (error) {
-      if (criteria || !(error instanceof OfficialTradeRequestError) || error.status !== 400 || built.resolved === 0 || !queryItemType(resolvedItem, realm)) throw error
+      if (criteria || mode !== 'price-check' || !(error instanceof OfficialTradeRequestError) || error.status !== 400 || built.resolved === 0 || !queryItemType(resolvedItem, realm)) throw error
       query = buildTypeOnlyQuery(resolvedItem, realm)
       resolvedModifierCount = 0
       unresolvedModifierCount = resolvedItem.modifiers.length
-      logTradeQuery(realm, leagueId, 'type-only', resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
+      logTradeQuery(realm, leagueId, 'type-only', mode, resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
       response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
     }
     const searchId = clean(response.id)
@@ -426,9 +508,7 @@ export class OfficialTradeProvider {
       total: typeof response.total === 'number' ? response.total : 0,
       resolvedModifierCount,
       unresolvedModifierCount,
-      listingIds: Array.isArray(response.result)
-        ? response.result.filter((value): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]+$/.test(value)).slice(0, 10_000)
-        : [],
+      listingIds: weightedListingIds || searchResultIds(response).slice(0, 10_000),
       resolvedItem,
     }
   }

@@ -76,8 +76,11 @@ export function ExportPanel({ embedded = false, buildName = 'SuperPoE2 Build', s
   const selectedClassId = useTreeStore((s) => s.selectedClassId)
   const selectedAscendancyId = useTreeStore((s) => s.selectedAscendancyId)
   const treeData = useTreeStore((s) => s.treeData)
-  const importedBuildCode = useTreeStore((s) => s.importedBuildCode)
+  const pobBuildRevision = useTreeStore((s) => s.pobBuildRevision)
+  const getActivePobCode = useTreeStore((s) => s.getActivePobCode)
   const nodeCount = allocatedNodes.size
+
+  const currentBuildCode = getActivePobCode()
 
   const handlePobExport = useCallback(async () => {
     if (nodeCount === 0) return
@@ -85,22 +88,25 @@ export function ExportPanel({ embedded = false, buildName = 'SuperPoE2 Build', s
     setError(null)
     setCode('')
     try {
-      const classPayload = getEncodeClassPayload(treeData, selectedClassId, selectedAscendancyId)
-      const result = encodeBuildCode({
-        nodes: [...allocatedNodes],
-        nodeWeaponSets,
-        nodeAttributeSelections,
-        treeVersion,
-        baseCode: importedBuildCode || undefined,
-        ...classPayload,
-      })
-      setCode(result.code || '')
+      if (currentBuildCode) {
+        setCode(currentBuildCode)
+      } else {
+        const classPayload = getEncodeClassPayload(treeData, selectedClassId, selectedAscendancyId)
+        const result = encodeBuildCode({
+          nodes: [...allocatedNodes],
+          nodeWeaponSets,
+          nodeAttributeSelections,
+          treeVersion,
+          ...classPayload,
+        })
+        setCode(result.code || '')
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setLoading(false)
     }
-  }, [allocatedNodes, importedBuildCode, nodeAttributeSelections, nodeCount, nodeWeaponSets, selectedAscendancyId, selectedClassId, treeData, treeVersion])
+  }, [allocatedNodes, currentBuildCode, nodeAttributeSelections, nodeCount, nodeWeaponSets, selectedAscendancyId, selectedClassId, treeData, treeVersion, pobBuildRevision])
 
   const handlePlannerGenerate = useCallback(async () => {
     if (!treeData) return
@@ -118,7 +124,7 @@ export function ExportPanel({ embedded = false, buildName = 'SuperPoE2 Build', s
         allocatedNodes,
         nodeWeaponSets,
         nodeAttributeSelections,
-        importedBuildCode,
+        importedBuildCode: currentBuildCode,
         language: lang,
       }))
       setShowCompatibilityDetails(false)
@@ -128,7 +134,7 @@ export function ExportPanel({ embedded = false, buildName = 'SuperPoE2 Build', s
     } finally {
       setLoading(false)
     }
-  }, [allocatedNodes, buildName, importedBuildCode, lang, nodeAttributeSelections, nodeWeaponSets, selectedAscendancyId, selectedClassId, sourceUrl, treeData, treeVersion])
+  }, [allocatedNodes, buildName, currentBuildCode, lang, nodeAttributeSelections, nodeWeaponSets, selectedAscendancyId, selectedClassId, sourceUrl, treeData, treeVersion, pobBuildRevision])
 
   const handleCopy = useCallback(async () => {
     if (!code) return
@@ -183,9 +189,26 @@ export function ExportPanel({ embedded = false, buildName = 'SuperPoE2 Build', s
       <span className="text-xs text-gray-500">{l(`${nodeCount} nodes`, `${nodeCount} 个节点`, `${nodeCount} 個節點`, `노드 ${nodeCount}개`)}</span>
     </div>
 
-    <div className="mb-3 grid grid-cols-2 border border-[#464238] bg-[#11130f] p-0.5">
-      <button className={`h-8 text-xs ${mode === 'pob' ? 'bg-[#312a19] text-[#e2c878]' : 'text-gray-400 hover:text-gray-200'}`} onClick={() => { setMode('pob'); setError(null) }}>PoB Code</button>
-      <button className={`flex h-8 items-center justify-center gap-1.5 text-xs ${mode === 'game' ? 'bg-[#312a19] text-[#e2c878]' : 'text-gray-400 hover:text-gray-200'}`} onClick={() => { setMode('game'); setError(null) }}><Gamepad2 className="h-4 w-4" />{l('Game Planner', '游戏规划器', '遊戲規劃器', '게임 플래너')}</button>
+    <div className="export-mode-switch" role="tablist" aria-label={l('Export format', '导出格式', '匯出格式', '내보내기 형식')}>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mode === 'pob'}
+        className={`export-mode-button${mode === 'pob' ? ' active' : ''}`}
+        onClick={() => { setMode('pob'); setError(null) }}
+      >
+        PoB Code
+      </button>
+      <button
+        type="button"
+        role="tab"
+        aria-selected={mode === 'game'}
+        className={`export-mode-button export-mode-button-game${mode === 'game' ? ' active' : ''}`}
+        onClick={() => { setMode('game'); setError(null) }}
+      >
+        <Gamepad2 className="h-4 w-4" />
+        {l('Game Planner', '游戏规划器', '遊戲規劃器', '게임 플래너')}
+      </button>
     </div>
 
     {mode === 'pob' && (code ? <div className="space-y-2">

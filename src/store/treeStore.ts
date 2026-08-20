@@ -7,10 +7,16 @@ import { create } from 'zustand'
 
 
 import type { BuildRealm, TreeData, SavedBuild } from '@/types/tree'
+import type { JewelRadiusPreview } from '@/types/jewelRadius'
 import { LANGUAGE_OPTIONS, getLocalizedSearchText, loadTranslations, type Language } from '@/i18n/translationLoader'
 import { decodeBuildCode, encodeBuildCode, getBuildActiveWeaponSet, getBuildCharacterLevel, getEncodeClassPayload } from '@/engine/buildCode'
 import { calculateBuild, rankSkillsByEffectiveDps } from '@/engine/pobLuaClient'
+import { calculationCache, createCalculationCacheKeys } from '@/engine/calculationCache'
 import { clearPersistedImportedBuild, getInitialImportedBuildCode } from '@/engine/buildPersistence'
+import { createActiveBuildSession, type ActiveBuildSession } from '@/engine/pobBuildSession'
+import type { PobBuildChange, PobBuildCommand, PobTreeState } from '@/engine/pobBuildObject'
+import { parseEquipmentObject } from '@/engine/equipment'
+import { getSinisterJewelSocketIds } from '@/engine/sinisterJewelSockets'
 import { DEFAULT_BUILD_REALM, inferBuildRealm } from '@/engine/buildRealm'
 import { getRenderTreePoint, getSelectedAscendancyProjection } from '@/engine/treeRenderShared'
 import { parseTreeDataResource } from '@/engine/treeDataResource'
@@ -18,6 +24,7 @@ import { resolveTreeAscendancy, resolveTreeClass } from '@/engine/treeClassResol
 import {
   cleanAttributeSelections,
   nextAttributeSelection,
+  type AttributeSelection,
   type NodeAttributeSelections,
 } from '@/engine/attributeNodes'
 import {
@@ -112,6 +119,8 @@ interface Snapshot {
   availableNodes: string[]
   nodeWeaponSets: NodeWeaponSets
   nodeAttributeSelections: NodeAttributeSelections
+  /** Canonical PoB XML at the point this tree snapshot was captured. */
+  pobXml?: string | null
 }
 
 const MAX_UNDO = 50
@@ -146,11 +155,18 @@ function snapshotFromState(
   nodeWeaponSets: NodeWeaponSets,
   nodeAttributeSelections: NodeAttributeSelections,
 ): Snapshot {
+  let pobXml: string | null = null
+  try {
+    pobXml = activeBuildSession?.object.snapshot().xml || null
+  } catch {
+    // Tree editing remains available for legacy builds without a live object.
+  }
   return {
     allocatedNodes: [...allocatedNodes],
     availableNodes: [...availableNodes],
     nodeWeaponSets: { ...nodeWeaponSets },
     nodeAttributeSelections: { ...nodeAttributeSelections },
+    pobXml,
   }
 }
 
@@ -242,6 +258,22 @@ interface TreeStore {
   selectedAscendancyId: string
 
   importedBuildCode: string | null
+  /** Renderer-visible revision of the active PoB XML object. */
+  pobBuildRevision: number
+  /** Returns the latest Code generated from the active PoB object. */
+  getActivePobCode: () => string | null
+  /** Returns the latest XML snapshot from the active PoB object. */
+  getActivePobXml: () => string | null
+  /** Returns the active Tree Spec projection from the canonical PoB object. */
+  getActivePobTreeState: () => PobTreeState | null
+  /** Returns all Tree Specs and the active index from the canonical object. */
+  getActivePobTreeSpecStates: () => { activeSpecIndex: number; specs: PobTreeState[] } | null
+  /** Returns passive jewel records referenced by the active Tree Spec. */
+  getActivePobTreeJewelItems: () => import('@/engine/buildCode').NodeJewels
+  /** Returns the exact Raw and Item id referenced by a passive jewel socket. */
+  getActivePobTreeJewelRaw: (nodeId: string) => { itemId: string; raw: string } | null
+  /** Stable id used when saving items from an unsaved in-memory build. */
+  getActiveBuildLibraryId: () => string
 
 
 
@@ -314,6 +346,8 @@ interface TreeStore {
 
 
   selectedNodeId: string | null
+
+  jewelRadiusPreview: JewelRadiusPreview | null
 
 
 
@@ -576,6 +610,9 @@ interface TreeStore {
 
   setSelectedNode: (id: string | null) => void
 
+  setJewelRadiusPreview: (preview: JewelRadiusPreview | null) => void
+  clearJewelRadiusPreview: () => void
+
 
 
 
@@ -644,10 +681,30 @@ interface TreeStore {
 
 
   toggleNode: (id: string) => void
+  allocateNodeWithAttribute: (id: string, selection: AttributeSelection) => void
   cycleAttributeNode: (id: string) => void
   setTreeEditMode: (enabled: boolean) => void
   setWeaponSetMode: (mode: 0 | 1 | 2) => void
   setActiveWeaponSet: (weaponSet: 1 | 2) => void
+  setActiveItemSet: (itemSetId: string) => void
+  setEquipmentSlotItem: (itemSetId: string, slotName: string, itemId: string) => void
+  replaceEquipmentSlotWithRaw: (itemSetId: string, slotName: string, raw: string) => string | null
+  replaceEquipmentItemRaw: (itemId: string, raw: string) => void
+  bindTreeJewelRaw: (nodeId: string, raw: string) => void
+  unbindTreeJewel: (nodeId: string) => void
+  updateSkillGem: (
+    skillSetId: string,
+    skillIndex: number,
+    gemIndex: number,
+    attributes: Record<string, string | undefined>,
+  ) => void
+  updateSkillGroup: (
+    skillSetId: string,
+    skillIndex: number,
+    attributes: Record<string, string | undefined>,
+  ) => void
+  setActiveSkillSet: (skillSetId: string) => void
+  setMainSocketGroup: (groupId: string) => void
   selectMastery: (nodeId: string, effectId: string) => void
   cancelMastery: () => void
   addSpec: (title: string) => void
@@ -743,6 +800,7 @@ interface TreeStore {
   runCalculation: (selection?: {
     itemSetId?: string
     weaponSet?: 1 | 2
+    characterOnly?: boolean
     skillGroupId?: string
     calcMode?: SkillCalculationMode
     activeSkillIndex?: number
@@ -770,6 +828,7 @@ interface TreeStore {
 
 
   clearCalcResult: () => void
+  applyPobBuildCommand: (command: PobBuildCommand) => PobBuildChange | null
   setActiveCalculationProfile: (id: string) => void
   addCalculationProfile: (copyCurrent?: boolean) => void
   renameCalculationProfile: (id: string, name: string) => void
@@ -812,6 +871,115 @@ interface TreeStore {
 
 
 let calculationRequestId = 0
+let activeBuildSession: ActiveBuildSession | null = null
+let activeUnsavedBuildLibraryId = `unsaved-${globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`
+
+export function getActiveBuildSession(): ActiveBuildSession | null {
+  return activeBuildSession
+}
+
+function replaceActiveBuildSession(buildId: string | null, code: string | null | undefined): void {
+  activeBuildSession?.dispose()
+  activeBuildSession = null
+  activeUnsavedBuildLibraryId = buildId || `unsaved-${globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`
+  if (!code?.trim()) return
+  try {
+    activeBuildSession = createActiveBuildSession(buildId, code)
+  } catch {
+    // Keep the existing Code compatibility path available for malformed legacy data.
+  }
+}
+
+function getActiveBuildCode(fallback: string | null | undefined): string | null {
+  try {
+    return activeBuildSession?.object.toCode() || fallback || null
+  } catch {
+    return fallback || null
+  }
+}
+
+/**
+ * Migrate the legacy saved UI weapon-set value into the canonical build XML.
+ * Older saved builds can contain a different activeWeaponSet than their PoB
+ * code. Calculations must only read the PobBuildObject, so reconcile this
+ * compatibility metadata immediately after loading the object.
+ */
+function syncLoadedWeaponSetToBuildObject(requestedWeaponSet: 1 | 2): 1 | 2 {
+  const session = activeBuildSession
+  if (!session) return requestedWeaponSet
+
+  try {
+    const equipment = parseEquipmentObject(session.object)
+    const itemSet = equipment?.itemSets.find((entry) => entry.id === equipment.activeItemSetId)
+      || equipment?.itemSets[0]
+    if (!itemSet) return requestedWeaponSet
+
+    const useSecondWeaponSet = requestedWeaponSet === 2
+    session.apply({
+      type: 'set-equipment-selection',
+      itemSetId: itemSet.id,
+      useSecondWeaponSet,
+      section: 'items',
+    })
+  } catch {
+    // Keep loading legacy or incomplete builds even when their Items section
+    // cannot be reconciled.
+  }
+  return requestedWeaponSet
+}
+
+function buildTreeStateCommand(state: Pick<
+  TreeStore,
+  'allocatedNodes' | 'nodeWeaponSets' | 'nodeAttributeSelections' | 'treeVersion'
+  | 'selectedClassId' | 'selectedAscendancyId' | 'treeData' | 'masterySelections'
+>): PobBuildCommand {
+  const classPayload = getEncodeClassPayload(state.treeData || undefined, state.selectedClassId, state.selectedAscendancyId)
+  const nodeIds = new Set(state.allocatedNodes)
+  const nodesForWeaponSet = (weaponSet: 1 | 2) => Object.entries(state.nodeWeaponSets)
+    .filter(([nodeId, assigned]) => assigned === weaponSet && nodeIds.has(nodeId))
+    .map(([nodeId]) => nodeId)
+  const selectedAttributes = Object.entries(state.nodeAttributeSelections)
+    .filter(([nodeId, selection]) => nodeIds.has(nodeId) && (selection === 1 || selection === 2 || selection === 3))
+  const currentTreeState = activeBuildSession?.object.getTreeState()
+  return {
+    type: 'replace-tree-state',
+    state: {
+      treeVersion: state.treeVersion,
+      classId: classPayload.classId,
+      ascendClassId: classPayload.ascendClassId,
+      classInternalId: classPayload.classInternalId,
+      ascendancyInternalId: classPayload.ascendancyInternalId,
+      className: classPayload.className,
+      ascendancyName: classPayload.ascendancyName,
+      nodes: [...state.allocatedNodes],
+      masterySelections: { ...state.masterySelections },
+      jewelSockets: { ...(currentTreeState?.jewelSockets || {}) },
+      weaponSet1Nodes: nodesForWeaponSet(1),
+      weaponSet2Nodes: nodesForWeaponSet(2),
+      attributeOverride: {
+        strNodes: selectedAttributes.filter(([, selection]) => selection === 1).map(([nodeId]) => nodeId),
+        dexNodes: selectedAttributes.filter(([, selection]) => selection === 2).map(([nodeId]) => nodeId),
+        intNodes: selectedAttributes.filter(([, selection]) => selection === 3).map(([nodeId]) => nodeId),
+      },
+    } satisfies PobTreeState,
+    section: 'tree',
+  }
+}
+
+function syncTreeObjectFromStore(getState: () => TreeStore): void {
+  if (!activeBuildSession) return
+  try {
+    getState().applyPobBuildCommand(buildTreeStateCommand(getState()))
+  } catch {
+    // Legacy or incomplete XML without a Tree section keeps the compatibility path.
+  }
+}
+
+function buildStoreSpecs(treeSpecs: PobTreeState[] | undefined): Array<{ id: string; title: string; nodes: string[] }> {
+  return treeSpecs?.length
+    ? treeSpecs.map((spec, index) => ({ id: `xml-spec-${index + 1}`, title: `Tree ${index + 1}`, nodes: [...spec.nodes] }))
+    : [{ id: 'default', title: 'Tree 1', nodes: [] }]
+}
 
 const DEFAULT_CALCULATION_PROFILE: LocalCalculationProfile = { id: 'default', name: 'Default', values: {} }
 
@@ -885,6 +1053,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
   selectedAscendancyId: 'Stormweaver',
 
   importedBuildCode: getInitialImportedBuildCode(),
+  pobBuildRevision: 0,
 
 
 
@@ -925,6 +1094,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
   selectedNodeId: null,
+
+  jewelRadiusPreview: null,
 
 
 
@@ -1391,7 +1562,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-    get().loadTreeData()
+    await get().loadTreeData()
+    syncTreeObjectFromStore(get)
 
 
 
@@ -1545,7 +1717,13 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-  setSelectedNode: (id) => set({ selectedNodeId: id }),
+  setSelectedNode: (id) => set((state) => ({
+    selectedNodeId: id,
+    jewelRadiusPreview: id === state.selectedNodeId ? state.jewelRadiusPreview : null,
+  })),
+
+  setJewelRadiusPreview: (preview) => set({ jewelRadiusPreview: preview }),
+  clearJewelRadiusPreview: () => set({ jewelRadiusPreview: null }),
 
 
 
@@ -1629,7 +1807,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      set({ searchMatchIds: [], searchMatchCount: 0, selectedNodeId: null })
+      set({ searchMatchIds: [], searchMatchCount: 0, selectedNodeId: null, jewelRadiusPreview: null })
 
 
 
@@ -1727,6 +1905,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       searchMatchIds: matches,
       searchMatchCount: matchCount,
       selectedNodeId: firstMatch || null,
+      jewelRadiusPreview: null,
       ...(firstNode ? { offsetX: -focusX, offsetY: -focusY } : {}),
     })
 
@@ -1785,6 +1964,15 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       rebuilt.allocatedNodes,
       options.nodeAttributeSelections,
     )
+    if (options.importedBuildCode !== undefined) {
+      replaceActiveBuildSession(null, options.importedBuildCode || null)
+    }
+    let importedTreeState: PobTreeState | undefined
+    try { importedTreeState = activeBuildSession?.object.getTreeState() }
+    catch { importedTreeState = undefined }
+    let importedSpecStates: { activeSpecIndex: number; specs: PobTreeState[] } | undefined
+    try { importedSpecStates = activeBuildSession?.object.getTreeSpecStates() }
+    catch { importedSpecStates = undefined }
     set({
       selectedClassId,
       selectedAscendancyId,
@@ -1795,13 +1983,15 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       activeWeaponSet: getBuildActiveWeaponSet(options.importedBuildCode),
       nodeWeaponSets: rebuilt.nodeWeaponSets,
       nodeAttributeSelections: nextAttributeSelections,
-      masterySelections: {},
+      masterySelections: { ...(importedTreeState?.masterySelections || {}) },
       pendingMasteryNode: null,
-      specs: [{ id: 'default', title: 'Tree 1', nodes: [...rebuilt.allocatedNodes] }],
-      activeSpecId: 'default',
+      specs: importedSpecStates ? buildStoreSpecs(importedSpecStates.specs) : [{ id: 'default', title: 'Tree 1', nodes: [...rebuilt.allocatedNodes] }],
+      activeSpecId: importedSpecStates ? `xml-spec-${importedSpecStates.activeSpecIndex}` : 'default',
       importedBuildCode: options.importedBuildCode || null,
+      pobBuildRevision: activeBuildSession?.revision ?? 0,
       hoveredNodeId: null,
       selectedNodeId: null,
+      jewelRadiusPreview: null,
       searchQuery: '',
       searchMatchIds: [],
       searchMatchCount: 0,
@@ -1817,17 +2007,24 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       activeCalculationProfileId: 'default',
       calculationConfig: null,
     })
+    // The imported Code may only carry PoB's internal class identifiers.
+    // Reconcile the resolved Store projection back into the canonical object
+    // before any immediate export or calculation reads it.
+    syncTreeObjectFromStore(get)
   },
 
   clearAllocatedNodes: () => {
     clearPersistedImportedBuild(localStorage)
+    replaceActiveBuildSession(null, null)
     set({
       allocatedNodes: new Set(),
       availableNodes: new Set(),
       nodeWeaponSets: {},
       nodeAttributeSelections: {},
       importedBuildCode: null,
+      pobBuildRevision: 0,
       activeWeaponSet: 1,
+      jewelRadiusPreview: null,
       calculationProfiles: [{ ...DEFAULT_CALCULATION_PROFILE, values: {} }],
       activeCalculationProfileId: 'default',
       calculationConfig: null,
@@ -1857,6 +2054,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       masterySelections: { ...s.masterySelections, [nodeId]: effectId },
       pendingMasteryNode: null,
     }))
+    syncTreeObjectFromStore(get)
   },
 
   addSpec: (title) => {
@@ -1865,13 +2063,46 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
   },
 
   switchSpec: (specId) => {
-    const spec = get().specs.find((s) => s.id === specId)
-    if (spec) {
-      const curAlloc = [...get().allocatedNodes]
-      const curSpec = get().specs.find((s) => s.id === get().activeSpecId)
-      if (curSpec) curSpec.nodes = curAlloc
-      set({ activeSpecId: specId, allocatedNodes: new Set(spec.nodes) })
-    }
+    const state = get()
+    const specIndex = state.specs.findIndex((spec) => spec.id === specId)
+    if (specIndex < 0) return
+    if (state.activeSpecId === specId) return
+    // Persist the current Store projection into the current XML Spec before
+    // changing the active index; other Specs remain untouched in the AST.
+    syncTreeObjectFromStore(get)
+    const change = state.applyPobBuildCommand({ type: 'set-active-tree-spec', specIndex: specIndex + 1, section: 'tree' })
+    if (!change) return
+    const nextTree = get().getActivePobTreeState()
+    if (!nextTree) return
+    const treeData = get().treeData
+    const classEntry = resolveTreeClass(treeData || undefined, nextTree)
+    const selectedClassId = classEntry?.[0] || get().selectedClassId
+    const selectedAscendancyId = classEntry ? resolveTreeAscendancy(classEntry[1], nextTree) : get().selectedAscendancyId
+    const nodeWeaponSets: NodeWeaponSets = {}
+    for (const nodeId of nextTree.weaponSet1Nodes || []) nodeWeaponSets[nodeId] = 1
+    for (const nodeId of nextTree.weaponSet2Nodes || []) nodeWeaponSets[nodeId] = 2
+    const ctx = treeData ? { treeData, selectedClassId, selectedAscendancyId } : null
+    const rebuilt = recomputeAllocationState(ctx, new Set(nextTree.nodes), nodeWeaponSets)
+    const nodeAttributeSelections = defaultAttributeSelections(treeData || undefined, rebuilt.allocatedNodes, {
+      ...Object.fromEntries((nextTree.attributeOverride?.strNodes || []).map((id) => [id, 1])),
+      ...Object.fromEntries((nextTree.attributeOverride?.dexNodes || []).map((id) => [id, 2])),
+      ...Object.fromEntries((nextTree.attributeOverride?.intNodes || []).map((id) => [id, 3])),
+    })
+    const specStates = get().getActivePobTreeSpecStates()
+    set({
+      activeSpecId: specId,
+      selectedClassId,
+      selectedAscendancyId,
+      allocatedNodes: rebuilt.allocatedNodes,
+      availableNodes: rebuilt.availableNodes,
+      nodeWeaponSets: rebuilt.nodeWeaponSets,
+      nodeAttributeSelections,
+      masterySelections: { ...(nextTree.masterySelections || {}) },
+      specs: specStates ? buildStoreSpecs(specStates.specs) : state.specs,
+      calcResult: null,
+      calcError: null,
+    })
+    syncTreeObjectFromStore(get)
   },
 
   deleteSpec: (specId) => {
@@ -1885,9 +2116,111 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
   },
 
   setActiveWeaponSet: (activeWeaponSet) => {
+    const session = getActiveBuildSession()
+    if (session) {
+      try {
+        const equipment = parseEquipmentObject(session.object)
+        const itemSetId = equipment?.activeItemSetId || equipment?.itemSets[0]?.id
+        if (itemSetId) {
+          get().applyPobBuildCommand({
+            type: 'set-equipment-selection',
+            itemSetId,
+            useSecondWeaponSet: activeWeaponSet === 2,
+            section: 'items',
+          })
+        }
+      } catch {
+        // Keep the UI weapon-set selector usable for legacy/incomplete builds.
+      }
+    }
     if (get().activeWeaponSet === activeWeaponSet) return
     calculationRequestId += 1
     set({ activeWeaponSet, calcResult: null, calcError: null, calcLoading: false })
+  },
+
+  setActiveItemSet: (itemSetId) => {
+    const session = getActiveBuildSession()
+    const equipment = session ? parseEquipmentObject(session.object) : null
+    const selected = equipment?.itemSets.find((itemSet) => itemSet.id === itemSetId)
+    get().applyPobBuildCommand({
+      type: 'set-equipment-selection',
+      itemSetId,
+      useSecondWeaponSet: selected?.useSecondWeaponSet ?? get().activeWeaponSet === 2,
+      section: 'items',
+    })
+    if (selected) set({ activeWeaponSet: selected.useSecondWeaponSet ? 2 : 1, calcResult: null, calcError: null })
+  },
+
+  setEquipmentSlotItem: (itemSetId, slotName, itemId) => {
+    get().applyPobBuildCommand({ type: 'set-equipment-slot', itemSetId, slotName, itemId, section: 'items' })
+  },
+
+  replaceEquipmentSlotWithRaw: (itemSetId, slotName, raw) => {
+    const change = get().applyPobBuildCommand({ type: 'replace-equipment-slot-raw', itemSetId, slotName, raw, section: 'items' })
+    if (!change?.changed) return null
+    const session = getActiveBuildSession()
+    const equipment = session ? parseEquipmentObject(session.object) : null
+    return equipment?.itemSets.find((itemSet) => itemSet.id === itemSetId)?.slots.find((slot) => slot.name === slotName)?.itemId || null
+  },
+
+  replaceEquipmentItemRaw: (itemId, raw) => {
+    get().applyPobBuildCommand({ type: 'replace-item-raw', itemId, raw, section: 'items' })
+  },
+
+  bindTreeJewelRaw: (nodeId, raw) => {
+    const state = get()
+    const node = state.treeData?.nodes[nodeId]
+    if (!node || (!node.isJewelSocket && node.type !== 'JewelSocket' && node.type !== 'Socket')) return
+    const dynamicSinisterSocket = getSinisterJewelSocketIds(state.treeData || undefined, state.getActivePobXml()).has(nodeId)
+    if (!state.allocatedNodes.has(nodeId) && !dynamicSinisterSocket) return
+    const snap = snapshotFromState(
+      state.allocatedNodes,
+      state.availableNodes,
+      state.nodeWeaponSets,
+      state.nodeAttributeSelections,
+    )
+    const change = get().applyPobBuildCommand({ type: 'bind-tree-jewel-raw', nodeId, raw, dynamic: dynamicSinisterSocket, section: 'tree' })
+    if (!change?.changed) return
+    set((current) => ({
+      undoStack: [...current.undoStack.slice(-MAX_UNDO + 1), snap],
+      redoStack: [],
+    }))
+  },
+
+  unbindTreeJewel: (nodeId) => {
+    const state = get()
+    const node = state.treeData?.nodes[nodeId]
+    if (!node || (!node.isJewelSocket && node.type !== 'JewelSocket' && node.type !== 'Socket')) return
+    const dynamicSinisterSocket = getSinisterJewelSocketIds(state.treeData || undefined, state.getActivePobXml()).has(nodeId)
+    if (!state.allocatedNodes.has(nodeId) && !dynamicSinisterSocket) return
+    const snap = snapshotFromState(
+      state.allocatedNodes,
+      state.availableNodes,
+      state.nodeWeaponSets,
+      state.nodeAttributeSelections,
+    )
+    const change = get().applyPobBuildCommand({ type: 'set-tree-jewel-socket', nodeId, section: 'tree' })
+    if (!change?.changed) return
+    set((current) => ({
+      undoStack: [...current.undoStack.slice(-MAX_UNDO + 1), snap],
+      redoStack: [],
+    }))
+  },
+
+  updateSkillGem: (skillSetId, skillIndex, gemIndex, attributes) => {
+    get().applyPobBuildCommand({ type: 'update-skill-gem', skillSetId, skillIndex, gemIndex, attributes, section: 'skills' })
+  },
+
+  updateSkillGroup: (skillSetId, skillIndex, attributes) => {
+    get().applyPobBuildCommand({ type: 'update-skill-group', skillSetId, skillIndex, attributes, section: 'skills' })
+  },
+
+  setActiveSkillSet: (skillSetId) => {
+    get().applyPobBuildCommand({ type: 'set-active-skill-set', skillSetId, section: 'skills' })
+  },
+
+  setMainSocketGroup: (groupId) => {
+    get().applyPobBuildCommand({ type: 'set-main-socket-group', groupId, section: 'skills' })
   },
 
   setTreeEditMode: (enabled) => {
@@ -1924,6 +2257,43 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       undoStack: [...s.undoStack.slice(-MAX_UNDO + 1), snap],
       redoStack: [],
     }))
+    syncTreeObjectFromStore(get)
+  },
+
+  allocateNodeWithAttribute: (id: string, selection: AttributeSelection) => {
+    const state = get()
+    const ctx = getAllocationContext(state)
+    if (!ctx || ![1, 2, 3].includes(selection) || state.allocatedNodes.has(id)) return
+
+    const allocated = new Set(state.allocatedNodes)
+    const snap = snapshotFromState(allocated, state.availableNodes, state.nodeWeaponSets, state.nodeAttributeSelections)
+    const next = allocateNode(ctx, allocated, state.nodeWeaponSets, id, state.weaponSetMode)
+    const nextAttributeSelections = defaultAttributeSelections(
+      ctx.treeData,
+      next.allocatedNodes,
+      state.nodeAttributeSelections,
+    )
+    for (const nodeId of next.allocatedNodes) {
+      if (!allocated.has(nodeId) && ctx.treeData.nodes[nodeId]?.isAttribute) {
+        nextAttributeSelections[nodeId] = selection
+      }
+    }
+
+    const changed = next.allocatedNodes.size !== state.allocatedNodes.size
+      || next.availableNodes.size !== state.availableNodes.size
+      || JSON.stringify(next.nodeWeaponSets) !== JSON.stringify(state.nodeWeaponSets)
+      || JSON.stringify(nextAttributeSelections) !== JSON.stringify(state.nodeAttributeSelections)
+    if (!changed) return
+
+    set((s) => ({
+      allocatedNodes: next.allocatedNodes,
+      availableNodes: next.availableNodes,
+      nodeWeaponSets: next.nodeWeaponSets,
+      nodeAttributeSelections: nextAttributeSelections,
+      undoStack: [...s.undoStack.slice(-MAX_UNDO + 1), snap],
+      redoStack: [],
+    }))
+    syncTreeObjectFromStore(get)
   },
 
   cycleAttributeNode: (id: string) => {
@@ -1948,6 +2318,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       undoStack: [...s.undoStack.slice(-MAX_UNDO + 1), snap],
       redoStack: [],
     }))
+    syncTreeObjectFromStore(get)
   },
 
   undo: () => {
@@ -1955,14 +2326,20 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     if (undoStack.length === 0) return
     const snap = undoStack[undoStack.length - 1]
     const curSnap = snapshotFromState(allocatedNodes, availableNodes, nodeWeaponSets, nodeAttributeSelections)
+    let restoredRevision = get().pobBuildRevision
+    if (snap.pobXml !== undefined && activeBuildSession && snap.pobXml !== null) {
+      restoredRevision = activeBuildSession.restoreXml(snap.pobXml).revision
+    }
     set({
       allocatedNodes: new Set(snap.allocatedNodes),
       availableNodes: new Set(snap.availableNodes),
       nodeWeaponSets: { ...snap.nodeWeaponSets },
       nodeAttributeSelections: { ...snap.nodeAttributeSelections },
+      pobBuildRevision: restoredRevision,
       undoStack: undoStack.slice(0, -1),
       redoStack: [...get().redoStack, curSnap],
     })
+    if (typeof snap.pobXml !== 'string') syncTreeObjectFromStore(get)
   },
 
   redo: () => {
@@ -1970,14 +2347,20 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     if (redoStack.length === 0) return
     const snap = redoStack[redoStack.length - 1]
     const curSnap = snapshotFromState(allocatedNodes, availableNodes, nodeWeaponSets, nodeAttributeSelections)
+    let restoredRevision = get().pobBuildRevision
+    if (snap.pobXml !== undefined && activeBuildSession && snap.pobXml !== null) {
+      restoredRevision = activeBuildSession.restoreXml(snap.pobXml).revision
+    }
     set({
       allocatedNodes: new Set(snap.allocatedNodes),
       availableNodes: new Set(snap.availableNodes),
       nodeWeaponSets: { ...snap.nodeWeaponSets },
       nodeAttributeSelections: { ...snap.nodeAttributeSelections },
+      pobBuildRevision: restoredRevision,
       redoStack: redoStack.slice(0, -1),
       undoStack: [...get().undoStack, curSnap],
     })
+    if (typeof snap.pobXml !== 'string') syncTreeObjectFromStore(get)
   },
 
   getAllocatedIds: () => [...get().allocatedNodes],
@@ -2108,6 +2491,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
           undoStack: [],
           redoStack: [],
         })
+        syncTreeObjectFromStore(get)
       }
     } catch {
       // Ignore invalid hash
@@ -2175,6 +2559,8 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
     const requestId = ++calculationRequestId
+    const buildSession = getActiveBuildSession()
+    const buildObjectRevision = get().pobBuildRevision
     const calculationWeaponSet = selection?.weaponSet ?? activeWeaponSet
     const calculationProfile = calculationProfiles.find((profile) => profile.id === activeCalculationProfileId)
     set({ calcLoading: true, calcError: null, calcResult: null })
@@ -2202,17 +2588,21 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      const encodeData = encodeBuildCode({
-        nodes: [...allocatedNodes],
-        nodeWeaponSets,
-        nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
-        baseCode: get().importedBuildCode || undefined,
-        treeVersion,
-        activeItemSetId: selection?.itemSetId,
-        useSecondWeaponSet: calculationWeaponSet === 2,
-        mainSocketGroup: selection?.skillGroupId,
-        ...classPayload,
-      })
+      const activeCode = get().getActivePobCode()
+      const activeXml = get().getActivePobXml()
+      const encodeData = activeCode && activeXml
+        ? { code: activeCode, xml: activeXml }
+        : encodeBuildCode({
+          nodes: [...allocatedNodes],
+          nodeWeaponSets,
+          nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
+          baseCode: activeCode || undefined,
+          treeVersion,
+          activeItemSetId: selection?.itemSetId,
+          useSecondWeaponSet: calculationWeaponSet === 2,
+          mainSocketGroup: selection?.skillGroupId,
+          ...classPayload,
+        })
 
       const code = encodeData.code || ''
 
@@ -2254,6 +2644,30 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
+      const cacheKeys = createCalculationCacheKeys({
+        code,
+        xml: encodeData.xml,
+        weaponSet: calculationWeaponSet,
+        calcMode: selection?.calcMode,
+        configOverrides: calculationProfile?.values || {},
+        selection,
+      })
+      const cachedResult = calculationCache.get(cacheKeys.resultKey)
+      if (cachedResult) {
+        if (
+          requestId !== calculationRequestId
+          || get().activeWeaponSet !== calculationWeaponSet
+          || get().pobBuildRevision !== buildObjectRevision
+          || getActiveBuildSession() !== buildSession
+        ) return
+        set({
+          calcResult: cachedResult,
+          calculationConfig: cachedResult.CalculationConfig || get().calculationConfig,
+          calcLoading: false,
+        })
+        return
+      }
+
       const calcData: CalcApiResponse = await calculateBuild({
         code,
         xml: encodeData.xml,
@@ -2264,6 +2678,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
         actor: selection?.actor,
         minionSkillIndex: selection?.minionSkillIndex,
         minionStatSetIndex: selection?.minionStatSetIndex,
+        characterOnly: selection?.characterOnly,
         configOverrides: calculationProfile?.values || {},
         includeConfig: selection?.includeConfig,
       })
@@ -2310,7 +2725,13 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      if (requestId !== calculationRequestId || get().activeWeaponSet !== calculationWeaponSet) return
+      if (
+        requestId !== calculationRequestId
+        || get().activeWeaponSet !== calculationWeaponSet
+        || get().pobBuildRevision !== buildObjectRevision
+        || getActiveBuildSession() !== buildSession
+      ) return
+      calculationCache.set(cacheKeys, calcData.data)
       set({
         calcResult: calcData.data,
         calculationConfig: calcData.data.CalculationConfig || get().calculationConfig,
@@ -2339,7 +2760,12 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
-      if (requestId !== calculationRequestId || get().activeWeaponSet !== calculationWeaponSet) return
+      if (
+        requestId !== calculationRequestId
+        || get().activeWeaponSet !== calculationWeaponSet
+        || get().pobBuildRevision !== buildObjectRevision
+        || getActiveBuildSession() !== buildSession
+      ) return
       set({ calcError: msg, calcLoading: false })
 
 
@@ -2348,6 +2774,13 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
 
+    } finally {
+      // A stale result must still release its own loading state. A newer
+      // request owns the flag once the request id changes, so the older one
+      // must not clear it.
+      if (requestId === calculationRequestId && get().calcLoading) {
+        set({ calcLoading: false })
+      }
     }
 
 
@@ -2374,6 +2807,56 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
   clearCalcResult: () => set({ calcResult: null, calcError: null }),
 
+  getActivePobCode: () => getActiveBuildCode(get().importedBuildCode),
+  getActivePobXml: () => {
+    try {
+      return activeBuildSession?.object.snapshot().xml || null
+    } catch {
+      return null
+    }
+  },
+  getActivePobTreeState: () => {
+    try {
+      return activeBuildSession?.object.getTreeState() || null
+    } catch {
+      return null
+    }
+  },
+  getActivePobTreeSpecStates: () => {
+    try {
+      return activeBuildSession?.object.getTreeSpecStates() || null
+    } catch {
+      return null
+    }
+  },
+  getActivePobTreeJewelItems: () => {
+    try {
+      return activeBuildSession?.object.getPassiveJewelItems() || {}
+    } catch {
+      return {}
+    }
+  },
+  getActivePobTreeJewelRaw: (nodeId) => {
+    try {
+      return activeBuildSession?.object.getPassiveJewelRaw(nodeId) || null
+    } catch {
+      return null
+    }
+  },
+  getActiveBuildLibraryId: () => activeBuildSession?.buildId || activeUnsavedBuildLibraryId,
+
+  applyPobBuildCommand: (command) => {
+    if (!activeBuildSession) return null
+    const change = activeBuildSession.apply(command)
+    if (!change.changed) return change
+    set((state) => ({
+      pobBuildRevision: change.revision,
+      calcResult: null,
+      calcError: null,
+    }))
+    return change
+  },
+
   setActiveCalculationProfile: (activeCalculationProfileId) => {
     if (!get().calculationProfiles.some((profile) => profile.id === activeCalculationProfileId)) return
     set({ activeCalculationProfileId, calcResult: null, calcError: null })
@@ -2397,17 +2880,23 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     if (allocatedNodes.size === 0) throw new Error('No allocated passive tree is available for calculation')
 
     const calculationWeaponSet = requestedWeaponSet ?? activeWeaponSet
+    const buildSession = getActiveBuildSession()
+    const buildObjectRevision = get().pobBuildRevision
     const calculationProfile = calculationProfiles.find((profile) => profile.id === activeCalculationProfileId)
     const classPayload = getEncodeClassPayload(treeData || undefined, selectedClassId, selectedAscendancyId)
-    const encodeData = encodeBuildCode({
-      nodes: [...allocatedNodes],
-      nodeWeaponSets,
-      nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
-      baseCode: importedBuildCode || undefined,
-      treeVersion,
-      useSecondWeaponSet: calculationWeaponSet === 2,
-      ...classPayload,
-    })
+    const activeCode = get().getActivePobCode()
+    const activeXml = get().getActivePobXml()
+    const encodeData = activeCode && activeXml
+      ? { code: activeCode, xml: activeXml }
+      : encodeBuildCode({
+        nodes: [...allocatedNodes],
+        nodeWeaponSets,
+        nodeAttributeSelections: defaultAttributeSelections(treeData || undefined, allocatedNodes, nodeAttributeSelections),
+        baseCode: activeCode || importedBuildCode || undefined,
+        treeVersion,
+        useSecondWeaponSet: calculationWeaponSet === 2,
+        ...classPayload,
+      })
     const ranked = await rankSkillsByEffectiveDps({
       xml: encodeData.xml,
       groupIds,
@@ -2416,6 +2905,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     if (!ranked.success || ranked.error || !ranked.data) {
       throw new Error(ranked.error || 'Skill DPS ranking returned no data')
     }
+    if (get().pobBuildRevision !== buildObjectRevision || getActiveBuildSession() !== buildSession) return []
     return ranked.data
   },
 
@@ -2500,9 +2990,11 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
     const { allocatedNodes, treeVersion, selectedClassId, selectedAscendancyId,
             weaponSetMode, activeWeaponSet, nodeWeaponSets, nodeAttributeSelections, masterySelections, savedBuilds, treeData, importedBuildCode, buildRealm,
             calculationProfiles, activeCalculationProfileId } = get()
+    const currentBuildCode = getActiveBuildCode(importedBuildCode)
     const now = new Date().toISOString()
     const existing = id ? savedBuilds.find((item) => item.id === id) : undefined
     const buildId = existing?.id || id || (globalThis.crypto?.randomUUID?.() || Date.now().toString(36) + Math.random().toString(36).slice(2))
+    activeUnsavedBuildLibraryId = buildId
     const build: SavedBuild = {
       id: buildId,
       name,
@@ -2515,9 +3007,9 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       treeVersion,
       selectedClassId,
       selectedAscendancyId,
-      characterLevel: getBuildCharacterLevel(importedBuildCode) || existing?.characterLevel || 1,
-      importedBuildCode,
-      source: source || existing?.source || (importedBuildCode ? 'pob' : 'local'),
+      characterLevel: getBuildCharacterLevel(currentBuildCode) || existing?.characterLevel || 1,
+      importedBuildCode: currentBuildCode,
+      source: source || existing?.source || (currentBuildCode ? 'pob' : 'local'),
       sourceUrl: sourceUrl || null,
       realm: buildRealm,
       weaponSetMode,
@@ -2573,6 +3065,15 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       build.nodeAttributeSelections || {},
     )
     const config = normalizeCalculationProfiles(build.calculationProfiles, build.activeCalculationProfileId)
+    replaceActiveBuildSession(build.id, build.importedBuildCode || null)
+    const loadedWeaponSet = build.activeWeaponSet || getBuildActiveWeaponSet(build.importedBuildCode)
+    const activeWeaponSet = syncLoadedWeaponSetToBuildObject(loadedWeaponSet)
+    let importedTreeState: PobTreeState | undefined
+    try { importedTreeState = activeBuildSession?.object.getTreeState() }
+    catch { importedTreeState = undefined }
+    let importedSpecStates: { activeSpecIndex: number; specs: PobTreeState[] } | undefined
+    try { importedSpecStates = activeBuildSession?.object.getTreeSpecStates() }
+    catch { importedSpecStates = undefined }
     set({
       allocatedNodes: rebuilt.allocatedNodes,
       availableNodes: rebuilt.availableNodes,
@@ -2580,11 +3081,14 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       selectedAscendancyId,
       buildRealm: inferBuildRealm(build),
       importedBuildCode: build.importedBuildCode || null,
+      pobBuildRevision: activeBuildSession?.revision ?? 0,
       weaponSetMode: build.weaponSetMode,
-      activeWeaponSet: build.activeWeaponSet || getBuildActiveWeaponSet(build.importedBuildCode),
+      activeWeaponSet,
       nodeWeaponSets: rebuilt.nodeWeaponSets,
       nodeAttributeSelections,
-      masterySelections: { ...build.masterySelections },
+      masterySelections: { ...(importedTreeState?.masterySelections || build.masterySelections || {}) },
+      specs: importedSpecStates ? buildStoreSpecs(importedSpecStates.specs) : [{ id: 'default', title: 'Tree 1', nodes: [...rebuilt.allocatedNodes] }],
+      activeSpecId: importedSpecStates ? `xml-spec-${importedSpecStates.activeSpecIndex}` : 'default',
       undoStack: [],
       redoStack: [],
       calcResult: null,
@@ -2593,6 +3097,9 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       activeCalculationProfileId: config.activeId,
       calculationConfig: null,
     })
+    // Legacy saved Codes can have the same incomplete class attributes as a
+    // fresh import; keep the canonical object compatible with PoB2 exports.
+    syncTreeObjectFromStore(get)
   },
 
   deleteBuild: (id) => {
@@ -2644,7 +3151,7 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
 
 
     })
-
+    syncTreeObjectFromStore(get)
 
   },
 
@@ -2671,7 +3178,10 @@ export const useTreeStore = create<TreeStore>((set, get) => ({
       nodeWeaponSets: rebuilt.nodeWeaponSets,
       nodeAttributeSelections,
     })
+    syncTreeObjectFromStore(get)
   },
 
 
 }))
+
+replaceActiveBuildSession(null, useTreeStore.getState().importedBuildCode)

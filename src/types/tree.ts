@@ -225,6 +225,9 @@ export interface TreeNode {
   isMultipleChoiceOption?: boolean
 
   isJewelSocket?: boolean
+  aliasPassiveSocket?: string
+  sinister?: boolean
+  noRadius?: boolean
 
   isMastery?: boolean
   isAttribute?: boolean

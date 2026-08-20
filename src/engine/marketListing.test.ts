@@ -103,4 +103,30 @@ describe('official market listing normalization', () => {
     expect(result.item.preview.modifiers[0].original.displayText).toBe('钻石 继承')
     expect(result.item.raw).toContain('Legacy of Diamond')
   })
+
+  it('preserves radius jewel metadata needed by PoB replacement calculations', () => {
+    const result = normalizeMarketListing({ result: [{ id: 'listing_1234', item: {
+      rarity: 'UNIQUE', name: 'From Nothing', baseType: 'Diamond', ilvl: 82, limit: 1,
+      properties: [{ name: 'Radius', values: [['Small', 0]] }],
+      explicitMods: ['Passives in Radius of Eldritch Battery can be Allocated without being connected to your tree'],
+    } }] }, {
+      realm: 'global', listingId: 'listing_1234',
+      sourceUrl: 'https://www.pathofexile.com/trade2/search/poe2/Standard/query_5678',
+    })
+
+    expect(result.item.raw).toContain('Limited to: 1')
+    expect(result.item.raw).toContain('Radius: Small')
+  })
+
+  it('persists the Find Better target slot on a market source', () => {
+    const result = normalizeMarketListing({ result: [{ id: 'listing_1234', item: {
+      rarity: 'RARE', name: 'Doom Shell', baseType: 'Expert Hexer Robe', explicitMods: [],
+    } }] }, {
+      realm: 'global', listingId: 'listing_1234', slotName: 'Body Armour',
+      runeBehavior: 'remove', anointBehavior: 'keep',
+      sourceUrl: 'https://www.pathofexile.com/trade2/search/poe2/Standard/query_5678',
+    })
+
+    expect(result.source).toMatchObject({ slotName: 'Body Armour', runeBehavior: 'remove', anointBehavior: 'keep' })
+  })
 })

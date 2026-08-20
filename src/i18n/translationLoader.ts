@@ -106,8 +106,33 @@ function normalizeKey(value: string): string {
   return value.trim()
 }
 
-export function normalizeDisplayTags(value: string): string {
+/**
+ * Some PoB item/stat payloads contain HTML entities because they originated
+ * from a web-facing item renderer. Decode them before dictionary lookup so
+ * `Sorceress&apos;s` matches the catalog's `Sorceress's` entry.
+ */
+export function decodeDisplayEntities(value: string): string {
+  const named: Record<string, string> = {
+    amp: '&',
+    apos: "'",
+    gt: '>',
+    hellip: '…',
+    lt: '<',
+    mdash: '—',
+    nbsp: ' ',
+    ndash: '–',
+    quot: '"',
+  }
   return value
+    .replace(/&([a-z]+);/gi, (match, name: string) => named[name.toLowerCase()] ?? match)
+    .replace(/&#(x[\da-f]+|\d+);/gi, (match, code: string) => {
+      const value = code.toLowerCase().startsWith('x') ? Number.parseInt(code.slice(1), 16) : Number.parseInt(code, 10)
+      return Number.isFinite(value) && value >= 0 && value <= 0x10ffff ? String.fromCodePoint(value) : match
+    })
+}
+
+export function normalizeDisplayTags(value: string): string {
+  return decodeDisplayEntities(value)
     // PoB stat descriptions use markup such as [Attack|攻击] and
     // <colour>{...}. Keep the localized label and remove the internal key
     // and formatting wrapper before text reaches the user-facing UI.
@@ -208,11 +233,15 @@ function addTemplate(
   templates.push(template)
 }
 
-function applyTemplate(template: TranslationTemplate, source: string): string | null {
+function applyTemplate(
+  template: TranslationTemplate,
+  source: string,
+  translateValue?: (value: string) => string,
+): string | null {
   const match = source.match(template.pattern)
   if (!match) return null
 
-  const values = match.slice(1)
+  const values = match.slice(1).map((value) => translateValue?.(value) ?? value)
   let nextHash = 0
   return template.translated
     .replace(/\{(\d+)\}/g, (_, index: string) => values[Number(index)] ?? '')
@@ -260,7 +289,19 @@ function addTranslationEntry(
   }
 }
 
-function translateText(value: string, language: Language): string {
+function translateStructuredPrefix(value: string, language: Language, depth: number): string | null {
+  if (depth >= 4) return null
+  const match = value.match(/^(.+?)(\s*[:：]\s*)(.+)$/)
+  if (!match) return null
+  const translatedPrefix = translateText(match[1], language, depth + 1)
+  if (translatedPrefix === match[1]) return null
+  const translatedValue = translateText(match[3], language, depth + 1)
+  return `${translatedPrefix}${match[2]}${translatedValue}`
+}
+
+function translateText(value: string, language: Language, depth = 0): string {
+  const decodedValue = decodeDisplayEntities(value)
+  if (decodedValue !== value) return translateText(decodedValue, language)
   if (language === 'en') return value
   const key = normalizeKey(value)
   const canCache = loadedLanguages.has(language)
@@ -291,15 +332,24 @@ function translateText(value: string, language: Language): string {
 
   const templates = templateDictionaries.get(language) || []
   for (const template of templates) {
-    const translated = applyTemplate(template, key)
+    const translated = applyTemplate(
+      template,
+      key,
+      depth < 4 ? (captured) => translateText(captured, language, depth + 1) : undefined,
+    )
     if (translated) return remember(translated)
   }
+
+  const structured = translateStructuredPrefix(key, language, depth)
+  if (structured) return remember(structured)
 
   if (key.includes('\n')) {
     const lines = key.split('\n')
     const translatedLines = lines.map((line) => line.trim() ? translateText(line, language) : line)
-    if (translatedLines.some((line, index) => line !== lines[index])) {
-      return remember(translatedLines.join('\n'))
+    const numericValues = extractNumericPlaceholderValues(key)
+    const filledLines = translatedLines.map((line) => fillMissingNumericPlaceholders(line, numericValues))
+    if (filledLines.some((line, index) => line !== lines[index])) {
+      return remember(filledLines.join('\n'))
     }
   }
 
@@ -309,6 +359,65 @@ function translateText(value: string, language: Language): string {
 /** Translate game-provided names and stat lines using the loaded PoB dictionaries. */
 export function translateGameText(value: string, language: Language): string {
   return translateText(value, language)
+}
+
+/**
+ * Extract current values from a multi-line stat without treating a tier range
+ * such as `(0-150)` as two independent values. Current values before a tier
+ * range are preferred; when only a range exists, the range itself is used.
+ */
+function extractNumericPlaceholderValues(value: string): string[] {
+  const ranges = [...value.matchAll(/\(\s*([-+]?\d+(?:\.\d+)?\s*-\s*[-+]?\d+(?:\.\d+)?)\s*\)/g)]
+  const masked = value.replace(/\(\s*[-+]?\d+(?:\.\d+)?\s*-\s*[-+]?\d+(?:\.\d+)?\s*\)/g, (match) => ' '.repeat(match.length))
+  const current = [...masked.matchAll(/[-+]?\d+(?:\.\d+)?(?=\s*%|\s*\()/g)].map((match) => match[0])
+  if (current.length) return current
+  return ranges.map((match) => match[1].replace(/\s+/g, ''))
+}
+
+function fillMissingNumericPlaceholders(value: string, numericValues: string[]): string {
+  if (!numericValues.length || !/\{\d+\}/.test(value)) return value
+  return value.replace(/\{(\d+)\}/g, (placeholder, index: string, offset: number) => {
+    const replacement = numericValues[Number(index)] ?? numericValues[0]
+    if (replacement == null) return placeholder
+    return value[offset + placeholder.length] === '%' ? replacement.replace(/%$/, '') : replacement
+  })
+}
+
+const JEWEL_RADIUS_LABELS = [
+  'Very Small Ring',
+  'Small Ring',
+  'Medium-Small Ring',
+  'Medium Ring',
+  'Medium-Large Ring',
+  'Large Ring',
+  'Very Large Ring',
+  'Massive Ring',
+] as const
+
+const JEWEL_RADIUS_STAT_PREFIX = 'Only affects Passives in '
+
+const JEWEL_RADIUS_SENTENCE_PATTERNS: Readonly<Record<Language, RegExp>> = {
+  en: /^Only affects Passives in (.+)$/,
+  'zh-rCN': /^只影响(.+?)内的天赋$/,
+  'zh-rTW': /^只會影響(.+?)內的天賦$/,
+  'ko-KR': /^(.+?)의 패시브 스킬에만 영향을 미침$/,
+}
+
+/**
+ * Localize a jewel radius label through the bundled PoB stat translations.
+ * The translation assets contain complete "Only affects Passives in ... Ring"
+ * sentences rather than standalone radius names, so the translated sentence's
+ * language-specific grammatical wrapper is removed here.
+ */
+export function translateJewelRadiusLabel(value: string, language: Language): string {
+  const sourceLabel = JEWEL_RADIUS_LABELS.find((label) => label.toLowerCase() === value.trim().toLowerCase())
+  if (!sourceLabel) return translateGameText(value, language)
+
+  const target = translateGameText(`${JEWEL_RADIUS_STAT_PREFIX}${sourceLabel}`, language)
+  const sourceSentence = `${JEWEL_RADIUS_STAT_PREFIX}${sourceLabel}`
+  if (!target || target === sourceSentence) return sourceLabel
+
+  return target.match(JEWEL_RADIUS_SENTENCE_PATTERNS[language])?.[1]?.trim() || sourceLabel
 }
 
 function translateList(value: string[] | undefined, language: Language): string[] | undefined {

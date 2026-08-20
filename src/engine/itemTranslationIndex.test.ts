@@ -32,6 +32,8 @@ describe('CN item translation index', () => {
     expect(index.statToEnglish('该物品仅能镶嵌符文 — 数值不可调整')).toBe('Only Runes can be Socketed in this item')
     expect(index.statToEnglish('镶嵌的符文效果提高 200% — 数值不可调整')).toBe('200% increased effect of Socketed Runes')
     expect(index.statToEnglish('+112 (100) 精魂')).toBe('+112 to Spirit')
+    expect(index.statToEnglish('附加 147 (135-156) - 220 (205-236) 火焰伤害')).toBe('Adds 147 to 220 Fire Damage')
+    expect(index.statToEnglish('附加 2 (1-19) - 334 (310-358) 闪电伤害')).toBe('Adds 2 to 334 Lightning Damage')
     expect(index.statToEnglish('羁绊： 所有技能品质 +5%')).toBe('+5% to Quality of all Skills')
     expect(index.statToEnglish('白银 继承')).toBe('Legacy of Silver')
     // Variant options are supplied by the official trade catalog at runtime;
@@ -43,6 +45,12 @@ describe('CN item translation index', () => {
     expect(index.statToEnglish('硫磺 继承')).toBe('Legacy of Sulphur')
     expect(index.statToEnglish('宝钻 继承')).toBe('Legacy of Diamond')
     expect(index.statToChinese('Legacy of Diamond')).toBe('钻石 继承')
+    expect(index.statToChinese('Allocates Efficient Inscriptions')).toBe('配置 高效铭文')
+    expect(index.statToChinese('Allocates Paragon')).toBe('配置 典范')
+    expect(index.statToChinese('Limited to: 1')).toBe('仅限: 1')
+    expect(index.statToEnglish('配置 高效铭文')).toBe('Allocates Efficient Inscriptions')
+    expect(index.statToEnglish('配置 典范')).toBe('Allocates Paragon')
+    expect(index.statToEnglish('仅限: 1')).toBe('Limited to: 1')
   })
 
   it('identifies supported game clipboard languages without using UI language', () => {

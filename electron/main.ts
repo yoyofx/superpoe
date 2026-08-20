@@ -1,8 +1,8 @@
-import { app, BrowserWindow, dialog, globalShortcut, ipcMain, Menu, net, powerMonitor, protocol, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, net, powerMonitor, protocol, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import path from 'node:path'
-import { randomUUID } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { promisify } from 'node:util'
 import { parseWeGameShareCode, requestPoe2dbBuild } from './poe2dbClient.js'
@@ -15,16 +15,17 @@ import { detectItemRawLanguage, ItemTranslationIndex, type ItemRawLanguage } fro
 import { ItemIconIndex } from './itemIconIndex.js'
 import { MarketViewManager, type MarketNavigationCommand, type MarketRealm } from './marketView.js'
 import { TradeCredentialStore } from './tradeCredentialStore.js'
-import { EquipmentLibraryRepository, equipmentSourceKey, pobSourceKey } from './equipmentLibraryRepository.js'
+import { EquipmentLibraryRepository, equipmentSourceKey, fingerprintLibraryItem, pobSourceKey } from './equipmentLibraryRepository.js'
 import { normalizeMarketListing, type MarketStatTextResolution } from './marketListing.js'
 import type {
-  EquipmentCollectionRoot, EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
-  EquipmentLibraryMetadataPatch, EquipmentLibrarySource, EquipmentTradeSearchRequest, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
+  EquipmentCollectionRoot, EquipmentLibraryEntry, EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
+  EquipmentLibraryMetadataPatch, EquipmentLibraryMoveInput, EquipmentLibrarySource, EquipmentTradeSearchRequest, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
   MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch, TradePriceCheckCriteria, TradePriceCheckPrepareRequest,
   TradePriceCheckSearchRequest,
-  PriceCheckOpenRequest,
+  PriceCheckOpenRequest, LibraryModifierGroup, LibraryItemSnapshot, TradeStatResolutionSnapshot, FindBetterSearchOptions,
+  PriceCheckListingView,
 } from '../src/types/market.js'
-import { OfficialTradeProvider, TradeReferenceDataCache } from './tradeService.js'
+import { OfficialTradeProvider, TradeReferenceDataCache, type CatalogSnapshot } from './tradeService.js'
 import { GameWindowService } from './gameWindowService.js'
 import { MarketMonitoringCoordinator } from './marketMonitoring.js'
 import { OpportunityOverlayController } from './opportunityOverlay.js'
@@ -32,11 +33,20 @@ import { CurrencyMarketService } from './currencyMarket/currencyMarketService.js
 import { desktopText, isUiLanguage, type UiLanguage } from './uiLocale.js'
 import { PriceCheckCoordinator } from './priceCheck/PriceCheckCoordinator.js'
 import { PriceCheckWindowManager } from './priceCheck/PriceCheckWindowManager.js'
+import { FindBetterWindowManager } from './findBetterWindow.js'
+import { EquipmentTryOnWindowManager } from './equipmentTryOnWindow.js'
 import { GameClipboardService, processIsElevated } from './priceCheck/GameClipboardService.js'
+import { applyXiletradeParseEvidence, parseXiletradeItemText, type CanonicalStatContext, type CanonicalStatMatch, type XiletradeItemParseResult } from './xiletradeItemParser.js'
+import { XiletradeDataCatalog, XiletradeModifierMatcher } from './xiletradeDataCatalog.js'
+import { MAX_SUPERPOE_BACKUP_FILE_SIZE, SUPERPOE_BACKUP_EXTENSION, type SuperPoeBackupMainData } from '../src/engine/superPoeBackup.js'
+import type { EquipmentTryOnOpenRequest } from '../src/types/tryOn.js'
+import type { EquipmentDiffStat, EquipmentDifferenceResult } from '../src/equipmentDifference/types.js'
 
 const currentDir = path.dirname(fileURLToPath(import.meta.url))
 const preloadPath = path.join(currentDir, 'preload.js')
+const equipmentTryOnPreloadPath = path.join(currentDir, 'equipmentTryOnPreload.cjs')
 const priceCheckPreloadPath = path.join(currentDir, 'priceCheckPreload.cjs')
+const findBetterPreloadPath = path.join(currentDir, 'findBetterPreload.cjs')
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
 const packageMetadata = JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')) as {
   name?: string
@@ -83,6 +93,24 @@ function validateNativeBuildFilePayload(value: unknown): NativeBuildFilePayload 
   return {
     content: payload.content,
     fileName: safeName.toLowerCase().endsWith(SUPERPOE_BUILD_EXTENSION) ? safeName : `${safeName}${SUPERPOE_BUILD_EXTENSION}`,
+  }
+}
+
+function validateBackupFilePayload(value: unknown): NativeBuildFilePayload {
+  if (!value || typeof value !== 'object') throw new Error('Invalid SuperPoE backup payload')
+  const payload = value as Partial<NativeBuildFilePayload>
+  if (typeof payload.content !== 'string' || !payload.content || Buffer.byteLength(payload.content, 'utf8') > MAX_SUPERPOE_BACKUP_FILE_SIZE) {
+    throw new Error('Invalid SuperPoE backup content')
+  }
+  const parsed = JSON.parse(payload.content) as { format?: unknown; schemaVersion?: unknown }
+  if (!parsed || parsed.format !== 'superpoe-backup' || parsed.schemaVersion !== 1) {
+    throw new Error('Invalid SuperPoE backup format')
+  }
+  const baseName = path.basename(typeof payload.fileName === 'string' ? payload.fileName : 'SuperPoE backup.spoe-backup')
+  const safeName = baseName.replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ').trim() || 'SuperPoE backup.spoe-backup'
+  return {
+    content: payload.content,
+    fileName: safeName.toLowerCase().endsWith(`.${SUPERPOE_BACKUP_EXTENSION}`) ? safeName : `${safeName}.${SUPERPOE_BACKUP_EXTENSION}`,
   }
 }
 
@@ -254,6 +282,8 @@ let opportunityOverlay: OpportunityOverlayController | null = null
 let currencyMarketService: CurrencyMarketService | null = null
 let priceCheckCoordinator: PriceCheckCoordinator | null = null
 let priceCheckWindowManager: PriceCheckWindowManager | null = null
+let findBetterWindowManager: FindBetterWindowManager | null = null
+let equipmentTryOnWindowManager: EquipmentTryOnWindowManager | null = null
 let priceCheckHotkey = ''
 let defaultRealm: MarketRealm = 'global'
 let uiLanguage: UiLanguage = 'en'
@@ -264,6 +294,8 @@ const equipmentLibrary = new EquipmentLibraryRepository(
   path.join(userDataPath, 'library', 'equipment-library.v1.json'),
 )
 const favoriteOperations = new Map<string, Promise<void>>()
+const tryOnOperations = new Map<string, Promise<void>>()
+const copyPobOperations = new Map<string, Promise<void>>()
 
 function registerPriceCheckHotkey(enabled: boolean, requestedHotkey: string): { registered: boolean; error?: string } {
   if (priceCheckHotkey) globalShortcut.unregister(priceCheckHotkey)
@@ -276,18 +308,23 @@ function registerPriceCheckHotkey(enabled: boolean, requestedHotkey: string): { 
       try {
         if (!priceCheckCoordinator || !priceCheckWindowManager) throw new Error('Price checker is unavailable')
         const clipboardText = await new GameClipboardService(() => gameWindowService).copyItem()
-        // Load the official stat catalog before parsing localized clipboard
-        // lines. This supplies runtime option translations without hardcoded
-        // per-affix mappings (and is cached for subsequent checks).
+        // All clipboard entry points use the vendored Xiletrade catalog. The
+        // official service is contacted only after the query is constructed.
         const clipboardLanguage = detectItemRawLanguage(clipboardText)
+        let canonicalizeStat: StatCanonicalizer | undefined
         if (clipboardLanguage === 'zh-rCN' || clipboardLanguage === 'zh-rTW' || clipboardLanguage === 'ko-KR') {
           await createMarketStatTextResolver('cn')
+          const bundle = await createMarketStatCatalog(clipboardLanguage === 'zh-rCN' ? 'cn' : 'global').catch(() => undefined)
+          if (bundle) canonicalizeStat = createStatCanonicalizer(clipboardLanguage, bundle)
         }
         await createMarketStatTextResolver(defaultRealm)
-        const parsed = gameClipboardToPobRaw(clipboardText)
+        const parsed = parseGameClipboardItem(clipboardText, { canonicalizeStat })
         priceCheckWindowManager.show()
         await priceCheckCoordinator.open({
-          source: { kind: 'raw', raw: parsed.raw },
+          // Keep the original clipboard payload as the coordinator source.
+          // prepare/search can then rebuild the same evidence-rich projection
+          // instead of losing localized text and stat IDs after the first pass.
+          source: { kind: 'raw', raw: clipboardText },
           ...(parsed.unresolved.length ? { captureWarnings: parsed.unresolved } : {}),
         })
       } catch (error) {
@@ -375,10 +412,125 @@ function validateOptionalNumber(value: unknown, name: string): number | undefine
   return value
 }
 
+function validateFindBetterOptions(value: unknown): FindBetterSearchOptions {
+  if (!value || typeof value !== 'object') throw new Error('Invalid find-better options')
+  const input = value as Partial<FindBetterSearchOptions>
+  const sortBy = input.sortBy
+  if (sortBy !== 'stat-value' && sortBy !== 'stat-value-price' && sortBy !== 'price' && sortBy !== 'weight') throw new Error('Invalid find-better sort mode')
+  if (!Array.isArray(input.statWeights) || input.statWeights.length > 128) throw new Error('Invalid find-better stat weights')
+  const statWeights = input.statWeights.map((candidate) => {
+    if (!candidate || typeof candidate !== 'object') throw new Error('Invalid find-better stat weight')
+    const stat = validateShortString(candidate.stat, 'find-better stat', 128)
+    const label = validateShortString(candidate.label, 'find-better stat label', 128)
+    const weightMult = validateOptionalNumber(candidate.weightMult, 'find-better stat multiplier')
+    if (weightMult == null || weightMult < 0 || weightMult > 1) throw new Error('Invalid find-better stat multiplier')
+    const lowerIsBetter = candidate.lowerIsBetter === true
+    return { stat, label, weightMult, ...(lowerIsBetter ? { lowerIsBetter } : {}) }
+  }).filter((candidate) => candidate.weightMult > 0)
+  const runeBehavior = input.runeBehavior
+  const anointBehavior = input.anointBehavior
+  if (!['copy-current', 'keep', 'remove'].includes(String(runeBehavior)) || !['copy-current', 'keep', 'remove'].includes(String(anointBehavior))) {
+    throw new Error('Invalid find-better augment behavior')
+  }
+  const maxPrice = validateOptionalNumber(input.maxPrice, 'find-better max price')
+  const maxLevel = validateOptionalNumber(input.maxLevel, 'find-better max level')
+  const sockets = validateOptionalNumber(input.sockets, 'find-better sockets')
+  const fetchPages = validateOptionalNumber(input.fetchPages, 'find-better fetch pages')
+  if (maxPrice != null && maxPrice < 0 || maxLevel != null && maxLevel < 0 || sockets != null && (sockets < 0 || !Number.isInteger(sockets)) || fetchPages != null && (fetchPages < 1 || fetchPages > 10 || !Number.isInteger(fetchPages))) {
+    throw new Error('Invalid find-better numeric option')
+  }
+  const maxPriceCurrency = input.maxPriceCurrency == null ? undefined : validateShortString(input.maxPriceCurrency, 'find-better price currency', 64)
+  const jewelType = input.jewelType == null ? undefined : input.jewelType
+  if (jewelType != null && jewelType !== 'base' && jewelType !== 'radius') throw new Error('Invalid find-better jewel type')
+  return {
+    sortBy,
+    statWeights,
+    fetchPages: fetchPages == null ? 2 : fetchPages,
+    includeCorrupted: input.includeCorrupted === true,
+    includeMirrored: input.includeMirrored === true,
+    runeBehavior: runeBehavior as FindBetterSearchOptions['runeBehavior'],
+    anointBehavior: anointBehavior as FindBetterSearchOptions['anointBehavior'],
+    ...(jewelType == null ? {} : { jewelType }),
+    ...(maxPrice == null ? {} : { maxPrice }),
+    ...(maxPriceCurrency == null ? {} : { maxPriceCurrency }),
+    ...(maxLevel == null ? {} : { maxLevel }),
+    ...(sockets == null ? {} : { sockets }),
+  }
+}
+
+function comparisonSlotResult(result: EquipmentDifferenceResult, slotName: string | undefined) {
+  // PoB normalizes the active weapon set to names such as "Weapon 1 Swap",
+  // while the renderer can still pass the base slot name "Weapon 1". Match
+  // both spellings. A build-aware comparison must never fall back to another
+  // valid slot, because that would produce a plausible but wrong DPS/EHP.
+  const normalizedSlotName = slotName?.replace(/\s+Swap$/, '')
+  return result.groups?.find((group) => group.slotName === slotName)
+    || (normalizedSlotName
+      ? result.groups?.find((group) => group.slotName.replace(/\s+Swap$/, '') === normalizedSlotName)
+      : result.groups?.length === 1 ? result.groups[0] : undefined)
+}
+
+function weightedEquipmentScore(result: EquipmentDifferenceResult, slotName: string | undefined): number | undefined {
+  return comparisonSlotResult(result, slotName)?.ranking?.weightedRatio
+}
+
+function candidateCardMetrics(result: EquipmentDifferenceResult, slotName: string | undefined): NonNullable<PriceCheckListingView['candidateMetrics']> {
+  const slotResult = comparisonSlotResult(result, slotName)
+  const changedStats = slotResult?.changedStats || []
+  const findStat = (key: string): EquipmentDiffStat | undefined => changedStats.find((stat) => stat.key === key && stat.actor === 'player')
+    || changedStats.find((stat) => stat.key === key)
+  const fullDpsStat = findStat('FullDPS')
+  const combinedDpsStat = findStat('CombinedDPS')
+  const dpsStat = fullDpsStat || combinedDpsStat
+  const hasFullDpsOutput = typeof slotResult?.sort.fullDps === 'number' && Number.isFinite(slotResult.sort.fullDps)
+  const dpsMetric = fullDpsStat || hasFullDpsOutput ? 'FullDPS' as const : 'CombinedDPS' as const
+  const totalEhpStat = findStat('TotalEHP')
+  const totalEhpDelta = totalEhpStat?.delta ?? 0
+  return {
+    ...(typeof slotResult?.sort.weaponDps === 'number' && Number.isFinite(slotResult.sort.weaponDps) ? { weaponDps: slotResult.sort.weaponDps } : {}),
+    dpsMetric,
+    fullDpsDelta: dpsStat?.delta ?? 0,
+    fullDpsPercent: dpsStat?.percent ?? 0,
+    totalEhpDelta,
+    totalEhpPercent: totalEhpStat?.percent ?? (totalEhpDelta === 0 ? 0 : undefined),
+  }
+}
+
+async function priceToExalted(realm: MarketRealm): Promise<(currency: string, amount: number) => number | undefined> {
+  const rates = new Map<string, number>([['exalted', 1], ['exalted-orb', 1], ['exalted orb', 1]])
+  try {
+    const market = await currencyMarketService?.get(realm)
+    const snapshot = market?.snapshot
+    if (snapshot?.divineInExalted && Number.isFinite(snapshot.divineInExalted)) {
+      rates.set('divine', snapshot.divineInExalted)
+      rates.set('divine-orb', snapshot.divineInExalted)
+      rates.set('divine orb', snapshot.divineInExalted)
+    }
+    for (const item of snapshot?.items || []) {
+      const names = [item.id, item.englishName, item.name].filter((value): value is string => Boolean(value)).map((value) => value.toLocaleLowerCase())
+      const rate = item.priceExalted
+      if (!rate || !Number.isFinite(rate)) continue
+      for (const name of names) {
+        if (name.includes('chaos')) rates.set('chaos', rate)
+        if (name.includes('exalted')) rates.set('exalted', rate)
+        if (name.includes('divine')) rates.set('divine', rate)
+      }
+    }
+  } catch {
+    // Sorting remains available for a single currency when the optional
+    // currency-market cache cannot be loaded.
+  }
+  return (currency, amount) => {
+    const key = currency.trim().toLocaleLowerCase()
+    const rate = rates.get(key) || rates.get(key.replace(/[_-]+/g, ' '))
+    return rate && Number.isFinite(amount) && amount > 0 ? amount * rate : undefined
+  }
+}
+
 function validatePriceCheckCriteria(value: unknown): TradePriceCheckCriteria {
   if (!value || typeof value !== 'object') throw new Error('Invalid price check criteria')
   const input = value as Partial<TradePriceCheckCriteria>
-  if (!['securable', 'available', 'online', 'any'].includes(String(input.listedStatus))) throw new Error('Invalid listed status')
+  if (!['securable', 'available', 'onlineleague', 'online', 'any'].includes(String(input.listedStatus))) throw new Error('Invalid listed status')
   if (typeof input.useBaseType !== 'boolean' || !Array.isArray(input.modifiers) || input.modifiers.length > 128) {
     throw new Error('Invalid price check criteria')
   }
@@ -394,13 +546,46 @@ function validatePriceCheckCriteria(value: unknown): TradePriceCheckCriteria {
   const itemLevelMin = validateOptionalNumber(input.itemLevelMin, 'item level minimum')
   const itemLevelMax = validateOptionalNumber(input.itemLevelMax, 'item level maximum')
   if (itemLevelMin != null && itemLevelMax != null && itemLevelMin > itemLevelMax) throw new Error('Item level minimum cannot exceed maximum')
+  const findBetter = input.findBetter == null ? undefined : validateFindBetterOptions(input.findBetter)
   return {
     listedStatus: input.listedStatus!,
     useBaseType: input.useBaseType,
     ...(itemLevelMin == null ? {} : { itemLevelMin }),
     ...(itemLevelMax == null ? {} : { itemLevelMax }),
     modifiers,
+    ...(findBetter ? { findBetter } : {}),
   }
+}
+
+function validateFindBetterOpenRequest(value: unknown): PriceCheckOpenRequest {
+  if (!value || typeof value !== 'object') throw new Error('Invalid find-better request')
+  let serializedSize = 0
+  try { serializedSize = JSON.stringify(value).length } catch { throw new Error('Invalid find-better request') }
+  if (serializedSize > 12_000_000) throw new Error('Find-better request is too large')
+  const input = value as Partial<PriceCheckOpenRequest>
+  if (!input.source || (input.source.kind !== 'raw' && input.source.kind !== 'library')) throw new Error('Invalid find-better source')
+  if (input.source.kind === 'raw') {
+    if (typeof input.source.raw !== 'string' || !input.source.raw || input.source.raw.length > 200_000) throw new Error('Invalid find-better item')
+  } else if (typeof input.source.entryId !== 'string' || !input.source.entryId || input.source.entryId.length > 256) {
+    throw new Error('Invalid find-better library item')
+  }
+  if (typeof input.slotName !== 'string' || !input.slotName || input.slotName.length > 80) throw new Error('Invalid find-better slot')
+  const context = input.buildContext
+  if (!context || typeof context !== 'object' || typeof context.xml !== 'string' || !context.xml || context.xml.length > 10_000_000 || typeof context.slotName !== 'string' || !context.slotName || context.slotName.length > 80) {
+    throw new Error('Invalid find-better build context')
+  }
+  if (context.buildRevision != null && (typeof context.buildRevision !== 'number' || !Number.isFinite(context.buildRevision))) throw new Error('Invalid find-better build revision')
+  if (context.activeItemSetId != null && (typeof context.activeItemSetId !== 'string' || context.activeItemSetId.length > 128)) throw new Error('Invalid find-better item set')
+  if (context.activeWeaponSet != null && context.activeWeaponSet !== 1 && context.activeWeaponSet !== 2) throw new Error('Invalid find-better weapon set')
+  if (context.buildItemId != null && (typeof context.buildItemId !== 'string' || context.buildItemId.length > 128)) throw new Error('Invalid find-better build item')
+  return structuredClone({
+    source: input.source,
+    mode: 'find-better' as const,
+    slotName: input.slotName,
+    buildContext: context,
+    ...(input.initialLeagueId == null ? {} : { initialLeagueId: input.initialLeagueId }),
+    ...(input.captureWarnings == null ? {} : { captureWarnings: input.captureWarnings }),
+  })
 }
 
 function validateListingRef(value: unknown, senderRealm: MarketRealm): MarketDomListingRef {
@@ -433,6 +618,38 @@ function requireMainWindowSender(event: IpcMainInvokeEvent): BrowserWindow {
     throw new Error('Unauthorized market request')
   }
   return mainWindow
+}
+
+function validateEquipmentTryOnOpenRequest(value: unknown): EquipmentTryOnOpenRequest {
+  if (!value || typeof value !== 'object') throw new Error('Invalid equipment try-on request')
+  let serializedSize = 0
+  try { serializedSize = JSON.stringify(value).length } catch { throw new Error('Invalid equipment try-on request') }
+  if (serializedSize > 12_000_000) throw new Error('Equipment try-on request is too large')
+  const input = value as Partial<EquipmentTryOnOpenRequest>
+  const entry = input.entry
+  if (!entry || typeof entry !== 'object' || !entry.item || typeof entry.item.raw !== 'string' || !entry.item.raw || entry.item.raw.length > 200_000) {
+    throw new Error('Invalid equipment try-on item')
+  }
+  if (!isUiLanguage(input.language)) throw new Error('Invalid equipment try-on language')
+  if (input.context != null) {
+    if (typeof input.context !== 'object' || typeof input.context.xml !== 'string' || !input.context.xml || input.context.xml.length > 10_000_000) {
+      throw new Error('Invalid equipment try-on build XML')
+    }
+    if (typeof input.context.buildRevision !== 'number' || !Number.isFinite(input.context.buildRevision)) {
+      throw new Error('Invalid equipment try-on build revision')
+    }
+    if (typeof input.context.activeItemSetId !== 'string' || !input.context.activeItemSetId || input.context.activeItemSetId.length > 128) {
+      throw new Error('Invalid equipment try-on item set')
+    }
+    if (input.context.activeWeaponSet !== 1 && input.context.activeWeaponSet !== 2) {
+      throw new Error('Invalid equipment try-on weapon set')
+    }
+  }
+  return structuredClone({
+    entry,
+    context: input.context ?? null,
+    language: input.language,
+  }) as EquipmentTryOnOpenRequest
 }
 
 function validateMarketBounds(event: IpcMainInvokeEvent, value: unknown): Rectangle {
@@ -522,7 +739,12 @@ function createWindow(): BrowserWindow {
   marketViewManager = new MarketViewManager(window, (state) => {
     if (!window.isDestroyed()) window.webContents.send('market:state-changed', state)
   }, tradeCredentialStore)
-  tradeProvider = new OfficialTradeProvider(marketViewManager, new TradeReferenceDataCache(path.join(userDataPath, 'trade', 'reference')))
+  tradeProvider = new OfficialTradeProvider(
+    marketViewManager,
+    new TradeReferenceDataCache(path.join(userDataPath, 'trade', 'reference')),
+    async (realm) => (await createMarketStatCatalog(realm)).display,
+    projectTradeItemForRealm,
+  )
   priceCheckWindowManager = new PriceCheckWindowManager(
     priceCheckPreloadPath,
     rendererUrl,
@@ -531,27 +753,150 @@ function createWindow(): BrowserWindow {
     true,
     () => gameWindowService?.focusGame(),
   )
+  findBetterWindowManager?.dispose()
+  findBetterWindowManager = new FindBetterWindowManager(findBetterPreloadPath, rendererUrl, getAppIconPath())
+  equipmentTryOnWindowManager?.dispose()
+  equipmentTryOnWindowManager = new EquipmentTryOnWindowManager(equipmentTryOnPreloadPath, rendererUrl, getAppIconPath())
   priceCheckCoordinator = new PriceCheckCoordinator({
     context: () => ({ realm: defaultRealm, language: uiLanguage }),
     prepare: async (realm, source) => {
       if (!tradeProvider) throw new Error('Trade provider is unavailable')
       const item = await priceCheckSnapshot({ realm, target: source })
-      return (await tradeProvider.prepare(realm, item)).draft
+      const prepared = await tradeProvider.prepare(realm, item)
+      return { draft: prepared.draft, item: prepared.resolvedItem }
     },
     leagues: async (realm) => {
       if (!tradeProvider) throw new Error('Trade provider is unavailable')
       return tradeProvider.leagues(realm)
     },
-    search: async (realm, source, leagueId, criteria) => {
+    search: async (realm, item, leagueId, criteria, mode, buildContext) => {
       if (!tradeProvider) throw new Error('Trade provider is unavailable')
-      const item = await priceCheckSnapshot({ realm, target: source })
-      const result = await tradeProvider.search(realm, leagueId, item, criteria)
+      let queryOverride: { query: unknown; resolved?: number } | undefined
+      if (mode === 'find-better') {
+        if (!buildContext) throw new Error('Find a better search requires the active build context')
+        const generated = await pobLuaService.generateTradeQuery({
+          xml: buildContext.xml,
+          slotName: buildContext.slotName,
+          configOverrides: buildContext.configOverrides,
+          options: criteria.findBetter,
+        }) as { success?: boolean; data?: { query?: unknown; resolved?: number }; query?: unknown; resolved?: number; error?: string }
+        // The sidecar protocol wraps successful handler results in `data`.
+        // Accept the unwrapped shape too so this remains compatible with older
+        // development sidecars during a hot reload.
+        const resultData = generated?.data || generated
+        if (generated?.success === false || !resultData?.query) {
+          throw new Error(generated?.error || 'Unable to calculate build-aware trade weights')
+        }
+        queryOverride = { query: resultData.query, ...(typeof resultData.resolved === 'number' ? { resolved: resultData.resolved } : {}) }
+      }
+      const result = await tradeProvider.search(realm, leagueId, item, criteria, mode, queryOverride)
       const { resolvedItem: _resolvedItem, ...response } = result
       return response
     },
     fetch: async (realm, ids, searchId) => {
       if (!marketViewManager) throw new Error('Trade provider is unavailable')
       return marketViewManager.fetchListings(realm, ids, searchId)
+    },
+    rankListings: async (listings, criteria, buildContext, sourceSlotName, realm) => {
+      const options = criteria.findBetter
+      if (!options || !buildContext || !listings.length) return listings
+      const slotName = sourceSlotName || buildContext.slotName
+      const context = {
+        xml: buildContext.xml,
+        buildRevision: buildContext.buildRevision ?? 0,
+        activeItemSetId: buildContext.activeItemSetId ?? '',
+        activeWeaponSet: buildContext.activeWeaponSet ?? 1,
+        buildItemId: buildContext.buildItemId,
+        configOverrides: buildContext.configOverrides,
+      }
+      const contextKey = `find-better:${createHash('sha256').update(JSON.stringify({ ...context, slotName })).digest('hex').slice(0, 48)}`
+      const comparablePrice = options.sortBy === 'price' || options.sortBy === 'stat-value-price' ? await priceToExalted(realm) : undefined
+      const ranked: Array<{ listing: typeof listings[number]; score: number; sortScore: number; index: number }> = []
+      const canonicalRawCache = new Map<string, string>()
+      let missingPriceConversion = false
+      for (const [index, listing] of listings.entries()) {
+        if (!listing.raw) continue
+        try {
+          let candidateRaw = canonicalRawCache.get(listing.id) || listing.raw
+          if (!canonicalRawCache.has(listing.id)) {
+            const normalized = await pobLuaService.normalizeItem(candidateRaw).catch(() => undefined)
+            if (normalized?.success && normalized.item?.raw) candidateRaw = normalized.item.raw
+            canonicalRawCache.set(listing.id, candidateRaw)
+          }
+          // Card deltas come from the same single-slot PoB comparison used by
+          // the detail view. This makes every local sort mode show the same
+          // three decision values, while the current build remains untouched.
+          const comparison = await pobLuaService.compareEquipment({
+            context,
+            contextKey,
+            sourceSlotName: slotName,
+            slotOnlyTooltips: true,
+            candidate: {
+              raw: candidateRaw,
+              source: 'market-listing',
+              runeBehavior: options.runeBehavior,
+              anointBehavior: options.anointBehavior,
+            },
+            ...((options.sortBy === 'stat-value' || options.sortBy === 'stat-value-price')
+              ? { weightSpec: options.statWeights.map((weight) => ({ stat: weight.stat, weightMult: weight.weightMult, ...(weight.lowerIsBetter ? { lowerIsBetter: true } : {}) })) }
+              : {}),
+          })
+          const candidateMetrics = comparison.success ? candidateCardMetrics(comparison, slotName) : undefined
+          const price = listing.price && comparablePrice?.(listing.price.currency, listing.price.amount)
+          const fallbackPrice = price
+          if ((options.sortBy === 'price' || options.sortBy === 'stat-value-price') && fallbackPrice == null) {
+            missingPriceConversion = true
+          }
+          const canonicalListing = candidateRaw === listing.raw ? listing : { ...listing, raw: candidateRaw }
+          const withMetrics = candidateMetrics ? { ...canonicalListing, candidateMetrics } : canonicalListing
+          if (options.sortBy === 'price') {
+            ranked.push({
+              listing: withMetrics,
+              score: 0,
+              sortScore: fallbackPrice && fallbackPrice > 0 ? fallbackPrice : Number.POSITIVE_INFINITY,
+              index,
+            })
+            continue
+          }
+          if (options.sortBy === 'weight') {
+            ranked.push({
+              listing: withMetrics,
+              score: 0,
+              sortScore: index,
+              index,
+            })
+            continue
+          }
+          if (!comparison.success) continue
+          const score = weightedEquipmentScore(comparison, slotName)
+          if (score == null || !Number.isFinite(score)) continue
+          let sortScore = score
+          if (options.sortBy === 'stat-value-price') {
+            // PoB2 uses currency conversion rates and subtracts 0.1 * log10
+            // of the comparable price. Missing conversion rates are reported
+            // to the coordinator so it can use PoB2's Stat Value fallback.
+            sortScore = fallbackPrice && fallbackPrice > 0 ? score - 0.1 * Math.log10(fallbackPrice) : Number.NEGATIVE_INFINITY
+          }
+          ranked.push({
+            listing: withMetrics,
+            score,
+            sortScore,
+            index,
+          })
+        } catch (error) {
+          console.warn(`[PriceCheck] unable to score market listing ${listing.id}`, error)
+        }
+      }
+      if (missingPriceConversion) throw new Error('MissingConversionRates')
+      ranked.sort((left, right) => (options.sortBy === 'price' ? left.sortScore - right.sortScore : options.sortBy === 'weight' ? left.index - right.index : right.sortScore - left.sortScore) || left.index - right.index)
+      const rankedIds = new Set(ranked.map((entry) => entry.listing.id))
+      const ordered: PriceCheckListingView[] = ranked.map((entry) => options.sortBy === 'price'
+        ? entry.listing
+        : { ...entry.listing, tradeScore: entry.sortScore })
+      // Preserve candidates that could not be parsed/calculated at the end;
+      // PoB2 keeps the result row usable even when one item is malformed.
+      ordered.push(...listings.filter((listing) => !rankedIds.has(listing.id)))
+      return ordered
     },
     resolveListingStatText: async (realm, queryStatId) => {
       try {
@@ -568,7 +913,10 @@ function createWindow(): BrowserWindow {
       if (!marketViewManager) throw new Error('Trade provider is unavailable')
       return marketViewManager.visitHideout({ realm, listingId, queryId: searchId, sourceUrl })
     },
-    changed: (state) => priceCheckWindowManager?.publish(state),
+    changed: (state) => {
+      if (state.mode === 'find-better') findBetterWindowManager?.publish(state)
+      else priceCheckWindowManager?.publish(state)
+    },
   })
   currencyMarketService = new CurrencyMarketService(
     path.join(userDataPath, 'currency-market'),
@@ -633,18 +981,31 @@ function createWindow(): BrowserWindow {
     priceCheckCoordinator = null
     priceCheckWindowManager?.dispose()
     priceCheckWindowManager = null
+    findBetterWindowManager?.dispose()
+    findBetterWindowManager = null
+    equipmentTryOnWindowManager?.dispose()
+    equipmentTryOnWindowManager = null
     if (mainWindow === window) mainWindow = null
   })
   return window
 }
 
-let updateChannel: UpdateChannel = 'release'
+// Keep the main-process startup default aligned with the first-run settings.
+// The renderer may synchronize a saved preference later, but the initial
+// automatic check must not briefly fall back to the release feed.
+let updateChannel: UpdateChannel = 'dev'
 let updateCheckIntervalMinutes = 60
 const pobLuaService = new PobLuaService()
-const pobItemBridge = new PobItemBridge(pobLuaService)
 const itemTranslations = new ItemTranslationIndex()
 const itemTranslationIndexes = new Map<ItemRawLanguage, ItemTranslationIndex>([['zh-rCN', itemTranslations]])
 const itemIcons = new ItemIconIndex()
+let xiletradeDataCatalog: XiletradeDataCatalog | undefined
+interface MarketStatCatalogBundle {
+  display: CatalogSnapshot
+  canonical: CatalogSnapshot
+}
+
+const marketStatCatalogPromises = new Map<MarketRealm, Promise<MarketStatCatalogBundle>>()
 const marketStatResolverPromises = new Map<MarketRealm, Promise<(queryStatId: string) => MarketStatTextResolution | undefined>>()
 
 function getItemTranslationIndex(language: ItemRawLanguage): ItemTranslationIndex {
@@ -663,6 +1024,42 @@ function getItemTranslationIndex(language: ItemRawLanguage): ItemTranslationInde
   return index
 }
 
+function getXiletradeDataCatalog(): XiletradeDataCatalog {
+  if (!xiletradeDataCatalog) {
+    const root = path.join(app.getAppPath(), app.isPackaged ? 'dist' : 'public', 'data', 'xiletrade')
+    xiletradeDataCatalog = new XiletradeDataCatalog(root)
+  }
+  return xiletradeDataCatalog
+}
+
+const pobItemBridge = new PobItemBridge(pobLuaService, getXiletradeDataCatalog())
+
+/** Loads the display catalog and the canonical English catalog for a realm. */
+async function createMarketStatCatalog(realm: MarketRealm): Promise<MarketStatCatalogBundle> {
+  const existing = marketStatCatalogPromises.get(realm)
+  if (existing) return existing
+  const pending = (async () => {
+    const source = getXiletradeDataCatalog()
+    const display = source.get(realm === 'cn' ? 'zh-CN' : 'en-US')
+    const canonical = source.get('en-US')
+    const snapshot = (catalog: typeof display, targetRealm: MarketRealm): CatalogSnapshot => ({
+      realm: targetRealm,
+      fetchedAt: new Date(0).toISOString(),
+      payloadHash: `xiletrade:${catalog.upstreamCommit}:${catalog.locale}`,
+      entries: catalog.entries.map((entry) => ({
+        ...entry,
+        option: entry.option?.options?.length
+          ? { options: entry.option.options.map((option) => ({ id: String(option.id), text: option.text })) }
+          : undefined,
+      })),
+    })
+    return { display: snapshot(display, realm), canonical: snapshot(canonical, 'global') }
+  })()
+  marketStatCatalogPromises.set(realm, pending)
+  void pending.catch(() => { marketStatCatalogPromises.delete(realm) })
+  return pending
+}
+
 /**
  * Builds a stat-ID lookup from the official catalogs. CN entries are kept for
  * display while the global catalog supplies PoB's canonical English text.
@@ -673,11 +1070,7 @@ async function createMarketStatTextResolver(realm: MarketRealm): Promise<(queryS
   const existing = marketStatResolverPromises.get(realm)
   if (existing) return existing
   const pending = (async () => {
-    const displayCatalog = await tradeProvider!.stats(realm)
-    let canonicalCatalog = displayCatalog
-    if (realm === 'cn') {
-      try { canonicalCatalog = await tradeProvider!.stats('global') } catch { /* CN catalog still provides a safe display fallback. */ }
-    }
+    const { display: displayCatalog, canonical: canonicalCatalog } = await createMarketStatCatalog(realm)
     const displayById = new Map(displayCatalog.entries.map((entry) => [entry.id, entry.text]))
     const canonicalById = new Map(canonicalCatalog.entries.map((entry) => [entry.id, entry.text]))
     if (realm === 'cn') {
@@ -697,6 +1090,68 @@ async function createMarketStatTextResolver(realm: MarketRealm): Promise<(queryS
   return pending
 }
 
+type StatCanonicalizer = (value: string, group?: LibraryModifierGroup, context?: CanonicalStatContext, nextLine?: string) => CanonicalStatMatch | undefined
+
+function createStatCanonicalizer(
+  language: ItemRawLanguage,
+  _bundle?: MarketStatCatalogBundle,
+): StatCanonicalizer {
+  const locale = language === 'zh-rCN' ? 'zh-CN' : language === 'zh-rTW' ? 'zh-TW' : language === 'ko-KR' ? 'ko-KR' : 'en'
+  const matcher = new XiletradeModifierMatcher(getXiletradeDataCatalog().bundle(locale))
+  return (value, group = 'explicit', context = {}, nextLine = '') => matcher.match(value, group, context, nextLine)
+}
+
+function projectTradeItemForRealm(realm: MarketRealm, item: LibraryItemSnapshot, catalog: CatalogSnapshot): LibraryItemSnapshot {
+  const locale = realm === 'cn' ? 'zh-CN' : 'en'
+  const source = getXiletradeDataCatalog()
+  const context = source.resolveItemContext(locale, item)
+  const matcher = new XiletradeModifierMatcher(source.bundle(locale))
+  const catalogHas = (id: string) => {
+    const [baseId] = id.split('|')
+    return catalog.entries.some((entry) => entry.id === id || entry.id === baseId)
+  }
+  return {
+    ...structuredClone(item),
+    itemClass: context.itemClass,
+    tradeCategory: context.tradeCategory,
+    modifiers: item.modifiers.map((modifier) => {
+      const prior = modifier.tradeResolutions.find((candidate) => candidate.realm === realm)
+      let candidateStatIds = [...new Set(modifier.tradeResolutions.flatMap((candidate) => (
+        candidate.queryStatId ? [candidate.queryStatId] : candidate.candidateStatIds
+      )).filter(catalogHas))]
+      let resolvedBy: TradeStatResolutionSnapshot['resolvedBy'] = prior?.resolvedBy || 'exact-text'
+      if (candidateStatIds.length !== 1) {
+        const localized = realm === 'cn' ? modifier.localized?.['zh-CN']?.displayText : undefined
+        const match = matcher.match(localized || modifier.original.displayText, modifier.group, context)
+        const matchedIds = match?.queryStatId ? [match.queryStatId] : match?.candidateStatIds || []
+        const validMatches = matchedIds.filter(catalogHas)
+        if (validMatches.length) candidateStatIds = [...new Set(validMatches)]
+        resolvedBy = 'exact-text'
+      }
+      const queryStatId = candidateStatIds.length === 1 ? candidateStatIds[0] : undefined
+      const [baseStatId, optionId] = queryStatId?.split('|') || []
+      const resolution: TradeStatResolutionSnapshot = {
+        realm,
+        queryStatId,
+        baseStatId,
+        optionId,
+        candidateStatIds,
+        source: modifier.sourceTags.find((tag) => ['enchant', 'rune', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated'].includes(tag)) as TradeStatResolutionSnapshot['source'] || 'unknown',
+        valueMode: optionId ? 'fixed-option' : modifier.valueMode,
+        valueTransform: prior?.valueTransform || 'identity',
+        resolvedBy,
+        catalogFetchedAt: catalog.fetchedAt,
+        catalogPayloadHash: catalog.payloadHash,
+        status: queryStatId ? 'resolved' : candidateStatIds.length ? 'ambiguous' : 'unresolved',
+      }
+      return {
+        ...structuredClone(modifier),
+        tradeResolutions: [...modifier.tradeResolutions.filter((candidate) => candidate.realm !== realm), resolution],
+      }
+    }),
+  }
+}
+
 function resolveMarketItemText(realm: MarketRealm, value: string): { canonicalText?: string } {
   if (realm !== 'cn') return { canonicalText: value }
   return { canonicalText: itemTranslations.toEnglish(value) || itemTranslations.statToEnglish(value) || value }
@@ -705,6 +1160,15 @@ function resolveMarketItemText(realm: MarketRealm, value: string): { canonicalTe
 interface GameClipboardParseResult {
   raw: string
   unresolved: string[]
+  evidence?: XiletradeItemParseResult['evidence']
+  localized?: XiletradeItemParseResult['localized']
+}
+
+interface GameClipboardParseOptions {
+  /** Price checks may use the resolved subset; library imports must be complete. */
+  strict?: boolean
+  /** Optional official-catalog canonicalization for localized stat lines. */
+  canonicalizeStat?: StatCanonicalizer
 }
 
 function usableLocalizedText(value: string | undefined): string | undefined {
@@ -712,7 +1176,7 @@ function usableLocalizedText(value: string | undefined): string | undefined {
   return value
 }
 
-function translatePobRawForPriceCheck(value: string): GameClipboardParseResult {
+function translatePobRawForPriceCheck(value: string, canonicalizeStat?: StatCanonicalizer): GameClipboardParseResult {
   const normalized = value.replace(/\r\n/g, '\n').trim()
   const language = detectItemRawLanguage(normalized)
   if (language === 'en') return { raw: normalized, unresolved: [] }
@@ -725,12 +1189,13 @@ function translatePobRawForPriceCheck(value: string): GameClipboardParseResult {
     if (metadata.test(line) || /^\{[^}]+\}/u.test(line)) {
       const prefix = line.match(/^(?:\{[^}]+\})+/u)?.[0] || ''
       const body = line.slice(prefix.length)
-      const translated = translations.statToEnglish(body)
+      const group = /\{(?:rune)\}/i.test(prefix) ? 'rune' : /\{(?:enchant)\}/i.test(prefix) ? 'enchant' : /\{(?:implicit)\}/i.test(prefix) ? 'implicit' : 'explicit'
+      const translated = canonicalizeStat?.(body, group)?.canonicalText || translations.statToEnglish(body)
       output.push(prefix + (translated || body))
       continue
     }
     const translatedName = translations.toEnglish(line)
-    const translatedStat = translations.statToEnglish(line)
+    const translatedStat = canonicalizeStat?.(line, 'explicit')?.canonicalText || translations.statToEnglish(line)
     const translated = translatedStat || translatedName || (/^[\x20-\x7e]+$/.test(line) ? line : undefined)
     if (translated) output.push(translated)
     else unresolved.push(line)
@@ -738,7 +1203,7 @@ function translatePobRawForPriceCheck(value: string): GameClipboardParseResult {
   return { raw: output.join('\n'), unresolved: [...new Set(unresolved)] }
 }
 
-function gameClipboardToPobRaw(value: string): GameClipboardParseResult {
+function gameClipboardToPobRaw(value: string, options: GameClipboardParseOptions = {}): GameClipboardParseResult {
   const normalized = value.replace(/\r\n/g, '\n').trim()
   const language = detectItemRawLanguage(normalized)
   if (language === 'en') return { raw: normalized, unresolved: [] }
@@ -752,10 +1217,26 @@ function gameClipboardToPobRaw(value: string): GameClipboardParseResult {
   // in a separate section, so retain that fallback for compatibility.
   const header = rarityIndex >= 0 ? firstSection.slice(0, rarityIndex + 1) : firstSection
   const inlineNames = rarityIndex >= 0 ? firstSection.slice(rarityIndex + 1) : []
-  const names = inlineNames.length ? inlineNames : sections[1]
+  // Depending on the client version, the game may put a warning such as
+  // "You cannot use this item" in the header and move the name/base type to
+  // the next section. Select the last two name-like lines rather than treating
+  // that warning as the item name.
+  const nameNoise = /^(?:You cannot use|你无法使用|您无法使用|你無法使用|사용할 수 없는|이 아이템을 사용할 수 없습니다)/iu
+  const nameMetadata = /^(?:物品类别|物品類別|稀有度|Rarity|品质|品質|物理伤害|物理傷害|元素伤害|元素傷害|暴击率|暴擊率|每秒攻击次数|每秒攻擊次數|需求|插槽|物品等级|物品等級|Item Level|Sockets|Quality|품질|소켓|요구|아이템 레벨|물리 피해|원소 피해|치명타 확률|초당 공격 횟수)\s*[：:]/iu
+  const nameCandidates = (lines: string[]) => lines.filter((line) => line && !nameNoise.test(line) && !nameMetadata.test(line))
+  let names = nameCandidates(inlineNames).slice(-2)
+  if (names.length < 2) {
+    for (const section of sections.slice(1)) {
+      const candidates = nameCandidates(section)
+      if (candidates.length >= 2) {
+        names = candidates.slice(-2)
+        break
+      }
+    }
+  }
   const field = (patterns: RegExp[]) => header.find((line) => patterns.some((pattern) => pattern.test(line)))?.split(/:\s*|：\s*/).slice(1).join(':').trim()
   const raritySource = field([/^Rarity\s*:/i, /^稀有度\s*[：:]/u, /^희귀도\s*[：:]/u]) || ''
-  const rarity = /unique|傳奇|传奇|유니크/i.test(raritySource) ? 'UNIQUE'
+  const rarity = /unique|傳奇|传奇|유니크|고유/i.test(raritySource) ? 'UNIQUE'
     : /rare|稀有|희귀/i.test(raritySource) ? 'RARE'
       : /magic|魔法|마법/i.test(raritySource) ? 'MAGIC' : 'NORMAL'
   const displayName = names[0] || ''
@@ -766,10 +1247,50 @@ function gameClipboardToPobRaw(value: string): GameClipboardParseResult {
   const itemLevelLine = sections.flat().find((line) => /^(?:Item Level|物品等级|物品等級|아이템 레벨)\s*[：:]/iu.test(line))
   const itemLevel = itemLevelLine?.match(/\d+/)?.[0]
   const itemLevelSection = sections.findIndex((section) => section.some((line) => line === itemLevelLine))
-  const modifierLines: Array<{ text: string; rune: boolean; implicit: boolean }> = []
+  // Jewel metadata is part of the game's clipboard format, but it appears in
+  // the section before the item level. Keep it in the canonical PoB raw so
+  // unique jewels retain their limit/radius behavior when saved manually.
+  const metadataLines: string[] = []
+  for (const line of sections.flat()) {
+    const cleaned = line.replace(/\s*\((?:augmented|强化|強化)\)\s*$/iu, '').trim()
+    const limited = cleaned.match(/^(?:Limited to|仅限|僅限)\s*[：:]\s*(\d+)(?:\s+Historic)?$/iu)
+    if (limited) {
+      metadataLines.push(`Limited to: ${limited[1]}${/\s+Historic$/iu.test(cleaned) ? ' Historic' : ''}`)
+      continue
+    }
+    const radius = cleaned.match(/^(?:Radius|范围|範圍)\s*[：:]\s*(Variable|变量|變數|Very Small|极小|極小|Small|小型|Medium-Small|中小|中小型|Medium|中型|Large|大型|Very Large|极大|極大|Massive|巨大)$/iu)
+    if (radius) {
+      const value = radius[1].toLowerCase() === 'variable' || radius[1] === '变量' || radius[1] === '變數'
+        ? 'Variable'
+        : radius[1]
+            .replace(/^极小$/u, 'Very Small')
+            .replace(/^極小$/u, 'Very Small')
+            .replace(/^小型$/u, 'Small')
+            .replace(/^中小$/u, 'Medium-Small')
+            .replace(/^中小型$/u, 'Medium-Small')
+            .replace(/^中型$/u, 'Medium')
+            .replace(/^大型$/u, 'Large')
+            .replace(/^极大$/u, 'Very Large')
+            .replace(/^極大$/u, 'Very Large')
+            .replace(/^巨大$/u, 'Massive')
+      metadataLines.push(`Radius: ${value}`)
+    }
+  }
+  const qualityLine = sections.flat().find((line) => /^(?:Quality|品质|品質|품질)\s*[：:]/iu.test(line))
+  const quality = qualityLine?.match(/([+-]?\d+(?:\.\d+)?)\s*%/u)?.[1]
+  if (quality) metadataLines.push(`Quality: ${quality}`)
+  const socketsLine = sections.flat().find((line) => /^(?:Sockets|插槽|소켓)\s*[：:]/iu.test(line))
+  const socketText = socketsLine?.split(/[：:]/u).slice(1).join(':').match(/[SJ]/gi)?.join(' ')
+  if (socketText) metadataLines.push(`Sockets: ${socketText}`)
+  const requirementLine = sections.flat().find((line) => /^(?:需求|Requirements?|요구)\s*[：:]/iu.test(line))
+  const levelRequirement = requirementLine?.match(/(?:等级|等級|Level)\s*(\d+)/iu)?.[1]
+  if (levelRequirement) metadataLines.push(`LevelReq: ${levelRequirement}`)
+
+  const modifierLines: Array<{ text: string; tags: string[]; implicit: boolean }> = []
   const unresolved: string[] = []
   const footerMarker = /^(?:Corrupted|Twice Corrupted|Sanctified|Sanctified Item|已腐化|已污染|被腐化|已腐化|双重腐化|圣化|圣化物品|Split|分裂|分裂之物|引路石掉落|Waystone Drop|타락|이중 타락|분열|웨이스톤 드롭)$/iu
   let footerMode = false
+  let pendingMarkerTags = new Set<string>()
   for (const section of sections.slice(Math.max(2, itemLevelSection + 1))) {
     if (footerMode) continue
     if (section.some((line) => footerMarker.test(line))) {
@@ -778,18 +1299,43 @@ function gameClipboardToPobRaw(value: string): GameClipboardParseResult {
     }
     const isFlavorSection = section.some((line) => /^(?:[“"]|'.*')/u.test(line))
       || section.every((line) => /[，。！？；、——…]$/u.test(line))
-    if (isFlavorSection) continue
-    let implicit = false
-    if (section.some((line) => /^\{\s*(?:基底属性|基底屬性|Base Properties)\s*\}$/u.test(line))) implicit = true
+    // The client also copies interaction hints (for example how to remove a
+    // cosmetic effect). They are presentation text, not item modifiers.
+    const isInteractionHint = section.some((line) => /^(?:使用|放置到|右键点击|按住|Use|Place|Right[- ]click|Hold)\b/iu.test(line))
+    if (isFlavorSection || isInteractionHint) continue
+    const markerLine = section.find((line) => /^\{.*\}$/u.test(line)) || ''
+    const markerTags = new Set<string>()
+    if (/(?:基底属性|基底屬性|Base Properties|기본 속성)/iu.test(markerLine)) markerTags.add('implicit')
+    if (/(?:强化|強化|강화)\s*\}?$/iu.test(markerLine) || /(?:腐化强化|腐化強化|타락 강화)/iu.test(markerLine)) markerTags.add('enchant')
+    if (/(?:破碎的|碎裂的|Fractured|분열된)/iu.test(markerLine)) markerTags.add('fractured')
+    if (/(?:打造的|製作的|Crafted|제작된)/iu.test(markerLine)) markerTags.add('crafted')
+    if (/(?:亵渎的|褻瀆的|Desecrated|모독된)/iu.test(markerLine)) markerTags.add('desecrated')
+    for (const tag of pendingMarkerTags) markerTags.add(tag)
+    const markerOnly = markerLine !== '' && section.every((line) => /^\{.*\}$/u.test(line))
+    if (markerOnly) {
+      pendingMarkerTags = markerTags
+      continue
+    }
+    pendingMarkerTags = new Set<string>()
+    const implicit = markerTags.has('implicit')
     for (const sourceLine of section) {
       if (/^\{.*\}$/u.test(sourceLine) || footerMarker.test(sourceLine)) continue
       const rune = /\((?:rune|符文)\)$/i.test(sourceLine)
       const cleaned = sourceLine.replace(/\s*\((?:rune|符文)\)\s*$/i, '').replace(/^\{[^}]+\}/, '').trim()
-      const translated = translations.statToEnglish(cleaned) || (/^[\x20-\x7e]+$/.test(cleaned) ? cleaned : undefined)
-      if (translated && !/^(?:Requirements?|Sockets?|Quality|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second)\s*:/i.test(translated)) {
+      const statGroup: LibraryModifierGroup = rune
+        ? 'rune'
+        : markerTags.has('enchant') ? 'enchant'
+          : markerTags.has('implicit') ? 'implicit'
+            : 'explicit'
+      const translated = options.canonicalizeStat?.(cleaned, statGroup)?.canonicalText
+        || translations.statToEnglish(cleaned)
+        || (/^[\x20-\x7e]+$/.test(cleaned) ? cleaned : undefined)
+      if (translated && !/^(?:Requirements?|Sockets?|Quality|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second|Weapon Range|Armour|Evasion|Energy Shield|Ward|Spirit|Charm Slots|Requires)\s*:/i.test(translated)) {
+        const tags = [...markerTags]
+        if (rune) tags.push('rune')
         modifierLines.push({
           text: translated,
-          rune,
+          tags: [...new Set(tags)],
           // Unique base properties and granted skills are implicit item data in
           // PoB, even when the game clipboard puts them in separate sections.
           implicit: !rune && (implicit || /^Grants Skill:/i.test(translated)),
@@ -799,89 +1345,127 @@ function gameClipboardToPobRaw(value: string): GameClipboardParseResult {
       }
     }
   }
-  const uniqueModifiers = [...new Map(modifierLines.map((modifier) => [`${modifier.rune}:${modifier.text}`, modifier])).values()]
+  const uniqueModifiers = [...new Map(modifierLines.map((modifier) => [`${modifier.tags.join(',')}:${modifier.text}`, modifier])).values()]
   const uniqueUnresolved = [...new Set(unresolved)]
-  if (!uniqueModifiers.length) {
-    const detail = uniqueUnresolved.length ? ` Unsupported ${language} item lines: ${uniqueUnresolved.join(' | ')}` : ''
+  if (options.strict && uniqueUnresolved.length) {
+    throw new Error(`Unsupported ${language} item lines: ${uniqueUnresolved.join(' | ')}`)
+  }
+  if (!uniqueModifiers.length && uniqueUnresolved.length) {
+    const detail = ` Unsupported ${language} item lines: ${uniqueUnresolved.join(' | ')}`
     throw new Error(`No supported modifiers could be resolved from the game clipboard.${detail}`)
   }
   // Unknown localized lines are deliberately excluded from PoB raw. They are
   // retained as diagnostics so a partial query can still use all recognized
   // modifiers without silently submitting an unsafe approximation.
   if (uniqueUnresolved.length) console.warn(`[PriceCheck] Unsupported ${language} item lines: ${uniqueUnresolved.join(' | ')}`)
-  const implicitCount = uniqueModifiers.filter((modifier) => modifier.rune || modifier.implicit).length
+  // PoB counts rune/enchant/base-implicit lines in the implicit header. This
+  // keeps corrupted enchants and rune effects in their native parser section.
+  const implicitCount = uniqueModifiers.filter((modifier) => modifier.tags.includes('rune') || modifier.tags.includes('enchant') || modifier.implicit).length
   const raw = [`Rarity: ${rarity}`]
   if ((rarity === 'RARE' || rarity === 'UNIQUE') && name && name !== baseType) raw.push(name)
   raw.push(baseType)
   if (itemLevel) raw.push(`Item Level: ${itemLevel}`)
+  raw.push(...[...new Set(metadataLines)])
   raw.push(`Implicits: ${implicitCount}`)
-  raw.push(...uniqueModifiers.map((modifier) => `${modifier.rune ? '{rune}' : modifier.implicit ? '{implicit}' : ''}${modifier.text}`))
+  raw.push(...uniqueModifiers.map((modifier) => {
+    const tags = modifier.tags.filter((tag) => tag !== 'implicit')
+    const prefix = `${modifier.implicit ? '{implicit}' : ''}${tags.map((tag) => `{${tag}}`).join('')}`
+    return `${prefix}${modifier.text}`
+  }))
   const footerLines = sections.flat()
   if (footerLines.some((line) => /^(?:Twice Corrupted|双重腐化|이중 타락)$/iu.test(line))) raw.push('Twice Corrupted')
   else if (footerLines.some((line) => /^(?:Corrupted|已腐化|已污染|被腐化|已腐化|타락)$/iu.test(line))) raw.push('Corrupted')
   return { raw: raw.join('\n'), unresolved: uniqueUnresolved }
 }
 
+function parseGameClipboardItem(value: string, options: GameClipboardParseOptions = {}): XiletradeItemParseResult {
+  const language = detectItemRawLanguage(value)
+  const translations = getItemTranslationIndex(language)
+  const locale = language === 'zh-rCN' ? 'zh-CN'
+    : language === 'zh-rTW' ? 'zh-TW'
+      : language === 'ko-KR' ? 'ko-KR' : 'en'
+  return parseXiletradeItemText(value, {
+    strict: options.strict,
+    language: {
+      locale,
+      toEnglish: (text) => translations.toEnglish(text),
+      statToEnglish: (text) => translations.statToEnglish(text),
+    },
+    canonicalizeStat: options.canonicalizeStat
+      ? (text, group, itemClass, nextLine) => options.canonicalizeStat?.(text, group, itemClass, nextLine)
+      : createStatCanonicalizer(language),
+    parsingRules: getXiletradeDataCatalog().get(locale).rules,
+    upstreamCommit: getXiletradeDataCatalog().get(locale).upstreamCommit,
+  })
+}
+
+function looksLikeGameClipboardItem(value: string): boolean {
+  const normalized = value.replace(/\r\n?/g, '\n')
+  return /^(?:物品类别|物品類別|Item Class|아이템 종류)\s*[：:]/m.test(normalized)
+    && /^(?:稀有度|Rarity|희귀도)\s*[：:]/m.test(normalized)
+}
+
 async function priceCheckSnapshot(request: TradePriceCheckPrepareRequest) {
   const target = request.target
   if (!target || typeof target !== 'object') throw new Error('Invalid price check target')
   const sourceText = target.kind === 'raw' ? target.raw : target.kind === 'library' ? equipmentLibrary.get(target.entryId)?.item.raw : ''
+  const sourceLanguage = sourceText ? detectItemRawLanguage(sourceText) : 'en'
+  let canonicalizeStat: StatCanonicalizer | undefined
   if (sourceText && detectItemRawLanguage(sourceText) !== 'en') {
     await createMarketStatTextResolver('cn')
     await createMarketStatTextResolver(request.realm)
+    const bundle = await createMarketStatCatalog(sourceLanguage === 'zh-rCN' ? 'cn' : 'global').catch(() => undefined)
+    if (bundle) canonicalizeStat = createStatCanonicalizer(sourceLanguage, bundle)
   }
   const statResolver = await createMarketStatTextResolver(request.realm).catch(() => () => undefined)
   if (target.kind === 'library') {
-    const entry = equipmentLibrary.get(validateShortString(target.entryId, 'library entry ID', 128))
+    const entryId = validateShortString(target.entryId, 'library entry ID', 128)
+    let entry = equipmentLibrary.get(entryId)
     if (!entry) throw new Error('Equipment library entry not found')
-    const translatedRaw = translatePobRawForPriceCheck(entry.item.raw)
-    const normalized = await pobItemBridge.normalize(translatedRaw.raw)
-    const modifiers = normalized.view.modifiers.map((modifier, index) => {
-      const existing = entry.view.modifiers[index]?.localized || modifier.localized
-      // Rebuild localized text from the canonical English modifier first.
-      // Older library entries may contain stale '?' placeholders produced by
-      // the previous template translator.
-      const fallback = modifier.tradeStatIds.map((id) => statResolver(id)).find(Boolean)
-      const canonicalText = usableLocalizedText(modifier.text) || usableLocalizedText(fallback?.canonicalText)
-      const chinese = usableLocalizedText(canonicalText ? itemTranslations.statToChinese(canonicalText) : undefined)
-        || usableLocalizedText(fallback?.displayText)
-        || usableLocalizedText(existing?.['zh-CN'])
-      const canonicalModifier = canonicalText ? { ...modifier, text: canonicalText } : modifier
-      return {
-        ...canonicalModifier,
-        localized: chinese ? { ...existing, 'zh-CN': chinese } : existing,
-      }
-    })
-    return canonicalToLegacySnapshot(normalized, {
-      ...normalized.view,
-      iconUrl: entry.view.iconUrl,
-      localized: entry.view.localized,
-      modifiers,
-    }, request.realm)
+    if (!Array.isArray(entry.item.modifierSnapshots)) {
+      const migrated = await pobItemBridge.normalize(entry.item.raw)
+      migrated.view.iconUrl = entry.view.iconUrl
+      migrated.view.localized = entry.view.localized
+      migrated.view.modifiers.forEach((modifier, index) => {
+        if (entry?.view.modifiers[index]?.localized) modifier.localized = entry.view.modifiers[index].localized
+      })
+      entry = equipmentLibrary.updateItem(entryId, migrated, { touchUpdatedAt: false })
+    }
+    // Library entries are already canonical snapshots. Re-running translation
+    // and Lua after the one-time legacy migration could reorder or drop
+    // multi-line evidence, so price checks project directly from persistence.
+    return canonicalToLegacySnapshot({ item: entry.item, view: entry.view }, entry.view, request.realm)
   }
   if (target.kind !== 'raw' || typeof target.raw !== 'string' || !target.raw.trim() || target.raw.length > 100_000) {
     throw new Error('Invalid PoB item raw')
   }
-  const translatedRaw = translatePobRawForPriceCheck(target.raw)
-  const normalized = await pobItemBridge.normalize(translatedRaw.raw)
-  const name = itemTranslations.toChinese(normalized.view.name)
-  const baseType = itemTranslations.toChinese(normalized.view.baseType)
+  const parsedRaw = looksLikeGameClipboardItem(target.raw)
+    ? parseGameClipboardItem(target.raw, { canonicalizeStat })
+    : translatePobRawForPriceCheck(target.raw, canonicalizeStat)
+  const normalized = await pobItemBridge.normalize(parsedRaw.raw)
+  if (parsedRaw.evidence) normalized.item.parseEvidence = parsedRaw.evidence
+  applyXiletradeParseEvidence(normalized.view, parsedRaw.evidence)
+  const evidenceLocale = parsedRaw.evidence?.locale
+  const name = parsedRaw.localized?.name || itemTranslations.toChinese(normalized.view.name)
+  const baseType = parsedRaw.localized?.baseType || itemTranslations.toChinese(normalized.view.baseType)
   const modifiers = normalized.view.modifiers.map((modifier) => {
+    const evidence = parsedRaw.evidence?.modifiers.find((candidate) => candidate.canonicalText === modifier.text)
     const fallback = modifier.tradeStatIds.map((id) => statResolver(id)).find(Boolean)
     const canonicalText = usableLocalizedText(modifier.text) || usableLocalizedText(fallback?.canonicalText)
-    const localized = usableLocalizedText(canonicalText ? itemTranslations.statToChinese(canonicalText) : undefined)
+    const localized = usableLocalizedText(evidence?.original.displayText)
+      || usableLocalizedText(canonicalText ? itemTranslations.statToChinese(canonicalText) : undefined)
       || usableLocalizedText(fallback?.displayText)
     const canonicalModifier = canonicalText ? { ...modifier, text: canonicalText } : modifier
-    return { ...canonicalModifier, ...(localized ? { localized: { 'zh-CN': localized } } : {}) }
+    return { ...canonicalModifier, ...(localized ? { localized: { [evidenceLocale || 'zh-CN']: localized } } : {}) }
   })
   return canonicalToLegacySnapshot(normalized, {
     ...normalized.view,
     modifiers,
-    ...((name || baseType) ? { localized: { 'zh-CN': { name: name || normalized.view.name, baseType: baseType || normalized.view.baseType } } } : {}),
+    ...((name || baseType) ? { localized: { [evidenceLocale || 'zh-CN']: { name: name || normalized.view.name, baseType: baseType || normalized.view.baseType } } } : {}),
   }, request.realm)
 }
 
-async function savePriceCheckListing(ref: MarketDomListingRef) {
+async function createMarketListingPreviewEntry(ref: MarketDomListingRef): Promise<EquipmentLibraryEntry> {
   if (!marketViewManager) throw new Error('Market browser is unavailable')
   const payload = await marketViewManager.fetchListing(ref)
   const resolveStatText = await createMarketStatTextResolver(ref.realm)
@@ -895,6 +1479,70 @@ async function savePriceCheckListing(ref: MarketDomListingRef) {
   const normalized = await pobItemBridge.normalize(imported.item.raw)
   normalized.view.iconUrl = imported.item.iconUrl
   normalized.view.localized = imported.item.localized
+  normalized.item.modifierSnapshots = structuredClone(normalized.view.modifiers)
+  if (imported.source.display?.locale && imported.source.display.locale !== 'en') {
+    imported.source.display.modifiers?.forEach((displayText, index) => {
+      if (normalized.view.modifiers[index]) {
+        normalized.view.modifiers[index].localized = { [imported.source.display!.locale]: displayText }
+      }
+    })
+  }
+  const now = new Date().toISOString()
+  return {
+    schemaVersion: 3,
+    id: `market-preview:${ref.realm}:${ref.listingId}`,
+    fingerprint: fingerprintLibraryItem(normalized.item),
+    item: structuredClone(normalized.item),
+    view: structuredClone(normalized.view),
+    sources: [structuredClone(imported.source)],
+    collectionRoot: 'market',
+    tags: [],
+    archived: false,
+    createdAt: now,
+    updatedAt: now,
+  }
+}
+
+async function savePriceCheckListing(ref: MarketDomListingRef & { candidateRaw?: string }) {
+  if (!marketViewManager) throw new Error('Market browser is unavailable')
+  const payload = await marketViewManager.fetchListing(ref)
+  const resolveStatText = await createMarketStatTextResolver(ref.realm)
+  const imported = normalizeMarketListing(
+    payload,
+    ref,
+    (text) => itemTranslations.toEnglish(text),
+    (text) => itemTranslations.statToEnglish(text),
+    resolveStatText,
+  )
+  // Find Better cards already use this canonical raw. Reuse it when the
+  // listing came from the active result page so saving cannot create a second
+  // PoB interpretation of the same official item.
+  const canonicalRaw = ref.candidateRaw || imported.item.raw
+  const normalized = await pobItemBridge.normalize(canonicalRaw)
+  normalized.view.iconUrl = imported.item.iconUrl
+  normalized.view.localized = imported.item.localized
+  const officialByGroup = new Map<LibraryModifierGroup, typeof imported.item.preview.modifiers>()
+  for (const modifier of imported.item.preview.modifiers) {
+    const list = officialByGroup.get(modifier.group) || []
+    list.push(modifier)
+    officialByGroup.set(modifier.group, list)
+  }
+  const consumedByGroup = new Map<LibraryModifierGroup, number>()
+  normalized.view.modifiers = normalized.view.modifiers.map((modifier) => {
+    const index = consumedByGroup.get(modifier.group) || 0
+    consumedByGroup.set(modifier.group, index + 1)
+    const official = officialByGroup.get(modifier.group)?.[index]
+    const resolution = official?.tradeResolutions.find((candidate) => candidate.realm === ref.realm)
+    if (!official || !resolution) return modifier
+    const statIds = resolution.queryStatId ? [resolution.queryStatId] : resolution.candidateStatIds
+    return {
+      ...modifier,
+      sourceTags: official.sourceTags,
+      tradeStatIds: [...new Set(statIds)],
+      ...(official.currentValues[0] != null ? { tradeValue: official.currentValues[0], tradeValueNegated: resolution.valueTransform === 'negate' } : {}),
+    }
+  })
+  normalized.item.modifierSnapshots = structuredClone(normalized.view.modifiers)
   if (imported.source.display?.locale && imported.source.display.locale !== 'en') {
     imported.source.display.modifiers?.forEach((displayText, index) => {
       if (normalized.view.modifiers[index]) {
@@ -964,6 +1612,64 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     writeFileSync(filePath, payload.content, 'utf8')
     return { canceled: false, filePath }
   })
+  ipcMain.handle('pob2:open-backup-file', async (event) => {
+    const window = requireMainWindowSender(event)
+    const result = await dialog.showOpenDialog(window, {
+      title: desktopText(uiLanguage, 'Open SuperPoE Backup', '打开 SuperPoE 备份', '開啟 SuperPoE 備份', 'SuperPoE 백업 열기'),
+      filters: [{ name: 'SuperPoE Backup', extensions: [SUPERPOE_BACKUP_EXTENSION] }],
+      properties: ['openFile'],
+    })
+    if (result.canceled || !result.filePaths[0]) return { canceled: true }
+    const filePath = path.resolve(result.filePaths[0])
+    if (path.extname(filePath).toLowerCase() !== `.${SUPERPOE_BACKUP_EXTENSION}`) throw new Error('Only SuperPoE backup files can be opened')
+    const content = readFileSync(filePath, 'utf8')
+    if (!content || Buffer.byteLength(content, 'utf8') > MAX_SUPERPOE_BACKUP_FILE_SIZE) throw new Error('Invalid SuperPoE backup file size')
+    return { canceled: false, filePath, content }
+  })
+  ipcMain.handle('pob2:save-backup-file', async (event, value: unknown) => {
+    const window = requireMainWindowSender(event)
+    const payload = validateBackupFilePayload(value)
+    const result = await dialog.showSaveDialog(window, {
+      title: desktopText(uiLanguage, 'Save SuperPoE Backup', '保存 SuperPoE 备份', '儲存 SuperPoE 備份', 'SuperPoE 백업 저장'),
+      defaultPath: path.join(app.getPath('documents'), payload.fileName),
+      filters: [{ name: 'SuperPoE Backup', extensions: [SUPERPOE_BACKUP_EXTENSION] }],
+      properties: ['createDirectory', 'showOverwriteConfirmation'],
+    })
+    if (result.canceled || !result.filePath) return { canceled: true }
+    const filePath = result.filePath.toLowerCase().endsWith(`.${SUPERPOE_BACKUP_EXTENSION}`)
+      ? result.filePath
+      : `${result.filePath}.${SUPERPOE_BACKUP_EXTENSION}`
+    writeFileSync(filePath, payload.content, 'utf8')
+    return { canceled: false, filePath }
+  })
+  ipcMain.handle('pob2:collect-backup-data', (event): SuperPoeBackupMainData => {
+    requireMainWindowSender(event)
+    return {
+      equipmentLibrary: equipmentLibrary.exportData(),
+      marketMonitoring: marketMonitoring?.exportData() || null,
+    }
+  })
+  ipcMain.handle('pob2:restore-backup-data', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object' || JSON.stringify(value).length > 80_000_000) throw new Error('Invalid backup main data')
+    const input = value as Partial<SuperPoeBackupMainData>
+    const previousEquipment = equipmentLibrary.exportData()
+    const previousMonitoring = marketMonitoring?.exportData() || null
+    try {
+      if (input.equipmentLibrary != null) equipmentLibrary.restoreData(input.equipmentLibrary)
+      if (input.marketMonitoring != null) {
+        if (!marketMonitoring) throw new Error('Market monitoring is unavailable')
+        marketMonitoring.restoreData(input.marketMonitoring)
+      }
+      notifyLibraryChanged()
+    } catch (error) {
+      try { equipmentLibrary.restoreData(previousEquipment) } catch { /* keep the original restore error */ }
+      if (previousMonitoring != null && marketMonitoring) {
+        try { marketMonitoring.restoreData(previousMonitoring) } catch { /* keep the original restore error */ }
+      }
+      throw error
+    }
+  })
   ipcMain.handle('pob2:register-build-file-association', async (event) => {
     requireMainWindowSender(event)
     if (process.platform !== 'win32') return { registered: false, isDefault: false, settingsOpened: false, reason: 'unsupported-platform' }
@@ -975,6 +1681,19 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     }
     event.sender.setZoomFactor(value)
     return event.sender.getZoomFactor()
+  })
+  ipcMain.handle('equipment-try-on:open', (event, value: unknown) => {
+    const parent = requireMainWindowSender(event)
+    if (!equipmentTryOnWindowManager) throw new Error('Equipment try-on window is unavailable')
+    equipmentTryOnWindowManager.open(parent, validateEquipmentTryOnOpenRequest(value))
+  })
+  ipcMain.handle('equipment-try-on:close', (event) => {
+    if (!equipmentTryOnWindowManager) throw new Error('Equipment try-on window is unavailable')
+    equipmentTryOnWindowManager.close(event.sender.id)
+  })
+  ipcMain.handle('equipment-try-on:get-payload', (event) => {
+    if (!equipmentTryOnWindowManager) throw new Error('Equipment try-on window is unavailable')
+    return equipmentTryOnWindowManager.getPayload(event.sender.id)
   })
   ipcMain.handle('pob2:restart-as-admin', async (event) => {
     const fromMain = mainWindow?.webContents.id === event.sender.id
@@ -1042,9 +1761,85 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     if (!value || typeof value !== 'object' || JSON.stringify(value).length > 500_000) throw new Error('Invalid price check request')
     const input = value as PriceCheckOpenRequest
     if (!input.source || (input.source.kind !== 'raw' && input.source.kind !== 'library')) throw new Error('Invalid price check source')
+    if (input.mode != null && input.mode !== 'price-check' && input.mode !== 'find-better') throw new Error('Invalid price check mode')
+    if (input.slotName != null && (typeof input.slotName !== 'string' || input.slotName.length > 80)) throw new Error('Invalid price check slot')
+    if (input.buildContext != null) {
+      if (typeof input.buildContext !== 'object'
+        || typeof input.buildContext.xml !== 'string'
+        || !input.buildContext.xml
+        || input.buildContext.xml.length > 10_000_000
+        || typeof input.buildContext.slotName !== 'string'
+        || !input.buildContext.slotName
+        || input.buildContext.slotName.length > 80) {
+        throw new Error('Invalid price check build context')
+      }
+      if (input.buildContext.buildRevision != null
+        && (typeof input.buildContext.buildRevision !== 'number' || !Number.isFinite(input.buildContext.buildRevision))) {
+        throw new Error('Invalid price check build revision')
+      }
+      if (input.buildContext.activeItemSetId != null
+        && (typeof input.buildContext.activeItemSetId !== 'string' || input.buildContext.activeItemSetId.length > 128)) {
+        throw new Error('Invalid price check item set')
+      }
+      if (input.buildContext.activeWeaponSet != null && input.buildContext.activeWeaponSet !== 1 && input.buildContext.activeWeaponSet !== 2) {
+        throw new Error('Invalid price check weapon set')
+      }
+    }
     if (!priceCheckCoordinator || !priceCheckWindowManager) throw new Error('Price checker is unavailable')
     priceCheckWindowManager.show()
     return priceCheckCoordinator.open(input)
+  })
+  ipcMain.handle('find-better:open', async (event, value: unknown) => {
+    const parent = requireMainWindowSender(event)
+    if (!priceCheckCoordinator || !findBetterWindowManager) throw new Error('Find-better search is unavailable')
+    const input = validateFindBetterOpenRequest(value)
+    priceCheckWindowManager?.hide(false)
+    findBetterWindowManager.show(parent)
+    return priceCheckCoordinator.open(input)
+  })
+  ipcMain.handle('find-better:get-state', (event) => {
+    if (!findBetterWindowManager) throw new Error('Find-better search is unavailable')
+    return findBetterWindowManager.getState(event.sender.id)
+  })
+  ipcMain.handle('find-better:search', async (event, value: unknown) => {
+    if (!findBetterWindowManager?.owns(event.sender.id) || !priceCheckCoordinator || !value || typeof value !== 'object') throw new Error('Invalid find-better search')
+    const input = value as { leagueId?: unknown; criteria?: unknown }
+    const criteria = validatePriceCheckCriteria(input.criteria)
+    if (!criteria.findBetter) throw new Error('Find-better criteria are required')
+    return priceCheckCoordinator.search(validateShortString(input.leagueId, 'trade league', 128), criteria)
+  })
+  ipcMain.handle('find-better:fetch-page', (event, value: unknown) => {
+    if (!findBetterWindowManager?.owns(event.sender.id) || !priceCheckCoordinator || typeof value !== 'number') throw new Error('Invalid find-better page')
+    return priceCheckCoordinator.fetchPage(value)
+  })
+  ipcMain.handle('find-better:visit-hideout', (event, value: unknown) => {
+    if (!findBetterWindowManager?.owns(event.sender.id) || !priceCheckCoordinator || typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value)) throw new Error('Invalid find-better listing')
+    return priceCheckCoordinator.visitHideout(value)
+  })
+  ipcMain.handle('find-better:favorite', async (event, value: unknown) => {
+    if (!findBetterWindowManager?.owns(event.sender.id) || !priceCheckCoordinator || typeof value !== 'string' || !/^[A-Za-z0-9_-]+$/.test(value)) throw new Error('Invalid find-better listing')
+    const reference = priceCheckCoordinator.listingReference(value)
+    const entry = await savePriceCheckListing(reference)
+    return { ok: true as const, entryId: entry.id }
+  })
+  ipcMain.handle('find-better:open-in-trade-center', (event, value: unknown) => {
+    if (!findBetterWindowManager?.owns(event.sender.id) || typeof value !== 'string') throw new Error('Invalid trade page')
+    const url = new URL(value)
+    const realm = priceCheckCoordinator?.snapshot().realm || defaultRealm
+    const expectedHost = realm === 'cn' ? 'poe.game.qq.com' : 'www.pathofexile.com'
+    if (url.hostname !== expectedHost || !url.pathname.startsWith('/trade2/')) throw new Error('Invalid trade page')
+    if (!marketViewManager || !mainWindow || mainWindow.isDestroyed()) throw new Error('Trade center is unavailable')
+    marketViewManager.openSource(realm, url.toString())
+    findBetterWindowManager.hide(event.sender.id)
+    mainWindow.show()
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.focus()
+    mainWindow.moveTop()
+    mainWindow.webContents.send('market:open-trade-center')
+  })
+  ipcMain.handle('find-better:hide', (event) => {
+    if (!findBetterWindowManager) throw new Error('Find-better search is unavailable')
+    findBetterWindowManager.hide(event.sender.id)
   })
   ipcMain.handle('price-check:get-state', (event) => {
     if (!priceCheckWindowManager || (!priceCheckWindowManager.owns(event.sender.id) && !priceCheckWindowManager.ownsDetail(event.sender.id)) || !priceCheckCoordinator) throw new Error('Unauthorized price check sender')
@@ -1282,6 +2077,74 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     }
   })
 
+  ipcMain.on('market-enhancement:try-on', (event, value: unknown) => {
+    let listingId = ''
+    try {
+      const realm = requireMarketSender(event)
+      const input = value && typeof value === 'object' ? value as { requestId?: unknown; ref?: unknown } : {}
+      if (input.ref && typeof input.ref === 'object') {
+        const candidateId = (input.ref as { listingId?: unknown }).listingId
+        if (typeof candidateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(candidateId)) listingId = candidateId
+      }
+      const requestId = validateShortString(input.requestId, 'try-on request ID', 128)
+      const ref = validateListingRef(input.ref, realm)
+      listingId = ref.listingId
+      const operationKey = `${realm}:${ref.listingId}`
+      const previous = tryOnOperations.get(operationKey) || Promise.resolve()
+      const operation = previous.catch(() => {}).then(async () => {
+        if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Main window is unavailable')
+        const entry = await createMarketListingPreviewEntry(ref)
+        mainWindow.webContents.send('market:try-on-request', { requestId, entry })
+        if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:try-on-result', { requestId, listingId: ref.listingId })
+      }).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:try-on-result', { requestId, listingId: ref.listingId, error: message.slice(0, 300) })
+      }).finally(() => {
+        if (tryOnOperations.get(operationKey) === operation) tryOnOperations.delete(operationKey)
+      })
+      tryOnOperations.set(operationKey, operation)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!event.sender.isDestroyed() && listingId) {
+        event.sender.send('market-enhancement:try-on-result', { listingId, error: message.slice(0, 300) })
+      }
+    }
+  })
+
+  ipcMain.on('market-enhancement:copy-pob', (event, value: unknown) => {
+    let listingId = ''
+    try {
+      const realm = requireMarketSender(event)
+      const input = value && typeof value === 'object' ? value as { requestId?: unknown; ref?: unknown } : {}
+      if (input.ref && typeof input.ref === 'object') {
+        const candidateId = (input.ref as { listingId?: unknown }).listingId
+        if (typeof candidateId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(candidateId)) listingId = candidateId
+      }
+      const requestId = validateShortString(input.requestId, 'copy request ID', 128)
+      const ref = validateListingRef(input.ref, realm)
+      listingId = ref.listingId
+      const operationKey = `${realm}:${ref.listingId}`
+      const previous = copyPobOperations.get(operationKey) || Promise.resolve()
+      const operation = previous.catch(() => {}).then(async () => {
+        const entry = await createMarketListingPreviewEntry(ref)
+        if (!entry.item.raw) throw new Error('The listing did not provide a PoB item text')
+        clipboard.writeText(entry.item.raw)
+        if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:copy-pob-result', { requestId, listingId: ref.listingId })
+      }).catch((error: unknown) => {
+        const message = error instanceof Error ? error.message : String(error)
+        if (!event.sender.isDestroyed()) event.sender.send('market-enhancement:copy-pob-result', { requestId, listingId: ref.listingId, error: message.slice(0, 300) })
+      }).finally(() => {
+        if (copyPobOperations.get(operationKey) === operation) copyPobOperations.delete(operationKey)
+      })
+      copyPobOperations.set(operationKey, operation)
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error)
+      if (!event.sender.isDestroyed() && listingId) {
+        event.sender.send('market-enhancement:copy-pob-result', { listingId, error: message.slice(0, 300) })
+      }
+    }
+  })
+
   ipcMain.on('market-enhancement:favorite-toggle', (event, value: unknown) => {
     let listingId = ''
     try {
@@ -1506,6 +2369,17 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     notifyLibraryChanged()
     return entry
   })
+  ipcMain.handle('market:move-library', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!value || typeof value !== 'object') throw new Error('Invalid equipment library move')
+    const input = value as Partial<EquipmentLibraryMoveInput>
+    if (!Array.isArray(input.entryIds) || !input.entryIds.length || input.entryIds.length > 5_000) throw new Error('Invalid equipment library entry IDs')
+    const entryIds = input.entryIds.map((id) => validateShortString(id, 'library entry ID', 128))
+    const targetFolderId = input.targetFolderId == null ? undefined : validateShortString(input.targetFolderId, 'folder ID', 128)
+    const result = equipmentLibrary.moveEquipment({ entryIds, ...(targetFolderId ? { targetFolderId } : {}) })
+    notifyLibraryChanged()
+    return result
+  })
   ipcMain.handle('market:delete-library', (event, value: unknown) => {
     requireMainWindowSender(event)
     const deleted = equipmentLibrary.delete(validateShortString(value, 'library entry ID', 128))
@@ -1564,19 +2438,61 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     } else {
       throw new Error('Invalid equipment library source')
     }
-    const normalized = await pobItemBridge.normalize(input.raw)
+    // Manual entries may come directly from the game's localized clipboard.
+    // Normalize those through the same data-driven converter used by the
+    // price checker, while leaving canonical PoB Raw untouched.
+    const inputLanguage = detectItemRawLanguage(input.raw)
+    let canonicalizeStat: StatCanonicalizer | undefined
+    if (inputLanguage !== 'en') {
+      const bundle = await createMarketStatCatalog(inputLanguage === 'zh-rCN' ? 'cn' : 'global').catch(() => undefined)
+      if (bundle) canonicalizeStat = createStatCanonicalizer(inputLanguage, bundle)
+    }
+    const parsedInput: GameClipboardParseResult = looksLikeGameClipboardItem(input.raw)
+      ? parseGameClipboardItem(input.raw, { canonicalizeStat })
+      : translatePobRawForPriceCheck(input.raw, canonicalizeStat)
+    const normalized = await pobItemBridge.normalize(parsedInput.raw)
+    if (parsedInput.evidence) normalized.item.parseEvidence = parsedInput.evidence
+    applyXiletradeParseEvidence(normalized.view, parsedInput.evidence)
+    normalized.item.itemClass = normalized.view.itemClass
+    normalized.item.tradeCategory = normalized.view.tradeCategory
     normalized.view.iconUrl = input.iconUrl || itemIcons.resolve(normalized.view.rarity, normalized.view.name, normalized.view.baseType)
     let localized = input.localized
     let localizedModifiers: string[] | undefined
     if (input.source?.kind === 'manual' && !localized) {
-      const localizedName = itemTranslations.toChinese(normalized.view.name)
-      const localizedBaseType = itemTranslations.toChinese(normalized.view.baseType)
+      const parsedLocale = parsedInput.evidence?.locale || 'zh-CN'
+      const localizedName = usableLocalizedText(parsedInput.localized?.name) || usableLocalizedText(itemTranslations.toChinese(normalized.view.name))
+      const localizedBaseType = usableLocalizedText(parsedInput.localized?.baseType) || usableLocalizedText(itemTranslations.toChinese(normalized.view.baseType))
       if (localizedName || localizedBaseType) {
-        localized = { 'zh-CN': { name: localizedName || normalized.view.name, baseType: localizedBaseType || normalized.view.baseType } }
+        localized = { [parsedLocale]: { name: localizedName || normalized.view.name, baseType: localizedBaseType || normalized.view.baseType } }
       }
-      localizedModifiers = normalized.view.modifiers.map((modifier) => itemTranslations.statToChinese(modifier.text) || modifier.text)
+      const translatedModifiers = normalized.view.modifiers.map((modifier) => {
+        const evidence = parsedInput.evidence?.modifiers.find((candidate) => candidate.canonicalText === modifier.text)
+        return usableLocalizedText(evidence?.original.displayText)
+          || (parsedLocale === 'zh-CN' ? usableLocalizedText(itemTranslations.statToChinese(modifier.text)) : undefined)
+      })
+      localizedModifiers = translatedModifiers.some(Boolean)
+        ? normalized.view.modifiers.map((modifier, index) => translatedModifiers[index] || modifier.text)
+        : undefined
       normalized.view.modifiers.forEach((modifier, index) => {
-        if (localizedModifiers?.[index] !== modifier.text) modifier.localized = { 'zh-CN': localizedModifiers![index] }
+        const evidence = parsedInput.evidence?.modifiers.find((candidate) => candidate.canonicalText === modifier.text)
+        const translated = usableLocalizedText(evidence?.original.displayText) || localizedModifiers?.[index]
+        if (translated && translated !== modifier.text) modifier.localized = { [parsedLocale]: translated }
+      })
+    }
+    const parsedCanonicalTexts = new Set(normalized.view.modifiers.map((modifier) => modifier.text))
+    for (const evidence of parsedInput.evidence?.modifiers || []) {
+      const projectedLines = evidence.canonicalText?.split('\n').map((line) => line.trim()).filter(Boolean) || []
+      if (evidence.canonicalText && (parsedCanonicalTexts.has(evidence.canonicalText) || projectedLines.some((line) => parsedCanonicalTexts.has(line)))) continue
+      normalized.view.modifiers.push({
+        id: `unsupported-${evidence.displayOrder}`,
+        displayOrder: normalized.view.modifiers.length,
+        group: evidence.group,
+        sourceTags: evidence.sourceTags,
+        text: evidence.canonicalText || evidence.original.displayText,
+        unsupported: true,
+        localized: { [evidence.original.locale]: evidence.original.displayText },
+        tradeStatIds: evidence.queryStatId ? [evidence.queryStatId] : evidence.candidateStatIds,
+        tradeValue: evidence.currentValues[0],
       })
     }
     normalized.view.localized = localized
@@ -1632,8 +2548,11 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const leagueId = validateShortString(input.leagueId, 'trade league', 128)
     if (!tradeProvider || !marketViewManager) throw new Error('Trade provider is unavailable')
     try {
-      const normalized = await pobItemBridge.normalize(entry.item.raw)
-      const legacyItem = canonicalToLegacySnapshot(normalized, { ...normalized.view, iconUrl: entry.view.iconUrl, localized: entry.view.localized }, realm)
+      const legacyItem = canonicalToLegacySnapshot(
+        { item: entry.item, view: entry.view },
+        { ...entry.view, iconUrl: entry.view.iconUrl, localized: entry.view.localized },
+        realm,
+      )
       const criteria = (input as { criteria?: unknown }).criteria == null ? undefined : validatePriceCheckCriteria((input as { criteria?: unknown }).criteria)
       const result = await tradeProvider.search(realm, leagueId, legacyItem, criteria)
       marketViewManager.openSource(realm, result.url)
@@ -1715,6 +2634,45 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       configOverrides?: Record<string, boolean | number | string>
     })
   })
+  ipcMain.handle('pob2:lua-compare-equipment', (_event, value: unknown) => {
+    if (!value || typeof value !== 'object') throw new Error('Invalid equipment comparison payload')
+    const payload = value as {
+      context?: {
+        xml?: unknown
+        buildRevision?: unknown
+        activeItemSetId?: unknown
+        activeWeaponSet?: unknown
+        configFingerprint?: unknown
+        configOverrides?: unknown
+        activeSkillContext?: unknown
+      }
+      candidate?: { raw?: unknown; buildItemId?: unknown; source?: unknown; runeBehavior?: unknown; anointBehavior?: unknown }
+      sourceSlotName?: unknown
+      slotOnlyTooltips?: unknown
+      contextKey?: unknown
+    }
+    if (!payload.context || typeof payload.context.xml !== 'string' || !payload.context.xml || payload.context.xml.length > 10_000_000) {
+      throw new Error('Invalid equipment comparison build XML')
+    }
+    if (!payload.candidate || typeof payload.candidate.raw !== 'string' || !payload.candidate.raw || payload.candidate.raw.length > 200_000) {
+      throw new Error('Invalid equipment comparison item')
+    }
+    for (const behavior of [payload.candidate.runeBehavior, payload.candidate.anointBehavior]) {
+      if (behavior != null && behavior !== 'copy-current' && behavior !== 'keep' && behavior !== 'remove') {
+        throw new Error('Invalid equipment comparison augment behavior')
+      }
+    }
+    if (typeof payload.contextKey !== 'string' || !payload.contextKey || payload.contextKey.length > 128) {
+      throw new Error('Invalid equipment comparison context')
+    }
+    if (payload.context.activeWeaponSet !== 1 && payload.context.activeWeaponSet !== 2) {
+      throw new Error('Invalid equipment comparison weapon set')
+    }
+    if (payload.sourceSlotName != null && (typeof payload.sourceSlotName !== 'string' || payload.sourceSlotName.length > 80)) {
+      throw new Error('Invalid equipment comparison slot')
+    }
+    return pobLuaService.compareEquipment(payload as import('../src/equipmentDifference/types.js').EquipmentDifferenceRequest & { contextKey: string })
+  })
   ipcMain.handle('pob2:save-game-build', async (_event, value: unknown) => {
     const payload = validateGameBuildPayload(value)
     const result = await dialog.showSaveDialog({
@@ -1755,6 +2713,14 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     }
   } catch (error) {
     console.error('[Equipment library] v1 migration failed; original file was left unchanged', error)
+  }
+  try {
+    const migration = await equipmentLibrary.migrateTradeData(pobItemBridge)
+    if (migration.migrated || migration.unresolved) {
+      console.info(`[Equipment library] Xiletrade migration: ${migration.migrated} migrated, ${migration.unresolved} unresolved`)
+    }
+  } catch (error) {
+    console.error('[Equipment library] Xiletrade migration failed; existing entries were left unchanged', error)
   }
   try {
     const repaired = await equipmentLibrary.repairCorruptedMarketTitles(pobItemBridge, (text) => itemTranslations.toEnglish(text))

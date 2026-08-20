@@ -65,11 +65,12 @@ electron-builder 默认把安装包写到仓库内 `release/`。可用 `package.
 
 - `upstreams/PathOfBuilding-PoE2/` 来源于 [PathOfBuildingCommunity/PathOfBuilding-PoE2](https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2)，用于预处理脚本、Headless 校验和计算。
 - `upstreams/PoeCharm2/` 来源于 [Chuanhsing/PoeCharm2](https://github.com/Chuanhsing/PoeCharm2)，用于同步 Web 端翻译数据。
+- `upstreams/Xiletrade/` 来源于 [maxensas/xiletrade](https://github.com/maxensas/xiletrade)，用于装备剪贴板解析、词缀消歧和多语言 PoE2 辅助数据管线；只读取其 Git checkout，不直接修改上游文件。
 - `public/data/tree-web-{version}.json` 是 Web 端生成产物，不是原生游戏文件，也不是 PoB2 上游文件。需要从 `upstreams/PathOfBuilding-PoE2/src/TreeData/{version}/tree.lua` / `tree.json` 重新生成时，运行 `npm run pipeline:all -- {version}`。
 
 ### 初始化上游仓库
 
-两个上游仓库都位于 `upstreams/` 下，均为本地只读 Git checkout，不随本项目提交（非 submodule，`.gitignore` 忽略）。
+三个上游仓库都位于 `upstreams/` 下，均为本地只读 Git checkout，不随本项目提交（非 submodule，`.gitignore` 忽略）。
 
 **一键克隆/更新上游并打本地 Electron 包**（推荐）：
 
@@ -83,7 +84,7 @@ electron-builder 默认把安装包写到仓库内 `release/`。可用 `package.
 ./scripts/build-local.sh
 ```
 
-默认流程：`git clone` 或 `git pull --ff-only` 两个上游 → `npm install` → `npm run dist:electron`。安装包产物在仓库内 `release/`。Vite 前端产物在 `dist/`，Electron main 在 `dist-electron/`。
+默认流程：`git clone` 或 `git pull --ff-only` 三个上游 → `npm install` → `npm run dist:electron`。安装包产物在仓库内 `release/`。Vite 前端产物在 `dist/`，Electron main 在 `dist-electron/`。
 
 | 场景 | Windows | macOS / Linux |
 | --- | --- | --- |
@@ -96,6 +97,7 @@ electron-builder 默认把安装包写到仓库内 `release/`。可用 `package.
 ```bash
 git clone https://github.com/PathOfBuildingCommunity/PathOfBuilding-PoE2.git upstreams/PathOfBuilding-PoE2
 git clone https://github.com/Chuanhsing/PoeCharm2.git upstreams/PoeCharm2
+git clone https://github.com/maxensas/xiletrade.git upstreams/Xiletrade
 ```
 
 更新上游数据后，重新生成 Web 端数据和资源：
@@ -103,10 +105,11 @@ git clone https://github.com/Chuanhsing/PoeCharm2.git upstreams/PoeCharm2
 ```bash
 git -C upstreams/PathOfBuilding-PoE2 pull
 git -C upstreams/PoeCharm2 pull
+git -C upstreams/Xiletrade pull
 npm run pipeline:all -- 0_5
 ```
 
-不要在两个上游目录内修改源码或 CSV；需要更新时在各自仓库中执行 `git pull`，再运行相应 pipeline。`public/` 下的生成运行资产必须提交。新机器若只运行现有前端，可不拉 `upstreams/`（`public/` 已提交）。
+不要在上游目录内修改源码、CSV 或 JSON；需要更新时在各自仓库中执行 `git pull --ff-only`，再运行相应 pipeline。`public/` 下的生成运行资产必须提交。新机器若只运行现有前端，可不拉 `upstreams/`（`public/` 已提交）。
 
 ## 常用命令
 
@@ -186,7 +189,7 @@ npm run pipeline:all
 
 天赋规划器使用的字符串 ID 与 PoB 数字节点 ID 不同。`npm run pipeline:planner -- 0_5` 会从 PoE2DB 天赋树数据生成 `public/data/build-planner-passives-0_5.json`，并验证所有可分配节点均已映射。`pipeline:all` 已包含这一步，未来生成新天赋版本时无需手工维护节点映射；映射不完整会直接终止资源流水线。
 
-`npm run pipeline:lua` 会从 `upstreams/PathOfBuilding-PoE2/src` 和 `upstreams/PathOfBuilding-PoE2/runtime/lua` 生成 `public/pob-lua/`。这个目录供浏览器计算 worker 懒加载，不直接修改上游源码。如果上游 PoB2 Lua 文件更新，重新运行该命令即可刷新前端 Lua bundle。
+`npm run pipeline:lua` 会从 `upstreams/PathOfBuilding-PoE2/src` 和 `upstreams/PathOfBuilding-PoE2/runtime/lua` 生成只包含上游内容的 `public/pob-lua/`，并从 `lua/superpoe/` 生成独立的 `public/superpoe-lua/`。两个目录都供浏览器计算 worker 和原生 sidecar 使用，但项目桥接代码不会再混入 PoB 上游包。如果上游 PoB2 Lua 文件更新，重新运行该命令即可刷新运行时 bundle。
 
 全量更新指定天赋树版本时，使用 `pipeline:all` 并在 `--` 后传版本号。例如未来上游出现 `0_5` 后：
 
@@ -225,9 +228,12 @@ npm run test:lua
 - `scripts/`：Python/Lua 预处理脚本和测试辅助脚本。
 - `upstreams/PathOfBuilding-PoE2/`：PoB2 本地只读上游源码目录。
 - `upstreams/PoeCharm2/`：PoeCharm2 本地只读翻译上游目录。
+- `upstreams/Xiletrade/`：Xiletrade 本地只读解析和数据上游目录。
+- `lua/superpoe/`：SuperPoE 自有 Lua 桥接代码；不得放入 PoB 上游目录。
 - `public/assets/`：复制或生成出来的运行时美术资源，浏览器会直接从这里加载。
 - `public/data/`：生成后的 Web 天赋树数据和翻译数据。
-- `public/pob-lua/`：从 PoB2 上游 `src` 生成的前端 Lua 运行时资源包，供计算 worker 懒加载。
+- `public/pob-lua/`：只包含锁定 PoB2 上游和 Lua runtime 的前端 Lua 资源包。
+- `public/superpoe-lua/`：只包含项目自有 Lua 的前端资源包。
 - `docs/`：研究记录、渲染分析和任务历史。
 
 ## 说明

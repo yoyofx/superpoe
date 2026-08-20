@@ -56,6 +56,36 @@ describe('EquipmentLibraryRepository', () => {
     expect(store.list({ query: '最大生命' })).toHaveLength(1)
   })
 
+  it('restores clipboard parsing evidence and unsupported localized modifiers after restart', () => {
+    const directory = mkdtempSync(path.join(tmpdir(), 'superpoe-library-evidence-test-'))
+    temporaryDirectories.push(directory)
+    const filePath = path.join(directory, 'library.json')
+    const snapshot = item()
+    snapshot.view.modifiers[0].tradeStatIds = ['explicit.stat_life']
+    snapshot.item.parseEvidence = {
+      parser: 'xiletrade-compatible', schemaVersion: 1, upstreamCommit: 'test-commit',
+      parsedAt: '2026-08-14T00:00:00.000Z', locale: 'zh-CN', originalText: '游戏复制原文',
+      modifiers: [{
+        displayOrder: 0, group: 'explicit', sourceTags: ['explicit'],
+        original: { locale: 'zh-CN', lines: ['无法识别的词缀 12%'], displayText: '无法识别的词缀 12%' },
+        currentValues: [12], tierRanges: [], candidateStatIds: [], status: 'unresolved',
+      }],
+    }
+    const source = {
+      kind: 'manual' as const, sourceKey: 'manual:evidence', capturedAt: '2026-08-14T00:00:00.000Z',
+      updatedAt: '2026-08-14T00:00:00.000Z', display: { locale: 'zh-CN' as const, name: '灾厄外壳', baseType: '专家六翼战袍' },
+    }
+    new EquipmentLibraryRepository(filePath).upsert(snapshot, source)
+
+    const restored = new EquipmentLibraryRepository(filePath).list()[0]
+    expect(restored.item.parseEvidence?.originalText).toBe('游戏复制原文')
+    expect(restored.view.modifiers[0].tradeStatIds).toEqual(['explicit.stat_life'])
+    expect(restored.view.modifiers).toContainEqual(expect.objectContaining({
+      text: '无法识别的词缀 12%', unsupported: true, tradeValue: 12,
+      localized: { 'zh-CN': '无法识别的词缀 12%' },
+    }))
+  })
+
   it('updates a source idempotently without merging a different collection record by fingerprint', () => {
     const store = repository()
     store.upsert(item(), marketSource(2))
@@ -100,6 +130,17 @@ describe('EquipmentLibraryRepository', () => {
     expect(store.sidebarSnapshot().folders).toEqual([expect.objectContaining({ id: child.id, parentId: undefined })])
   })
 
+  it('uses the selected market folder for market upserts without an explicit target', () => {
+    const store = repository()
+    const folder = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Upgrades' })
+    store.selectFolder('items', folder.id)
+
+    const entry = store.upsert(item(), marketSource(2), { collectionRoot: 'market' })
+
+    expect(entry.folderId).toBe(folder.id)
+    expect(store.sidebarSnapshot().selectedItemFolderId).toBe(folder.id)
+  })
+
   it('moves direct contents to the parent when deleting a child folder', () => {
     const store = repository()
     const parent = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Upgrades' })
@@ -123,6 +164,42 @@ describe('EquipmentLibraryRepository', () => {
     expect(store.list()[0]).toMatchObject({ id: entry.id, folderId: target.id })
     expect(store.sidebarSnapshot().folders).toContainEqual(expect.objectContaining({ id: nested.id, parentId: target.id }))
     expect(() => store.updateFolder({ id: target.id, parentId: nested.id })).toThrow('A folder cannot be moved into itself')
+  })
+
+  it('moves multiple equipment entries atomically within one source root', () => {
+    const store = repository()
+    const source = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Source' })
+    const target = store.createFolder({ scope: 'items', collectionRoot: 'market', name: 'Target' })
+    const first = store.upsert(item('First'), marketSource(2), { folderId: source.id })
+    const second = store.upsert(item('Second'), {
+      ...marketSource(3), sourceKey: marketSourceKey('global', 'listing-2'), listingId: 'listing-2',
+    }, { folderId: source.id })
+
+    const result = store.moveEquipment({ entryIds: [first.id, second.id], targetFolderId: target.id })
+
+    expect(result).toEqual({ movedIds: [first.id, second.id], collectionRoot: 'market', targetFolderId: target.id })
+    expect(store.list({ collectionRoot: 'market', folderId: target.id }).map((entry) => entry.id).sort()).toEqual([first.id, second.id].sort())
+    expect(store.list({ collectionRoot: 'market', folderId: source.id })).toEqual([])
+  })
+
+  it('rejects moving entries from different source roots as one operation', () => {
+    const store = repository()
+    const market = store.upsert(item('Market'), marketSource(2))
+    const custom = store.upsert(item('Custom'), {
+      kind: 'manual', sourceKey: 'manual:custom', capturedAt: '2026-07-29T00:00:00.000Z', updatedAt: '2026-07-29T00:00:00.000Z',
+    })
+
+    expect(() => store.moveEquipment({ entryIds: [market.id, custom.id] })).toThrow('different source roots')
+    expect(store.get(market.id)?.folderId).toBeUndefined()
+    expect(store.get(custom.id)?.folderId).toBeUndefined()
+  })
+
+  it('does not allow metadata updates to change an equipment source root', () => {
+    const store = repository()
+    const entry = store.upsert(item(), marketSource(2))
+
+    expect(() => store.updateMetadata({ id: entry.id, collectionRoot: 'custom' })).toThrow('source root cannot be changed')
+    expect(store.get(entry.id)?.collectionRoot).toBe('market')
   })
 
   it('rejects moving equipment or folders across fixed collection roots', () => {
@@ -230,6 +307,28 @@ describe('EquipmentLibraryRepository', () => {
     expect(store.list()).toHaveLength(1)
     expect(readFileSync(v2Path, 'utf8')).toContain('unresolvedLegacyEntries')
     expect(readFileSync(`${v1Path}.migration-backup.json`, 'utf8')).toContain('unresolved-entry')
+  })
+
+  it('migrates legacy trade projections once per Xiletrade data version', async () => {
+    const store = repository()
+    store.upsert(item(), marketSource(2))
+    let normalizeCalls = 0
+    const migratedItem = item()
+    migratedItem.item.tradeDataVersion = 'xiletrade:test-commit'
+    migratedItem.view.modifiers[0].tradeStatIds = ['explicit.stat_life']
+    const bridge = {
+      tradeDataVersion: 'xiletrade:test-commit',
+      normalize: async () => {
+        normalizeCalls += 1
+        return structuredClone(migratedItem)
+      },
+    }
+
+    expect(await store.migrateTradeData(bridge as never)).toEqual({ migrated: 1, unresolved: 0 })
+    expect(store.list()[0].item.tradeDataVersion).toBe('xiletrade:test-commit')
+    expect(store.list()[0].view.modifiers[0].tradeStatIds).toEqual(['explicit.stat_life'])
+    expect(await store.migrateTradeData(bridge as never)).toEqual({ migrated: 0, unresolved: 0 })
+    expect(normalizeCalls).toBe(1)
   })
 
   it('migrates v2 mixed-source entries into independent collection records', () => {

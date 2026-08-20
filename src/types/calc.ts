@@ -17,6 +17,7 @@ export interface CalcResult {
   ArmourPhysicalDamageReduction?: number
   PhysicalDamageReduction?: number
   EvadeChance?: number
+  DeflectionRating?: number
   DeflectChance?: number
   DeflectEffect?: number
   // Resistances
@@ -35,6 +36,8 @@ export interface CalcResult {
   // DPS
   TotalDPS: number
   FullDPS: number
+  /** Aggregate positive DPS across every enabled skill, independent of Full DPS selection. */
+  AllDPS?: number
   FullDotDPS?: number
   SkillLevel?: number
   AverageHit: number
@@ -55,20 +58,41 @@ export interface CalcResult {
   LifeRegen: number
   ManaRegen: number
   EnergyShieldRegen: number
+  /** Values exposed by PoB2's powerStatList for comparison and analysis surfaces. */
+  PowerStats?: Record<string, number>
   // Build info
   CharacterLevel: number
   AscendClassName?: string
   ClassName?: string
   allocatedNodes: number
   // Skill DPS breakdown
-  SkillDPS?: Array<{ name: string; dps: number; count: number; trigger?: string; skillPart?: string }>
+  SkillDPS?: SkillDpsEntry[]
+  /** DPS entries that PoB included in the Full DPS roll-up. */
+  FullSkillDPS?: SkillDpsEntry[]
+  /** All enabled runtime skills with a positive DPS contribution. */
+  AllSkillDPS?: SkillDpsEntry[]
   SkillDetails?: SkillCalculationDetails
   CalculationConfig?: CalculationConfigSnapshot
 }
 
 export type SkillCalculationMode = 'UNBUFFED' | 'BUFFED' | 'COMBAT' | 'EFFECTIVE'
 
+export interface SkillDpsEntry {
+  name: string
+  dps: number
+  count: number
+  trigger?: string
+  skillPart?: string
+  groupId?: string
+  skillId?: string
+  kind?: 'main' | 'trigger' | 'minion' | 'mirage' | 'dot' | 'other'
+  /** PoB skill flags normalized for project-owned analysis surfaces. */
+  skillType?: 'attack' | 'spell' | 'other'
+}
+
 export interface SkillCalculationSelection {
+  /** Character equipment panels only need the MAIN output already built while loading the XML. */
+  characterOnly?: boolean
   skillGroupId?: string
   calcMode?: SkillCalculationMode
   activeSkillIndex?: number
@@ -140,6 +164,9 @@ export interface LocalCalculationProfile {
 export interface SkillCalculationOption {
   index: number
   label: string
+  skillId?: string
+  trigger?: string
+  skillPart?: string
 }
 
 export interface SkillDamageBreakdown {
@@ -151,7 +178,12 @@ export interface SkillDamageBreakdown {
   hitMin?: number
   hitMax?: number
   averageHit?: number
+  nonCritAverage?: number
+  critAverage?: number
+  finalAverage?: number
   effectiveMultiplier?: number
+  moreMin?: number
+  moreMax?: number
   breakdown?: string[]
   effectiveBreakdown?: string[]
 }
@@ -164,13 +196,24 @@ export interface SkillModifierContribution {
   source: string
 }
 
-export type SkillDamageSourceType = SkillDamageBreakdown['type'] | 'elemental'
+export type SkillDamageSourceType = SkillDamageBreakdown['type'] | 'elemental' | 'nonChaos'
 
 export interface SkillGainContribution {
   fromType: SkillDamageSourceType
   toType: SkillDamageBreakdown['type'] | 'random'
   stat: string
   value: number
+  source: string
+}
+
+export interface SkillDamageTransferTotal {
+  fromType: Exclude<SkillDamageBreakdown['type'], 'all'>
+  toType: Exclude<SkillDamageBreakdown['type'], 'all'>
+  value: number
+}
+
+export interface SkillConversionContribution extends SkillDamageTransferTotal {
+  stat: string
   source: string
 }
 
@@ -260,6 +303,9 @@ export interface SkillCalculationDetails {
   skillDamage?: SkillBaseDamageContribution[]
   weaponDamage?: SkillWeaponDamageContribution[]
   gains?: SkillGainContribution[]
+  gainTotals?: SkillDamageTransferTotal[]
+  conversions?: SkillConversionContribution[]
+  conversionTotals?: SkillDamageTransferTotal[]
   effects?: SkillEffectSummary
   levelReferenceCurrent?: number
   levelReferences?: SkillLevelReference[]

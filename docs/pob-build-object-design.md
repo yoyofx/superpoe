@@ -1,7 +1,7 @@
 # SuperPoE2 统一 PoB 构筑内存对象设计
 
 > 状态：方案已确认，作为后续构筑状态收敛的实现基线
-> 更新日期：2026-08-07
+> 更新日期：2026-08-11
 > 替代方案：[`build-document-m2-m4-implementation-plan.md`](./build-document-m2-m4-implementation-plan.md)（已作废）
 
 ## 1. 结论
@@ -38,7 +38,29 @@ WeGame URL -> PoB Code ------+--> 完整 PoB2 XML --> PobBuildObject
 对象结构对齐 PoB2 [`xml.lua`](../public/pob-lua/xml.lua) 的可执行定义：每个元素包含元素名、字符串属性和有序子节点；子节点可以是元素或文本。
 
 ```ts
-type PobXmlNode = PobXmlElement | string
+type PobXmlNode = PobXmlElement | PobXmlText | PobXmlComment | PobXmlCdata | PobXmlInstruction
+
+interface PobXmlText {
+  kind: 'text'
+  value: string
+}
+
+interface PobXmlComment {
+  kind: 'comment'
+  value: string
+}
+
+interface PobXmlCdata {
+  kind: 'cdata'
+  value: string
+}
+
+interface PobXmlInstruction {
+  kind: 'instruction'
+  name: string
+  attributes: Record<string, string>
+  children: PobXmlNode[]
+}
 
 interface PobXmlElement {
   elem: string
@@ -58,6 +80,9 @@ interface PobBuildObject {
   apply(command: PobBuildCommand): PobBuildChange
   fork(): PobBuildObject
   snapshot(): { revision: number; xml: string; contentHash: string }
+  getTreeState(): PobTreeState
+  getTreeSpecStates(): { activeSpecIndex: number; specs: PobTreeState[] }
+  getPassiveJewelItems(): NodeJewels
   toXml(): string
   toCode(): string
 }
@@ -116,9 +141,40 @@ SuperPoE2 在自有 Item Bridge 中暴露 `parseItem`、`normalizeItem`、`valid
 
 ## 4. 生命周期与边界
 
+### 4.0 当前构筑会话与对象所有权
+
+`PobBuildObject` 是当前激活构筑的运行时单例，生命周期覆盖整个 BD 编辑会话，但不是跨构筑、跨窗口或跨进程的全局单例。它只存在于 renderer 的 `ActiveBuildSession` 中，由根级 Store/Session 管理，不能由装备页、技能页或其他页面各自创建。
+
+```ts
+interface ActiveBuildSession {
+  buildId: string | null
+  object: PobBuildObject
+  dirty: boolean
+  revision: number
+  dispose(): void
+}
+```
+
+存储边界必须保持清晰：
+
+- `PobBuildObject` 和 XML AST 只存在于当前会话内存，不写入 `localStorage`、`.spoe` 或 Electron 主进程全局变量。
+- 当前构筑的持久化载荷仍是 `BuildRecord.pob.code`；构筑中心继续使用现有 `localStorage`，用户明确保存的 `.spoe` 继续保存完整 PoB Code 和校验信息。
+- `BuildRecord` 的名称、来源、标签、目录和时间等应用元数据与 `PobBuildObject` 分离，不混入 XML AST。
+- LuaJIT sidecar/Worker 只接收对象生成的不可变 XML snapshot，不持有 renderer 的对象引用。
+
+生命周期规则：
+
+1. 加载或导入 BD 时，先处理旧会话的未保存状态，再释放旧对象，解码 XML 并只创建一个新的 `PobBuildObject`。
+2. 切换页面、装备组或技能组时保持同一对象；所有页面通过 selector/accessor 读取它。
+3. 编辑命令只修改当前对象并递增会话 `revision`；持久化 revision 与对象 revision 分开维护。
+4. 切换到其他 BD、清空当前 BD 或关闭 renderer 时调用 `dispose()`，释放 XML AST、访问器缓存和派生视图；常驻 Lua runtime 可以继续运行，但不得保留旧构筑引用。
+5. 计算请求携带对象 revision；对象被替换或释放后，旧计算结果不得回写当前 UI。
+
+如果未来支持多个 renderer 窗口，每个窗口拥有独立 `ActiveBuildSession`；不在 Electron 主进程建立跨窗口共享的可变构筑对象。
+
 ### 4.1 单次加载
 
-- PoB Code 解压为 XML 后只创建一次 `PobBuildObject`。
+- PoB Code 解压为 XML 后，在当前 `ActiveBuildSession` 中只创建一次 `PobBuildObject`。
 - WeGame 先转换为 PoB Code，再走相同加载入口。
 - 打开 SuperPoE 原生构筑文件时验证 `BuildRecord`，读取其中的完整 PoB 载荷，再走相同加载入口；这是原生文件打开，不属于外部格式导入。
 - 页面不得直接调用 `decodeCodeToXml()`、`fast-xml-parser` 或维护页面级 XML 缓存。
@@ -127,9 +183,15 @@ SuperPoE2 在自有 Item Bridge 中暴露 `parseItem`、`normalizeItem`、`valid
 
 - UI 通过 selector/accessor 查询同一对象，不直接遍历或修改底层节点。
 - 所有编辑使用 command；一次成功命令只产生一个新 revision，并记录受影响的 section。
+- 当前命令层同时支持 XML path 属性修改、唯一元素 selector 属性修改、唯一元素文本替换，以及 PoB2 装备/技能的受控编辑：ItemSet/武器组选择、装备槽位引用、完整 Item Raw、技能宝石属性和主技能组。selector 或结构引用匹配多个或零个节点时拒绝修改，避免误写未知或重复字段。
+- 装备与技能编辑命令直接修改完整 XML AST，不先转换成新的领域模型；一次命令只递增一个对象 revision。装备 Raw 替换只改变目标 `<Item>` 的文本，槽位修改只改变目标 `<Slot itemId>`，因此未知属性、其它 Item、子节点顺序和引用仍由对象原样保留。
+- `treeStore.pobBuildRevision` 是 renderer 可观察的对象 revision，装备、技能、Config、计算和导出路径以它触发重新读取；对象本身仍只存在当前 `ActiveBuildSession`。
 - 对象修改必须保留未触及节点、未知属性、子节点顺序和 ID 引用。
 - undo/redo 保存可逆 XML patch 或命令逆操作，不保存另一份领域对象。
 - 派生视图按 `revision + section` 缓存；revision 变化后只使相关视图失效。
+
+天赋树迁移采用渐进方式：Store 仍负责 Pixi 分配算法和交互状态，但节点、武器组节点、属性覆盖、专精效果和被动珠宝插槽的写入统一通过 `PobBuildObject` 命令完成。对象 accessor 从 active `<Spec>` 读取最新状态，Tree tooltip/渲染使用对象解析出的珠宝记录；Store 不再从旧 `importedBuildCode` 直接读取珠宝。前端的 `allocatedNodes` 是无损编辑投影：导入 XML 中的节点全部保留并绘制，取消节点时只移除用户明确点击的节点，不按前端连通性自动删除其它节点。PoB Lua 负责最终有效起点、孤立节点、特殊珠宝和计算语义，前端不复制这套完整规则。
+当前产品只使用一套活动天赋方案；对象仍会保留 XML 中的其它 Spec，但不提供多 Spec UI。配置、装备、技能页面已统一通过 Store 的 active-object getter 读取，`importedBuildCode` 仅保留为持久化载荷和对象不可用时的兼容 fallback，不再作为页面运行时权威。
 
 ### 4.3 计算
 
@@ -137,6 +199,12 @@ SuperPoE2 在自有 Item Bridge 中暴露 `parseItem`、`normalizeItem`、`valid
 - LuaJIT sidecar 或 Worker 加载该 XML；不得由前端重新拼装另一份计算 XML。
 - Lua build 实例可以按 revision 复用，也可以在崩溃后由 XML snapshot 重建。
 - 只有结果 revision 与当前对象一致时，技能、伤害和人物属性结果才能进入 UI。
+
+### 4.4 计算配置边界
+
+- PoB Code 中存在 `<Calcs><Input .../></Calcs>` 时，只把其中可识别的计算模式作为导入初始值；没有该段时按 PoB2 的 `EFFECTIVE` 默认模式处理，并不猜测 PoB2 界面中未导出的临时状态。
+- 运行时返回的配置定义和用户选择保存在 SuperPoE 的本地计算方案中。方案通过 `configOverrides` 传给 LuaJIT，不写回 `PobBuildObject` 或 PoB Code；这样切换方案不会污染构筑内容，保存构筑也不会把本地实验条件伪装成 PoB2 导出的配置。
+- 后续如果需要把某项配置正式写入 PoB Code，必须先确认 PoB2 对应的 XML 节点和导入/导出语义，再增加独立的 Config command；不得把 Lua 运行时的临时字段直接序列化进 XML。
 
 ## 5. 构筑库与原生格式
 
@@ -177,11 +245,65 @@ interface BuildRecord {
 3. 将技能、装备和 Config 的临时解析迁移为统一对象访问器，逐页删除重复解码和 `LibraryItemSnapshot` 权威读取。
 4. 将天赋编辑从字符串/双状态改为受控 XML 命令，保证 Tree 修改后其他 section 原样保留。
 5. 计算和技能排名统一消费当前对象的 XML snapshot，并用 revision 拒绝过期结果。
-6. 保存、草稿以及原生构筑文件打开/另存为切换为 `BuildRecord + 完整 PoB Code`，清理 `importedBuildCode` 作为页面运行时数据源的用法。
+6. 保存、草稿以及原生构筑文件打开/另存为继续使用 `BuildRecord + 完整 PoB Code`；页面运行时统一通过 active `PobBuildObject` getter，`importedBuildCode` 只作为持久化和兼容 fallback。
 
 迁移期间允许旧 selector 适配统一对象，但禁止建立新的第二权威数据源。
 
-## 7. 验收门禁
+装备输入兼容的具体规则、WeGame 来源样本、规范化边界和后续维护模板见
+[`pob-item-compatibility.md`](./pob-item-compatibility.md)。兼容层属于项目自有适配代码，不能通过修改上游 Lua 文件来实现。
+
+## 7. 执行任务清单
+
+> 这份清单是 `PobBuildObject` 改造的唯一进度记录。只有代码、测试和保存/导出验证都完成后，任务才能标记为已完成；聊天中的讨论不替代清单状态。
+
+### 已完成
+
+- [x] 建立完整 XML AST、`PobBuildObject`、`ActiveBuildSession`、生命周期和对象 revision。
+- [x] 装备、技能和 Config 页面按当前对象读取；计算请求携带对象 snapshot、revision 和 content hash。
+- [x] 计算结果过期保护：对象、构筑或武器组变化后，旧结果不得回写当前页面。
+- [x] 计算、保存和 PoB 导出在存在活动对象时直接消费同一份 Code/XML snapshot；仅新建空构筑保留 `buildCode.ts` 生成路径。
+- [x] 保存、原生构筑文件和导出优先使用对象生成的最新 PoB Code；保留旧 Code 作为兼容 fallback。
+- [x] 保存、导出、角色等级和原生文件入口统一通过 Store 的 `getActivePobCode()` 读取当前对象，页面不再各自拼接对象/旧 Code。
+- [x] 建立对象级装备命令：ItemSet/武器组选择、装备槽位引用、完整 Item Raw 替换。
+- [x] 装备界面的 ItemSet 下拉和武器组选择已接入对象命令；切换后保留目标 ItemSet 自己的武器组属性。
+- [x] 装备详情的“替换槽位”已通过装备仓库 Adapter 读取 canonical Item Raw，并以新 Item ID 写回当前 ItemSet/Slot。
+- [x] 建立对象级技能命令：技能宝石属性更新和主技能组更新；歧义或缺失引用拒绝修改。
+- [x] 建立对象级 active SkillSet 命令；多 SkillSet 切换保留其它 SkillSet 原始 XML。
+- [x] 建立对象级 Tree Spec 状态命令；节点、树版本、职业/升华、武器组节点、属性覆盖、专精效果和被动珠宝插槽更新只修改当前 Spec，并保留其它 Spec 与未知 Tree 内容。
+- [x] 提供 active Tree Spec accessor 和被动珠宝记录 accessor；Tree tooltip 与 Pixi 珠宝图标通过 Store accessor 读取对象最新 revision。
+- [x] 技能页面已接入对象命令：默认只读，并通过详情标题栏的编辑按钮进入技能组启用/完整 DPS 状态、主技能组、主技能与辅助宝石的等级、品质和启用状态编辑。
+- [x] 明确 Config 边界：本地计算方案通过 `configOverrides` 参与 Lua 计算，不写回 PoB Code。
+- [x] 通过对象专项测试、客户端回归测试和生产构建门禁。
+
+### 已完成的扩展
+
+- [x] 将技能对象命令接入技能等级、品质、启用状态和辅助宝石编辑控件；默认只读，编辑按钮显式开启。
+- [x] 技能页在多 SkillSet 构筑中提供 active SkillSet 选择，并以对象命令触发重新读取和计算。
+- [x] ItemSet/武器组切换和 Tree 计算投影保留未选中的 ItemSet、插槽引用以及全部 ConfigSet；对象专项测试覆盖 activeConfigSet 不被改写。
+- [x] 将天赋节点分配、武器组节点、属性节点、天赋珠宝和专精效果迁移为对象命令；产品当前只使用一套活动 Spec。
+- [x] 天赋珠宝绑定已接入对象命令：仅允许已分配的珠宝孔操作；装备仓库中由 PoB 标准化类别确认的 Jewel 可绑定、替换和解除，绑定时新增 Item 并保留旧 Item/未知 XML 内容。
+- [x] 页面运行时不再直接依赖 `importedBuildCode`；正常构筑通过 active `PobBuildObject` getter 读取，旧 Code 仅作为加载失败时的兼容 fallback。
+- [x] 天赋树导入和编辑遵循无损投影边界：保留并绘制 XML 节点，显式取消只移除目标节点，最终有效性和计算交由 PoB Lua。
+- [x] WeGame 已确认的 7 类装备词条兼容规则已集中在 Item 入口，并覆盖显示、保存、导出和 Lua 计算路径。
+
+### 待完善（暂缓）
+
+> 以下事项保留在设计基线中，但当前阶段暂不实施，不影响已验收的主流程。
+
+- [~] 补充装备替换后的目标槽位校验、装备编辑控件和保存/导出回读验收。
+- [~] 为对象编辑接入独立的 XML snapshot 级撤销与重做；当前仅保留 `restoreXml` 底层能力，不接入天赋树撤销栈或页面按钮。
+- [~] 使用多 SkillSet、ItemSet、武器组、召唤物和 ConfigSet 构筑完成更大范围的 PoB2/LuaJIT 计算一致性回归。
+- [~] 为多 Spec 建立对象 accessor 与 Store 的 activeSpec 映射；切换 Spec 时只切换 `<Tree activeSpec>`，不得重建或丢弃其它 Spec。
+- [~] 删除天赋树的 Store 双状态和计算/导出时临时 Tree XML 覆盖。
+- [~] 持续扩大 `Code -> Object -> XML/Code -> PoB2 Load` 的无损验收范围，覆盖未识别节点、属性、文本和引用。
+
+### 更新规则
+
+- 每完成一组任务，先更新本节状态，再运行对应测试并记录结果。
+- 任何任务若仍依赖临时投影、页面派生状态或兼容 fallback，不得标记为已完成。
+- 不修改 `upstreams/PathOfBuilding-PoE2/` 或 `public/pob-lua/` 上游 Lua；如需变更，必须单独建立上游同步任务。
+
+## 8. 验收门禁
 
 - 同一份构筑在未编辑时完成 `Code -> Object -> XML/Code -> PoB2 Load`，技能、装备、Config 和人物属性不变。
 - 技能显示、技能组选择、DPS、Str/Dex/Int、Life/Mana/ES、抗性和防御结果与当前直接加载原始 XML 的基线一致。

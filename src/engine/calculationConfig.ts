@@ -1,4 +1,6 @@
 import { XMLParser } from 'fast-xml-parser'
+import { decodeCodeToXml } from '@/engine/buildCode'
+import type { PobBuildObject } from '@/engine/pobBuildObject'
 import type { SkillCalculationMode } from '@/types/calc'
 
 const MODES = new Set<SkillCalculationMode>(['UNBUFFED', 'BUFFED', 'COMBAT', 'EFFECTIVE'])
@@ -24,4 +26,12 @@ export function getImportedCalculationMode(xml: string): SkillCalculationMode {
   } catch {
     return 'EFFECTIVE'
   }
+}
+
+export function getImportedCalculationModeFromObject(object: PobBuildObject): SkillCalculationMode {
+  return getImportedCalculationMode(object.toXml())
+}
+
+export function getImportedCalculationModeFromCode(code: string): SkillCalculationMode {
+  return getImportedCalculationMode(decodeCodeToXml(code))
 }

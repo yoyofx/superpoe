@@ -25,8 +25,28 @@ and pin our reproducible LuaJIT build to the commit recorded in the lock file.
 
 ## Build And Verification
 
+### Lua ownership and directory policy
+
+The repository keeps PoB's pinned Lua snapshot and SuperPoE-owned Lua in
+separate trees. Files under `upstreams/PathOfBuilding-PoE2/` and the generated
+`public/pob-lua/` bundle are upstream/runtime inputs and must not contain
+project feature code. Project bridges live under `lua/superpoe/` and are
+generated into `public/superpoe-lua/` with an independent manifest.
+
 ```text
-npm run pipeline:lua      regenerate the browser/native PoB bundle
+lua/superpoe/                  project-owned Lua source
+public/pob-lua/                pinned PoB source/runtime only
+public/superpoe-lua/           project Lua runtime bundle only
+```
+
+The native runner receives both bundle paths, and the browser worker mounts
+the project files under `/superpoe-lua`. Both runtimes add that namespace to
+Lua's module search path, so existing `require("EquipmentDifference")` calls
+keep working without copying project files into the PoB bundle or shadowing
+an upstream module.
+
+```text
+npm run pipeline:lua      regenerate the browser/native PoB and SuperPoE bundles
 npm run verify:lua        verify the committed bundle and native runtime hashes
 npm run verify:lua:upstream also require the local PoB checkout to match the lock
 npm run native:lua        build LuaJIT for the current OS and architecture
@@ -105,6 +125,7 @@ Packaged resources are located at:
 resources/pob-lua-runtime/<platform>-<architecture>/
 resources/pob-lua-sidecar/pob-lua-runner.lua
 resources/pob-lua/
+resources/superpoe-lua/
 ```
 
 Only the matching native directory is included in each package:
@@ -144,7 +165,9 @@ the equivalent files relative to Electron's `process.resourcesPath`.
 To update PoB2, update the upstream snapshot and lock together, regenerate the
 bundle, review intended fixture changes, and commit them atomically. The bundle
 pipeline rejects a source snapshot whose normalized hash does not match the
-lock.
+lock. To add or change project Lua, edit only `lua/superpoe/`, then run the same
+pipeline; `verify:lua` checks both manifests and fails if a project bridge is
+placed in `public/pob-lua/`.
 
 To update LuaJIT, change only the locked commit first, build each runtime on its
 matching pinned CI platform, run the native fixture, and commit the binaries

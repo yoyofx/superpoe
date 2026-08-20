@@ -1,6 +1,7 @@
 import { decodeBuildCode, decodeCodeToXml } from '@/engine/buildCode'
 import { parseEquipmentXml } from '@/engine/equipment'
 import { parseSkillsXml, type BuildSkills } from '@/engine/skills'
+import { normalizePobBuildCode } from '@/engine/pobItemCompatibility'
 import type { EquipmentData, EquipmentItem } from '@/types/equipment'
 
 export interface BuildChangeBucket {
@@ -18,6 +19,12 @@ export interface BuildUpdateDiff {
   total: number
   hasChanges: boolean
 }
+
+export type BuildUpdateSection = 'build' | 'tree' | 'equipment' | 'skills' | 'other'
+
+export const BUILD_UPDATE_SECTIONS: readonly BuildUpdateSection[] = [
+  'build', 'tree', 'equipment', 'skills', 'other',
+]
 
 function emptyBucket(): BuildChangeBucket {
   return { added: 0, removed: 0, changed: 0 }
@@ -203,8 +210,8 @@ function compareOther(leftXml: string, rightXml: string): BuildChangeBucket {
 }
 
 export function compareBuildCodes(leftCode: string, rightCode: string): BuildUpdateDiff {
-  const leftXml = decodeCodeToXml(leftCode)
-  const rightXml = decodeCodeToXml(rightCode)
+  const leftXml = decodeCodeToXml(normalizePobBuildCode(leftCode))
+  const rightXml = decodeCodeToXml(normalizePobBuildCode(rightCode))
   const leftBuild = parseXmlAttributes(leftXml, 'Build')
   const rightBuild = parseXmlAttributes(rightXml, 'Build')
   const build = {

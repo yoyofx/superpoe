@@ -16,6 +16,7 @@ import {
 const rootDir = fileURLToPath(new URL('../..', import.meta.url))
 const fixturePath = resolve(rootDir, 'builds/0.4_风暴编织者.build')
 const luaBundleDir = resolve(rootDir, 'public/pob-lua')
+const projectLuaBundleDir = resolve(rootDir, 'public/superpoe-lua')
 const wasmPath = resolve(rootDir, 'node_modules/wasmoon/dist/glue.wasm')
 
 let luaFactory: LuaFactory
@@ -38,6 +39,17 @@ beforeAll(async () => {
       readFileSync(resolve(luaBundleDir, entry.path), 'utf8'),
     )
   }
+  const projectManifest = JSON.parse(
+    readFileSync(resolve(projectLuaBundleDir, 'manifest.json'), 'utf8'),
+  ) as PobLuaManifest
+  for (const entry of projectManifest.files) {
+    if (!entry.path.endsWith('.lua')) continue
+    luaFactory.mountFileSync(
+      luaWasm,
+      `/superpoe-lua/${entry.path}`,
+      readFileSync(resolve(projectLuaBundleDir, entry.path), 'utf8'),
+    )
+  }
   luaFactory.mountFileSync(luaWasm, '/manifest.xml', '<PoBVersion><Version number="browser"/></PoBVersion>')
 
   lua = await luaFactory.createEngine()
@@ -52,6 +64,10 @@ afterAll(() => {
 })
 
 describe('PoB Lua front-end runtime', () => {
+  it('loads the project equipment bridge from its separate Lua bundle', () => {
+    expect(lua.doStringSync('return type(require("EquipmentDifference").compare)')).toBe('function')
+  })
+
   it('formats integral floats like the LuaJIT runtime used by desktop PoB2', () => {
     expect(lua.doStringSync('return tostring(90.0)')).toBe('90')
     expect(lua.doStringSync('return tostring(90.25)')).toBe('90.25')
@@ -193,6 +209,7 @@ describe('PoB Lua front-end runtime', () => {
     expect(result.data?.EnergyShield).toBeGreaterThan(1800)
     expect(result.data?.Spirit).toBeDefined()
     expect(result.data?.PhysicalDamageReduction).toBeDefined()
+    expect(result.data?.DeflectionRating).toBeDefined()
     expect(result.data?.DeflectChance).toBeDefined()
     expect(result.data?.DeflectEffect).toBeDefined()
     expect(result.data?.EffectiveBlockChance).toBeDefined()
@@ -201,6 +218,23 @@ describe('PoB Lua front-end runtime', () => {
     expect(result.data?.ColdResistTotal).toBeDefined()
     expect(result.data?.LightningResistTotal).toBeDefined()
     expect(result.data?.ChaosResistTotal).toBeDefined()
+      expect(result.data?.PowerStats?.FullDPS).toBeDefined()
+      expect(result.data?.PowerStats?.TotalEHP).toBeDefined()
+      expect(result.data?.PowerStats?.EnergyShieldLeechRate).toBeDefined()
+      expect(result.data?.PowerStats?.MeleeAvoidChance).toBeDefined()
+      expect(result.data?.PowerStats?.SpellAvoidChance).toBeDefined()
+      expect(result.data?.PowerStats?.ProjectileAvoidChance).toBeDefined()
+      expect(result.data?.PowerStats?.BleedChance).toBeDefined()
+      expect(result.data?.PowerStats?.FreezeChance).toBeDefined()
+      expect(result.data?.PowerStats?.IgniteChance).toBeDefined()
+      expect(result.data?.PowerStats?.ShockChance).toBeDefined()
+      expect(result.data?.PowerStats?.EffectiveLootRarityMod).toBeDefined()
+      expect(result.data?.SkillLevel).toBeGreaterThan(0)
+    const virtualModifier = calculateWithLuaEngine(lua, decoded.xml, {
+      configOverrides: { customMods: '+100 to maximum Life' },
+    })
+    expect(virtualModifier.success, virtualModifier.error).toBe(true)
+    expect(virtualModifier.data?.Life).toBeGreaterThan(result.data?.Life || 0)
     expect(['attack', 'spell', 'other']).toContain(result.data?.SkillDetails?.skillType)
     if (result.data?.SkillDetails?.skillType === 'spell') {
       expect(result.data.SkillDetails.skillDamage?.length).toBeGreaterThan(0)

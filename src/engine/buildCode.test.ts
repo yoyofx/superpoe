@@ -153,6 +153,37 @@ describe('front-end build code encode/decode', () => {
     expect(decodeBuildCode(encoded.code).xml).toBe(encoded.xml)
   })
 
+  it('preserves every imported ConfigSet when projecting the passive tree and equipment selection', () => {
+    const baseXml = `<PathOfBuilding2><Build mainSocketGroup="1"/>
+      <Items activeItemSet="2" useSecondWeaponSet="false">
+        <ItemSet id="1" useSecondWeaponSet="false"><Slot name="Weapon 1" itemId="10"/></ItemSet>
+        <ItemSet id="2" title="Boss" useSecondWeaponSet="false"><Slot name="Weapon 1" itemId="20"/></ItemSet>
+      </Items>
+      <Config activeConfigSet="2">
+        <ConfigSet id="1" title="Mapping"><Input name="conditionMoving" boolean="false"/></ConfigSet>
+        <ConfigSet id="2" title="Boss"><Input name="conditionMoving" boolean="true"/><Placeholder name="enemyLevel" number="82"/></ConfigSet>
+      </Config>
+      <Tree activeSpec="1"><Spec treeVersion="0_5" classId="3" ascendClassId="3" nodes="1"/></Tree>
+    </PathOfBuilding2>`
+    const encoded = encodeBuildCode({
+      nodes: ['2', '3'],
+      treeVersion: '0_5',
+      baseCode: encodeXml(baseXml),
+      activeItemSetId: '2',
+      useSecondWeaponSet: true,
+    })
+
+    expect(encoded.xml).toContain('<Items activeItemSet="2" useSecondWeaponSet="true">')
+    expect(encoded.xml).toContain('<ItemSet id="1" useSecondWeaponSet="false"><Slot name="Weapon 1" itemId="10"/></ItemSet>')
+    expect(encoded.xml).toContain('<ItemSet id="2" title="Boss" useSecondWeaponSet="true"><Slot name="Weapon 1" itemId="20"/></ItemSet>')
+    expect(encoded.xml).toContain('<Config activeConfigSet="2">')
+    expect(encoded.xml).toContain('<ConfigSet id="1" title="Mapping"><Input name="conditionMoving" boolean="false"/></ConfigSet>')
+    expect(encoded.xml).toContain('<ConfigSet id="2" title="Boss"><Input name="conditionMoving" boolean="true"/><Placeholder name="enemyLevel" number="82"/></ConfigSet>')
+
+    const decoded = decodeBuildCode(encoded.code)
+    expect(decoded.xml).toBe(encoded.xml)
+  })
+
   it('round-trips passive tree jewels', () => {
     const encoded = encodeBuildCode({
       nodes: ['32763', '21984'],

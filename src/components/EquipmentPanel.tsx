@@ -1,14 +1,13 @@
-import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import { memo, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent } from 'react'
 import { createPortal } from 'react-dom'
-import { Bookmark, Check, ChevronDown, ChevronRight, Clipboard, PackageOpen, PanelRightOpen, Search, Upload, X } from 'lucide-react'
+import { ArrowLeftRight, Bookmark, Check, ChevronDown, ChevronRight, Clipboard, Gem, PackageOpen, PanelRightOpen, Search, Sparkles, Upload, X } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
-import { decodeCodeToXml } from '@/engine/buildCode'
 import {
   type EquipmentAffixCategory,
   type EquipmentAffixSemanticGroup,
   type EquipmentAffixSummary,
 } from '@/engine/equipmentAffixes'
-import { parseEquipmentXml } from '@/engine/equipment'
+import { parseEquipmentCode, parseEquipmentObject } from '@/engine/equipment'
 import { aggregateEquipmentSemantics, type EquipmentSemanticView } from '@/engine/equipmentSemantics'
 import { deriveItemDisplayRequirements, deriveItemDisplayStats, deriveWeaponComparisonStats } from '@/engine/itemDisplayStats'
 import { loadItemBaseData, resolveItemBaseData, type ItemBaseData } from '@/engine/itemBaseData'
@@ -22,11 +21,17 @@ import {
 import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { LANGUAGE_LOCALES, uiText, type UiMessage } from '@/i18n/uiLocale'
-import { useTreeStore } from '@/store/treeStore'
+import { getActiveBuildSession, useTreeStore } from '@/store/treeStore'
+import type { PassiveJewel } from '@/engine/buildCode'
 import type { EquipmentItem, EquipmentSet, EquipmentSlot } from '@/types/equipment'
 import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
+import type { EquipmentLibraryEntry } from '@/types/market'
+import { EquipmentLibraryPicker } from '@/components/equipment/EquipmentLibraryPicker'
+import { EquipmentDetailQuickNav, type EquipmentDetailQuickNavSection } from '@/components/equipment/EquipmentDetailQuickNav'
 import type { CalcResult } from '@/types/calc'
 import { inspectEquipment } from '@/engine/pobLuaClient'
+import { EquipmentDifferenceTooltip } from '@/equipmentDifference/components/EquipmentDifferenceTooltip'
+import type { BuildContextSnapshot } from '@/equipmentDifference'
 import {
   fitPaperDoll,
   getActivePaperDollSlots,
@@ -108,6 +113,13 @@ function itemClassLabel(item: EquipmentItem, base: ItemBaseData | undefined, lan
 
 type EquipmentAffixGroup = 'attack' | 'defence' | 'life' | 'mana' | 'resistances' | 'defenceOther' | 'attributes' | 'important' | 'other' | EquipmentAffixSemanticGroup
 type EquipmentSidebarView = EquipmentSemanticView | 'character'
+
+interface EquipmentContextMenuState {
+  itemId: string
+  slotName: string
+  left: number
+  top: number
+}
 
 const AFFIX_CATEGORY_ORDER: EquipmentAffixCategory[] = [
   'addedDamage',
@@ -209,6 +221,223 @@ function getSocketSlotInfo(slotName: string): { parent: string; index: number } 
   return match ? { parent: match[1].trim(), index: Number(match[2]) } : null
 }
 
+interface JewelStripEntry {
+  key: string
+  item: EquipmentItem
+  sourceLabel: string
+  sourceKind: 'tree' | 'equipment'
+  slotName?: string
+}
+
+interface JewelStripTooltipState {
+  entry: JewelStripEntry
+  x: number
+  y: number
+  above: boolean
+}
+
+function makeFallbackJewelItem(jewel: PassiveJewel, raw: string): EquipmentItem {
+  return {
+    id: jewel.itemId,
+    rarity: jewel.rarity,
+    name: jewel.name || 'Unknown Jewel',
+    baseType: jewel.baseType || jewel.name || 'Jewel',
+    socketCount: 0,
+    runes: [],
+    lines: jewel.lines,
+    modifiers: jewel.lines.map((line) => ({ text: line.replace(/\{[^}]+\}/g, '').trim(), tags: [], group: 'explicit' as const })),
+    raw,
+  }
+}
+
+function JewelStripIcon({ entry, index, size = 'small' }: { entry: JewelStripEntry; index: ItemIconIndex | null; size?: 'small' | 'large' }) {
+  const imageUrl = resolveItemIcon(entry.item, index)
+  return <span className={`equipment-jewel-icon equipment-jewel-icon-${size} ${RARITY_CLASS[entry.item.rarity] || 'rarity-normal'}`}>
+    <FallbackImage src={imageUrl} alt="" fallback={<span>J</span>} />
+  </span>
+}
+
+function JewelStripButton({
+  entry,
+  index,
+  size = 'large',
+  selected,
+  onSelect,
+  onHover,
+  onLeave,
+}: {
+  entry: JewelStripEntry
+  index: ItemIconIndex | null
+  size?: 'small' | 'large'
+  selected: boolean
+  onSelect: (entry: JewelStripEntry) => void
+  onHover: (event: MouseEvent<HTMLButtonElement>, entry: JewelStripEntry) => void
+  onLeave: () => void
+}) {
+  const { lang } = useTranslation()
+  const label = translateItemName(entry.item.name, entry.item.rarity, lang)
+  return <button
+    type="button"
+    className={`equipment-jewel-entry ${selected ? 'selected' : ''}`}
+    aria-label={label}
+    title={label}
+    onClick={() => onSelect(entry)}
+    onMouseEnter={(event) => onHover(event, entry)}
+    onMouseLeave={onLeave}
+  >
+    <JewelStripIcon entry={entry} index={index} size={size} />
+  </button>
+}
+
+function JewelStripTooltip({ tooltip, index, language }: { tooltip: JewelStripTooltipState; index: ItemIconIndex | null; language: Language }) {
+  const { entry } = tooltip
+  const itemName = translateItemName(entry.item.name, entry.item.rarity, language)
+  const baseType = entry.item.baseType && entry.item.baseType !== entry.item.name
+    ? translateGameText(entry.item.baseType, language)
+    : ''
+  const lines = entry.item.lines
+    .map((line) => translateGameText(line.replace(/\{[^}]+\}/g, ''), language))
+    .filter(Boolean)
+    .slice(0, 8)
+  return createPortal(
+    <div className={`equipment-jewel-tooltip ${tooltip.above ? 'above' : 'below'}`} style={{ left: tooltip.x, top: tooltip.y }} role="tooltip">
+      <header>
+        <span className="equipment-jewel-tooltip-icon"><JewelStripIcon entry={entry} index={index} size="large" /></span>
+        <span>
+          <strong>{itemName}</strong>
+          {baseType && <small>{baseType}</small>}
+          <small>{entry.sourceLabel}</small>
+        </span>
+      </header>
+      {lines.length > 0
+        ? <div className="equipment-jewel-tooltip-lines">{lines.map((line, lineIndex) => <p key={`${line}-${lineIndex}`}>{line}</p>)}</div>
+        : <p className="equipment-jewel-tooltip-empty">{uiText(language, 'No detailed modifier data available', '暂无可用的详细词条', '暫無可用的詳細詞綴', '사용 가능한 상세 속성이 없습니다')}</p>}
+    </div>,
+    document.body,
+  )
+}
+
+function JewelStripBar({
+  entries,
+  itemIconIndex,
+  selectedId,
+  onSelect,
+  onHover,
+  onLeave,
+}: {
+  entries: JewelStripEntry[]
+  itemIconIndex: ItemIconIndex | null
+  selectedId: string | null
+  onSelect: (entry: JewelStripEntry) => void
+  onHover: (event: MouseEvent<HTMLButtonElement>, entry: JewelStripEntry) => void
+  onLeave: () => void
+}) {
+  const { lang } = useTranslation()
+  const [expanded, setExpanded] = useState(false)
+  const [popoverPosition, setPopoverPosition] = useState<{ left: number; top: number; width: number } | null>(null)
+  const stripRef = useRef<HTMLDivElement>(null)
+
+  const updatePopoverPosition = useCallback(() => {
+    const strip = stripRef.current
+    if (!strip) return
+    const rect = strip.getBoundingClientRect()
+    const width = Math.min(420, Math.max(220, window.innerWidth - 24))
+    setPopoverPosition({
+      left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)),
+      top: rect.bottom + 7,
+      width,
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!expanded) return
+    updatePopoverPosition()
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Element && target.closest('.equipment-jewel-strip, .equipment-jewel-popover')) return
+      setExpanded(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setExpanded(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('keydown', closeOnEscape)
+    window.addEventListener('resize', updatePopoverPosition)
+    window.addEventListener('scroll', updatePopoverPosition, true)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('keydown', closeOnEscape)
+      window.removeEventListener('resize', updatePopoverPosition)
+      window.removeEventListener('scroll', updatePopoverPosition, true)
+    }
+  }, [expanded, updatePopoverPosition])
+
+  useEffect(() => {
+    if (!entries.length) setExpanded(false)
+  }, [entries.length])
+
+  const handleSelect = useCallback((entry: JewelStripEntry) => {
+    setExpanded(false)
+    onSelect(entry)
+  }, [onSelect])
+
+  const label = uiText(lang, 'Jewel Box', '珠宝匣', '珠寶匣', '주얼 보관함')
+  const equippedLabel = uiText(lang, 'Equipped jewels', '已装备珠宝', '已裝備珠寶', '장착된 주얼')
+  const closeLabel = uiText(lang, 'Close jewel box', '关闭珠宝匣', '關閉珠寶匣', '주얼 보관함 닫기')
+
+  return <div ref={stripRef} className={`equipment-jewel-strip ${expanded ? 'expanded' : ''}`}>
+    <button
+      type="button"
+      className="equipment-jewel-label"
+      disabled={!entries.length}
+      aria-expanded={expanded}
+      aria-haspopup="dialog"
+      aria-label={`${label} (${entries.length})`}
+      title={entries.length ? equippedLabel : uiText(lang, 'No equipped jewels', '没有已装备珠宝', '沒有已裝備珠寶', '장착된 주얼 없음')}
+      onClick={() => {
+        if (!entries.length) return
+        setExpanded((current) => !current)
+      }}
+    >
+      <Gem className="equipment-jewel-label-icon" aria-hidden="true" />
+      <strong>{label}</strong>
+      <small>{entries.length}</small>
+      <ChevronDown className="equipment-jewel-label-toggle" aria-hidden="true" />
+    </button>
+    {expanded && popoverPosition && createPortal(
+      <div
+        className="equipment-jewel-popover"
+        role="dialog"
+        aria-label={equippedLabel}
+        style={{ left: popoverPosition.left, top: popoverPosition.top, width: popoverPosition.width }}
+      >
+        <header className="equipment-jewel-popover-heading">
+          <span>
+            <strong>{label}</strong>
+            <small>{entries.length}</small>
+          </span>
+          <button type="button" onClick={() => setExpanded(false)} aria-label={closeLabel} title={closeLabel}>
+            <X aria-hidden="true" />
+          </button>
+        </header>
+        <div className="equipment-jewel-popover-list" aria-label={equippedLabel}>
+          {entries.map((entry) => <JewelStripButton
+            key={entry.key}
+            entry={entry}
+            index={itemIconIndex}
+            size="small"
+            selected={entry.item.id === selectedId}
+            onSelect={handleSelect}
+            onHover={onHover}
+            onLeave={onLeave}
+          />)}
+        </div>
+      </div>,
+      document.body,
+    )}
+  </div>
+}
+
 function AffixSummaryRow({
   summary,
   expanded,
@@ -218,7 +447,7 @@ function AffixSummaryRow({
   summary: EquipmentAffixSummary
   expanded: boolean
   onToggle: () => void
-  onSelectSource: (itemId: string) => void
+  onSelectSource: (itemId: string, slotName?: string) => void
 }) {
   const { t, lang } = useTranslation()
   const translatedText = translateGameText(summary.text, lang)
@@ -239,7 +468,7 @@ function AffixSummaryRow({
           const slotLabel = socketSlot
             ? `${t(SLOT_KEYS[socketSlot.parent] || socketSlot.parent)} · ${uiText(lang, 'Jewel', '珠宝', '珠寶', '주얼')} ${socketSlot.index}`
             : t(SLOT_KEYS[source.slotName] || source.slotName)
-          return <button key={`${source.itemId}-${source.line}-${index}`} type="button" onClick={() => onSelectSource(source.itemId)}>
+          return <button key={`${source.itemId}-${source.line}-${index}`} type="button" onClick={() => onSelectSource(source.itemId, source.slotName)}>
             <span>{slotLabel}</span>
             <strong>{translateGameText(source.itemName, lang)}</strong>
             {source.rune && <i>{uiText(lang, 'Rune', '符文', '符文', '룬')}</i>}
@@ -345,7 +574,7 @@ const EquipmentAffixSidebar = memo(function EquipmentAffixSidebar({
   onSelectSemanticView: (view: EquipmentSidebarView) => void
   onToggleCategory: (group: EquipmentAffixGroup) => void
   onToggleAffix: (key: string) => void
-  onSelectSource: (itemId: string) => void
+  onSelectSource: (itemId: string, slotName?: string) => void
   onCalculate: () => void
 }) {
   const { t, lang } = useTranslation()
@@ -439,7 +668,7 @@ function SocketedRunes({
   slotName?: string
   socketedItems?: EquipmentItem[]
   compact?: boolean
-  onSelectSocketedItem?: (item: EquipmentItem) => void
+  onSelectSocketedItem?: (item: EquipmentItem, slotName?: string) => void
 }) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
@@ -520,7 +749,7 @@ function SocketedRunes({
             onClick={(event) => {
               if (!socketedItem || !onSelectSocketedItem) return
               event.stopPropagation()
-              onSelectSocketedItem(socketedItem)
+              onSelectSocketedItem(socketedItem, `${slotName} Jewel Socket ${socketIndex + 1}`)
             }}
             onMouseOver={(event) => {
               if (!rune && !socketedItem) return
@@ -565,11 +794,17 @@ function SocketedRunes({
   )
 }
 
-function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketedItems, onSave, onPriceCheck, onClose }: { item: EquipmentItem; base?: ItemBaseData; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; onSave: () => Promise<void>; onPriceCheck: () => void; onClose: () => void }) {
+function ItemDetail({ item, base, semantics, itemIconIndex, runeDetails, slotName, socketedItems, buildContext, onSave, onPriceCheck, onFindBetter, onReplace, onClose }: { item: EquipmentItem; base?: ItemBaseData; semantics?: EquipmentItemSemantics; itemIconIndex: ItemIconIndex | null; runeDetails: RuneDetailIndex | null; slotName?: string; socketedItems?: EquipmentItem[]; buildContext: BuildContextSnapshot | null; onSave: () => Promise<void>; onPriceCheck: () => void; onFindBetter?: () => void; onReplace?: () => void; onClose: () => void }) {
   const { t, lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const [copyState, setCopyState] = useState<'idle' | 'copied' | 'error'>('idle')
   const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle')
+  const [tradeMenuOpen, setTradeMenuOpen] = useState(false)
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const propertiesRef = useRef<HTMLDivElement>(null)
+  const requirementsRef = useRef<HTMLDivElement>(null)
+  const modifiersRef = useRef<HTMLDivElement>(null)
+  const differenceRef = useRef<HTMLDivElement>(null)
   useTreeStore((state) => state.translationRevision)
   const translateItemText = (value: string) => translateGameText(value.replace(/\{[^}]+\}/g, ''), lang)
   const rarityClass = RARITY_CLASS[item.rarity] || RARITY_CLASS.NORMAL
@@ -577,8 +812,15 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
   const runicHeader = /^(?:Runeforged|Runemastered)\b/i.test(item.baseType)
   const displayStats = deriveItemDisplayStats(item, base)
   const weaponComparisonStats = deriveWeaponComparisonStats(item, base)
+  const normalizeModifierText = (value: string) => value.replace(/\{[^}]+\}/g, '').replace(/\s+/g, ' ').trim().toLowerCase()
+  const semanticLineByKey = new Map((semantics?.lines || []).map((line) => [normalizeModifierText(line.text), line]))
   const modifiers = (item.modifiers || item.lines.map((line) => ({ text: line.replace(/\{[^}]+\}/g, ''), tags: [], group: 'explicit' as const })))
-    .filter((modifier) => !/^Bonded\s*:/i.test(modifier.text))
+    .map((modifier) => ({
+      ...modifier,
+      unsupported: semantics
+        ? !(semanticLineByKey.get(normalizeModifierText(modifier.text))?.parsed ?? true)
+        : false,
+    }))
   const modifierGroups = MODIFIER_GROUP_ORDER
     .map((group) => ({ group, entries: modifiers.filter((modifier) => modifier.group === group) }))
     .filter(({ entries }) => entries.length)
@@ -590,6 +832,12 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
     ['int', l('Int', '智慧', '智慧', '지능')],
   ] as const).filter(([field]) => requirements[field])
   const propertyType = itemClassLabel(item, base, lang)
+  const quickNavigationSections: EquipmentDetailQuickNavSection[] = [
+    { id: 'properties', targetRef: propertiesRef },
+    ...((attributeRequirements.length > 0 || Boolean(item.levelReq) || Boolean(item.sockets)) ? [{ id: 'requirements' as const, targetRef: requirementsRef }] : []),
+    { id: 'modifiers', targetRef: modifiersRef },
+    ...((buildContext && item.raw) ? [{ id: 'difference' as const, targetRef: differenceRef, targetSelector: '.equipment-difference-summary' }] : []),
+  ]
   const handleCopyToPob = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(item.raw)
@@ -604,7 +852,24 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
   useEffect(() => {
     setCopyState('idle')
     setSaveState('idle')
+    setTradeMenuOpen(false)
   }, [item.id])
+
+  useEffect(() => {
+    if (!tradeMenuOpen) return
+    const closeMenu = (event: globalThis.MouseEvent) => {
+      if (!(event.target instanceof Element) || !event.target.closest('.equipment-trade-split')) setTradeMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setTradeMenuOpen(false)
+    }
+    document.addEventListener('mousedown', closeMenu)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('mousedown', closeMenu)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [tradeMenuOpen])
 
   return (
     <aside className="equipment-inspector equipment-inspector-floating">
@@ -629,7 +894,29 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
           {saveState === 'saved' ? <Check /> : <Bookmark />}
           <span>{saveState === 'saved' ? l('Saved', '已收藏', '已收藏', '저장됨') : saveState === 'error' ? l('Save failed', '收藏失败', '收藏失敗', '저장 실패') : l('Save to library', '收藏到仓库', '收藏至倉庫', '보관함에 저장')}</span>
         </button>
-        <button
+        {onFindBetter ? <div className="equipment-trade-split">
+          <button
+            type="button"
+            className="equipment-copy-pob equipment-trade-primary"
+            onClick={onFindBetter}
+            title={l('Find a better replacement for this equipped item', '查找当前装备的更好替代品', '尋找目前裝備的更好替代品', '장착한 장비의 더 나은 대체품 찾기')}
+          >
+            <Sparkles />
+            <span>{l('Find a better item', '找到更好的', '找更好的', '더 나은 장비 찾기')}</span>
+          </button>
+          <button
+            type="button"
+            className="equipment-trade-menu-toggle"
+            aria-haspopup="menu"
+            aria-expanded={tradeMenuOpen}
+            onClick={() => setTradeMenuOpen((open) => !open)}
+            title={l('More trade actions', '更多交易操作', '更多交易操作', '추가 거래 작업')}
+            aria-label={l('More trade actions', '更多交易操作', '更多交易操作', '추가 거래 작업')}
+          ><ChevronDown /></button>
+          {tradeMenuOpen && <div className="equipment-trade-menu" role="menu">
+            <button type="button" role="menuitem" onClick={() => { setTradeMenuOpen(false); onPriceCheck() }} title={l('Configure price check', '选择词条并查价', '選擇詞綴並查價', '속성을 선택하여 가격 확인')}><Search /><span>{l('Price check', '查价', '查價', '가격 확인')}</span></button>
+          </div>}
+        </div> : <button
           type="button"
           className="equipment-copy-pob"
           onClick={onPriceCheck}
@@ -637,7 +924,16 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
         >
           <Search />
           <span>{l('Price check', '查价', '查價', '가격 확인')}</span>
-        </button>
+        </button>}
+        {onReplace && <button
+          type="button"
+          className="equipment-copy-pob"
+          onClick={onReplace}
+          title={l('Change this equipment from the equipment library', '从装备仓库更换当前装备', '從裝備倉庫更換目前裝備', '장비 보관함에서 현재 장비 변경')}
+        >
+          <ArrowLeftRight />
+          <span>{l('Change equipment', '更换装备', '更換裝備', '장비 변경')}</span>
+        </button>}
         <button
           type="button"
           className={`equipment-copy-pob${copyState === 'error' ? ' copy-error' : ''}`}
@@ -657,10 +953,12 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
         ><X /></button>
       </div>
 
-      <div className="inspector-scroll">
-        <div className="item-property-type">
+      <div className="inspector-scroll" ref={scrollRef}>
+        <EquipmentDetailQuickNav containerRef={scrollRef} sections={quickNavigationSections} language={lang} />
+        <div ref={propertiesRef} className="equipment-detail-section equipment-detail-properties">
+          <div className="item-property-type">
           {propertyType}{item.itemLevel ? `: ${t('equipment.itemLevel', { value: item.itemLevel })}` : ''}
-        </div>
+          </div>
         {displayStats.length > 0 && <div className="item-display-stats">
           {displayStats.map((stat) => <div key={stat.key}>
             <span>{ITEM_STAT_LABELS[stat.key]?.[lang] || stat.key}:</span>
@@ -671,7 +969,8 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
             </strong>
           </div>)}
         </div>}
-        <div className="item-metadata">
+        </div>
+        {(attributeRequirements.length > 0 || Boolean(item.levelReq) || Boolean(item.sockets)) && <div ref={requirementsRef} className="equipment-detail-section equipment-detail-requirements item-metadata">
           {item.levelReq && <span>{t('equipment.levelReq', { value: item.levelReq })}</span>}
           {attributeRequirements.map(([field, label]) => {
             const value = displayRequirements[field] || requirements[field]
@@ -681,16 +980,26 @@ function ItemDetail({ item, base, itemIconIndex, runeDetails, slotName, socketed
             </span>
           })}
           {item.sockets && <span>{t('equipment.sockets', { value: item.sockets })}</span>}
-        </div>
+        </div>}
 
-        <div className="item-modifiers">
+        <div ref={modifiersRef} className="equipment-detail-section equipment-detail-modifiers item-modifiers">
           {modifierGroups.map(({ group, entries }) => <section className={`modifier-group modifier-${group}`} key={group}>
             {entries.map((modifier, index) => {
               const styleTag = modifier.tags.find((tag) => ['crafted', 'fractured', 'mutated', 'rune', 'enchant'].includes(tag))
-              return <p key={`${modifier.text}-${index}`} className={styleTag ? `mod-${styleTag}` : ''}>{translateItemText(modifier.text)}</p>
+              return <p key={`${modifier.text}-${index}`} className={`${styleTag ? `mod-${styleTag} ` : ''}${modifier.unsupported ? 'item-modifier-unsupported' : ''}`}>
+                {translateItemText(modifier.text)}{modifier.unsupported && <em>unsupported</em>}
+              </p>
             })}
           </section>)}
         </div>
+
+        {buildContext && item.raw && <div ref={differenceRef} className="equipment-detail-section equipment-detail-difference"><EquipmentDifferenceTooltip
+          context={buildContext}
+          item={item}
+          language={lang}
+          sourceSlotName={slotName}
+          slotOnlyTooltips={Boolean(slotName)}
+        /></div>}
 
         {weaponComparisonStats.length > 0 && <div className="weapon-comparison-stats">
           {weaponComparisonStats.map((stat) => <span key={stat.key}>
@@ -717,6 +1026,7 @@ function PaperDollSlot({
   selected,
   activeWeaponSet,
   onSelect,
+  onContextMenu,
   onSelectSocketedItem,
 }: {
   layout: PaperDollSlotLayout
@@ -728,7 +1038,8 @@ function PaperDollSlot({
   selected: boolean
   activeWeaponSet: 1 | 2
   onSelect: () => void
-  onSelectSocketedItem: (item: EquipmentItem) => void
+  onContextMenu: (event: MouseEvent<HTMLButtonElement>) => void
+  onSelectSocketedItem: (item: EquipmentItem, slotName?: string) => void
 }) {
   const { t, lang } = useTranslation()
   useTreeStore((state) => state.translationRevision)
@@ -744,10 +1055,11 @@ function PaperDollSlot({
   return (
     <button
       onClick={onSelect}
+      onContextMenu={onContextMenu}
       disabled={!item && !layout.weaponSet}
       title={item ? undefined : `${slotLabel}${setLabel}`}
       aria-label={item ? `${slotLabel}${setLabel}: ${itemName}` : `${slotLabel}${setLabel}`}
-      className={`paper-doll-slot ${weaponClass} ${rarityClass} ${selected ? 'selected' : ''}`}
+      className={`paper-doll-slot slot-${slotName.toLowerCase().replace(/\s+/g, '-')} ${weaponClass} ${rarityClass} ${selected ? 'selected' : ''}`}
       style={paperDollRectStyle(layout.rect)}
     >
       {item && <FallbackImage
@@ -789,18 +1101,34 @@ function usePaperDollSize() {
 export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string | null; realm?: 'cn' | 'global' }) {
   const { t, lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
+  const pobBuildRevision = useTreeStore((state) => state.pobBuildRevision)
+  // The active session can change without changing its internal revision
+  // (for example when opening a saved build whose first revision is 0).
+  // Subscribe to the imported code so derived XML/equipment snapshots are
+  // rebuilt instead of retaining the empty snapshot from the initial render.
   const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
+  const getActivePobCode = useTreeStore((state) => state.getActivePobCode)
+  const getActivePobXml = useTreeStore((state) => state.getActivePobXml)
   const calcResult = useTreeStore((state) => state.calcResult)
   const calcLoading = useTreeStore((state) => state.calcLoading)
   const calcError = useTreeStore((state) => state.calcError)
+  const calculationProfiles = useTreeStore((state) => state.calculationProfiles)
+  const activeCalculationProfileId = useTreeStore((state) => state.activeCalculationProfileId)
   const runCalculation = useTreeStore((state) => state.runCalculation)
   const weaponSet = useTreeStore((state) => state.activeWeaponSet)
+  const treeData = useTreeStore((state) => state.treeData)
+  const getActivePobTreeJewelItems = useTreeStore((state) => state.getActivePobTreeJewelItems)
+  const getActivePobTreeJewelRaw = useTreeStore((state) => state.getActivePobTreeJewelRaw)
   const setWeaponSet = useTreeStore((state) => state.setActiveWeaponSet)
+  const setActiveItemSet = useTreeStore((state) => state.setActiveItemSet)
+  const replaceEquipmentSlotWithRaw = useTreeStore((state) => state.replaceEquipmentSlotWithRaw)
   const [itemIconIndex, setItemIconIndex] = useState<ItemIconIndex | null>(null)
   const [runeDetails, setRuneDetails] = useState<RuneDetailIndex | null>(null)
   const [itemBases, setItemBases] = useState<Record<string, ItemBaseData>>({})
   const [selectedId, setSelectedId] = useState<string | null>(null)
-  const [selectedSetId, setSelectedSetId] = useState<string | null>(null)
+  // Keep the concrete slot the user clicked. An item can be referenced by
+  // both weapon sets, so looking up a slot by itemId alone is ambiguous.
+  const [selectedSlotNameHint, setSelectedSlotNameHint] = useState<string | null>(null)
   const [inspectorOpen, setInspectorOpen] = useState(false)
   const [paperDollBackgroundAvailable, setPaperDollBackgroundAvailable] = useState(true)
   const [collapsedCategories, setCollapsedCategories] = useState<Set<EquipmentAffixGroup>>(new Set())
@@ -808,8 +1136,17 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   const [semanticView, setSemanticView] = useState<EquipmentSidebarView>('character')
   const [semanticsById, setSemanticsById] = useState<Record<string, EquipmentItemSemantics>>({})
   const [semanticsLoading, setSemanticsLoading] = useState(false)
+  const [replacementOpen, setReplacementOpen] = useState(false)
+  const [contextMenu, setContextMenu] = useState<EquipmentContextMenuState | null>(null)
+  const [jewelTooltip, setJewelTooltip] = useState<JewelStripTooltipState | null>(null)
   const { hostRef, size: paperDollSize } = usePaperDollSize()
   const lastCalculationSelection = useRef<string | null>(null)
+  const activePobCode = useMemo(() => getActivePobCode() || '', [getActivePobCode, importedBuildCode, pobBuildRevision])
+  const activePobXml = useMemo(() => getActivePobXml() || '', [getActivePobXml, importedBuildCode, buildId, pobBuildRevision])
+  const activeCalculationOverrides = useMemo(() => {
+    const profile = calculationProfiles.find((candidate) => candidate.id === activeCalculationProfileId)
+    return profile?.values && Object.keys(profile.values).length ? { ...profile.values } : undefined
+  }, [activeCalculationProfileId, calculationProfiles])
 
   useEffect(() => {
     let mounted = true
@@ -828,25 +1165,59 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [inspectorOpen])
 
+  useEffect(() => {
+    if (!contextMenu) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target
+      if (target instanceof Element && target.closest('.equipment-context-menu')) return
+      setContextMenu(null)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setContextMenu(null)
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [contextMenu])
+
   const equipment = useMemo(() => {
-    if (!importedBuildCode) return null
-    try { return parseEquipmentXml(decodeCodeToXml(importedBuildCode)) } catch { return null }
-  }, [importedBuildCode])
-  const activeSetId = selectedSetId || equipment?.activeItemSetId
-  const activeSet = equipment?.itemSets.find((set) => set.id === activeSetId) || equipment?.itemSets[0]
+    if (!activePobCode) return null
+    try {
+      const session = getActiveBuildSession()
+      return session ? parseEquipmentObject(session.object) : parseEquipmentCode(activePobCode)
+    } catch { return null }
+  }, [activePobCode, pobBuildRevision])
+  // The parsed PoB XML is the source of truth for the active item set. A
+  // local set selection can outlive a build switch and make the paper doll
+  // render one set while the comparison engine evaluates another one.
+  const activeSet = equipment?.itemSets.find((set) => set.id === equipment.activeItemSetId) || equipment?.itemSets[0]
+  const equipmentDifferenceContext = useMemo<BuildContextSnapshot | null>(() => {
+    if (!activePobXml || !activeSet) return null
+    return {
+      xml: activePobXml,
+      buildRevision: pobBuildRevision,
+      activeItemSetId: activeSet.id,
+      activeWeaponSet: weaponSet,
+      ...(activeCalculationOverrides ? { configOverrides: activeCalculationOverrides } : {}),
+    }
+  }, [activeCalculationOverrides, activePobXml, activeSet?.id, pobBuildRevision, weaponSet])
 
   const calculateCharacter = useCallback(() => runCalculation({
     itemSetId: activeSet?.id,
     weaponSet,
+    characterOnly: true,
   }), [activeSet?.id, weaponSet, runCalculation])
 
   useEffect(() => {
-    if (semanticView !== 'character' || !importedBuildCode || !activeSet || calcLoading) return
-    const selection = `${importedBuildCode}:${activeSet.id}:${weaponSet}`
+    if (semanticView !== 'character' || !activePobCode || !activeSet || calcLoading) return
+    const selection = `${activePobCode}:${pobBuildRevision}:${activeSet.id}:${weaponSet}`
     if (lastCalculationSelection.current === selection) return
     lastCalculationSelection.current = selection
     void calculateCharacter()
-  }, [semanticView, importedBuildCode, activeSet?.id, weaponSet, calcLoading, calculateCharacter])
+  }, [semanticView, activePobCode, pobBuildRevision, activeSet?.id, weaponSet, calcLoading, calculateCharacter])
 
   const activeSlotNames = new Set(getActivePaperDollSlots(weaponSet).map((slot) => slot.slotName))
   const equipped = activeSet?.slots.filter((slot) => activeSlotNames.has(slot.name) && slot.itemId) || []
@@ -887,9 +1258,32 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
     }
     return groups
   }, [affixSummaries, semanticView])
+  const isVisibleSelectionSlot = (slotName: string) => {
+    if (activeSlotNames.has(slotName)) return true
+    const socket = getSocketSlotInfo(slotName)
+    return Boolean(socket && activeSlotNames.has(socket.parent))
+  }
   const firstItem = equipped.map((slot) => equipment?.itemsById[slot.itemId]).find(Boolean)
-  const selected = (selectedId && equipment?.itemsById[selectedId]) || firstItem
-  const selectedSlotName = selected ? activeSet?.slots.find((slot) => slot.itemId === selected.id)?.name : undefined
+  // Do not reuse a selected id from a previous build/set. Item ids are local
+  // to a PoB document, so the same id can refer to a completely different
+  // item after loading another build.
+  const selected = selectedId && activeSet?.slots.some((slot) =>
+    slot.itemId === selectedId && slot.active && isVisibleSelectionSlot(slot.name),
+  )
+    ? equipment?.itemsById[selectedId]
+    : firstItem
+  const selectedSlotName = selected
+    ? activeSet?.slots.find((slot) => slot.itemId === selected.id && slot.name === selectedSlotNameHint && isVisibleSelectionSlot(slot.name))?.name
+      || activeSet?.slots.find((slot) => slot.itemId === selected.id && isVisibleSelectionSlot(slot.name))?.name
+    : undefined
+  // The replacement picker compares against the concrete equipped item that
+  // opened it. Keep this identity in the comparison context so a build/set
+  // change cannot silently show a difference for a different item in the
+  // same slot.
+  const replacementDifferenceContext = useMemo<BuildContextSnapshot | null>(() => {
+    if (!equipmentDifferenceContext || !selected?.id) return equipmentDifferenceContext
+    return { ...equipmentDifferenceContext, buildItemId: selected.id }
+  }, [equipmentDifferenceContext, selected?.id])
   const libraryBuildId = buildId || 'unsaved-build'
 
   const saveItem = useCallback(async (item: EquipmentItem, slotName?: string) => {
@@ -936,13 +1330,39 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
   }, [activeSet?.id])
 
   const handleSelectSet = useCallback((setId: string) => {
-    setSelectedSetId(setId)
+    setActiveItemSet(setId)
     setSelectedId(null)
-  }, [])
-  const handleSelectItem = useCallback((itemId: string) => {
+    setSelectedSlotNameHint(null)
+  }, [setActiveItemSet])
+  const handleSelectItem = useCallback((itemId: string, slotName?: string) => {
     setSelectedId(itemId)
+    setSelectedSlotNameHint(slotName || null)
     setInspectorOpen(true)
   }, [])
+
+  const handleItemContextMenu = useCallback((event: MouseEvent<HTMLButtonElement>, itemId: string, slotName: string) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const menuWidth = 236
+    const menuHeight = 190
+    setContextMenu({
+      itemId,
+      slotName,
+      left: Math.max(8, Math.min(event.clientX, window.innerWidth - menuWidth - 8)),
+      top: Math.max(8, Math.min(event.clientY, window.innerHeight - menuHeight - 8)),
+    })
+  }, [])
+
+  const replaceSelectedSlot = useCallback((entry: EquipmentLibraryEntry) => {
+    if (!activeSet || !selectedSlotName || !entry.item.raw) return
+    try {
+      const replacementId = replaceEquipmentSlotWithRaw(activeSet.id, selectedSlotName, entry.item.raw)
+      setSelectedId(replacementId)
+      setReplacementOpen(false)
+    } catch (reason) {
+      console.error('Failed to replace equipment slot', reason)
+    }
+  }, [activeSet, replaceEquipmentSlotWithRaw, selectedSlotName])
   const handleToggleCategory = useCallback((group: EquipmentAffixGroup) => {
     setCollapsedCategories((current) => {
       const next = new Set(current)
@@ -975,6 +1395,62 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
     .filter((entry): entry is { order: number; item: EquipmentItem } => Boolean(entry?.item))
     .sort((a, b) => a.order - b.order)
     .map((entry) => entry.item) || []
+
+  const activeTreeJewelItems = useMemo(() => getActivePobTreeJewelItems(), [getActivePobTreeJewelItems, pobBuildRevision])
+  const jewelStripEntries = useMemo<JewelStripEntry[]>(() => {
+    if (!equipment || !activeSet) return []
+
+    const treeEntries = Object.entries(activeTreeJewelItems).map(([nodeId, jewel]) => {
+      const raw = getActivePobTreeJewelRaw(nodeId)?.raw || ''
+      const item = equipment.itemsById[jewel.itemId] || makeFallbackJewelItem(jewel, raw)
+      const nodeName = treeData?.nodes[nodeId]?.name
+      return {
+        key: `tree:${nodeId}:${jewel.itemId}`,
+        item,
+        sourceKind: 'tree' as const,
+        sourceLabel: `${l('Passive tree', '天赋树', '天賦樹', '패시브 트리')} · ${nodeName ? translateGameText(nodeName, lang) : nodeId}`,
+      }
+    })
+
+    const visibleParentNames = new Set(getActivePaperDollSlots(weaponSet).map((slot) => slot.slotName.toLowerCase()))
+    const equipmentEntries = activeSet.slots.flatMap((slot) => {
+      if (!slot.active || !slot.itemId) return []
+      const socket = getSocketSlotInfo(slot.name)
+      if (!socket || !visibleParentNames.has(socket.parent.toLowerCase())) return []
+      const item = equipment.itemsById[slot.itemId]
+      if (!item) return []
+      const parentSlot = activeSet.slots.find((candidate) => candidate.name.toLowerCase() === socket.parent.toLowerCase())
+      const parentItem = parentSlot ? equipment.itemsById[parentSlot.itemId] : undefined
+      const parentName = parentItem
+        ? translateItemName(parentItem.name, parentItem.rarity, lang)
+        : translateGameText(socket.parent, lang)
+      return [{
+        key: `equipment:${activeSet.id}:${slot.name}:${slot.itemId}`,
+        item,
+        sourceKind: 'equipment' as const,
+        slotName: slot.name,
+        sourceLabel: `${l('Equipment', '装备', '裝備', '장비')} · ${parentName} · ${uiText(lang, 'Socket', '插槽', '插槽', '홈')} ${socket.index}`,
+      }]
+    })
+
+    return [...treeEntries, ...equipmentEntries]
+  }, [activeSet, activeTreeJewelItems, equipment, getActivePobTreeJewelRaw, lang, l, pobBuildRevision, treeData, weaponSet])
+
+  const handleJewelHover = useCallback((event: MouseEvent<HTMLButtonElement>, entry: JewelStripEntry) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const above = rect.top > 250
+    setJewelTooltip({
+      entry,
+      x: Math.max(190, Math.min(window.innerWidth - 190, rect.left + rect.width / 2)),
+      y: above ? rect.top - 9 : rect.bottom + 9,
+      above,
+    })
+  }, [])
+
+  const handleJewelSelect = useCallback((entry: JewelStripEntry) => {
+    setJewelTooltip(null)
+    handleSelectItem(entry.item.id, entry.slotName)
+  }, [handleSelectItem])
 
   const paperDollStyle = {
     width: `${paperDollSize.width}px`,
@@ -1021,7 +1497,17 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
 
       <div className="paper-doll-stage">
         <header className="paper-doll-heading">
-          <span>{t('equipment.title')}</span>
+          <div className="paper-doll-heading-main">
+            <span>{t('equipment.title')}</span>
+            <JewelStripBar
+              entries={jewelStripEntries}
+              itemIconIndex={itemIconIndex}
+              selectedId={selectedId}
+              onSelect={handleJewelSelect}
+              onHover={handleJewelHover}
+              onLeave={() => setJewelTooltip(null)}
+            />
+          </div>
           <div className="paper-doll-heading-actions">
             <small>{l('Select an item to inspect its properties', '选择装备查看完整属性', '選擇裝備以查看完整屬性', '아이템을 선택하여 전체 속성을 확인하세요')}</small>
             {!inspectorOpen && selected && <button
@@ -1077,27 +1563,98 @@ export function EquipmentPanel({ buildId, realm = 'global' }: { buildId?: string
                 activeWeaponSet={weaponSet}
                 onSelect={() => {
                   if (slot.weaponSet) setWeaponSet(slot.weaponSet)
-                  if (item) handleSelectItem(item.id)
+                  if (item) handleSelectItem(item.id, slot.slotName)
                 }}
-                onSelectSocketedItem={(socketedItem) => handleSelectItem(socketedItem.id)}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                  if (slot.weaponSet) setWeaponSet(slot.weaponSet)
+                  if (item) handleItemContextMenu(event, item.id, slot.slotName)
+                }}
+                onSelectSocketedItem={(socketedItem, socketSlotName) => handleSelectItem(socketedItem.id, socketSlotName)}
               />
             })}
           </div>
         </div>
+        {jewelTooltip && <JewelStripTooltip tooltip={jewelTooltip} index={itemIconIndex} language={lang} />}
       </div>
 
       {inspectorOpen && selected && <ItemDetail
         key={selected.id}
         item={selected}
+        semantics={semanticsById[selected.id]}
         base={resolveItemBaseData(selected.baseType, itemBases)}
         itemIconIndex={itemIconIndex}
         runeDetails={runeDetails}
         slotName={selectedSlotName}
         socketedItems={selectedSlotName ? socketedItemsForSlot(selectedSlotName) : []}
+        buildContext={equipmentDifferenceContext}
         onSave={() => saveItem(selected, selectedSlotName)}
         onPriceCheck={() => { void window.superpoePriceCheck?.open({ source: { kind: 'raw', raw: selected.raw } }) }}
+        onFindBetter={selectedSlotName && activePobXml ? () => { void window.superpoeFindBetter?.open({
+          source: { kind: 'raw', raw: selected.raw },
+          mode: 'find-better',
+          slotName: selectedSlotName,
+          buildContext: {
+            xml: activePobXml,
+            slotName: selectedSlotName,
+            buildRevision: pobBuildRevision,
+            activeItemSetId: activeSet.id,
+            activeWeaponSet: weaponSet,
+            buildItemId: selected.id,
+            configOverrides: activeCalculationOverrides,
+          },
+        }) } : undefined}
+        onReplace={selectedSlotName ? () => setReplacementOpen(true) : undefined}
         onClose={() => setInspectorOpen(false)}
       />}
+      {replacementOpen && <EquipmentLibraryPicker
+        mode={selectedSlotName && getSocketSlotInfo(selectedSlotName) ? 'jewel' : 'equipment'}
+        title={{ en: 'Change equipment', 'zh-rCN': '更换装备', 'zh-rTW': '更換裝備', 'ko-KR': '장비 변경' }}
+        currentSlot={selectedSlotName}
+        differenceContext={replacementDifferenceContext}
+        differenceSlotName={selectedSlotName}
+        queryContext={{ kind: selectedSlotName && getSocketSlotInfo(selectedSlotName) ? 'jewel-slot' : 'equipment-slot', slotName: selectedSlotName }}
+        onClose={() => setReplacementOpen(false)}
+        onSelect={replaceSelectedSlot}
+      />}
+      {contextMenu && (() => {
+        const contextItem = equipment?.itemsById[contextMenu.itemId]
+        if (!contextItem) return null
+        const contextSlotName = contextMenu.slotName
+        const closeContextMenu = () => setContextMenu(null)
+        const saveFromContextMenu = () => {
+          closeContextMenu()
+          void saveItem(contextItem, contextSlotName).catch((reason) => console.error('Failed to save equipment item', reason))
+        }
+        const priceCheckFromContextMenu = () => {
+          closeContextMenu()
+          void window.superpoePriceCheck?.open({ source: { kind: 'raw', raw: contextItem.raw } })
+        }
+        const replaceFromContextMenu = () => {
+          setSelectedId(contextItem.id)
+          setSelectedSlotNameHint(contextSlotName)
+          setReplacementOpen(true)
+          closeContextMenu()
+        }
+        const copyFromContextMenu = () => {
+          closeContextMenu()
+          void navigator.clipboard.writeText(contextItem.raw).catch((reason) => console.error('Failed to copy PoB item', reason))
+        }
+        return createPortal(
+          <div
+            className="equipment-context-menu"
+            style={{ left: contextMenu.left, top: contextMenu.top }}
+            role="menu"
+            aria-label={l('Equipment actions', '装备操作', '裝備操作', '장비 작업')}
+          >
+            <button type="button" role="menuitem" onClick={saveFromContextMenu}><Bookmark /><span>{l('Save to library', '收藏到仓库', '收藏至倉庫', '보관함에 저장')}</span></button>
+            <button type="button" role="menuitem" onClick={priceCheckFromContextMenu}><Search /><span>{l('Price check', '查价', '查價', '가격 확인')}</span></button>
+            <button type="button" role="menuitem" onClick={replaceFromContextMenu}><ArrowLeftRight /><span>{l('Change equipment', '更换装备', '更換裝備', '장비 변경')}</span></button>
+            <button type="button" role="menuitem" onClick={copyFromContextMenu}><Clipboard /><span>{l('Copy PoB item', '复制 PoB 词条', '複製 PoB 詞綴', 'PoB 아이템 복사')}</span></button>
+          </div>,
+          document.body,
+        )
+      })()}
     </section>
   )
 }

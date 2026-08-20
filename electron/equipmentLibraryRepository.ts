@@ -9,6 +9,8 @@ import type {
   EquipmentLibraryFolderInput,
   EquipmentLibraryFolderPatch,
   EquipmentLibraryMetadataPatch,
+  EquipmentLibraryMoveInput,
+  EquipmentLibraryMoveResult,
   EquipmentLibrarySidebarSnapshot,
   EquipmentLibrarySource,
   CanonicalEquipmentItem,
@@ -177,6 +179,21 @@ function deriveItemView(item: CanonicalEquipmentItem): CanonicalItemView {
   const implicitAt = lines.findIndex((line) => /^Implicits:\s*\d+/i.test(line))
   const implicitCount = implicitAt >= 0 ? Number(lines[implicitAt].match(/\d+/)?.[0] || 0) : 0
   const modifierLines = implicitAt >= 0 ? lines.slice(implicitAt + 1).filter((line) => !/^(?:Mirrored|Sanctified|Twice Corrupted|Corrupted)$/i.test(line)) : []
+  const supportByGroup = new Map<string, Array<{ text: string; supported: boolean }>>()
+  for (const snapshot of Array.isArray(item.modifierSupport) ? item.modifierSupport : []) {
+    const group = supportByGroup.get(snapshot.group) || []
+    group.push({ text: snapshot.text, supported: snapshot.supported })
+    supportByGroup.set(snapshot.group, group)
+  }
+  const supportCursor = new Map<string, number>()
+  const supportFor = (group: string, text: string) => {
+    const candidates = supportByGroup.get(group) || []
+    const cursor = supportCursor.get(group) || 0
+    const exactIndex = candidates.findIndex((candidate, index) => index >= cursor && candidate.text === text)
+    const index = exactIndex >= 0 ? exactIndex : cursor
+    supportCursor.set(group, index + 1)
+    return candidates[index]
+  }
   const properties = [
     stat('Armour', 'Armour:'),
     stat('Evasion', 'Evasion:'),
@@ -186,6 +203,52 @@ function deriveItemView(item: CanonicalEquipmentItem): CanonicalItemView {
     stat('CharmSlots', 'Charm Slots:'),
   ].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
   const requirements = [stat('Level', 'LevelReq:')].filter((entry): entry is NonNullable<typeof entry> => Boolean(entry))
+  const parserEvidence = item.parseEvidence?.modifiers || []
+  const consumedEvidence = new Set<number>()
+  const modifiers: CanonicalItemView['modifiers'] = modifierLines.map((rawLine, index) => {
+    const tags = [...rawLine.matchAll(/\{([^}:,]+)(?::[^}]*)?\}/g)].map((match) => match[1].toLowerCase())
+    const group = tags.includes('rune') ? 'rune' : tags.includes('enchant') ? 'enchant' : index < implicitCount ? 'implicit' : 'explicit'
+    const text = rawLine.replace(/\{[^}]+\}/g, '').trim()
+    const support = supportFor(group, text)
+    const evidenceIndex = parserEvidence.findIndex((candidate, candidateIndex) => (
+      !consumedEvidence.has(candidateIndex) && candidate.canonicalText === text && candidate.group === group
+    ))
+    const evidence = evidenceIndex >= 0 ? parserEvidence[evidenceIndex] : undefined
+    if (evidenceIndex >= 0) consumedEvidence.add(evidenceIndex)
+    return {
+      id: `${group}-${index}`,
+      displayOrder: index,
+      group,
+      sourceTags: evidence?.sourceTags || tags.filter((tag): tag is CanonicalItemView['modifiers'][number]['sourceTags'][number] => ['rune', 'enchant', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated', 'mutated', 'corrupted'].includes(tag)),
+      text,
+      ...(support ? { unsupported: !support.supported } : {}),
+      ...(evidence ? { localized: { [evidence.original.locale]: evidence.original.displayText } } : {}),
+      tradeStatIds: evidence?.queryStatId ? [evidence.queryStatId] : evidence?.candidateStatIds || [],
+      ...(evidence?.currentValues[0] != null ? { tradeValue: evidence.currentValues[0] } : {}),
+    }
+  })
+  if (Array.isArray(item.modifierSnapshots)) {
+    modifiers.splice(0, modifiers.length, ...structuredClone(item.modifierSnapshots))
+  }
+  for (let index = 0; index < parserEvidence.length; index += 1) {
+    if (consumedEvidence.has(index)) continue
+    const evidence = parserEvidence[index]
+    const projectedLines = evidence.canonicalText?.split('\n').map((line) => line.trim()).filter(Boolean) || []
+    if (evidence.canonicalText && modifiers.some((modifier) => (
+      modifier.text === evidence.canonicalText || projectedLines.includes(modifier.text)
+    ))) continue
+    modifiers.push({
+      id: `unsupported-${evidence.displayOrder}`,
+      displayOrder: modifiers.length,
+      group: evidence.group,
+      sourceTags: evidence.sourceTags,
+      text: evidence.canonicalText || evidence.original.displayText,
+      unsupported: true,
+      localized: { [evidence.original.locale]: evidence.original.displayText },
+      tradeStatIds: evidence.queryStatId ? [evidence.queryStatId] : evidence.candidateStatIds,
+      ...(evidence.currentValues[0] != null ? { tradeValue: evidence.currentValues[0] } : {}),
+    })
+  }
   return {
     rarity,
     name: title,
@@ -195,21 +258,18 @@ function deriveItemView(item: CanonicalEquipmentItem): CanonicalItemView {
     ...(lines.find((line) => line.startsWith('Sockets:'))?.slice(8).trim() ? { sockets: lines.find((line) => line.startsWith('Sockets:'))!.slice(8).trim() } : {}),
     ...(properties.length ? { properties } : {}),
     ...(requirements.length ? { requirements } : {}),
+    normalizationKnown: Array.isArray(item.modifierSupport),
     corrupted: lines.some((line) => /^(?:Twice Corrupted|Corrupted)$/i.test(line)),
     identified: true,
-    modifiers: modifierLines.map((rawLine, index) => {
-      const tags = [...rawLine.matchAll(/\{([^}:,]+)(?::[^}]*)?\}/g)].map((match) => match[1].toLowerCase())
-      const group = tags.includes('rune') ? 'rune' : tags.includes('enchant') ? 'enchant' : index < implicitCount ? 'implicit' : 'explicit'
-      return {
-        id: `${group}-${index}`,
-        displayOrder: index,
-        group,
-        sourceTags: tags.filter((tag): tag is CanonicalItemView['modifiers'][number]['sourceTags'][number] => ['rune', 'enchant', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated', 'mutated', 'corrupted'].includes(tag)),
-        text: rawLine.replace(/\{[^}]+\}/g, '').trim(),
-        tradeStatIds: [],
-      }
-    }),
+    ...(item.tradeCategory ? { tradeCategory: item.tradeCategory } : {}),
+    ...(item.itemClass ? { itemClass: item.itemClass } : {}),
+    modifiers,
   }
+}
+
+function usableLocalizedText(value: string | undefined): string | undefined {
+  if (!value || /(?:\?{2,}|\uFFFD)/u.test(value)) return undefined
+  return value
 }
 
 function isPersistedLibraryEntry(value: unknown): value is PersistedEquipmentLibraryEntry {
@@ -228,9 +288,19 @@ function hydrateEntry(entry: PersistedEquipmentLibraryEntry): EquipmentLibraryEn
   const localizedDisplay = displays.find((display) => display.locale !== 'en' && display.locale !== 'unknown')
   if (iconDisplay?.iconUrl) view.iconUrl = iconDisplay.iconUrl
   if (localizedDisplay) {
-      view.localized = { [localizedDisplay.locale]: { name: localizedDisplay.name, baseType: localizedDisplay.baseType } }
+      const localizedName = usableLocalizedText(localizedDisplay.name)
+      const localizedBaseType = usableLocalizedText(localizedDisplay.baseType)
+      if (localizedName || localizedBaseType) {
+        view.localized = {
+          [localizedDisplay.locale]: {
+            name: localizedName || view.name,
+            baseType: localizedBaseType || view.baseType,
+          },
+        }
+      }
       localizedDisplay.modifiers?.forEach((text, index) => {
-        if (view.modifiers[index]) view.modifiers[index].localized = { [localizedDisplay.locale]: text }
+        const usable = usableLocalizedText(text)
+        if (view.modifiers[index] && usable) view.modifiers[index].localized = { [localizedDisplay.locale]: usable }
       })
   }
   return { ...entry, view }
@@ -272,18 +342,23 @@ export class EquipmentLibraryRepository {
     target: { collectionRoot?: EquipmentCollectionRoot; folderId?: string } = {},
   ): EquipmentLibraryEntry {
     if (!isCanonicalItem(normalized.item)) throw new Error('Invalid canonical equipment item')
+    normalized.item.modifierSnapshots = structuredClone(normalized.view.modifiers)
     const fingerprint = fingerprintLibraryItem(normalized.item)
     const now = new Date().toISOString()
     let entry = this.entries.find((candidate) => candidate.sources.some((existing) => existing.sourceKey === source.sourceKey))
     const collectionRoot = target.collectionRoot || collectionRootForSource(source)
-    if (target.folderId) this.requireFolder(target.folderId, 'items', collectionRoot)
+    const selectedFolder = collectionRoot === 'market' && this.selectedFolders.items
+      ? this.folders.find((folder) => folder.id === this.selectedFolders.items && folder.scope === 'items' && folder.collectionRoot === collectionRoot)
+      : undefined
+    const folderId = target.folderId || selectedFolder?.id
+    if (folderId) this.requireFolder(folderId, 'items', collectionRoot)
 
     if (entry) {
       entry.item = structuredClone(normalized.item)
       entry.view = structuredClone(normalized.view)
       entry.fingerprint = fingerprint
       entry.collectionRoot = collectionRoot
-      if (target.folderId) entry.folderId = target.folderId
+      if (folderId) entry.folderId = folderId
       else {
         const currentFolderId = entry.folderId
         if (currentFolderId && this.folders.find((folder) => folder.id === currentFolderId)?.collectionRoot !== collectionRoot) entry.folderId = undefined
@@ -302,7 +377,7 @@ export class EquipmentLibraryRepository {
         view: structuredClone(normalized.view),
         sources: [structuredClone(source)],
         collectionRoot,
-        ...(target.folderId ? { folderId: target.folderId } : {}),
+        ...(folderId ? { folderId } : {}),
         tags: [],
         archived: false,
         createdAt: now,
@@ -351,6 +426,7 @@ export class EquipmentLibraryRepository {
     const entry = this.entries.find((candidate) => candidate.id === patch.id)
     if (!entry) throw new Error('Equipment library entry not found')
     if (patch.collectionRoot) {
+      if (patch.collectionRoot !== entry.collectionRoot) throw new Error('Equipment source root cannot be changed by metadata update')
       entry.collectionRoot = patch.collectionRoot
       if (entry.folderId && this.folders.find((folder) => folder.id === entry.folderId)?.collectionRoot !== patch.collectionRoot) entry.folderId = undefined
     }
@@ -371,8 +447,35 @@ export class EquipmentLibraryRepository {
     return structuredClone(entry)
   }
 
+  moveEquipment(input: EquipmentLibraryMoveInput): EquipmentLibraryMoveResult {
+    const entryIds = [...new Set(input.entryIds)]
+    if (!entryIds.length) throw new Error('At least one equipment library entry is required')
+    if (entryIds.length > MAX_ENTRIES) throw new Error('Too many equipment library entries')
+    const entries = entryIds.map((id) => {
+      const entry = this.entries.find((candidate) => candidate.id === id)
+      if (!entry) throw new Error('Equipment library entry not found')
+      return entry
+    })
+    const roots = new Set(entries.map((entry) => entry.collectionRoot))
+    if (roots.size !== 1) throw new Error('Equipment from different source roots cannot be moved together')
+    const collectionRoot = entries[0].collectionRoot
+    if (input.targetFolderId) this.requireFolder(input.targetFolderId, 'items', collectionRoot)
+    const targetFolderId = input.targetFolderId || undefined
+    const changed = entries.some((entry) => entry.folderId !== targetFolderId)
+    if (changed) {
+      for (const entry of entries) {
+        entry.folderId = targetFolderId
+        entry.folder = undefined
+        entry.updatedAt = nextUpdatedAt(entry.updatedAt)
+      }
+      this.save()
+    }
+    return { movedIds: entryIds, collectionRoot, ...(targetFolderId ? { targetFolderId } : {}) }
+  }
+
   updateItem(id: string, normalized: NormalizedPobItem, options: { touchUpdatedAt?: boolean } = {}): EquipmentLibraryEntry {
     if (!isCanonicalItem(normalized.item)) throw new Error('Invalid canonical equipment item')
+    normalized.item.modifierSnapshots = structuredClone(normalized.view.modifiers)
     const entry = this.entries.find((candidate) => candidate.id === id)
     if (!entry) throw new Error('Equipment library entry not found')
     entry.item = structuredClone(normalized.item)
@@ -392,6 +495,49 @@ export class EquipmentLibraryRepository {
 
   count(): number {
     return this.entries.length
+  }
+
+  exportData(): unknown {
+    const file: EquipmentLibraryFile = {
+      schemaVersion: 3,
+      entries: this.entries.map(({ view: _view, ...entry }) => entry),
+      ...(this.unresolvedLegacyEntries.length ? { unresolvedLegacyEntries: this.unresolvedLegacyEntries } : {}),
+      folders: this.folders,
+      searches: this.searches,
+      selectedFolders: this.selectedFolders,
+      updatedAt: new Date().toISOString(),
+    }
+    return structuredClone(file)
+  }
+
+  restoreData(value: unknown): void {
+    if (!value || typeof value !== 'object' || (value as { schemaVersion?: unknown }).schemaVersion !== 3
+      || !Array.isArray((value as { entries?: unknown }).entries)) {
+      throw new Error('Unsupported equipment library backup schema')
+    }
+    const previous = {
+      entries: this.entries,
+      folders: this.folders,
+      searches: this.searches,
+      selectedFolders: this.selectedFolders,
+      unresolvedLegacyEntries: this.unresolvedLegacyEntries,
+    }
+    try {
+      this.entries = []
+      this.folders = []
+      this.searches = []
+      this.selectedFolders = {}
+      this.unresolvedLegacyEntries = []
+      this.loadPayload(value)
+      this.save()
+    } catch (error) {
+      this.entries = previous.entries
+      this.folders = previous.folders
+      this.searches = previous.searches
+      this.selectedFolders = previous.selectedFolders
+      this.unresolvedLegacyEntries = previous.unresolvedLegacyEntries
+      throw error
+    }
   }
 
   sidebarSnapshot(): EquipmentLibrarySidebarSnapshot {
@@ -478,7 +624,6 @@ export class EquipmentLibraryRepository {
 
   selectFolder(scope: LibraryTreeScope, folderId?: string): EquipmentLibrarySidebarSnapshot {
     if (scope !== 'items' && scope !== 'searches') throw new Error('Invalid folder scope')
-    if (scope === 'items') return this.sidebarSnapshot()
     if (folderId) {
       this.requireFolder(folderId, scope)
       this.selectedFolders[scope] = folderId
@@ -655,6 +800,38 @@ export class EquipmentLibraryRepository {
     return { migrated, unresolved: this.unresolvedLegacyEntries.length }
   }
 
+  async migrateTradeData(bridge: PobItemBridge): Promise<{ migrated: number; unresolved: number }> {
+    const targetVersion = bridge.tradeDataVersion
+    if (!targetVersion) return { migrated: 0, unresolved: 0 }
+    let migrated = 0
+    let unresolved = 0
+    for (let index = 0; index < this.entries.length; index += 1) {
+      const entry = this.entries[index]
+      if (entry.item.tradeDataVersion === targetVersion) continue
+      try {
+        const normalized = await bridge.normalize(entry.item.raw)
+        normalized.view.iconUrl = entry.view.iconUrl
+        normalized.view.localized = entry.view.localized
+        normalized.view.modifiers.forEach((modifier, modifierIndex) => {
+          const localized = entry.view.modifiers[modifierIndex]?.localized
+          if (localized) modifier.localized = localized
+        })
+        normalized.item.modifierSnapshots = structuredClone(normalized.view.modifiers)
+        this.entries[index] = {
+          ...entry,
+          fingerprint: fingerprintLibraryItem(normalized.item),
+          item: normalized.item,
+          view: normalized.view,
+        }
+        migrated += 1
+      } catch {
+        unresolved += 1
+      }
+    }
+    if (migrated) this.save()
+    return { migrated, unresolved }
+  }
+
   async repairCorruptedMarketTitles(
     bridge: PobItemBridge,
     translateCnItem: (value: string) => string | undefined,
@@ -697,9 +874,9 @@ export class EquipmentLibraryRepository {
       const manualSources = entry.sources.filter((source) => source.kind === 'manual')
       if (!manualSources.length) continue
       const canonicalView = deriveItemView(entry.item)
-      const name = toChinese(canonicalView.name)
-      const baseType = toChinese(canonicalView.baseType)
-      const modifiers = canonicalView.modifiers.map((modifier) => statToChinese(modifier.text) || modifier.text)
+      const name = usableLocalizedText(toChinese(canonicalView.name))
+      const baseType = usableLocalizedText(toChinese(canonicalView.baseType))
+      const modifiers = canonicalView.modifiers.map((modifier) => usableLocalizedText(statToChinese(modifier.text)) || modifier.text)
       const hasLocalizedText = !!name || !!baseType || modifiers.some((text, modifierIndex) => text !== canonicalView.modifiers[modifierIndex].text)
       const iconUrl = resolveIcon(canonicalView.rarity, canonicalView.name, canonicalView.baseType)
       let changed = false
@@ -762,7 +939,6 @@ export class EquipmentLibraryRepository {
     this.folders = Array.isArray(parsed.folders) ? parsed.folders.filter((folder): folder is EquipmentLibraryFolder => this.isFolder(folder)).slice(0, MAX_FOLDERS) : []
     this.searches = Array.isArray(parsed.searches) ? parsed.searches.flatMap((search) => this.normalizeLoadedSearch(search)).slice(0, MAX_SEARCHES) : []
     this.selectedFolders = parsed.selectedFolders && typeof parsed.selectedFolders === 'object' ? parsed.selectedFolders : {}
-    delete this.selectedFolders.items
     this.migrateLegacyFolders()
     return false
   }
@@ -852,7 +1028,7 @@ export class EquipmentLibraryRepository {
 
   private requireFolder(id: string, scope: LibraryTreeScope, collectionRoot?: EquipmentCollectionRoot): EquipmentLibraryFolder {
     const folder = this.folders.find((candidate) => candidate.id === id && candidate.scope === scope
-      && (scope !== 'items' || candidate.collectionRoot === collectionRoot))
+      && (scope !== 'items' || !collectionRoot || candidate.collectionRoot === collectionRoot))
     if (!folder) throw new Error('Equipment library folder not found')
     return folder
   }

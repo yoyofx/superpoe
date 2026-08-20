@@ -1,11 +1,16 @@
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
+  Archive,
+  BarChart3,
+  Check,
+  ChevronDown,
   CircleHelp,
   BellRing,
   ArrowLeft,
   FileInput,
   FileOutput,
   Files,
+  Globe2,
   LockKeyhole,
   MoreVertical,
   Redo2,
@@ -39,8 +44,8 @@ import {
   useTreeStore,
 } from '@/store/treeStore'
 
-export type WorkspaceView = 'passive' | 'equipment' | 'skills'
-type ToolbarMenu = 'export' | 'more' | null
+export type WorkspaceView = 'passive' | 'equipment' | 'skills' | 'analysis'
+type ToolbarMenu = 'file' | 'export' | null
 
 interface ToolbarProps {
   activeView: WorkspaceView
@@ -52,6 +57,7 @@ interface ToolbarProps {
   onBuildNameChange: (name: string) => void
   saveStatus: 'saved' | 'dirty' | 'saving' | 'error'
   onHome: () => void
+  onLibrary: () => void
   onImport: () => void
   onSave: () => void
   onSaveCopy: () => void
@@ -62,11 +68,12 @@ const VIEW_ICONS = {
   equipment: Swords,
   passive: Workflow,
   skills: Sparkles,
+  analysis: BarChart3,
 }
 
-const VIEW_ORDER: WorkspaceView[] = ['equipment', 'skills', 'passive']
+const VIEW_ORDER: WorkspaceView[] = ['equipment', 'skills', 'passive', 'analysis']
 
-export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onImport, onSave, onSaveCopy, onSettings }: ToolbarProps) {
+export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onLibrary, onImport, onSave, onSaveCopy, onSettings }: ToolbarProps) {
   const { t, lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const zoom = useTreeStore((state) => state.zoom)
@@ -82,7 +89,8 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
   const redoStack = useTreeStore((state) => state.redoStack)
   const treeData = useTreeStore((state) => state.treeData)
   const buildRealm = useTreeStore((state) => state.buildRealm)
-  const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
+  const pobBuildRevision = useTreeStore((state) => state.pobBuildRevision)
+  const getActivePobCode = useTreeStore((state) => state.getActivePobCode)
   const setZoom = useTreeStore((state) => state.setZoom)
   const setBuildRealm = useTreeStore((state) => state.setBuildRealm)
   const selectClass = useTreeStore((state) => state.selectClass)
@@ -95,6 +103,10 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
   const redo = useTreeStore((state) => state.redo)
 
   const [activeMenu, setActiveMenu] = useState<ToolbarMenu>(null)
+  const [realmMenuOpen, setRealmMenuOpen] = useState(false)
+  const realmPickerRef = useRef<HTMLDivElement>(null)
+  const fileMenuRef = useRef<HTMLDivElement>(null)
+  const filePopoverRef = useRef<HTMLDivElement>(null)
 
   const [assetIndex, setAssetIndex] = useState<SpriteIndex>({})
 
@@ -112,6 +124,39 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
     return () => window.clearTimeout(timer)
   }, [performSearch, searchQuery])
 
+  useEffect(() => {
+    if (!realmMenuOpen) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      if (!realmPickerRef.current?.contains(event.target as Node)) setRealmMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setRealmMenuOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [realmMenuOpen])
+
+  useEffect(() => {
+    if (!activeMenu) return
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target as Node
+      if (!fileMenuRef.current?.contains(target) && !filePopoverRef.current?.contains(target)) setActiveMenu(null)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveMenu(null)
+    }
+    document.addEventListener('pointerdown', closeOnOutsidePointer)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsidePointer)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [activeMenu])
+
   const classEntries = Object.entries(treeData?.constants?.classes || {})
   const currentClass = treeData?.constants?.classes?.[selectedClassId]
   const ascendancies = currentClass?.ascendancies || []
@@ -125,19 +170,27 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
     currentAscendancy?.background?.image || currentClass?.background?.image,
   )
   const characterLevel = useMemo(() => {
-    if (!importedBuildCode) return '1'
-    return String(getBuildCharacterLevel(importedBuildCode) || '--')
-  }, [importedBuildCode])
+    const code = getActivePobCode()
+    if (!code) return '1'
+    return String(getBuildCharacterLevel(code) || '--')
+  }, [getActivePobCode, pobBuildRevision])
   const viewLabels = useMemo(() => ({
     passive: uiText(lang, 'Passive', '天赋', '天賦', '패시브'),
     equipment: uiText(lang, 'Equipment', '装备', '裝備', '장비'),
     skills: uiText(lang, 'Skills', '技能', '技能', '스킬'),
+    analysis: uiText(lang, 'Analysis', '分析', '分析', '분석'),
   }), [lang])
   const saveLabels = {
     saved: l('Saved', '已保存', '已儲存', '저장됨'),
-    dirty: l('Unsaved changes', '有未保存修改', '有未儲存的修改', '저장하지 않은 변경 사항'),
+    dirty: l('Save changes', '保存修改', '儲存修改', '변경 사항 저장'),
     saving: l('Saving', '正在保存', '正在儲存', '저장 중'),
-    error: l('Save failed', '保存失败', '儲存失敗', '저장 실패'),
+    error: l('Retry save', '重试保存', '重試儲存', '저장 재시도'),
+  }
+  const saveTitles = {
+    saved: l('Save build', '保存构筑', '儲存構築', '빌드 저장'),
+    dirty: l('Save unsaved changes', '保存未保存的修改', '儲存未儲存的修改', '저장하지 않은 변경 사항 저장'),
+    saving: l('Saving build', '正在保存构筑', '正在儲存構築', '빌드 저장 중'),
+    error: l('Save failed; click to retry', '保存失败，点击重试', '儲存失敗，點擊重試', '저장 실패, 클릭하여 재시도'),
   }
 
   const handleZoomFit = useCallback(() => {
@@ -211,29 +264,60 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
         </div>
 
         <div className="command-actions">
-          <div className={`build-status-control ${buildRealm}`}>
-            <select
-              className={`build-realm-select ${buildRealm}`}
-              value={buildRealm}
-              onChange={(event) => setBuildRealm(event.target.value as 'cn' | 'global')}
-              aria-label={l('Game realm', '游戏服务器', '遊戲伺服器', '게임 리전')}
-              title={l('Change this build realm', '修改当前构筑的游戏服务器', '修改目前構築的遊戲伺服器', '현재 빌드의 게임 리전 변경')}
+          <div className={`build-context-control ${buildRealm}`}>
+            <span className="version-indicator" title={l('Build version is fixed', '构筑版本已确定', '構築版本已確定', '빌드 버전이 고정되었습니다')} aria-label={`${t('toolbar.version')} ${treeVersion.replace('_', '.')}`}>
+              <LockKeyhole />
+              <span>{treeVersion.replace('_', '.')}</span>
+            </span>
+            <div className="build-status-control">
+              <div className="build-realm-picker" ref={realmPickerRef}>
+                <button
+                  type="button"
+                  className="build-realm-trigger"
+                  onClick={() => setRealmMenuOpen((open) => !open)}
+                  aria-label={l('Game realm', '游戏服务器', '遊戲伺服器', '게임 리전')}
+                  aria-haspopup="listbox"
+                  aria-expanded={realmMenuOpen}
+                  title={l('Change this build realm', '修改当前构筑的游戏服务器', '修改目前構築的遊戲伺服器', '현재 빌드의 게임 리전 변경')}
+                >
+                  <Globe2 aria-hidden="true" />
+                  <span>{buildRealmLabel(buildRealm, lang)}</span>
+                  <ChevronDown aria-hidden="true" />
+                </button>
+                {realmMenuOpen && <div className="build-realm-menu" role="listbox" aria-label={l('Game realm', '游戏服务器', '遊戲伺服器', '게임 리전')}>
+                  {(['cn', 'global'] as const).map((realm) => <button
+                    key={realm}
+                    type="button"
+                    role="option"
+                    aria-selected={buildRealm === realm}
+                    className={buildRealm === realm ? 'active' : ''}
+                    onClick={() => { setBuildRealm(realm); setRealmMenuOpen(false) }}
+                  >
+                    <span>{buildRealmLabel(realm, lang)}</span>
+                    {buildRealm === realm && <Check aria-hidden="true" />}
+                  </button>)}
+                </div>}
+              </div>
+            <button
+              type="button"
+              className={`save-state save-state-button ${saveStatus}`}
+              onClick={() => { setActiveMenu(null); onSave() }}
+              disabled={saveStatus === 'saving'}
+              title={saveTitles[saveStatus]}
+              aria-label={saveTitles[saveStatus]}
             >
-              <option value="cn">{buildRealmLabel('cn', lang)}</option>
-              <option value="global">{buildRealmLabel('global', lang)}</option>
-            </select>
-            <span className={`save-state ${saveStatus}`}><i />{saveLabels[saveStatus]}</span>
+              <Save />
+              <i />
+              <span>{saveLabels[saveStatus]}</span>
+            </button>
+            </div>
           </div>
-          <span className="version-indicator" title={l('Build version is fixed', '构筑版本已确定', '構築版本已確定', '빌드 버전이 고정되었습니다')} aria-label={`${t('toolbar.version')} ${treeVersion.replace('_', '.')}`}>
-            <LockKeyhole />
-            <span>{treeVersion.replace('_', '.')}</span>
-          </span>
-          <button className="secondary-command toolbar-text-command" onClick={() => { setActiveMenu(null); onImport() }} title={t('toolbar.importTitle')}><FileInput /><span>{l('Import', '导入', '匯入', '가져오기')}</span></button>
-          <button className="secondary-command toolbar-text-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')}><FileOutput /><span>{l('Export', '导出', '匯出', '내보내기')}</span></button>
-          <button className="primary-command" onClick={() => { setActiveMenu(null); onSave() }}><Save />{l('Save', '保存', '儲存', '저장')}</button>
+          <div className="toolbar-file-group" ref={fileMenuRef}>
+            <button className="primary-command toolbar-export-command" onClick={() => toggleMenu('export')} title={t('toolbar.exportTitle')} aria-label={l('Export build', '导出构筑', '匯出構築', '빌드 내보내기')} aria-expanded={activeMenu === 'export'}><FileOutput /><span>{l('Export', '导出', '匯出', '내보내기')}</span></button>
+            <button className="icon-command toolbar-file-more" onClick={() => toggleMenu('file')} title={l('More build file actions', '更多构筑文件操作', '更多構築檔案操作', '더 많은 빌드 파일 작업')} aria-label={l('More build file actions', '更多构筑文件操作', '更多構築檔案操作', '더 많은 빌드 파일 작업')} aria-expanded={activeMenu === 'file'}><MoreVertical /></button>
+          </div>
           <GameRuntimeIndicator />
           <button className="icon-command" onClick={() => { setActiveMenu(null); onSettings() }} title={l('Global settings', '全局设置', '全域設定', '전역 설정')} aria-label={l('Global settings', '全局设置', '全域設定', '전역 설정')}><Settings /></button>
-          <button className="icon-command" onClick={() => toggleMenu('more')} title={l('More', '更多操作', '更多操作', '더 보기')} aria-label={l('More', '更多操作', '更多操作', '더 보기')} aria-expanded={activeMenu === 'more'}><MoreVertical /></button>
         </div>
       </div>
 
@@ -251,6 +335,9 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
           <i className="workspace-tabs-divider" aria-hidden="true" />
           <button className={`workspace-global-entry monitoring-entry${isActivelyMonitoring ? ' is-monitoring' : ''}`} onClick={onTradeCenter} aria-label={l('Trade Center', '交易中心', '交易中心', '거래 센터')} title={l('Open global Trade Center', '打开全局交易中心', '開啟全域交易中心', '전역 거래 센터 열기')}>
             <Store /><span>{l('Trade Center', '交易中心', '交易中心', '거래 센터')}</span>{isActivelyMonitoring && <span className="monitoring-tab-icon" aria-hidden="true"><BellRing /></span>}{monitoring && <small className="monitoring-tab-count">{armedCount}/{MAX_ACTIVE_PURCHASE_TARGETS}</small>}{pendingCount > 0 && <small className="monitoring-tab-alert">{pendingCount}</small>}
+          </button>
+          <button className="workspace-global-entry library-entry" onClick={onLibrary} aria-label={l('Equipment library', '装备仓库', '裝備倉庫', '장비 라이브러리')} title={l('Open equipment library', '打开装备仓库', '開啟裝備倉庫', '장비 라이브러리 열기')}>
+            <Archive /><span>{l('Equipment library', '装备仓库', '裝備倉庫', '장비 라이브러리')}</span>
           </button>
         </nav>
 
@@ -288,9 +375,10 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
         </div>
       </div>
 
-      {activeMenu && <div className="command-popover">
+      {activeMenu && <div className="command-popover" ref={filePopoverRef}>
         {activeMenu === 'export' && <ExportPanel embedded buildName={buildName} sourceUrl={buildSourceUrl} />}
-        {activeMenu === 'more' && <div className="native-file-menu" role="menu">
+        {activeMenu === 'file' && <div className="native-file-menu" role="menu">
+          <button role="menuitem" onClick={() => { setActiveMenu(null); onImport() }}><FileInput /><span><strong>{l('Import build', '导入构筑', '匯入構築', '빌드 가져오기')}</strong><small>{l('Open a PoB Code or build file', '打开 PoB Code 或构筑文件', '開啟 PoB Code 或構築檔案', 'PoB Code 또는 빌드 파일 열기')}</small></span></button>
           <button role="menuitem" onClick={() => { setActiveMenu(null); onSaveCopy() }} disabled={saveStatus === 'saving'}><Files /><span><strong>{l('Save build copy', '保存构筑副本', '儲存構築副本', '빌드 복사본 저장')}</strong><small>{l('Create a portable .spoe native file', '创建可传输的 .spoe 原生文件', '建立可攜式 .spoe 原生檔案', '이동 가능한 .spoe 기본 파일 생성')}</small></span></button>
         </div>}
       </div>}

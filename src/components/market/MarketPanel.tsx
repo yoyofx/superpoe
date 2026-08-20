@@ -6,6 +6,9 @@ import { useTranslation } from '@/i18n/useTranslation'
 import { EquipmentLibraryPanel } from '@/components/market/EquipmentLibraryPanel'
 import { uiText } from '@/i18n/uiLocale'
 import { loadAppSettings } from '@/engine/appSettings'
+import { parseEquipmentXml } from '@/engine/equipment'
+import { useTreeStore } from '@/store/treeStore'
+import type { BuildContextSnapshot } from '@/equipmentDifference'
 
 interface MarketPanelProps {
   realm: BuildRealm
@@ -54,6 +57,28 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
   const [libraryWidthPercent, setLibraryWidthPercent] = useState(30)
   const [libraryTab, setLibraryTab] = useState<LibraryTreeScope>('items')
   const [monitoring, setMonitoring] = useState<MarketMonitoringSnapshot | null>(null)
+  const importedBuildCode = useTreeStore((store) => store.importedBuildCode)
+  const pobBuildRevision = useTreeStore((store) => store.pobBuildRevision)
+  const activeWeaponSet = useTreeStore((store) => store.activeWeaponSet)
+  const activeCalculationProfileId = useTreeStore((store) => store.activeCalculationProfileId)
+  const calculationProfiles = useTreeStore((store) => store.calculationProfiles)
+  const getActivePobXml = useTreeStore((store) => store.getActivePobXml)
+  const activePobXml = useMemo(() => getActivePobXml() || '', [getActivePobXml, importedBuildCode, pobBuildRevision])
+  const activeEquipment = useMemo(() => activePobXml ? parseEquipmentXml(activePobXml) : null, [activePobXml])
+  const activeCalculationOverrides = useMemo(() => {
+    const profile = calculationProfiles.find((candidate) => candidate.id === activeCalculationProfileId)
+    return profile?.values && Object.keys(profile.values).length ? { ...profile.values } : undefined
+  }, [activeCalculationProfileId, calculationProfiles])
+  const equipmentDifferenceContext = useMemo<BuildContextSnapshot | null>(() => {
+    if (!activePobXml || !activeEquipment?.activeItemSetId) return null
+    return {
+      xml: activePobXml,
+      buildRevision: pobBuildRevision,
+      activeItemSetId: activeEquipment.activeItemSetId,
+      activeWeaponSet,
+      ...(activeCalculationOverrides ? { configOverrides: activeCalculationOverrides } : {}),
+    }
+  }, [activeCalculationOverrides, activeEquipment?.activeItemSetId, activePobXml, activeWeaponSet, pobBuildRevision])
   const viewSuspended = suspended
   const bridge = window.pob2Market
   const realmLabel = realm === 'cn' ? l('Tencent CN', '腾讯服', '騰訊服', 'Tencent 중국') : l('Global', '国际服', '國際服', '글로벌')
@@ -86,6 +111,19 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
     setLibraryTab(scope)
     setLibraryOpen(true)
   }), [bridge])
+
+  useEffect(() => bridge?.onTryOnRequest((entry) => {
+    setLibraryOpen(true)
+    if (!window.pob2Desktop?.openEquipmentTryOn) {
+      setBridgeError(l('The try-on window is unavailable in this environment.', '当前环境无法打开试穿窗口。', '目前環境無法開啟試穿視窗。', '이 환경에서는 시험 착용 창을 열 수 없습니다.'))
+      return
+    }
+    void window.pob2Desktop.openEquipmentTryOn({
+      entry,
+      context: equipmentDifferenceContext,
+      language: lang,
+    }).catch((error: unknown) => setBridgeError(error instanceof Error ? error.message : String(error)))
+  }), [bridge, equipmentDifferenceContext, lang])
 
   useEffect(() => {
     if (!bridge) return

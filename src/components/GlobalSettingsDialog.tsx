@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FileCog, Globe2, Info, Keyboard, Languages, MonitorCog, Plus, RefreshCw, ShieldAlert, ShieldCheck, Trash2, X } from 'lucide-react'
+import { ArchiveRestore, Download, FileCog, Globe2, Info, Keyboard, Languages, MonitorCog, RefreshCw, ShieldAlert, ShieldCheck, Upload, X } from 'lucide-react'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { MAX_UI_SCALE_PERCENT, MIN_UI_SCALE_PERCENT, UI_SCALE_STEP_PERCENT, type AppSettings, type UpdateChannel } from '@/engine/appSettings'
 import { LANGUAGE_OPTIONS, type Language } from '@/i18n/translationLoader'
@@ -12,9 +12,13 @@ interface GlobalSettingsDialogProps {
   settings: AppSettings
   onChange: (settings: AppSettings) => void
   onClose: () => void
+  backupBusy: boolean
+  backupNotice: string | null
+  onBackupExport: () => void
+  onBackupImport: () => void
 }
 
-export function GlobalSettingsDialog({ open, settings, onChange, onClose }: GlobalSettingsDialogProps) {
+export function GlobalSettingsDialog({ open, settings, onChange, onClose, backupBusy, backupNotice, onBackupExport, onBackupImport }: GlobalSettingsDialogProps) {
   const { lang, setLanguage } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const [checking, setChecking] = useState(false)
@@ -23,7 +27,6 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose }: Glob
   const [registeringAssociation, setRegisteringAssociation] = useState(false)
   const [elevationResult, setElevationResult] = useState<string | null>(null)
   const [elevating, setElevating] = useState(false)
-  const [proxyDraft, setProxyDraft] = useState('')
 
   useEffect(() => {
     if (!open) return
@@ -139,6 +142,24 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose }: Glob
           </section>
 
           <section className="settings-section">
+            <header><ArchiveRestore /><h3>{l('Data backup', '数据备份', '資料備份', '데이터 백업')}</h3></header>
+            <p className="settings-backup-hint">{l(
+              'Move builds, settings, equipment library and market data to another device. Login sessions and downloadable caches are not included.',
+              '可迁移构筑、设置、装备仓库和市场数据。登录状态与可重新下载的缓存不会包含在备份中。',
+              '可移轉構築、設定、裝備倉庫與市場資料。登入狀態與可重新下載的快取不會包含在備份中。',
+              '빌드, 설정, 장비 보관함과 시장 데이터를 다른 기기로 옮깁니다. 로그인 세션과 다시 받을 수 있는 캐시는 포함되지 않습니다.',
+            )}</p>
+            <div className="settings-row settings-file-association-row">
+              <span>{l('Portable backup', '可迁移备份', '可攜式備份', '이동식 백업')}</span>
+              <div className="settings-file-association-control settings-backup-control">
+                <button type="button" className="secondary-command" disabled={backupBusy} onClick={onBackupExport}><Download />{l('Export', '导出', '匯出', '내보내기')}</button>
+                <button type="button" className="secondary-command" disabled={backupBusy} onClick={onBackupImport}><Upload />{l('Restore', '恢复', '恢復', '복원')}</button>
+                {backupNotice && <small role="status" aria-live="polite">{backupNotice}</small>}
+              </div>
+            </div>
+          </section>
+
+          <section className="settings-section">
             <header><FileCog /><h3>{l('File associations', '文件关联', '檔案關聯', '파일 연결')}</h3></header>
             <div className="settings-row settings-file-association-row">
               <span><strong>.spoe</strong> {l('build files', '构筑文件', '構築檔案', '빌드 파일')}</span>
@@ -210,59 +231,6 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose }: Glob
                 {checking ? l('Checking...', '检查中...', '檢查中...', '확인 중...') : l('Check now', '立即检查', '立即檢查', '지금 확인')}
               </button>
               {checkResult && <span className="update-check-result">{checkResult}</span>}
-            </div>
-            <div className="settings-proxy-block">
-              <div className="settings-row settings-proxy-header">
-                <span>{l('GitHub proxy domains (user)', 'GitHub 代理域名（用户配置）', 'GitHub 代理網域（使用者設定）', 'GitHub 프록시 도메인(사용자 설정)')}</span>
-              </div>
-              <p className="settings-proxy-hint">
-                {l('On direct failure, proxies are tried in order as {proxy}/https://github.com/... Built-in proxies always apply.', '直连失败后按列表依次重试。拼接规则：{代理域名}/https://github.com/... 内置代理始终生效。', '直接連線失敗後會依序嘗試代理。組合規則：{代理網域}/https://github.com/... 內建代理永遠有效。', '직접 연결에 실패하면 {proxy}/https://github.com/... 형식으로 프록시를 순서대로 시도합니다. 기본 프록시는 항상 적용됩니다.')}
-              </p>
-              {settings.proxyDomains.length > 0 && (
-                <ul className="settings-proxy-list">
-                  {settings.proxyDomains.map((domain) => (
-                    <li key={domain} className="settings-proxy-item">
-                      <span title={domain}>{domain}</span>
-                      <button
-                        type="button"
-                        className="icon-command"
-                        aria-label={l('Remove proxy', '删除代理', '移除代理', '프록시 제거')}
-                        onClick={() => onChange({ ...settings, proxyDomains: settings.proxyDomains.filter((d) => d !== domain) })}
-                      >
-                        <Trash2 />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              <div className="settings-proxy-add">
-                <input
-                  type="url"
-                  value={proxyDraft}
-                  placeholder="https://example-proxy.example"
-                  onChange={(event) => setProxyDraft(event.target.value)}
-                  onKeyDown={(event) => {
-                    if (event.key !== 'Enter') return
-                    event.preventDefault()
-                    const normalized = proxyDraft.trim().replace(/\/+$/, '')
-                    if (!normalized || settings.proxyDomains.includes(normalized)) return
-                    onChange({ ...settings, proxyDomains: [...settings.proxyDomains, normalized] })
-                    setProxyDraft('')
-                  }}
-                />
-                <button
-                  type="button"
-                  className="secondary-command"
-                  onClick={() => {
-                    const normalized = proxyDraft.trim().replace(/\/+$/, '')
-                    if (!normalized || settings.proxyDomains.includes(normalized)) return
-                    onChange({ ...settings, proxyDomains: [...settings.proxyDomains, normalized] })
-                    setProxyDraft('')
-                  }}
-                >
-                  <Plus /> {l('Add', '添加', '新增', '추가')}
-                </button>
-              </div>
             </div>
           </section>
 
