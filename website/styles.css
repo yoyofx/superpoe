@@ -232,6 +232,7 @@ h2 { color: var(--text); font-size: clamp(36px, 4.8vw, 67px); font-weight: 600; 
 .footer-inner p, .footer-links { color: var(--muted); font-size: 11px; }
 .footer-links { display: flex; gap: 20px; margin-left: auto; }
 .footer-links a:hover { color: var(--text); }
+.footer-icp { color: var(--muted); white-space: nowrap; }
 .reveal { opacity: 1; transform: none; }
 
 @media (max-width: 900px) {
