@@ -1,5 +1,7 @@
 # Runtime hashes must be identical on Windows and macOS checkouts.
 public/pob-lua/** text eol=lf
+lua/superpoe/** text eol=lf
+public/superpoe-lua/** text eol=lf
 *.yml text eol=lf
 *.yaml text eol=lf
 *.json text eol=lf
