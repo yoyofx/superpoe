@@ -8,7 +8,7 @@ import {
   type AttributeProbeDefinition,
   type ProbeSeriesResult,
 } from '@/engine/attributeAnalysis'
-import type { CalcResult, SkillCalculationMode } from '@/types/calc'
+import type { CalcResult, SkillCalculationMode, SkillDpsEntry, SkillDamageBreakdown } from '@/types/calc'
 
 export interface InvestmentAnalysisRequest {
   code: string
@@ -36,16 +36,102 @@ export async function calculateAnalysisResult(
   weaponSet: 1 | 2,
   calcMode: SkillCalculationMode | undefined,
   configOverrides: Record<string, boolean | number | string>,
-  options: { characterOnly?: boolean } = {},
+  options: { characterOnly?: boolean; skillGroupId?: string; activeSkillIndex?: number } = {},
 ): Promise<CalcResult> {
-  const selection = { calcMode, characterOnly: options.characterOnly }
+  const selection = {
+    calcMode,
+    characterOnly: options.characterOnly,
+    skillGroupId: options.skillGroupId,
+    activeSkillIndex: options.activeSkillIndex,
+  }
   const keys = createCalculationCacheKeys({ code, xml, weaponSet, calcMode, configOverrides, selection })
   const cached = calculationCache.get(keys.resultKey)
   if (cached) return cached
-  const response = await calculateBuild({ code, xml, calcMode, characterOnly: options.characterOnly, configOverrides })
+  const response = await calculateBuild({
+    code,
+    xml,
+    calcMode,
+    characterOnly: options.characterOnly,
+    skillGroupId: options.skillGroupId,
+    activeSkillIndex: options.activeSkillIndex,
+    configOverrides,
+  })
   if (!response.success || response.error || !response.data) throw new Error(response.error || 'Calculation returned no data')
   calculationCache.set(keys, response.data)
   return response.data
+}
+
+/**
+ * Resolves the same primary skill that drives the analysis page and requests
+ * its PoB detail payload. The aggregate analysis still uses every entry in
+ * the scope; this detail result is only the representative skill for the
+ * layer-by-layer report.
+ */
+export interface AnalysisScopeDetailResult {
+  representative: CalcResult
+  finalDamageDps: Record<string, number>
+}
+
+async function resolveScopeEntryDetail(
+  code: string,
+  xml: string,
+  weaponSet: 1 | 2,
+  calcMode: SkillCalculationMode,
+  configOverrides: Record<string, boolean | number | string>,
+  entry: SkillDpsEntry,
+  baseline: CalcResult,
+): Promise<CalcResult> {
+  if (!entry.groupId) return baseline
+  const currentSkill = baseline.SkillDetails?.activeSkills.find((skill) => skill.index === baseline.SkillDetails?.activeSkillIndex)
+  if (currentSkill && entry.skillId && currentSkill.skillId === entry.skillId
+    && (!entry.skillPart || !currentSkill.skillPart || currentSkill.skillPart === entry.skillPart)) return baseline
+
+  const groupResult = await calculateAnalysisResult(code, xml, weaponSet, calcMode, configOverrides, { skillGroupId: entry.groupId })
+  const activeSkills = groupResult.SkillDetails?.activeSkills || []
+  const matchingIndex = activeSkills.findIndex((skill) => {
+    if (entry.skillId && skill.skillId === entry.skillId) {
+      return !entry.skillPart || !skill.skillPart || skill.skillPart === entry.skillPart
+    }
+    return !entry.skillId && skill.label === entry.name
+  })
+  if (matchingIndex < 0 || matchingIndex + 1 === groupResult.SkillDetails?.activeSkillIndex) return groupResult
+  return calculateAnalysisResult(code, xml, weaponSet, calcMode, configOverrides, {
+    skillGroupId: entry.groupId,
+    activeSkillIndex: matchingIndex + 1,
+  })
+}
+
+export async function calculateAnalysisScopeDetail(
+  code: string,
+  xml: string,
+  weaponSet: 1 | 2,
+  calcMode: SkillCalculationMode,
+  configOverrides: Record<string, boolean | number | string>,
+  baseline: CalcResult,
+  hasFullDpsSelection: boolean,
+): Promise<AnalysisScopeDetailResult> {
+  const scope = getAnalysisSkillScope(baseline, hasFullDpsSelection)
+  const entries = [...scope.entries].sort((left, right) => right.dps - left.dps)
+  const primary = entries[0]
+  if (!primary) return { representative: baseline, finalDamageDps: {} }
+
+  const finalDamageDps: AnalysisScopeDetailResult['finalDamageDps'] = {}
+  let representative = baseline
+  for (const entry of entries) {
+    if (!entry.groupId && entry !== primary) continue
+    let detail: CalcResult
+    try {
+      detail = await resolveScopeEntryDetail(code, xml, weaponSet, calcMode, configOverrides, entry, baseline)
+    } catch {
+      continue
+    }
+    if (entry === primary) representative = detail
+    for (const damageType of detail.SkillDetails?.damageTypes || []) {
+      if (damageType.type === 'all' || !Number.isFinite(damageType.finalDps)) continue
+      finalDamageDps[damageType.type] = (finalDamageDps[damageType.type] || 0) + damageType.finalDps! * Math.max(1, entry.count || 1)
+    }
+  }
+  return { representative, finalDamageDps }
 }
 
 /** Owns the probe queue so renderer state only receives complete, context-valid series. */

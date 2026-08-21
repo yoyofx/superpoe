@@ -667,6 +667,8 @@ local function calculate(payload)
 			damageTypes = {},
 			dpsFormula = {},
 			modifiers = {},
+			speedModifiers = {},
+			critModifiers = {},
 			skillDamage = {},
 			weaponDamage = {},
 			gains = {},
@@ -676,6 +678,10 @@ local function calculate(payload)
 			effects = { aurasAndBuffs = {}, combatBuffs = {}, cursesAndDebuffs = {} },
 			averageHit = safeNum(actorOutput.AverageHit),
 			speed = safeNum(actorOutput.Speed),
+			effectiveRate = safeNum(actorOutput.HitSpeed or actorOutput.Speed),
+			hitChance = safeNum(actorOutput.HitChance),
+			dpsMultiplier = safeNum(actorOutput.DpsMultiplier),
+			quantityMultiplier = safeNum(actorOutput.QuantityMultiplier) or 1,
 			totalDps = safeNum(actorOutput.TotalDPS),
 			critChance = safeNum(actorOutput.CritChance),
 			critMultiplier = safeNum(actorOutput.CritMultiplier),
@@ -797,6 +803,8 @@ local function calculate(payload)
 		local weaponItem
 		local weaponHand
 		local actor = mainSkill.actor or detailActor
+		local sourceResolver = require("DamageSourceResolver")
+		local sourceTypeFor = sourceResolver.create(build, env, actor)
 		if flags.weapon1Attack and actorOutput.MainHand then
 			details.damageSource = "mainHand"
 			sourceOutput = actorOutput.MainHand
@@ -815,6 +823,8 @@ local function calculate(payload)
 			weaponHand = "offHand"
 		end
 		details.averageHit = safeNum(sourceOutput.AverageHit or actorOutput.AverageHit)
+		details.effectiveRate = safeNum(actorOutput.HitSpeed or actorOutput.Speed)
+		details.hitChance = safeNum(sourceOutput.HitChance or actorOutput.HitChance)
 
 		if details.skillType == "spell" then
 			local skillData = mainSkill.skillData or {}
@@ -830,6 +840,7 @@ local function calculate(payload)
 						min = min,
 						max = max,
 						source = StripEscapes(skillName),
+						sourceType = "skill",
 						skillLevel = details.actor == "minion" and safeNum(activeEffect.level) or data.SkillLevel,
 						baseMultiplier = baseMultiplier,
 					})
@@ -848,6 +859,7 @@ local function calculate(payload)
 						min = min,
 						max = max,
 						source = StripEscapes(weaponItem and weaponItem.modSource or details.minionName or weaponHand),
+						sourceType = sourceTypeFor(weaponItem and weaponItem.modSource) or "equipment",
 					})
 				end
 			end
@@ -881,9 +893,40 @@ local function calculate(payload)
 					stat = entry.mod.name,
 					value = safeNum(entry.value) or 0,
 					source = StripEscapes(entry.mod.source or "Unknown"),
+					sourceType = sourceTypeFor(entry.mod.source),
 				})
 			end
 		end
+		local function addCritModifiers(stat)
+			for _, bucketInfo in ipairs({ { bucket = "base", modType = "BASE" }, { bucket = "increased", modType = "INC" }, { bucket = "more", modType = "MORE" } }) do
+				for _, entry in ipairs(modList:Tabulate(bucketInfo.modType, cfg, stat)) do
+					local value = safeNum(entry.value) or 0
+					if value ~= 0 then
+						table.insert(details.critModifiers, {
+							bucket = bucketInfo.bucket,
+							stat = stat,
+							value = value,
+							source = StripEscapes(entry.mod.source or "Unknown"),
+							sourceType = sourceTypeFor(entry.mod.source),
+						})
+					end
+				end
+			end
+		end
+		addCritModifiers("CritChance")
+		addCritModifiers("CritMultiplier")
+		local function addSpeedModifiers(bucket, modType)
+			for _, entry in ipairs(modList:Tabulate(modType, cfg, "Speed")) do
+				table.insert(details.speedModifiers, {
+					bucket = bucket,
+					value = safeNum(entry.value) or 0,
+					source = StripEscapes(entry.mod.source or "Unknown"),
+					sourceType = sourceTypeFor(entry.mod.source),
+				})
+			end
+		end
+		addSpeedModifiers("increased", "INC")
+		addSpeedModifiers("more", "MORE")
 		local function addGainModifiers(fromType, toType, stat)
 			for _, entry in ipairs(modList:Tabulate("BASE", cfg, stat)) do
 				table.insert(details.gains, {
@@ -892,6 +935,7 @@ local function calculate(payload)
 					stat = entry.mod.name,
 					value = safeNum(entry.value) or 0,
 					source = StripEscapes(entry.mod.source or "Unknown"),
+					sourceType = sourceTypeFor(entry.mod.source),
 				})
 			end
 		end
@@ -903,6 +947,7 @@ local function calculate(payload)
 					stat = entry.mod.name,
 					value = safeNum(entry.value) or 0,
 					source = StripEscapes(entry.mod.source or "Unknown"),
+					sourceType = sourceTypeFor(entry.mod.source),
 				})
 			end
 		end
@@ -1028,6 +1073,15 @@ local function calculate(payload)
 			addModifiers("increased", damageType, "INC", names)
 			addModifiers("more", damageType, "MORE", names)
 			addModifiers("more", damageType, "MORE", { "Min" .. title .. "Damage", "Max" .. title .. "Damage" })
+		end
+		local detailRate = safeNum(actorOutput.HitSpeed or actorOutput.Speed) or 0
+		local detailHitChance = safeNum(sourceOutput.HitChance or actorOutput.HitChance) or 100
+		local detailDpsMultiplier = safeNum(actorOutput.DpsMultiplier) or 1
+		local detailQuantityMultiplier = safeNum(actorOutput.QuantityMultiplier) or 1
+		for _, damageType in ipairs(details.damageTypes) do
+			if damageType.type ~= "all" and damageType.finalAverage then
+				damageType.finalDps = damageType.finalAverage * detailHitChance / 100 * detailRate * detailDpsMultiplier * detailQuantityMultiplier
+			end
 		end
 		data.SkillDetails = details
 	end

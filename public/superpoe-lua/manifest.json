@@ -2,9 +2,14 @@
   "schemaVersion": 1,
   "name": "superpoe",
   "source": "lua/superpoe",
-  "fileCount": 2,
-  "totalBytes": 31409,
+  "fileCount": 3,
+  "totalBytes": 35165,
   "files": [
+    {
+      "path": "DamageSourceResolver.lua",
+      "hash": "ddf8fc8f5d67c15be1582e042879ea3df7f1081624b1fc3fc139fd4453076bf5",
+      "size": 3756
+    },
     {
       "path": "EquipmentDifference.lua",
       "hash": "c4bb19367b833d329ca0a3818f3eaaa5e98b8fc4222532028e718756d230ff29",

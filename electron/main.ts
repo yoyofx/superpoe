@@ -1,4 +1,4 @@
-import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, net, powerMonitor, protocol, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import path from 'node:path'
@@ -76,6 +76,51 @@ interface NativeBuildOpenResult {
   filePath?: string
   content?: string
   error?: string
+}
+
+interface AnalysisImagePayload {
+  dataUrl: string
+  fileName: string
+}
+
+interface AnalysisImageCapturePayload {
+  x: number
+  y: number
+  width: number
+  height: number
+  scale?: number
+}
+
+function validateAnalysisImageDataUrl(value: unknown): string {
+  if (typeof value !== 'string' || !/^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(value) || value.length > 60_000_000) {
+    throw new Error('Invalid analysis image data')
+  }
+  return value
+}
+
+function validateAnalysisImagePayload(value: unknown): AnalysisImagePayload {
+  if (!value || typeof value !== 'object') throw new Error('Invalid analysis image payload')
+  const payload = value as Partial<AnalysisImagePayload>
+  const dataUrl = validateAnalysisImageDataUrl(payload.dataUrl)
+  const baseName = path.basename(typeof payload.fileName === 'string' ? payload.fileName : 'SuperPoE Build Gains.png')
+  const safeName = baseName.replace(/[<>:"/\\|?*\u0000-\u001f]/g, ' ').trim() || 'SuperPoE Build Gains.png'
+  return { dataUrl, fileName: safeName.toLowerCase().endsWith('.png') ? safeName : `${safeName}.png` }
+}
+
+function validateAnalysisImageCapturePayload(value: unknown): AnalysisImageCapturePayload {
+  if (!value || typeof value !== 'object') throw new Error('Invalid analysis image capture payload')
+  const payload = value as Partial<AnalysisImageCapturePayload>
+  const finite = (input: unknown, fallback: number) => typeof input === 'number' && Number.isFinite(input) ? input : fallback
+  const x = finite(payload.x, 0)
+  const y = finite(payload.y, 0)
+  const width = finite(payload.width, 0)
+  const height = finite(payload.height, 0)
+  const scale = finite(payload.scale, 1)
+  if (x < 0 || y < 0 || width < 1 || height < 1 || width > 16_384 || height > 16_384 || scale < .25 || scale > 2) {
+    throw new Error('Analysis image capture dimensions are out of range')
+  }
+  if (width * height * scale * scale > 100_000_000) throw new Error('Analysis image is too large')
+  return { x, y, width, height, scale }
 }
 
 function validateNativeBuildFilePayload(value: unknown): NativeBuildFilePayload {
@@ -1611,6 +1656,56 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       : `${result.filePath}${SUPERPOE_BUILD_EXTENSION}`
     writeFileSync(filePath, payload.content, 'utf8')
     return { canceled: false, filePath }
+  })
+  ipcMain.handle('pob2:save-analysis-image', async (event, value: unknown) => {
+    const window = requireMainWindowSender(event)
+    const payload = validateAnalysisImagePayload(value)
+    const result = await dialog.showSaveDialog(window, {
+      title: desktopText(uiLanguage, 'Save Build Gains Image', '保存构筑收益图片', '儲存構築收益圖片', '구성 수익 이미지 저장'),
+      defaultPath: path.join(app.getPath('pictures'), payload.fileName),
+      filters: [{ name: 'PNG Image', extensions: ['png'] }],
+      properties: ['createDirectory', 'showOverwriteConfirmation'],
+    })
+    if (result.canceled || !result.filePath) return { canceled: true }
+    const filePath = result.filePath.toLowerCase().endsWith('.png') ? result.filePath : `${result.filePath}.png`
+    const base64 = payload.dataUrl.slice('data:image/png;base64,'.length)
+    writeFileSync(filePath, Buffer.from(base64, 'base64'))
+    return { canceled: false, filePath }
+  })
+  ipcMain.handle('pob2:capture-analysis-image', async (event, value: unknown) => {
+    const window = requireMainWindowSender(event)
+    const payload = validateAnalysisImageCapturePayload(value)
+    const debuggerApi = window.webContents.debugger
+    const alreadyAttached = debuggerApi.isAttached()
+    if (!alreadyAttached) debuggerApi.attach('1.3')
+    try {
+      await debuggerApi.sendCommand('Page.enable')
+      const result = await debuggerApi.sendCommand('Page.captureScreenshot', {
+        format: 'png',
+        fromSurface: true,
+        captureBeyondViewport: true,
+        clip: {
+          x: payload.x,
+          y: payload.y,
+          width: payload.width,
+          height: payload.height,
+          scale: payload.scale,
+        },
+      }) as { data?: unknown }
+      if (typeof result.data !== 'string' || !result.data) throw new Error('Chromium returned an empty analysis image')
+      return { dataUrl: `data:image/png;base64,${result.data}` }
+    } finally {
+      // Do not detach a debugger that was attached by DevTools or another
+      // integration before this request.
+      if (!alreadyAttached && debuggerApi.isAttached()) debuggerApi.detach()
+    }
+  })
+  ipcMain.handle('pob2:copy-analysis-image', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    const image = nativeImage.createFromDataURL(validateAnalysisImageDataUrl(value))
+    if (image.isEmpty()) throw new Error('Invalid analysis image')
+    clipboard.writeImage(image)
+    return { copied: true }
   })
   ipcMain.handle('pob2:open-backup-file', async (event) => {
     const window = requireMainWindowSender(event)

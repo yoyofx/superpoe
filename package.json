@@ -146,6 +146,7 @@
   "dependencies": {
     "fast-xml-parser": "^5.8.0",
     "fastify": "^5.8.5",
+    "html2canvas": "^1.4.1",
     "koffi": "^2.15.1",
     "lucide-react": "^0.468.0",
     "pako": "^2.1.0",

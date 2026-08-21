@@ -63,6 +63,9 @@ declare global {
       importPoeNinja(url: string): Promise<{ code: string; sourceUrl: string; suggestedName: string }>
       openBuildFile(): Promise<{ canceled: boolean; filePath?: string; content?: string }>
       saveBuildFileCopy(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
+      captureAnalysisImage?(payload: { x: number; y: number; width: number; height: number; scale?: number }): Promise<{ dataUrl: string }>
+      saveAnalysisImage?(payload: { dataUrl: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
+      copyAnalysisImage?(dataUrl: string): Promise<{ copied: boolean }>
       openBackupFile(): Promise<{ canceled: boolean; filePath?: string; content?: string }>
       saveBackupFile(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
       collectBackupData(): Promise<import('@/engine/superPoeBackup').SuperPoeBackupMainData>

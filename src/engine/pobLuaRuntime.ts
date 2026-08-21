@@ -738,6 +738,8 @@ if playerMainSkill and playerMainSkill.activeEffect then
     damageTypes = {},
     dpsFormula = {},
     modifiers = {},
+    speedModifiers = {},
+    critModifiers = {},
     skillDamage = {},
     weaponDamage = {},
     gains = {},
@@ -747,6 +749,10 @@ if playerMainSkill and playerMainSkill.activeEffect then
     effects = { aurasAndBuffs = {}, combatBuffs = {}, cursesAndDebuffs = {} },
     averageHit = safeNum(actorOutput.AverageHit),
     speed = safeNum(actorOutput.Speed),
+    effectiveRate = safeNum(actorOutput.HitSpeed or actorOutput.Speed),
+    hitChance = safeNum(actorOutput.HitChance),
+    dpsMultiplier = safeNum(actorOutput.DpsMultiplier),
+    quantityMultiplier = safeNum(actorOutput.QuantityMultiplier) or 1,
     totalDps = safeNum(actorOutput.TotalDPS),
     critChance = safeNum(actorOutput.CritChance),
     critMultiplier = safeNum(actorOutput.CritMultiplier),
@@ -869,6 +875,92 @@ if playerMainSkill and playerMainSkill.activeEffect then
   local weaponItem
   local weaponHand
   local actor = mainSkill.actor or detailActor
+  local itemSourceTypes = {}
+  local itemSourceTypesById = {}
+  local itemSourcePrefixes = {}
+  local jewelSourcePrefixes = {}
+  local jewelSourceIds = {}
+  local function registerSource(source, sourceType, isJewel)
+    if not source then return end
+    local value = tostring(source)
+    itemSourceTypes[value] = sourceType
+    local prefix = value:match("^(Item:[^:]+:)")
+    if prefix then
+      itemSourcePrefixes[prefix] = sourceType
+      if isJewel then jewelSourcePrefixes[prefix] = true end
+    end
+  end
+  local function itemSource(item)
+    if not item then return nil end
+    if item.modSource then return tostring(item.modSource) end
+    if item.id ~= nil and item.name then return "Item:" .. tostring(item.id) .. ":" .. tostring(item.name) end
+    return nil
+  end
+  local function registerItemSources(items)
+    for _, item in pairs(items or {}) do
+      if item then
+        local isJewel = item.type == "Jewel"
+          or item.jewelData ~= nil
+          or (item.base and item.base.type == "Jewel")
+          or (item.base and item.base.subType and tostring(item.base.subType):find("Jewel", 1, true) ~= nil)
+        local sourceType = isJewel and "jewel" or "equipment"
+        registerSource(itemSource(item), sourceType, isJewel)
+        if item.id ~= nil and tostring(item.id) ~= "-1" then
+          itemSourceTypesById[tostring(item.id)] = sourceType
+          if isJewel then jewelSourceIds[tostring(item.id)] = true end
+        end
+      end
+    end
+  end
+  registerItemSources(env.player and env.player.itemList)
+  registerItemSources(actor.itemList)
+  -- Passive-tree jewels are kept in ItemsTab and are not guaranteed to be
+  -- present in actor.itemList until every socket has been processed.
+  registerItemSources(build.itemsTab and build.itemsTab.items)
+  for _, itemId in pairs(build.spec.jewels or {}) do
+    local item = build.itemsTab and build.itemsTab.items and (build.itemsTab.items[itemId] or build.itemsTab.items[tonumber(itemId)])
+    registerItemSources({ item })
+  end
+  -- Radius jewel functions are applied to passive nodes with Tree:<socketId>
+  -- as their temporary source. Preserve the actual jewel ownership here so
+  -- the report does not mislabel those effects as ordinary tree modifiers.
+  local jewelRadiusSources = {}
+  for _, radiusJewel in pairs(env.radiusJewelList or {}) do
+    local radiusSource = radiusJewel.data and radiusJewel.data.modSource
+    local itemSourceValue = itemSource(radiusJewel.item)
+    if radiusSource then
+      jewelRadiusSources[radiusSource] = "jewel"
+      local prefix = tostring(radiusSource):match("^(Tree:[^:]+:?)")
+      if prefix then jewelSourcePrefixes[prefix] = true end
+    end
+    if radiusJewel.nodeId then
+      local nodeSource = "Tree:" .. tostring(radiusJewel.nodeId)
+      jewelRadiusSources[nodeSource] = "jewel"
+      jewelSourcePrefixes[nodeSource] = true
+    end
+    if itemSourceValue then registerSource(itemSourceValue, "jewel", true) end
+  end
+  local function sourceTypeFor(source)
+    if itemSourceTypes[source] then return itemSourceTypes[source] end
+    if jewelRadiusSources[source] then return jewelRadiusSources[source] end
+    if type(source) == "string" then
+      local itemId = source:match("^Item:([^:]+):")
+      if itemId and jewelSourceIds[itemId] then return "jewel" end
+      if itemId and itemSourceTypesById[itemId] then return itemSourceTypesById[itemId] end
+      for prefix, sourceType in pairs(itemSourcePrefixes) do
+        if source:sub(1, #prefix) == prefix then return sourceType end
+      end
+      for prefix in pairs(jewelSourcePrefixes) do
+        if source:sub(1, #prefix) == prefix then return "jewel" end
+      end
+      if source:match("^Tree:") then return "tree" end
+      if source:match("^Skill:") then return "skill" end
+      if source:match("^Buff:") or source:match("^Aura:") then return "buff" end
+      if source:match("^Config:") or source:match("^Enemy:") then return "config" end
+      if source:match("^Item:") then return "equipment" end
+    end
+    return nil
+  end
   if flags.weapon1Attack and actorOutput.MainHand then
     details.damageSource = "mainHand"
     sourceOutput = actorOutput.MainHand
@@ -887,6 +979,8 @@ if playerMainSkill and playerMainSkill.activeEffect then
     weaponHand = "offHand"
   end
   details.averageHit = safeNum(sourceOutput.AverageHit or actorOutput.AverageHit)
+  details.effectiveRate = safeNum(actorOutput.HitSpeed or actorOutput.Speed)
+  details.hitChance = safeNum(sourceOutput.HitChance or actorOutput.HitChance)
 
   if details.skillType == "spell" then
     local skillData = mainSkill.skillData or {}
@@ -902,6 +996,7 @@ if playerMainSkill and playerMainSkill.activeEffect then
           min = min,
           max = max,
           source = StripEscapes(skillName),
+          sourceType = "skill",
           skillLevel = details.actor == "minion" and safeNum(activeEffect.level) or data.SkillLevel,
           baseMultiplier = baseMultiplier,
         })
@@ -920,6 +1015,7 @@ if playerMainSkill and playerMainSkill.activeEffect then
           min = min,
           max = max,
           source = StripEscapes(weaponItem and weaponItem.modSource or details.minionName or weaponHand),
+          sourceType = sourceTypeFor(weaponItem and weaponItem.modSource) or "equipment",
         })
       end
     end
@@ -953,9 +1049,41 @@ if playerMainSkill and playerMainSkill.activeEffect then
         stat = entry.mod.name,
         value = safeNum(entry.value) or 0,
         source = StripEscapes(entry.mod.source or "Unknown"),
+        sourceType = sourceTypeFor(entry.mod.source),
       })
     end
   end
+  local function addCritModifiers(stat)
+    for _, bucketInfo in ipairs({ { bucket = "base", modType = "BASE" }, { bucket = "increased", modType = "INC" }, { bucket = "more", modType = "MORE" } }) do
+      for _, entry in ipairs(modList:Tabulate(bucketInfo.modType, cfg, stat)) do
+        local value = safeNum(entry.value) or 0
+        if value ~= 0 then
+          table.insert(details.critModifiers, {
+            bucket = bucketInfo.bucket,
+            stat = stat,
+            value = value,
+            source = StripEscapes(entry.mod.source or "Unknown"),
+            sourceType = sourceTypeFor(entry.mod.source),
+          })
+        end
+      end
+    end
+  end
+  addCritModifiers("CritChance")
+  addCritModifiers("CritMultiplier")
+  local function addSpeedModifiers(bucket, modType)
+    for _, entry in ipairs(modList:Tabulate(modType, cfg, "Speed")) do
+      local source = StripEscapes(entry.mod.source or "Unknown")
+      table.insert(details.speedModifiers, {
+        bucket = bucket,
+        value = safeNum(entry.value) or 0,
+        source = source,
+        sourceType = sourceTypeFor(entry.mod.source),
+      })
+    end
+  end
+  addSpeedModifiers("increased", "INC")
+  addSpeedModifiers("more", "MORE")
   local function addGainModifiers(fromType, toType, stat)
     for _, entry in ipairs(modList:Tabulate("BASE", cfg, stat)) do
       table.insert(details.gains, {
@@ -964,6 +1092,7 @@ if playerMainSkill and playerMainSkill.activeEffect then
         stat = entry.mod.name,
         value = safeNum(entry.value) or 0,
         source = StripEscapes(entry.mod.source or "Unknown"),
+        sourceType = sourceTypeFor(entry.mod.source),
       })
     end
   end
@@ -975,6 +1104,7 @@ if playerMainSkill and playerMainSkill.activeEffect then
         stat = entry.mod.name,
         value = safeNum(entry.value) or 0,
         source = StripEscapes(entry.mod.source or "Unknown"),
+        sourceType = sourceTypeFor(entry.mod.source),
       })
     end
   end
@@ -1100,6 +1230,15 @@ if playerMainSkill and playerMainSkill.activeEffect then
     addModifiers("increased", damageType, "INC", names)
     addModifiers("more", damageType, "MORE", names)
     addModifiers("more", damageType, "MORE", { "Min" .. title .. "Damage", "Max" .. title .. "Damage" })
+  end
+  local detailRate = safeNum(actorOutput.HitSpeed or actorOutput.Speed) or 0
+  local detailHitChance = safeNum(sourceOutput.HitChance or actorOutput.HitChance) or 100
+  local detailDpsMultiplier = safeNum(actorOutput.DpsMultiplier) or 1
+  local detailQuantityMultiplier = safeNum(actorOutput.QuantityMultiplier) or 1
+  for _, damageType in ipairs(details.damageTypes) do
+    if damageType.type ~= "all" and damageType.finalAverage then
+      damageType.finalDps = damageType.finalAverage * detailHitChance / 100 * detailRate * detailDpsMultiplier * detailQuantityMultiplier
+    end
   end
   data.SkillDetails = details
 end

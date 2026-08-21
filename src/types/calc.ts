@@ -181,6 +181,8 @@ export interface SkillDamageBreakdown {
   nonCritAverage?: number
   critAverage?: number
   finalAverage?: number
+  /** Post-mitigation DPS contribution for the representative skill. */
+  finalDps?: number
   effectiveMultiplier?: number
   moreMin?: number
   moreMax?: number
@@ -194,6 +196,24 @@ export interface SkillModifierContribution {
   stat: string
   value: number
   source: string
+  sourceType?: SkillContributionSourceType
+}
+
+export type SkillContributionSourceType = 'equipment' | 'tree' | 'jewel' | 'skill' | 'buff' | 'config'
+
+export interface SkillSpeedContribution {
+  bucket: 'increased' | 'more'
+  value: number
+  source: string
+  sourceType?: SkillContributionSourceType
+}
+
+export interface SkillCriticalContribution {
+  bucket: 'base' | 'increased' | 'more'
+  stat: 'CritChance' | 'CritMultiplier'
+  value: number
+  source: string
+  sourceType?: SkillContributionSourceType
 }
 
 export type SkillDamageSourceType = SkillDamageBreakdown['type'] | 'elemental' | 'nonChaos'
@@ -204,6 +224,7 @@ export interface SkillGainContribution {
   stat: string
   value: number
   source: string
+  sourceType?: SkillContributionSourceType
 }
 
 export interface SkillDamageTransferTotal {
@@ -215,6 +236,7 @@ export interface SkillDamageTransferTotal {
 export interface SkillConversionContribution extends SkillDamageTransferTotal {
   stat: string
   source: string
+  sourceType?: SkillContributionSourceType
 }
 
 export interface SkillWeaponDamageContribution {
@@ -223,6 +245,7 @@ export interface SkillWeaponDamageContribution {
   min: number
   max: number
   source: string
+  sourceType?: SkillContributionSourceType
 }
 
 export interface SkillBaseDamageContribution {
@@ -232,6 +255,7 @@ export interface SkillBaseDamageContribution {
   source: string
   skillLevel?: number
   baseMultiplier: number
+  sourceType?: SkillContributionSourceType
 }
 
 export interface SkillEffectSummary {
@@ -292,14 +316,21 @@ export interface SkillCalculationDetails {
   damageTypes: SkillDamageBreakdown[]
   averageHit?: number
   speed?: number
+  /** Effective rate used by PoB2 when converting average damage to DPS. */
+  effectiveRate?: number
+  hitChance?: number
+  dpsMultiplier?: number
+  quantityMultiplier?: number
   totalDps?: number
   critChance?: number
   critMultiplier?: number
   critChanceBreakdown?: string[]
   critMultiplierBreakdown?: string[]
+  critModifiers?: SkillCriticalContribution[]
   dpsFormula?: string[]
   averageHitBreakdown?: string[]
   modifiers?: SkillModifierContribution[]
+  speedModifiers?: SkillSpeedContribution[]
   skillDamage?: SkillBaseDamageContribution[]
   weaponDamage?: SkillWeaponDamageContribution[]
   gains?: SkillGainContribution[]
