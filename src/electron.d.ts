@@ -84,6 +84,7 @@ declare global {
         error?: string
       }>
       calculatePobLua(payload: import('@/types/calc').SkillCalculationSelection & { xml: string }): Promise<import('@/types/calc').CalcApiResponse>
+      calculatePobLuaBatch(payload: import('@/types/calc').AttributeProbeBatchInput): Promise<import('@/types/calc').AttributeProbeBatchResponse>
       rankPobLuaSkills(payload: import('@/types/calc').RankSkillsInput): Promise<import('@/types/calc').SkillDpsRankResponse>
       comparePobLuaEquipment(payload: import('@/equipmentDifference/types').EquipmentDifferenceRequest & { contextKey: string }): Promise<import('@/equipmentDifference/types').EquipmentDifferenceResult>
       openEquipmentTryOn(payload: import('@/types/tryOn').EquipmentTryOnOpenRequest): Promise<void>

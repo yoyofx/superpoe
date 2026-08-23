@@ -2713,6 +2713,28 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     }
     return pobLuaService.calculate(payload)
   })
+  ipcMain.handle('pob2:lua-calculate-batch', (_event, value: unknown) => {
+    if (!value || typeof value !== 'object') throw new Error('Invalid PoB Lua attribute probe batch payload')
+    const payload = value as { xml?: unknown; jobs?: unknown }
+    if (typeof payload.xml !== 'string' || !payload.xml || payload.xml.length > 10_000_000) {
+      throw new Error('Invalid PoB build XML')
+    }
+    if (!Array.isArray(payload.jobs) || payload.jobs.length > 100) {
+      throw new Error('Invalid attribute probe batch jobs')
+    }
+    if (payload.jobs.some((job) => {
+      if (!job || typeof job !== 'object') return true
+      const entry = job as { id?: unknown; configOverrides?: unknown }
+      return typeof entry.id !== 'string'
+        || !entry.id
+        || !entry.configOverrides
+        || typeof entry.configOverrides !== 'object'
+        || Array.isArray(entry.configOverrides)
+    })) {
+      throw new Error('Invalid attribute probe batch job')
+    }
+    return pobLuaService.calculateAttributeProbeBatch(payload as import('../src/types/calc.js').AttributeProbeBatchInput)
+  })
   ipcMain.handle('pob2:lua-rank-skills', (_event, value: unknown) => {
     if (!value || typeof value !== 'object') throw new Error('Invalid PoB Lua skill ranking payload')
     const payload = value as { xml?: unknown; groupIds?: unknown; configOverrides?: unknown }

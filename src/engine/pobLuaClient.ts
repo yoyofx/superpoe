@@ -1,11 +1,11 @@
-import type { CalcApiResponse, RankSkillsInput, SkillCalculationSelection, SkillDpsRankResponse } from '@/types/calc'
+import type { AttributeProbeBatchInput, AttributeProbeBatchResponse, CalcApiResponse, RankSkillsInput, SkillCalculationSelection, SkillDpsRankResponse } from '@/types/calc'
 import type { EquipmentInspectionItem, EquipmentInspectionResult } from '@/types/equipmentSemantics'
 import type { JewelRadiusSnapshot } from '@/types/jewelRadius'
 import type { EquipmentDifferenceRequest, EquipmentDifferenceResult } from '@/equipmentDifference/types'
 
 interface WorkerRequest {
   id: number
-  type: 'init' | 'calculate' | 'inspectEquipment' | 'inspectJewelRadius' | 'rankSkills' | 'compareEquipment'
+  type: 'init' | 'calculate' | 'calculateAttributeProbeBatch' | 'inspectEquipment' | 'inspectJewelRadius' | 'rankSkills' | 'compareEquipment'
   payload?: unknown
 }
 
@@ -152,6 +152,30 @@ export async function calculateBuild(input: CalculateBuildInput): Promise<CalcAp
     return {
       success: false,
       error: `Front-end PoB Lua engine is not ready: ${message}`,
+    }
+  }
+}
+
+export async function calculateAttributeProbeBatch(input: AttributeProbeBatchInput): Promise<AttributeProbeBatchResponse> {
+  try {
+    if (window.pob2Desktop?.calculatePobLuaBatch) {
+      const backend = await initPobLuaEngine()
+      if (backend === 'luajit') {
+        try {
+          return await window.pob2Desktop.calculatePobLuaBatch(input)
+        } catch (error) {
+          nativeBackendFailed = true
+          engineInitPromise = null
+          console.warn('[PoB Lua] Native batch backend failed; switching to Wasmoon.', error)
+        }
+      }
+    }
+    await initPobLuaWorker()
+    return await callWorker<AttributeProbeBatchResponse>('calculateAttributeProbeBatch', input)
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
     }
   }
 }

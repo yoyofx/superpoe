@@ -1,5 +1,5 @@
 import { calculationCache, createCalculationCacheKeys } from '@/engine/calculationCache'
-import { calculateBuild } from '@/engine/pobLuaClient'
+import { calculateAttributeProbeBatch, calculateBuild } from '@/engine/pobLuaClient'
 import {
   buildProbePoint,
   classifyProbeSeries,
@@ -11,7 +11,7 @@ import {
   type ProbePointResult,
   type ProbeSeriesResult,
 } from '@/engine/attributeAnalysis'
-import type { CalcResult, SkillCalculationMode, SkillDpsEntry, SkillDamageBreakdown } from '@/types/calc'
+import type { AttributeProbeBatchInput, AttributeProbeCalculationJob, CalcResult, SkillCalculationMode, SkillDpsEntry, SkillDamageBreakdown } from '@/types/calc'
 
 export interface InvestmentAnalysisRequest {
   code: string
@@ -26,6 +26,7 @@ export interface InvestmentAnalysisRequest {
   hasFullDpsSelection: boolean
   isCurrent: () => boolean
   onProgress?: (completed: number, total: number) => void
+  onPartialResults?: (series: ProbeSeriesResult[]) => void
 }
 
 function withCustomMod(base: Record<string, boolean | number | string>, mod: string): Record<string, boolean | number | string> {
@@ -33,13 +34,54 @@ function withCustomMod(base: Record<string, boolean | number | string>, mod: str
   return { ...base, customMods: [existing, mod].filter(Boolean).join('\n') }
 }
 
-const AMPLIFIED_PROBE_POINTS = [5, 10] as const
+const AMPLIFIED_PROBE_POINT = 10
+
+// These modifiers are locally smooth enough to use one larger sample when a
+// direct +1 probe falls below the metric resolution. Threshold, cap, crit and
+// skill-level probes remain exact +1 calculations.
+const LOCALLY_LINEAR_PROBE_IDS = new Set([
+  'base-physical-damage', 'base-fire-damage', 'base-cold-damage', 'base-lightning-damage', 'base-chaos-damage',
+  'generic-damage', 'attack-damage', 'spell-damage', 'elemental-damage', 'physical-damage',
+  'fire-damage', 'cold-damage', 'lightning-damage', 'chaos-damage', 'gain-extra-elemental',
+  'attack-speed', 'cast-speed',
+  'base-life', 'base-energy-shield', 'base-armour', 'base-evasion', 'base-deflection', 'base-ward',
+  'maximum-life', 'maximum-energy-shield', 'armour', 'evasion', 'deflection', 'ward',
+])
 
 function shouldAmplifyProbe(probe: AttributeProbeDefinition, point: ProbePointResult): boolean {
-  if (probe.pointUnit === 'level') return false
+  if (probe.pointUnit === 'level' || !LOCALLY_LINEAR_PROBE_IDS.has(probe.id)) return false
   const primaryDelta = point.metrics[probe.primaryMetric]?.absoluteDelta
   if (primaryDelta == null || !Number.isFinite(primaryDelta)) return false
   return Math.abs(primaryDelta) < (getMetricDefinition(probe.primaryMetric)?.epsilon ?? 0)
+}
+
+interface ProbeJob {
+  probe: AttributeProbeDefinition
+  input: number
+  baseline: CalcResult
+  job: AttributeProbeCalculationJob
+}
+
+function createProbeJob(
+  request: InvestmentAnalysisRequest,
+  probe: AttributeProbeDefinition,
+  point: number,
+  index: number,
+  baseline: CalcResult,
+): ProbeJob {
+  const isDefenseProbe = probe.primaryDimension === 'defense'
+  return {
+    probe,
+    input: point,
+    baseline,
+    job: {
+      id: `${probe.id}:${point}:${index}`,
+      characterOnly: isDefenseProbe,
+      calcMode: isDefenseProbe ? undefined : request.calcMode,
+      includeAllDps: !isDefenseProbe && !request.hasFullDpsSelection,
+      configOverrides: withCustomMod(request.baseOverrides, probe.mutation.format(point)),
+    },
+  }
 }
 
 function hasStableLocalSlope(points: Array<{ samplePoint: number; point: ProbePointResult }>, metricKey: string): boolean {
@@ -174,73 +216,158 @@ export async function calculateAnalysisScopeDetail(
   return { representative, skills, finalDamageDps }
 }
 
-/** Owns the probe queue so renderer state only receives complete, context-valid series. */
+/** Owns the probe queue so renderer state only receives context-valid series. */
 export async function runInvestmentProbeBatch(request: InvestmentAnalysisRequest): Promise<ProbeSeriesResult[]> {
   const skillScope = getAnalysisSkillScope(request.baseline, request.hasFullDpsSelection)
   const defenseBaseline = request.defenseBaseline || request.baseline
   const probes = request.probes.filter((probe) => isProbeApplicable(probe, probe.primaryDimension === 'defense' ? defenseBaseline : request.baseline, request.hasFullDpsSelection, skillScope))
-  const total = probes.reduce((sum, probe) => sum + probe.points.length, 0)
+  const directJobs = probes.flatMap((probe) => probe.points.map((point, index) => createProbeJob(
+    request,
+    probe,
+    point,
+    index,
+    probe.primaryDimension === 'defense' ? defenseBaseline : request.baseline,
+  )))
+  const total = directJobs.length
+  let progressTotal = total
   let completed = 0
-  const series: ProbeSeriesResult[] = []
   request.onProgress?.(0, total)
 
-  for (const probe of probes) {
-    const points: ProbePointResult[] = []
-    for (const point of probe.points) {
-      if (!request.isCurrent()) return []
-      const isDefenseProbe = probe.primaryDimension === 'defense'
-      const probeBaseline = isDefenseProbe ? defenseBaseline : request.baseline
-      const calculatePoint = async (samplePoint: number): Promise<ProbePointResult> => {
+  const runJobs = async (jobs: ProbeJob[]): Promise<Map<string, ProbePointResult>> => {
+    const results = new Map<string, ProbePointResult>()
+    if (!jobs.length) return results
+    if (!request.isCurrent()) return results
+
+    const batchInput: AttributeProbeBatchInput = {
+      code: request.code,
+      xml: request.xml,
+      jobs: jobs.map(({ job }) => job),
+    }
+    const startedAt = performance.now()
+    const batch = await calculateAttributeProbeBatch(batchInput)
+    if (batch.success && batch.data) {
+      if (import.meta.env.DEV) {
+        console.debug('[Analysis] attribute probe batch', {
+          jobs: jobs.length,
+          wallMs: Math.round(performance.now() - startedAt),
+          runtimeMs: Math.round(batch.performance?.elapsedMs || 0),
+        })
+      }
+      const entries = new Map(batch.data.map((entry) => [entry.id, entry]))
+      for (const job of jobs) {
+        const entry = entries.get(job.job.id)
+        if (entry?.success && entry.data) {
+          results.set(job.job.id, buildProbePoint(job.probe, job.input, job.baseline, entry.data))
+        } else {
+          results.set(job.job.id, {
+            input: job.input,
+            mod: job.probe.mutation.format(job.input),
+            metrics: {},
+            error: entry?.error || batch.error || 'Attribute probe calculation returned no data',
+          })
+        }
+        completed += 1
+        request.onProgress?.(completed, progressTotal)
+      }
+      return results
+    }
+
+    // Keep the previous per-job path as a runtime fallback. It also makes a
+    // batch protocol failure non-fatal for users with an older native sidecar.
+    if (import.meta.env.DEV) console.warn('[Analysis] attribute probe batch unavailable; falling back to individual calculations', batch.error)
+    for (const job of jobs) {
+      if (!request.isCurrent()) return results
+      try {
+        const isDefenseProbe = job.probe.primaryDimension === 'defense'
         const result = await calculateAnalysisResult(
           request.code,
           request.xml,
           request.weaponSet,
           isDefenseProbe ? undefined : request.calcMode,
-          withCustomMod(request.baseOverrides, probe.mutation.format(samplePoint)),
+          job.job.configOverrides,
           { characterOnly: isDefenseProbe },
         )
-        return buildProbePoint(probe, samplePoint, probeBaseline, result)
-      }
-
-      let directPoint: ProbePointResult
-      try {
-        directPoint = await calculatePoint(point)
+        results.set(job.job.id, buildProbePoint(job.probe, job.input, job.baseline, result))
       } catch (error) {
-        points.push({ input: point, mod: probe.mutation.format(point), metrics: {}, error: error instanceof Error ? error.message : String(error) })
-        completed += 1
-        request.onProgress?.(completed, total)
-        continue
+        results.set(job.job.id, {
+          input: job.input,
+          mod: job.probe.mutation.format(job.input),
+          metrics: {},
+          error: error instanceof Error ? error.message : String(error),
+        })
       }
-
-      let displayPoint = directPoint
-      let sampling: ProbeSeriesResult['sampling'] = { mode: 'direct' }
-      if (point === 1 && shouldAmplifyProbe(probe, directPoint)) {
-        const amplified: Array<{ samplePoint: number; point: ProbePointResult }> = []
-        for (const samplePoint of AMPLIFIED_PROBE_POINTS) {
-          if (!request.isCurrent()) return []
-          try {
-            amplified.push({ samplePoint, point: await calculatePoint(samplePoint) })
-          } catch {
-            amplified.length = 0
-            break
-          }
-        }
-        if (amplified.length === AMPLIFIED_PROBE_POINTS.length && hasStableLocalSlope(amplified, probe.primaryMetric)) {
-          const sample = amplified[amplified.length - 1]
-          displayPoint = normalizeProbePoint(sample.point, sample.samplePoint, point, probe.mutation.format(point))
-          sampling = { mode: 'amplified', samplePoint: sample.samplePoint }
-        }
-      }
-
-      points.push(displayPoint)
       completed += 1
-      request.onProgress?.(completed, total)
+      request.onProgress?.(completed, progressTotal)
+    }
+    return results
+  }
+
+  const buildSeries = (
+    phaseProbes: AttributeProbeDefinition[],
+    directResults: Map<string, ProbePointResult>,
+    amplifiedJobs: Array<ProbeJob & { direct: ProbePointResult }>,
+    amplifiedResults: Map<string, ProbePointResult>,
+  ): ProbeSeriesResult[] => phaseProbes.map((probe) => {
+    const points: ProbePointResult[] = []
+    for (const job of directJobs.filter((entry) => entry.probe === probe)) {
+      const direct = directResults.get(job.job.id)
+      if (!direct) continue
+      let displayPoint = direct
+      const amplified = amplifiedJobs.find((entry) => entry.probe === probe)
+      const amplifiedPoint = amplified ? amplifiedResults.get(amplified.job.id) : undefined
+      if (amplified && amplifiedPoint && !amplifiedPoint.error
+        && hasStableLocalSlope([
+          { samplePoint: job.input, point: direct },
+          { samplePoint: AMPLIFIED_PROBE_POINT, point: amplifiedPoint },
+        ], probe.primaryMetric)) {
+        displayPoint = normalizeProbePoint(amplifiedPoint, AMPLIFIED_PROBE_POINT, job.input, probe.mutation.format(job.input))
+      }
+      points.push(displayPoint)
     }
     const classification = classifyProbeSeries(points, probe.primaryMetric)
-    const sampling = points.some((point) => point.sampleInput != null)
-      ? { mode: 'amplified' as const, samplePoint: points.find((point) => point.sampleInput != null)?.sampleInput }
-      : { mode: 'direct' as const }
-    series.push({ probe, points, ...classification, sampling })
+    const sampledPoint = points.find((point) => point.sampleInput != null)?.sampleInput
+    return {
+      probe,
+      points,
+      ...classification,
+      sampling: sampledPoint != null ? { mode: 'amplified', samplePoint: sampledPoint } : { mode: 'direct' },
+    }
+  })
+
+  const runPhase = async (phaseProbes: AttributeProbeDefinition[]) => {
+    const phaseJobs = directJobs.filter((entry) => phaseProbes.includes(entry.probe))
+    const directResults = await runJobs(phaseJobs)
+    if (!request.isCurrent()) return []
+
+    const amplifiedJobs: Array<ProbeJob & { direct: ProbePointResult }> = []
+    for (const job of phaseJobs) {
+      const direct = directResults.get(job.job.id)
+      if (!direct || direct.error || job.input !== 1 || !shouldAmplifyProbe(job.probe, direct)) continue
+      amplifiedJobs.push({
+        ...createProbeJob(request, job.probe, AMPLIFIED_PROBE_POINT, 0, job.baseline),
+        direct,
+      })
+    }
+
+    let amplifiedResults = new Map<string, ProbePointResult>()
+    if (amplifiedJobs.length) {
+      progressTotal += amplifiedJobs.length
+      request.onProgress?.(completed, progressTotal)
+      amplifiedResults = await runJobs(amplifiedJobs)
+    }
+    return buildSeries(phaseProbes, directResults, amplifiedJobs, amplifiedResults)
   }
+
+  const attackProbes = probes.filter((probe) => probe.primaryDimension === 'attack')
+  const defenseProbes = probes.filter((probe) => probe.primaryDimension === 'defense')
+  const series: ProbeSeriesResult[] = []
+  const attackSeries = await runPhase(attackProbes)
+  if (!request.isCurrent()) return []
+  series.push(...attackSeries)
+  request.onPartialResults?.(series.slice())
+  const defenseSeries = await runPhase(defenseProbes)
+  if (!request.isCurrent()) return []
+  series.push(...defenseSeries)
+  request.onPartialResults?.(series.slice())
   return series
 }

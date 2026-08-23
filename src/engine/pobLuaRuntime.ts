@@ -1,4 +1,4 @@
-import type { CalcApiResponse, SkillCalculationSelection } from '@/types/calc'
+import type { AttributeProbeBatchInput, AttributeProbeBatchResponse, CalcApiResponse, SkillCalculationSelection } from '@/types/calc'
 import type { EquipmentItemSemantics } from '@/types/equipmentSemantics'
 import type { JewelRadiusSnapshot } from '@/types/jewelRadius'
 import type { EquipmentDifferenceRequest, EquipmentDifferenceResult } from '@/equipmentDifference/types'
@@ -1249,6 +1249,20 @@ if __pobIncludeConfig then data.CalculationConfig = readConfigSnapshot() end
 return { success = true, data = data }
 `
 
+/**
+ * The probe batch keeps one PoB build object alive while each job still runs
+ * the normal BuildOutput path. This preserves per-attribute calculation
+ * semantics while avoiding repeated XML parsing and full result assembly.
+ */
+export const ATTRIBUTE_PROBE_BATCH_SCRIPT = `
+local json = require("dkjson")
+local payload = json.decode(__pobAttributeProbeBatchJson or "")
+if type(payload) ~= "table" then
+  return { success = false, error = "Invalid attribute probe batch payload" }
+end
+return require("AttributeProbeBatch").calculate(payload)
+`
+
 export const SKILL_RANKING_SCRIPT = `
 local xmlText = __pobBuildXml
 if not xmlText or xmlText == "" then
@@ -1818,6 +1832,30 @@ export function calculateWithLuaEngine(engine: LuaEngine, xml: string, selection
       engine.global.set('__pobIncludeConfig', undefined)
     } catch {
       // Ignore cleanup errors; the next calculation will overwrite the value.
+    }
+  }
+}
+
+export function calculateAttributeProbeBatchWithLuaEngine(
+  engine: LuaEngine,
+  input: AttributeProbeBatchInput,
+): AttributeProbeBatchResponse {
+  if (!input?.xml || !Array.isArray(input.jobs)) {
+    return { success: false, error: 'Missing attribute probe batch input' }
+  }
+  try {
+    engine.global.set('__pobAttributeProbeBatchJson', JSON.stringify(input))
+    return detachLuaValue(engine.doStringSync(ATTRIBUTE_PROBE_BATCH_SCRIPT)) as AttributeProbeBatchResponse
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : String(err),
+    }
+  } finally {
+    try {
+      engine.global.set('__pobAttributeProbeBatchJson', undefined)
+    } catch {
+      // The next batch overwrites the input global.
     }
   }
 }

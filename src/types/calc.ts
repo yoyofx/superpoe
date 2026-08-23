@@ -352,3 +352,34 @@ export interface CalcApiResponse {
     xmlSize: number
   }
 }
+
+/** One full PoB calculation used by the batched attribute-gain evaluator. */
+export interface AttributeProbeCalculationJob extends SkillCalculationSelection {
+  id: string
+  configOverrides: CalculationConfigValues
+  /** Rebuild the complete enabled-skill DPS aggregate only when the report needs it. */
+  includeAllDps?: boolean
+}
+
+export interface AttributeProbeBatchInput {
+  code: string
+  xml: string
+  jobs: AttributeProbeCalculationJob[]
+}
+
+export interface AttributeProbeBatchEntry {
+  id: string
+  success: boolean
+  data?: CalcResult
+  error?: string
+}
+
+export interface AttributeProbeBatchResponse {
+  success: boolean
+  data?: AttributeProbeBatchEntry[]
+  error?: string
+  performance?: {
+    jobCount: number
+    elapsedMs: number
+  }
+}

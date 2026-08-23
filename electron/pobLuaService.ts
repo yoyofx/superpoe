@@ -5,6 +5,7 @@ import path from 'node:path'
 import { app } from 'electron'
 import type { CanonicalEquipmentItem, CanonicalItemView, FindBetterSearchOptions } from '../src/types/market.js'
 import type { EquipmentDifferenceRequest, EquipmentDifferenceResult } from '../src/equipmentDifference/types.js'
+import type { AttributeProbeBatchInput } from '../src/types/calc.js'
 
 interface SidecarResponse {
   id?: number
@@ -189,6 +190,12 @@ export class PobLuaService {
     this.cachedInput = cacheKey
     this.cachedResult = result
     return result
+  }
+
+  async calculateAttributeProbeBatch(input: AttributeProbeBatchInput): Promise<unknown> {
+    const status = await this.initialize()
+    if (!status.available || !this.child) throw new Error(status.error || 'LuaJIT sidecar is unavailable')
+    return this.request('calculateAttributeProbeBatch', input)
   }
 
   async rankSkills(input: {

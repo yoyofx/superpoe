@@ -59,6 +59,7 @@ _G.utf8 = utf8lib
 
 local json = require("dkjson")
 local equipmentDifference = require("EquipmentDifference")
+local attributeProbeBatch = require("AttributeProbeBatch")
 local equipmentDifferenceSessions = {}
 
 local ok, loadError = pcall(dofile, join(bundlePath, "HeadlessWrapper.lua"))
@@ -1091,6 +1092,10 @@ local function calculate(payload)
 	return { success = true, data = data }
 end
 
+local function calculateAttributeProbeBatch(payload)
+	return attributeProbeBatch.calculate(payload)
+end
+
 local function rankSkills(payload)
 	local xmlText = payload and payload.xml
 	if type(xmlText) ~= "string" or xmlText == "" then
@@ -1216,6 +1221,7 @@ for line in io.lines() do
 		local handled, result = pcall(function()
 			if request.type == "normalizeItem" then return normalizeItem(request.payload) end
 			if request.type == "calculate" then return calculate(request.payload) end
+			if request.type == "calculateAttributeProbeBatch" then return calculateAttributeProbeBatch(request.payload) end
 			if request.type == "rankSkills" then return rankSkills(request.payload) end
 			if request.type == "compareEquipment" then return compareEquipment(request.payload) end
 			if request.type == "generateTradeQuery" then return generateTradeQuery(request.payload) end

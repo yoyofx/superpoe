@@ -92,6 +92,22 @@ lines.on('line', (line) => {
     child.kill()
     return
   }
+  if (message.id === 5) {
+    const entries = message.data.data
+    if (!Array.isArray(entries) || entries.length !== 3 || entries.some((entry) => !entry.success)) {
+      throw new Error(`Unexpected attribute probe batch result: ${JSON.stringify(message.data)}`)
+    }
+    const base = entries.find((entry) => entry.id === 'base')?.data
+    const life = entries.find((entry) => entry.id === 'life')?.data
+    const dpsTolerance = Math.max(0.000001, Math.abs(calculationData.FullDPS || 0) * 1e-9)
+    if (!Number.isFinite(base?.FullDPS)
+      || Math.abs(base.FullDPS - (calculationData.FullDPS || 0)) > dpsTolerance
+      || !Number.isFinite(life?.Life)
+      || life.Life <= (base?.Life || 0)) {
+      throw new Error(`Attribute probe batch did not produce isolated results: ${JSON.stringify(entries)}`)
+    }
+    return
+  }
   if (message.id === 3) {
     const minionDetails = message.data.data?.SkillDetails
     if (!minionDetails?.hasMinion || minionDetails.actor !== 'minion'
@@ -155,6 +171,19 @@ lines.on('line', (line) => {
     }
   }
   calculationData = data
+  child.stdin.write(`${JSON.stringify({
+    id: 5,
+    type: 'calculateAttributeProbeBatch',
+    payload: {
+      code: 'native-smoke',
+      xml,
+      jobs: [
+        { id: 'base', configOverrides: {} },
+        { id: 'life', characterOnly: true, configOverrides: { customMods: '+100 to maximum Life' } },
+        { id: 'damage', calcMode: 'EFFECTIVE', configOverrides: { customMods: '+1% increased Damage' } },
+      ],
+    },
+  })}\n`)
   const groupIds = Array.from({ length: (xml.match(/<Skill(?:\s|>)/g) || []).length }, (_, index) => String(index + 1))
   child.stdin.write(`${JSON.stringify({ id: 2, type: 'rankSkills', payload: { xml, groupIds } })}\n`)
 })

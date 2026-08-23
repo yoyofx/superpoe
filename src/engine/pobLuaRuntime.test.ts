@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { LuaFactory } from 'wasmoon'
 import { decodeBuildCode } from '@/engine/buildCode'
 import {
+  calculateAttributeProbeBatchWithLuaEngine,
   calculateWithLuaEngine,
   inspectEquipmentWithLuaEngine,
   installBuildHelpers,
@@ -236,6 +237,37 @@ describe('PoB Lua front-end runtime', () => {
     expect(virtualModifier.success, virtualModifier.error).toBe(true)
     expect(virtualModifier.data?.Life).toBeGreaterThan(result.data?.Life || 0)
     expect(['attack', 'spell', 'other']).toContain(result.data?.SkillDetails?.skillType)
+
+    const batch = calculateAttributeProbeBatchWithLuaEngine(lua, {
+      code: 'stormweaver-fixture',
+      xml: decoded.xml,
+      jobs: [
+        {
+          id: 'life',
+          characterOnly: true,
+          configOverrides: { customMods: '+100 to maximum Life' },
+        },
+        {
+          id: 'damage',
+          calcMode: 'EFFECTIVE',
+          configOverrides: { customMods: '+1% increased Damage' },
+        },
+      ],
+    })
+    expect(batch.success, batch.error).toBe(true)
+    const lifeEntry = batch.data?.find((entry) => entry.id === 'life')
+    expect(lifeEntry?.success, lifeEntry?.error).toBe(true)
+    expect(lifeEntry?.data?.Life).toBeCloseTo(virtualModifier.data?.Life || 0, 8)
+    expect(lifeEntry?.data?.PowerStats?.TotalEHP).toBeDefined()
+    const damageEntry = batch.data?.find((entry) => entry.id === 'damage')
+    expect(damageEntry?.success, damageEntry?.error).toBe(true)
+    const directDamage = calculateWithLuaEngine(lua, decoded.xml, {
+      calcMode: 'EFFECTIVE',
+      configOverrides: { customMods: '+1% increased Damage' },
+    })
+    expect(damageEntry?.data?.FullDPS).toBeCloseTo(directDamage.data?.FullDPS || 0, 8)
+    expect(damageEntry?.data?.TotalDPS).toBeCloseTo(directDamage.data?.TotalDPS || 0, 8)
+
     if (result.data?.SkillDetails?.skillType === 'spell') {
       expect(result.data.SkillDetails.skillDamage?.length).toBeGreaterThan(0)
       expect(result.data.SkillDetails.weaponDamage).toEqual([])

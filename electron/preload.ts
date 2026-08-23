@@ -26,6 +26,7 @@ contextBridge.exposeInMainWorld('pob2Desktop', {
   setAppContext: (context: { defaultRealm: 'cn' | 'global'; language: 'en' | 'zh-rCN' | 'zh-rTW' | 'ko-KR'; priceCheckEnabled: boolean; priceCheckHotkey: string }) => ipcRenderer.invoke('pob2:set-app-context', context),
   initPobLua: () => ipcRenderer.invoke('pob2:lua-init'),
   calculatePobLua: (payload: import('../src/types/calc.js').SkillCalculationSelection & { xml: string }) => ipcRenderer.invoke('pob2:lua-calculate', payload),
+  calculatePobLuaBatch: (payload: import('../src/types/calc.js').AttributeProbeBatchInput) => ipcRenderer.invoke('pob2:lua-calculate-batch', payload),
   rankPobLuaSkills: (payload: import('../src/types/calc.js').RankSkillsInput) => ipcRenderer.invoke('pob2:lua-rank-skills', payload),
   comparePobLuaEquipment: (payload: import('../src/equipmentDifference/types.js').EquipmentDifferenceRequest & { contextKey: string }) => ipcRenderer.invoke('pob2:lua-compare-equipment', payload),
   openEquipmentTryOn: (payload: import('../src/types/tryOn.js').EquipmentTryOnOpenRequest) => ipcRenderer.invoke('equipment-try-on:open', payload),

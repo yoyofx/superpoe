@@ -1,5 +1,6 @@
-import type { CalcApiResponse, SkillCalculationSelection } from '@/types/calc'
+import type { AttributeProbeBatchInput, CalcApiResponse, SkillCalculationSelection } from '@/types/calc'
 import {
+  calculateAttributeProbeBatchWithLuaEngine,
   calculateWithLuaEngine,
   compareEquipmentWithLuaEngine,
   inspectEquipmentWithLuaEngine,
@@ -20,8 +21,9 @@ import wasmUrl from 'wasmoon/dist/glue.wasm?url'
 
 interface WorkerRequest {
   id: number
-  type: 'init' | 'calculate' | 'inspectEquipment' | 'inspectJewelRadius' | 'rankSkills' | 'compareEquipment'
+  type: 'init' | 'calculate' | 'calculateAttributeProbeBatch' | 'inspectEquipment' | 'inspectJewelRadius' | 'rankSkills' | 'compareEquipment'
   payload?: ({ code?: string; xml?: string } & SkillCalculationSelection)
+    | AttributeProbeBatchInput
     | { items?: EquipmentInspectionItem[] }
     | EquipmentDifferenceRequest
 }
@@ -238,6 +240,11 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       }
       if (request.type === 'calculate') {
         const result = await calculate(request.payload as ({ code?: string; xml?: string } & SkillCalculationSelection) | undefined)
+        respond({ id: request.id, success: true, data: result })
+        return
+      }
+      if (request.type === 'calculateAttributeProbeBatch') {
+        const result = calculateAttributeProbeBatchWithLuaEngine(lua!, request.payload as AttributeProbeBatchInput)
         respond({ id: request.id, success: true, data: result })
         return
       }

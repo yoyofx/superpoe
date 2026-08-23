@@ -2,9 +2,14 @@
   "schemaVersion": 1,
   "name": "superpoe",
   "source": "lua/superpoe",
-  "fileCount": 3,
-  "totalBytes": 35165,
+  "fileCount": 4,
+  "totalBytes": 46500,
   "files": [
+    {
+      "path": "AttributeProbeBatch.lua",
+      "hash": "0b4c0321aecd3a6dfbedb5f18b635e18419d9fabdf71a253d6e5b3521eb7fdbb",
+      "size": 11335
+    },
     {
       "path": "DamageSourceResolver.lua",
       "hash": "ddf8fc8f5d67c15be1582e042879ea3df7f1081624b1fc3fc139fd4453076bf5",
