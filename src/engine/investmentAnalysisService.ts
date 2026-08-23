@@ -3,9 +3,12 @@ import { calculateBuild } from '@/engine/pobLuaClient'
 import {
   buildProbePoint,
   classifyProbeSeries,
+  getMetricDefinition,
   getAnalysisSkillScope,
   isProbeApplicable,
+  normalizeProbePoint,
   type AttributeProbeDefinition,
+  type ProbePointResult,
   type ProbeSeriesResult,
 } from '@/engine/attributeAnalysis'
 import type { CalcResult, SkillCalculationMode, SkillDpsEntry, SkillDamageBreakdown } from '@/types/calc'
@@ -28,6 +31,27 @@ export interface InvestmentAnalysisRequest {
 function withCustomMod(base: Record<string, boolean | number | string>, mod: string): Record<string, boolean | number | string> {
   const existing = typeof base.customMods === 'string' ? base.customMods.trim() : ''
   return { ...base, customMods: [existing, mod].filter(Boolean).join('\n') }
+}
+
+const AMPLIFIED_PROBE_POINTS = [5, 10] as const
+
+function shouldAmplifyProbe(probe: AttributeProbeDefinition, point: ProbePointResult): boolean {
+  if (probe.pointUnit === 'level') return false
+  const primaryDelta = point.metrics[probe.primaryMetric]?.absoluteDelta
+  if (primaryDelta == null || !Number.isFinite(primaryDelta)) return false
+  return Math.abs(primaryDelta) < (getMetricDefinition(probe.primaryMetric)?.epsilon ?? 0)
+}
+
+function hasStableLocalSlope(points: Array<{ samplePoint: number; point: ProbePointResult }>, metricKey: string): boolean {
+  const slopes = points.map(({ samplePoint, point }) => {
+    const delta = point.metrics[metricKey]?.absoluteDelta
+    return delta == null || !Number.isFinite(delta) ? null : delta / samplePoint
+  })
+  if (slopes.some((value): value is null => value == null)) return false
+  const values = slopes as number[]
+  const scale = Math.max(1, ...values.map((value) => Math.abs(value)))
+  const spread = Math.max(...values) - Math.min(...values)
+  return spread / scale < .08
 }
 
 export async function calculateAnalysisResult(
@@ -161,28 +185,62 @@ export async function runInvestmentProbeBatch(request: InvestmentAnalysisRequest
   request.onProgress?.(0, total)
 
   for (const probe of probes) {
-    const points = []
+    const points: ProbePointResult[] = []
     for (const point of probe.points) {
       if (!request.isCurrent()) return []
-      try {
-        const isDefenseProbe = probe.primaryDimension === 'defense'
-        const probeBaseline = isDefenseProbe ? defenseBaseline : request.baseline
+      const isDefenseProbe = probe.primaryDimension === 'defense'
+      const probeBaseline = isDefenseProbe ? defenseBaseline : request.baseline
+      const calculatePoint = async (samplePoint: number): Promise<ProbePointResult> => {
         const result = await calculateAnalysisResult(
           request.code,
           request.xml,
           request.weaponSet,
           isDefenseProbe ? undefined : request.calcMode,
-          withCustomMod(request.baseOverrides, probe.mutation.format(point)),
+          withCustomMod(request.baseOverrides, probe.mutation.format(samplePoint)),
           { characterOnly: isDefenseProbe },
         )
-        points.push(buildProbePoint(probe, point, probeBaseline, result))
+        return buildProbePoint(probe, samplePoint, probeBaseline, result)
+      }
+
+      let directPoint: ProbePointResult
+      try {
+        directPoint = await calculatePoint(point)
       } catch (error) {
         points.push({ input: point, mod: probe.mutation.format(point), metrics: {}, error: error instanceof Error ? error.message : String(error) })
+        completed += 1
+        request.onProgress?.(completed, total)
+        continue
       }
+
+      let displayPoint = directPoint
+      let sampling: ProbeSeriesResult['sampling'] = { mode: 'direct' }
+      if (point === 1 && shouldAmplifyProbe(probe, directPoint)) {
+        const amplified: Array<{ samplePoint: number; point: ProbePointResult }> = []
+        for (const samplePoint of AMPLIFIED_PROBE_POINTS) {
+          if (!request.isCurrent()) return []
+          try {
+            amplified.push({ samplePoint, point: await calculatePoint(samplePoint) })
+          } catch {
+            amplified.length = 0
+            break
+          }
+        }
+        if (amplified.length === AMPLIFIED_PROBE_POINTS.length && hasStableLocalSlope(amplified, probe.primaryMetric)) {
+          const sample = amplified[amplified.length - 1]
+          displayPoint = normalizeProbePoint(sample.point, sample.samplePoint, point, probe.mutation.format(point))
+          sampling = { mode: 'amplified', samplePoint: sample.samplePoint }
+        }
+      }
+
+      points.push(displayPoint)
       completed += 1
       request.onProgress?.(completed, total)
     }
-    series.push({ probe, points, ...classifyProbeSeries(points, probe.primaryMetric) })
+    const classification = classifyProbeSeries(points, probe.primaryMetric)
+    const sampling = points.some((point) => point.sampleInput != null)
+      ? { mode: 'amplified' as const, samplePoint: points.find((point) => point.sampleInput != null)?.sampleInput }
+      : { mode: 'direct' as const }
+    series.push({ probe, points, ...classification, sampling })
   }
   return series
 }

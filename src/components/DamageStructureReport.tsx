@@ -439,6 +439,17 @@ function CriticalSourceRows({ modifiers, language, treeData, skillCatalog }: { m
   })}</div>
 }
 
+function CriticalAverageFormula({ critChance, critMultiplier, language }: { critChance: number | null; critMultiplier: number | null; language: Language }) {
+  const l = (en: string, zhCN: string, zhTW = zhCN, koKR = en) => uiText(language, en, zhCN, zhTW, koKR)
+  const chance = critChance == null || !Number.isFinite(critChance) ? null : Math.max(0, Math.min(100, critChance))
+  const multiplier = critMultiplier != null && Number.isFinite(critMultiplier) ? critMultiplier : null
+  const expectedFactor = chance != null && multiplier != null ? 1 + (chance / 100) * (multiplier - 1) : null
+  const formula = chance == null || multiplier == null || expectedFactor == null
+    ? l('Normal hit rate × 1.00 + critical hit rate × critical damage multiplier', '普通命中率 × 1.00 + 暴击命中率 × 暴击伤害倍率', '普通命中率 × 1.00 + 暴擊命中率 × 暴擊傷害倍率', '일반 적중률 × 1.00 + 치명타 적중률 × 치명타 피해 배율')
+    : `${percent(100 - chance, language)} × 1.00 + ${percent(chance, language)} × ${number(multiplier, language, 2)} = ×${number(expectedFactor, language, 2)}`
+  return <div className="damage-structure-crit-formula"><span>{l('Average crit multiplier formula', '暴击平均倍率公式', '暴擊平均倍率公式', '치명타 평균 배율 공식')}</span><code>{formula}</code><small>{l('The result is the weighted average of normal hits and critical hits.', '结果是普通命中与暴击命中按概率加权后的平均倍率。', '結果是普通命中與暴擊命中按機率加權後的平均倍率。', '일반 적중과 치명타 적중을 확률로 가중한 평균 배율입니다.')}</small></div>
+}
+
 function FlowRows({ flows, language, treeData, skillCatalog }: { flows: DamageFlow[]; language: Language; treeData?: TreeData | null; skillCatalog?: SkillCatalog | null }) {
   return <div className="damage-structure-flow-list">{flows.length ? flows.map((entry, index) => {
     const type = sourceType(entry.source, entry.sourceType)
@@ -460,9 +471,8 @@ function DamageRangeRows({ ranges, language, empty, showSource = false, treeData
   })}</div>
 }
 
-function FinalDamageBreakdown({ data, language, label, skillLevel, formulaLayers, onOpenLayer }: { data: DamageStructureReportData; language: Language; label: string; skillLevel?: number; formulaLayers: Array<{ id: string; title: string; subtitle: string; summary: string }>; onOpenLayer: (id: string) => void }) {
+function FinalDamageBreakdown({ data, language, skillLevel, formulaLayers, onOpenLayer }: { data: DamageStructureReportData; language: Language; skillLevel?: number; formulaLayers: Array<{ id: string; title: string; subtitle: string; summary: string }>; onOpenLayer: (id: string) => void }) {
   const l = (en: string, zhCN: string, zhTW = zhCN, koKR = en) => uiText(language, en, zhCN, zhTW, koKR)
-  const max = Math.max(1, ...data.finalDamageTypes.map((entry) => entry.finalDps))
   return (
     <section className="damage-structure-final-breakdown">
       <div id="damage-structure-formula" className="damage-structure-formula-wrap">
@@ -482,7 +492,7 @@ function FinalDamageBreakdown({ data, language, label, skillLevel, formulaLayers
           </span>)}
           <span className="damage-structure-formula-final-group">
             <ArrowRight />
-            <button type="button" className="damage-structure-formula-final">
+            <button type="button" className="damage-structure-formula-final" onClick={() => onOpenLayer('finalDps')} aria-label={l('View final DPS and damage types', '查看最终 DPS 与伤害类型', '查看最終 DPS 與傷害類型', '최종 DPS 및 피해 유형 보기')} title={l('View final DPS and damage types', '查看最终 DPS 与伤害类型', '查看最終 DPS 與傷害類型', '최종 DPS 및 피해 유형 보기')}>
               <strong>{l('Final DPS', '最终 DPS', '最終 DPS', '최종 DPS')}</strong>
               <b>{number(data.totalDps, language, 0)}</b>
               <small>{l('calculated result', '计算结果', '計算結果', '계산 결과')}</small>
@@ -495,13 +505,22 @@ function FinalDamageBreakdown({ data, language, label, skillLevel, formulaLayers
           <span>{l('Level', '等级', '等級', '레벨')} <b>{skillLevel == null ? '—' : skillLevel}</b></span>
         </div>
       </div>
-      <div className="damage-structure-final-type-heading">
-        <strong>{label}</strong>
-        <small>{l('Current skill result', '当前技能结果', '目前技能結果', '현재 스킬 결과')}</small>
-      </div>
-      {data.finalDamageTypes.length ? <div className="damage-structure-final-type-grid">{data.finalDamageTypes.map((entry) => <div key={entry.type} className={`damage-structure-final-type-row damage-type-${entry.type}${entry.finalDps <= 0 ? ' empty' : ''}`}><span>{damageTypeLabel(entry.type, language)}</span><i><b style={{ width: `${entry.finalDps > 0 ? Math.max(3, entry.finalDps / max * 100) : 0}%` }} /></i><strong>{number(entry.finalDps, language, 0)}</strong><small>{number(entry.share, language, 1)}%</small></div>)}</div> : <span className="damage-structure-muted">{l('No damage type breakdown is available.', '暂无伤害类型明细。', '暫無傷害類型明細。', '피해 유형 내역이 없습니다.')}</span>}
     </section>
   )
+}
+
+function FinalDamageTypes({ data, language }: { data: DamageStructureReportData; language: Language }) {
+  const l = (en: string, zhCN: string, zhTW = zhCN, koKR = en) => uiText(language, en, zhCN, zhTW, koKR)
+  const max = Math.max(1, ...data.finalDamageTypes.map((entry) => entry.finalDps))
+  return <>
+    <div className="damage-structure-final-dps-total"><span>{l('Final DPS', '最终 DPS', '最終 DPS', '최종 DPS')}</span><strong>{number(data.totalDps, language, 0)}</strong><small>{l('Current skill result', '当前技能结果', '目前技能結果', '현재 스킬 결과')}</small></div>
+    <div className="damage-structure-final-type-heading"><strong>{l('Damage types', '伤害类型', '傷害類型', '피해 유형')}</strong><small>{l('DPS contribution by type', '各伤害类型对 DPS 的贡献', '各傷害類型對 DPS 的貢獻', '유형별 DPS 기여도')}</small></div>
+    {data.finalDamageTypes.length ? <div className="damage-structure-final-type-grid">{data.finalDamageTypes.map((entry) => <div key={entry.type} className={`damage-structure-final-type-row damage-type-${entry.type}${entry.finalDps <= 0 ? ' empty' : ''}`}><span>{damageTypeLabel(entry.type, language)}</span><i><b style={{ width: `${entry.finalDps > 0 ? Math.max(3, entry.finalDps / max * 100) : 0}%` }} /></i><strong>{number(entry.finalDps, language, 0)}</strong><small>{number(entry.share, language, 1)}%</small></div>)}</div> : <span className="damage-structure-muted">{l('No damage type breakdown is available.', '暂无伤害类型明细。', '暫無傷害類型明細。', '피해 유형 내역이 없습니다.')}</span>}
+  </>
+}
+
+function FinalDpsDetail({ data, language }: { data: DamageStructureReportData; language: Language }) {
+  return <div className="damage-structure-final-dps-detail"><FinalDamageTypes data={data} language={language} /></div>
 }
 
 function SourceShareDetail({ label, values, language, unit = '', barsCaption = '' }: { label: string; values: SourceValue[]; language: Language; unit?: string; barsCaption?: string }) {
@@ -601,7 +620,7 @@ function LayerSummary({ id, data, language }: { id: string; data: DamageStructur
   }
   if (id === 'crit') {
     const expectedFactor = data.critChance != null && data.critMultiplier != null ? 1 + (data.critChance / 100) * (data.critMultiplier - 1) : null
-    return <div className="damage-structure-layer-summary"><div className="damage-structure-summary-metrics"><SummaryMetric label={l('Crit chance', '暴击率', '暴擊率', '치명타 확률')} value={percent(data.critChance, language)} /><SummaryMetric label={l('Critical damage', '暴击伤害', '暴擊傷害', '치명타 피해')} value={data.critMultiplier == null ? '—' : `×${data.critMultiplier.toFixed(2)}`} /><SummaryMetric label={l('Expected factor', '期望因子', '期望因子', '기대 배율')} value={expectedFactor == null ? '—' : `×${expectedFactor.toFixed(2)}`} /></div></div>
+    return <div className="damage-structure-layer-summary"><div className="damage-structure-summary-metrics"><SummaryMetric label={l('Crit chance', '暴击率', '暴擊率', '치명타 확률')} value={percent(data.critChance, language)} /><SummaryMetric label={l('Critical damage', '暴击伤害', '暴擊傷害', '치명타 피해')} value={data.critMultiplier == null ? '—' : `×${data.critMultiplier.toFixed(2)}`} /><SummaryMetric label={l('Average crit multiplier', '暴击平均倍率', '暴擊平均倍率', '치명타 평균 배율')} value={expectedFactor == null ? '—' : `×${expectedFactor.toFixed(2)}`} /></div></div>
   }
   if (id === 'defence') {
     const multipliers = data.effectiveMultipliers.filter((entry) => Number.isFinite(entry.value))
@@ -675,7 +694,11 @@ export function DamageStructureReport({ data: scopeData, skills = [], treeData, 
     { id: 'flow', icon: GitBranch, title: l('Conversion and Gain', '转换与 Gain', '轉換與 Gain', '변환 및 Gain'), subtitle: l('Damage can change type or gain an extra branch', '伤害类型可以转换或额外获得分支', '傷害類型可以轉換或額外獲得分支', '피해 유형을 변환하거나 추가 분기를 얻음'), summary: `${data.gains.length + data.conversions.length}`, body: <div className="damage-structure-flow-columns"><div><span className="damage-structure-kicker">{l('Gain as extra', '额外获得', '額外獲得', '추가 획득')}</span><FlowRows flows={data.gains} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div><div><span className="damage-structure-kicker">{l('Conversion', '转换', '轉換', '변환')}</span><FlowRows flows={data.conversions} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div></div> },
     { id: 'increased', icon: Sparkles, title: l('Increased / Reduced', '同类提高', '同類提高', '증가 / 감소'), subtitle: l('Matching modifiers are combined into one modifier', '同类修正按来源汇总为统一修正', '同類修正按來源彙總為統一修正', '같은 유형의 보정을 하나의 수정값으로 합산'), summary: data.increased.factor == null ? '—' : `×${data.increased.factor.toFixed(2)}`, body: data.increased.factor == null ? <span className="damage-structure-muted">{l('No detail is available for this layer in the current calculation.', '当前计算没有这一层的明细。', '目前計算沒有這一層的明細。', '현재 계산에는 이 레이어의 상세 정보가 없습니다.')}</span> : <div className="damage-structure-multiplier"><div className="damage-structure-factor"><span>{l('Combined factor', '合计倍率', '合計倍率', '합산 배율')}</span><strong>×{data.increased.factor.toFixed(2)}</strong><small>{number(data.increased.total, lang, 1)}%</small></div><SourceShareDetail label={l('Increased source share', '同类提高来源占比', '同類提高來源占比', '증가 출처 비율')} values={data.increased.sources} language={lang} unit="%" barsCaption={l('Modifier value', '修正值', '修正值', '보정값')} /><ModifierSourceRows modifiers={data.increased.details} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div> },
     { id: 'more', icon: Zap, title: l('More / Less', '独立增幅', '獨立增幅', 'More / Less'), subtitle: l('Each multiplier applies independently', '每个独立倍率分别相乘', '每個獨立倍率分別相乘', '각 배율은 독립적으로 곱해짐'), summary: data.more.factor == null ? '—' : `×${data.more.factor.toFixed(2)}`, body: data.more.factor == null ? <span className="damage-structure-muted">{l('No detail is available for this layer in the current calculation.', '当前计算没有这一层的明细。', '目前計算沒有這一層的明細。', '현재 계산에는 이 레이어의 상세 정보가 없습니다.')}</span> : <div className="damage-structure-multiplier"><div className="damage-structure-factor"><span>{l('Product of active multipliers', '当前独立倍率乘积', '目前獨立倍率乘積', '활성 배율 곱')}</span><strong>×{data.more.factor.toFixed(2)}</strong></div><SourceShareDetail label={l('More source share', '独立增幅来源占比', '獨立增幅來源占比', 'more 출처 비율')} values={data.more.sources} language={lang} unit="%" barsCaption={l('Modifier value', '修正值', '修正值', '보정값')} /><div className="damage-structure-chain">{data.more.nodes.length ? data.more.nodes.map((node, index) => <span key={`${node.type}-${node.value}-${index}`}><i style={{ borderColor: SOURCE_COLORS[node.type] }}><b>×{node.factor.toFixed(2)}</b><small>{sourceLabel(node.type, lang)}</small></i>{index < data.more.nodes.length - 1 && <ArrowRight />}</span>) : <i style={{ borderColor: '#917344' }}><b>×{data.more.factor.toFixed(2)}</b><small>{l('Combined result', '合并结果', '合併結果', '합산 결과')}</small></i>}</div><ModifierSourceRows modifiers={data.more.details} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div> },
-    { id: 'crit', icon: Target, title: l('Critical and special hits', '暴击与特殊命中', '暴擊與特殊命中', '치명타 및 특수 적중'), subtitle: l('Normal and critical hits form expected damage', '普通命中与暴击合成期望伤害', '普通命中與暴擊合成期望傷害', '일반 및 치명타 적중의 기대 피해'), summary: data.critChance == null ? '—' : percent(data.critChance, lang), body: <div className="damage-structure-crit"><div className="damage-structure-crit-branch"><div><span>{l('Normal hit', '普通命中', '普通命中', '일반 적중')}</span><b>{data.critChance == null ? '—' : percent(100 - data.critChance, lang)}</b></div><div><span>{l('Critical hit', '暴击命中', '暴擊命中', '치명타 적중')}</span><b>{percent(data.critChance, lang)}</b></div></div><div className="damage-structure-crit-result"><span>{l('Critical damage', '暴击伤害', '暴擊傷害', '치명타 피해')}</span><strong>×{data.critMultiplier == null ? '—' : data.critMultiplier.toFixed(2)}</strong></div><SourceShareDetail label={l('Critical source share', '暴击来源占比', '暴擊來源占比', '치명타 출처 비율')} values={contributionSources(data.critModifiers)} language={lang} unit="%" barsCaption={l('Critical modifier', '暴击修正', '暴擊修正', '치명타 보정')} /><CriticalSourceRows modifiers={data.critModifiers} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div> },
+    { id: 'crit', icon: Target, title: l('Critical and special hits', '暴击与特殊命中', '暴擊與特殊命中', '치명타 및 특수 적중'), subtitle: l('Normal and critical hits form expected damage', '普通命中与暴击合成期望伤害', '普通命中與暴擊合成期望傷害', '일반 및 치명타 적중의 기대 피해'), summary: data.critChance == null ? '—' : percent(data.critChance, lang), body: (() => {
+      const critChanceSources = contributionSources(data.critModifiers.filter((entry) => entry.stat === 'CritChance'))
+      const critMultiplierSources = contributionSources(data.critModifiers.filter((entry) => entry.stat === 'CritMultiplier'))
+      return <div className="damage-structure-crit"><div className="damage-structure-crit-branch"><div><span>{l('Normal hit', '普通命中', '普通命中', '일반 적중')}</span><b>{data.critChance == null ? '—' : percent(100 - data.critChance, lang)}</b></div><div><span>{l('Critical hit', '暴击命中', '暴擊命中', '치명타 적중')}</span><b>{percent(data.critChance, lang)}</b></div></div><CriticalAverageFormula critChance={data.critChance} critMultiplier={data.critMultiplier} language={lang} /><div className="damage-structure-crit-result"><span>{l('Critical damage', '暴击伤害', '暴擊傷害', '치명타 피해')}</span><strong>×{data.critMultiplier == null ? '—' : data.critMultiplier.toFixed(2)}</strong></div>{(critChanceSources.length > 0 || critMultiplierSources.length > 0) && <div className="damage-structure-crit-source-share-grid"><SourceShareDetail label={l('Critical chance source share', '暴击率来源占比', '暴擊率來源占比', '치명타 확률 출처 비율')} values={critChanceSources} language={lang} unit="%" barsCaption={l('Critical chance modifier', '暴击率修正', '暴擊率修正', '치명타 확률 보정')} /><SourceShareDetail label={l('Critical damage source share', '暴击伤害来源占比', '暴擊傷害來源占比', '치명타 피해 출처 비율')} values={critMultiplierSources} language={lang} unit="%" barsCaption={l('Critical damage modifier', '暴击伤害修正', '暴擊傷害修正', '치명타 피해 보정')} /></div>}<CriticalSourceRows modifiers={data.critModifiers} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div>
+    })() },
     { id: 'defence', icon: Shield, title: l('Enemy defence', '敌人有效防御', '敵人有效防禦', '적 방어'), subtitle: l('Resistance and mitigation are applied in the calculation', '抗性与减伤会在计算中应用', '抗性與減傷會在計算中套用', '저항과 완화는 계산에 적용됨'), summary: data.effectiveMultipliers.length ? `×${data.effectiveMultipliers[0].value.toFixed(2)}` : '—', body: <div className="damage-structure-defence"><p>{l('The final damage filter follows the active calculation settings. The rows below show the effective type multipliers for this skill.', '最终伤害过滤遵循当前计算设置；下方展示当前技能的类型有效倍率。', '最終傷害過濾遵循目前計算設定；下方展示目前技能的類型有效倍率。', '최종 피해 필터는 현재 계산 설정을 따릅니다. 아래에는 이 스킬의 유형별 유효 배율이 표시됩니다.')}</p>{data.effectiveMultipliers.length ? data.effectiveMultipliers.map((entry) => <div key={entry.type}><span>{damageTypeLabel(entry.type, lang)}</span><i><b style={{ width: `${Math.max(3, Math.min(100, entry.value * 100))}%` }} /></i><strong>×{entry.value.toFixed(2)}</strong></div>) : data.effectiveBreakdown.length ? <ol className="damage-structure-breakdown">{data.effectiveBreakdown.map((line) => <li key={line}>{translateGameText(line, lang)}</li>)}</ol> : <span className="damage-structure-muted">{l('No separate enemy multiplier is available; final DPS still includes the current enemy settings.', '当前没有单独的敌人倍率明细；最终 DPS 仍已包含当前敌人配置。', '目前沒有單獨的敵人倍率明細；最終 DPS 仍已包含目前敵人設定。', '별도 적 배율 상세 정보는 없지만 최종 DPS에는 현재 적 설정이 포함됩니다.')}</span>}</div> },
     { id: 'rate', icon: Gauge, title: l('Hit and output rate', '命中与输出频率', '命中與輸出頻率', '적중 및 출력 빈도'), subtitle: l('Frequency turns hit damage into DPS', '频率将单次伤害转为 DPS', '頻率將單次傷害轉為 DPS', '빈도가 적중 피해를 DPS로 변환'), summary: data.speed == null ? '—' : `${number(data.speed, lang, 2)}/s`, body: <div className="damage-structure-rate"><Meter value={data.speed} max={5} label={l('Attack / cast rate', '攻击 / 施法频率', '攻擊 / 施法頻率', '공격 / 시전 빈도')} display={data.speed == null ? '—' : `${number(data.speed, lang, 2)}/s`} /><Meter value={data.totalDps} max={Math.max(1, data.totalDps || 1)} label={l('Final DPS', '最终 DPS', '最終 DPS', '최종 DPS')} display={number(data.totalDps, lang, 0)} />{data.formula.length > 0 && <details><summary>{l('Calculation formula detail', '计算公式明细', '計算公式明細', '계산 공식 상세')}</summary><ol>{data.formula.slice(0, 8).map((line, index) => <li key={`${line}-${index}`}>{translateGameText(line, lang)}</li>)}</ol></details>}</div> },
   ] : []
@@ -712,15 +735,17 @@ export function DamageStructureReport({ data: scopeData, skills = [], treeData, 
   }
   const displayedLayers = layers.map((layer) => ({ ...layer, title: stageTitles[layer.id] || layer.title }))
   const formulaLayers = displayedLayers.filter((layer) => layer.id !== 'defence')
-  const detailLayer = detailLayerId ? displayedLayers.find((layer) => layer.id === detailLayerId) : null
-
   if (!data) return <section id="damage-structure" className="damage-structure-report damage-structure-empty"><CircleHelp /><div><h2>{l('Damage structure report', '伤害结构报告', '傷害結構報告', '피해 구조 보고서')}</h2><p>{l('Open a calculated skill to inspect its damage layers.', '打开已完成计算的技能后即可查看伤害结构。', '開啟已完成計算的技能後即可查看傷害結構。', '계산된 스킬을 열면 피해 구조를 확인할 수 있습니다.')}</p></div></section>
+
+  const detailLayer = detailLayerId === 'finalDps'
+    ? { id: 'finalDps', title: l('Final DPS and damage types', '最终 DPS 与伤害类型', '最終 DPS 與傷害類型', '최종 DPS 및 피해 유형'), subtitle: '', summary: number(data.totalDps, lang, 0), body: <FinalDpsDetail data={data} language={lang} /> }
+    : detailLayerId ? displayedLayers.find((layer) => layer.id === detailLayerId) : null
 
   return <section id="damage-structure" className="damage-structure-report">
     {skills.length > 1 && <div className="damage-structure-skill-tabs" role="tablist" aria-label={l('DPS skills', 'DPS 技能', 'DPS 技能', 'DPS 스킬')}>
       {skills.map((skill) => <button key={skill.id} type="button" role="tab" aria-selected={activeSkill?.id === skill.id} className={activeSkill?.id === skill.id ? 'active' : ''} onClick={() => { setActiveSkillId(skill.id); setDetailLayerId(null) }}><span>{skill.name}</span><small>{skill.level == null ? l('Skill level unavailable', '技能等级未知', '技能等級未知', '스킬 레벨 없음') : l(`Level ${skill.level}`, `技能等级 ${skill.level}`, `技能等級 ${skill.level}`, `스킬 레벨 ${skill.level}`)}</small><strong>{l('DPS', 'DPS', 'DPS', 'DPS')} {number(skill.dps, lang, 0)}</strong></button>)}
     </div>}
-    <FinalDamageBreakdown data={data} language={lang} label={l('Final DPS and damage types', '最终 DPS 与伤害类型', '最終 DPS 與傷害類型', '최종 DPS 및 피해 유형')} skillLevel={activeSkill?.level} formulaLayers={formulaLayers} onOpenLayer={setDetailLayerId} />
+    <FinalDamageBreakdown data={data} language={lang} skillLevel={activeSkill?.level} formulaLayers={formulaLayers} onOpenLayer={setDetailLayerId} />
     {hints.length > 0 && <div className="damage-structure-hints"><span>{l('Current structure hints', '当前结构提示', '目前結構提示', '현재 구조 힌트')}</span>{hints.map((hint) => <p key={hint}>{hint}</p>)}</div>}
     <div className="damage-structure-grid">{displayedLayers.map(({ id, icon: Icon, title, subtitle, summary }) => <article id={`damage-layer-${id}`} key={id} className="damage-structure-layer"><div className="damage-structure-layer-heading"><span className="damage-structure-layer-icon"><Icon /></span><span><strong>{title}</strong><small>{subtitle}</small></span><div className="damage-structure-layer-heading-actions"><b>{summary}</b><button type="button" className="damage-structure-detail-button" onClick={() => setDetailLayerId(id)} aria-label={l('View details', '查看明细', '查看明細', '상세 보기')} title={l('View details', '查看明细', '查看明細', '상세 보기')}>{l('Details', '明细', '明細', '상세')}<ChevronRight /></button></div></div><div className="damage-structure-layer-body"><LayerSummary id={id} data={data} language={lang} /></div></article>)}</div>
     {detailLayer && <div className="damage-structure-detail-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailLayerId(null) }}><section className="damage-structure-detail-modal" role="dialog" aria-modal="true" aria-labelledby="damage-structure-detail-title"><header><div><span>{l('Damage area details', '伤害区域明细', '傷害區域明細', '피해 영역 상세')}</span><h3 id="damage-structure-detail-title">{detailLayer.title}</h3></div><button type="button" className="damage-structure-detail-close" onClick={() => setDetailLayerId(null)} aria-label={l('Close details', '关闭明细', '關閉明細', '상세 닫기')} title={l('Close details', '关闭明细', '關閉明細', '상세 닫기')}><X /></button></header><div className="damage-structure-detail-content">{detailLayer.body}</div></section></div>}

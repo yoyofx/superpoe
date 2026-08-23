@@ -7,6 +7,7 @@ import {
   getAnalysisSkillScope,
   getPowerStatValue,
   isProbeApplicable,
+  normalizeProbePoint,
 } from '@/engine/attributeAnalysis'
 import type { CalcResult } from '@/types/calc'
 
@@ -19,8 +20,14 @@ describe('attribute analysis evidence model', () => {
 
   it('contains the complete static defense probe set', () => {
     const defenseIds = ATTRIBUTE_PROBE_CATALOG.filter((probe) => probe.primaryDimension === 'defense').map((probe) => probe.id)
-    expect(defenseIds).toHaveLength(17)
+    expect(defenseIds).toHaveLength(23)
     expect(defenseIds).toEqual(expect.arrayContaining([
+      'base-life',
+      'base-energy-shield',
+      'base-armour',
+      'base-evasion',
+      'base-deflection',
+      'base-ward',
       'maximum-life',
       'maximum-energy-shield',
       'armour',
@@ -39,6 +46,40 @@ describe('attribute analysis evidence model', () => {
       'physical-damage-reduction',
       'ward',
     ]))
+  })
+
+  it('includes one flat attack damage probe for every damage type', () => {
+    const probes = ATTRIBUTE_PROBE_CATALOG.filter((probe) => probe.familyId === 'base-damage')
+    expect(probes.map((probe) => probe.id)).toEqual([
+      'base-physical-damage',
+      'base-fire-damage',
+      'base-cold-damage',
+      'base-lightning-damage',
+      'base-chaos-damage',
+    ])
+    expect(probes.every((probe) => probe.pointUnit === 'flat' && probe.skillScope === 'attack')).toBe(true)
+    expect(probes[0]?.mutation.format(1)).toBe('Adds 1 to 1 Physical Damage to Attacks')
+  })
+
+  it('includes flat base defense probes alongside percentage probes', () => {
+    const probes = ATTRIBUTE_PROBE_CATALOG.filter((probe) => probe.familyId === 'base-defense')
+    expect(probes.map((probe) => probe.id)).toEqual([
+      'base-life',
+      'base-energy-shield',
+      'base-armour',
+      'base-evasion',
+      'base-deflection',
+      'base-ward',
+    ])
+    expect(probes.every((probe) => probe.pointUnit === 'flat' && probe.primaryDimension === 'defense' && probe.primaryMetric === 'TotalEHP')).toBe(true)
+    expect(probes.map((probe) => probe.mutation.format(1))).toEqual([
+      '+1 to maximum Life',
+      '+1 to maximum Energy Shield',
+      '+1 to Armour',
+      '+1 to Evasion Rating',
+      '+1 to Deflection Rating',
+      '+1 to maximum Runic Ward',
+    ])
   })
 
   it('declares a report metric for every catalog probe', () => {
@@ -69,6 +110,17 @@ describe('attribute analysis evidence model', () => {
     const point = buildProbePoint(probe, 1, result({ TotalEHP: 0, Life: 0 }), result({ TotalEHP: 10, Life: 10 }))
     expect(point.metrics.TotalEHP.absoluteDelta).toBe(10)
     expect(point.metrics.TotalEHP.relativeDelta).toBeNull()
+  })
+
+  it('normalizes an amplified sample back to the displayed step', () => {
+    const probe = ATTRIBUTE_PROBE_CATALOG.find((entry) => entry.id === 'generic-damage')!
+    const sample = buildProbePoint(probe, 10, result({ FullDPS: 100 }), result({ FullDPS: 120 }))
+    const normalized = normalizeProbePoint(sample, 10, 1, '+1% increased Damage')
+    expect(normalized.input).toBe(1)
+    expect(normalized.sampleInput).toBe(10)
+    expect(normalized.metrics.FullDPS.absoluteDelta).toBe(2)
+    expect(normalized.metrics.FullDPS.relativeDelta).toBe(2)
+    expect(normalized.metrics.FullDPS.projected).toBe(102)
   })
 
   it('marks a falling multi-point result as limited and non-monotonic', () => {

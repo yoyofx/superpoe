@@ -10,18 +10,19 @@ export interface AttributeProbeDefinition {
   scope: 'synthetic-global' | 'skill' | 'threshold'; primaryMetric: string; affectedMetrics: string[]; points: number[]; unit: AnalysisText
   /** Which effective DPS skill types can receive this temporary modifier. */
   skillScope: 'shared' | 'attack' | 'spell'
-  pointUnit?: 'percent' | 'level'
+  pointUnit?: 'percent' | 'level' | 'flat'
   mutation: { type: 'custom-mod'; format: (point: number) => string }
   applicability: 'always' | 'full-dps' | 'life' | 'energy-shield' | 'armour' | 'evasion' | 'deflection' | 'block' | 'spell-block' | 'ward'
   evidence: { source: 'pob-supported'; fixtureIds: string[] }
 }
 export interface ProbeMetricDelta { baseline: number | null; projected: number | null; absoluteDelta: number | null; relativeDelta: number | null }
-export interface ProbePointResult { input: number; mod: string; metrics: Record<string, ProbeMetricDelta>; error?: string }
-export interface ProbeSeriesResult { probe: AttributeProbeDefinition; points: ProbePointResult[]; curve: AnalysisCurve; confidence: AnalysisConfidence; warnings: string[] }
+export interface ProbePointResult { input: number; mod: string; metrics: Record<string, ProbeMetricDelta>; error?: string; sampleInput?: number }
+export interface ProbeSeriesResult { probe: AttributeProbeDefinition; points: ProbePointResult[]; curve: AnalysisCurve; confidence: AnalysisConfidence; warnings: string[]; sampling?: { mode: 'direct' | 'amplified'; samplePoint?: number } }
 
-export const PROBE_CATALOG_VERSION = '2026.08.18.4'
+export const PROBE_CATALOG_VERSION = '2026.08.23.2'
 const t = (en: string, zhCN: string, zhTW = zhCN, koKR = en): AnalysisText => ({ en, zhCN, zhTW, koKR })
 const mod = (pattern: string) => ({ type: 'custom-mod' as const, format: (point: number) => pattern.replace('{n}', String(point)) })
+const rangeMod = (pattern: string) => ({ type: 'custom-mod' as const, format: (point: number) => pattern.replace(/\{n\}/g, String(point)) })
 
 export const ANALYSIS_DIMENSIONS: Array<{ id: AnalysisDimension; label: AnalysisText }> = [
   { id: 'attack', label: t('Attack / output', '攻击 / 输出', '攻擊 / 輸出', '공격 / 출력') },
@@ -58,6 +59,11 @@ export const METRIC_DEFINITIONS: MetricDefinition[] = [
 ]
 
 export const ATTRIBUTE_PROBE_CATALOG: AttributeProbeDefinition[] = [
+  { id: 'base-physical-damage', familyId: 'base-damage', primaryDimension: 'attack', label: t('Base physical damage', '基础物理点伤'), scope: 'synthetic-global', skillScope: 'attack', primaryMetric: 'FullDPS', affectedMetrics: ['FullDPS', 'TotalDPS', 'AverageDamage'], points: [1], unit: t('damage', '点伤'), pointUnit: 'flat', mutation: rangeMod('Adds {n} to {n} Physical Damage to Attacks'), applicability: 'full-dps', evidence: { source: 'pob-supported', fixtureIds: ['base-physical-damage'] } },
+  { id: 'base-fire-damage', familyId: 'base-damage', primaryDimension: 'attack', label: t('Base fire damage', '基础火焰点伤'), scope: 'synthetic-global', skillScope: 'attack', primaryMetric: 'FullDPS', affectedMetrics: ['FullDPS', 'TotalDPS', 'AverageDamage'], points: [1], unit: t('damage', '点伤'), pointUnit: 'flat', mutation: rangeMod('Adds {n} to {n} Fire Damage to Attacks'), applicability: 'full-dps', evidence: { source: 'pob-supported', fixtureIds: ['base-fire-damage'] } },
+  { id: 'base-cold-damage', familyId: 'base-damage', primaryDimension: 'attack', label: t('Base cold damage', '基础冰霜点伤'), scope: 'synthetic-global', skillScope: 'attack', primaryMetric: 'FullDPS', affectedMetrics: ['FullDPS', 'TotalDPS', 'AverageDamage'], points: [1], unit: t('damage', '点伤'), pointUnit: 'flat', mutation: rangeMod('Adds {n} to {n} Cold Damage to Attacks'), applicability: 'full-dps', evidence: { source: 'pob-supported', fixtureIds: ['base-cold-damage'] } },
+  { id: 'base-lightning-damage', familyId: 'base-damage', primaryDimension: 'attack', label: t('Base lightning damage', '基础闪电点伤'), scope: 'synthetic-global', skillScope: 'attack', primaryMetric: 'FullDPS', affectedMetrics: ['FullDPS', 'TotalDPS', 'AverageDamage'], points: [1], unit: t('damage', '点伤'), pointUnit: 'flat', mutation: rangeMod('Adds {n} to {n} Lightning Damage to Attacks'), applicability: 'full-dps', evidence: { source: 'pob-supported', fixtureIds: ['base-lightning-damage'] } },
+  { id: 'base-chaos-damage', familyId: 'base-damage', primaryDimension: 'attack', label: t('Base chaos damage', '基础混沌点伤'), scope: 'synthetic-global', skillScope: 'attack', primaryMetric: 'FullDPS', affectedMetrics: ['FullDPS', 'TotalDPS', 'AverageDamage'], points: [1], unit: t('damage', '点伤'), pointUnit: 'flat', mutation: rangeMod('Adds {n} to {n} Chaos Damage to Attacks'), applicability: 'full-dps', evidence: { source: 'pob-supported', fixtureIds: ['base-chaos-damage'] } },
   { id: 'generic-damage', familyId: 'damage', primaryDimension: 'attack', label: t('Increased damage', '伤害提高'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'FullDPS', affectedMetrics: ['FullDPS', 'TotalDPS', 'AverageDamage'], points: [1], unit: t('%', '%'), mutation: mod('{n}% increased Damage'), applicability: 'full-dps', evidence: { source: 'pob-supported', fixtureIds: ['generic-damage'] } },
   { id: 'attack-damage', familyId: 'damage', primaryDimension: 'attack', label: t('Attack damage', '攻击伤害'), scope: 'synthetic-global', skillScope: 'attack', primaryMetric: 'FullDPS', affectedMetrics: ['FullDPS', 'TotalDPS', 'AverageDamage'], points: [1], unit: t('%', '%'), mutation: mod('{n}% increased Attack Damage'), applicability: 'full-dps', evidence: { source: 'pob-supported', fixtureIds: ['attack-damage'] } },
   { id: 'spell-damage', familyId: 'damage', primaryDimension: 'attack', label: t('Spell damage', '法术伤害'), scope: 'synthetic-global', skillScope: 'spell', primaryMetric: 'FullDPS', affectedMetrics: ['FullDPS', 'TotalDPS', 'AverageDamage'], points: [1], unit: t('%', '%'), mutation: mod('{n}% increased Spell Damage'), applicability: 'full-dps', evidence: { source: 'pob-supported', fixtureIds: ['spell-damage'] } },
@@ -76,6 +82,12 @@ export const ATTRIBUTE_PROBE_CATALOG: AttributeProbeDefinition[] = [
   { id: 'spell-critical-chance', familyId: 'critical', primaryDimension: 'attack', label: t('Spell critical chance', '法术暴击几率'), scope: 'synthetic-global', skillScope: 'spell', primaryMetric: 'FullDPS', affectedMetrics: ['FullDPS', 'TotalDPS'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% to Critical Hit Chance for Spells'), applicability: 'full-dps', evidence: { source: 'pob-supported', fixtureIds: ['spell-critical-chance'] } },
   { id: 'critical-damage', familyId: 'critical', primaryDimension: 'attack', label: t('Critical damage bonus', '暴击伤害加成'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'FullDPS', affectedMetrics: ['FullDPS', 'TotalDPS'], points: [1], unit: t('%', '%'), mutation: mod('+{n}% to Critical Damage Bonus'), applicability: 'full-dps', evidence: { source: 'pob-supported', fixtureIds: ['critical-damage'] } },
   { id: 'skill-level', familyId: 'skill-level', primaryDimension: 'attack', label: t('Skill level', '技能等级'), scope: 'skill', skillScope: 'shared', pointUnit: 'level', primaryMetric: 'FullDPS', affectedMetrics: ['FullDPS', 'TotalDPS', 'AverageDamage'], points: [1], unit: t('level', '级'), mutation: mod('+{n} to Level of all Skills'), applicability: 'full-dps', evidence: { source: 'pob-supported', fixtureIds: ['skill-level'] } },
+  { id: 'base-life', familyId: 'base-defense', primaryDimension: 'defense', label: t('Base maximum life', '基础最大生命'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['Life', 'TotalEHP'], points: [1], unit: t('value', '值'), pointUnit: 'flat', mutation: mod('+{n} to maximum Life'), applicability: 'life', evidence: { source: 'pob-supported', fixtureIds: ['base-life'] } },
+  { id: 'base-energy-shield', familyId: 'base-defense', primaryDimension: 'defense', label: t('Base maximum energy shield', '基础最大能量护盾'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['EnergyShield', 'TotalEHP'], points: [1], unit: t('value', '值'), pointUnit: 'flat', mutation: mod('+{n} to maximum Energy Shield'), applicability: 'energy-shield', evidence: { source: 'pob-supported', fixtureIds: ['base-energy-shield'] } },
+  { id: 'base-armour', familyId: 'base-defense', primaryDimension: 'defense', label: t('Base armour', '基础护甲'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['Armour', 'TotalEHP'], points: [1], unit: t('value', '值'), pointUnit: 'flat', mutation: mod('+{n} to Armour'), applicability: 'armour', evidence: { source: 'pob-supported', fixtureIds: ['base-armour'] } },
+  { id: 'base-evasion', familyId: 'base-defense', primaryDimension: 'defense', label: t('Base evasion rating', '基础闪避值'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['Evasion', 'EvadeChance', 'TotalEHP'], points: [1], unit: t('value', '值'), pointUnit: 'flat', mutation: mod('+{n} to Evasion Rating'), applicability: 'evasion', evidence: { source: 'pob-supported', fixtureIds: ['base-evasion'] } },
+  { id: 'base-deflection', familyId: 'base-defense', primaryDimension: 'defense', label: t('Base deflection rating', '基础偏斜值'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['DeflectionRating', 'DeflectChance', 'DeflectEffect', 'TotalEHP'], points: [1], unit: t('value', '值'), pointUnit: 'flat', mutation: mod('+{n} to Deflection Rating'), applicability: 'deflection', evidence: { source: 'pob-supported', fixtureIds: ['base-deflection'] } },
+  { id: 'base-ward', familyId: 'base-defense', primaryDimension: 'defense', label: t('Base maximum ward', '基础最大结界'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['Ward', 'TotalEHP'], points: [1], unit: t('value', '值'), pointUnit: 'flat', mutation: mod('+{n} to maximum Runic Ward'), applicability: 'ward', evidence: { source: 'pob-supported', fixtureIds: ['base-ward'] } },
   { id: 'maximum-life', familyId: 'life', primaryDimension: 'defense', label: t('Maximum life', '最大生命'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['Life', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('{n}% increased maximum Life'), applicability: 'life', evidence: { source: 'pob-supported', fixtureIds: ['maximum-life'] } },
   { id: 'maximum-energy-shield', familyId: 'energy-shield', primaryDimension: 'defense', label: t('Maximum energy shield', '最大能量护盾'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['EnergyShield', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('{n}% increased maximum Energy Shield'), applicability: 'energy-shield', evidence: { source: 'pob-supported', fixtureIds: ['maximum-energy-shield'] } },
   { id: 'armour', familyId: 'armour', primaryDimension: 'defense', label: t('Armour', '护甲'), scope: 'synthetic-global', skillScope: 'shared', primaryMetric: 'TotalEHP', affectedMetrics: ['Armour', 'TotalEHP'], points: [1], unit: t('%', '%'), mutation: mod('{n}% increased Armour'), applicability: 'armour', evidence: { source: 'pob-supported', fixtureIds: ['armour'] } },
@@ -170,6 +182,27 @@ export function buildProbePoint(probe: AttributeProbeDefinition, point: number, 
     const base = getPowerStatValue(baseline, key); const next = getPowerStatValue(projected, key); const delta = base == null || next == null ? null : next - base
     return [key, { baseline: base, projected: next, absoluteDelta: delta, relativeDelta: delta != null && base != null && base !== 0 ? delta / Math.abs(base) * 100 : null }]
   })) }
+}
+
+/** Converts a larger, locally linear sample back to the user-facing step. */
+export function normalizeProbePoint(point: ProbePointResult, samplePoint: number, displayPoint: number, displayMod: string): ProbePointResult {
+  const factor = displayPoint / samplePoint
+  return {
+    ...point,
+    input: displayPoint,
+    mod: displayMod,
+    sampleInput: samplePoint,
+    metrics: Object.fromEntries(Object.entries(point.metrics).map(([key, metric]) => {
+      const absoluteDelta = metric.absoluteDelta == null ? null : metric.absoluteDelta * factor
+      const projected = metric.baseline == null || absoluteDelta == null ? metric.projected : metric.baseline + absoluteDelta
+      return [key, {
+        ...metric,
+        projected,
+        absoluteDelta,
+        relativeDelta: metric.relativeDelta == null ? null : metric.relativeDelta * factor,
+      }]
+    })),
+  }
 }
 export function classifyProbeSeries(points: ProbePointResult[], metricKey: string): Pick<ProbeSeriesResult, 'curve' | 'confidence' | 'warnings'> {
   const values = points.map((point) => point.metrics[metricKey]?.absoluteDelta).filter((value): value is number => value != null && Number.isFinite(value))
