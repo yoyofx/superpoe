@@ -62,14 +62,25 @@ export async function calculateAnalysisResult(
 }
 
 /**
- * Resolves the same primary skill that drives the analysis page and requests
- * its PoB detail payload. The aggregate analysis still uses every entry in
- * the scope; this detail result is only the representative skill for the
- * layer-by-layer report.
+ * Resolves the same skill details that drive the analysis page. The aggregate
+ * result is kept for the scope overview, while each successful entry is also
+ * returned so the report can inspect skills independently.
  */
+export interface AnalysisSkillDetail {
+  id: string
+  entry: SkillDpsEntry
+  detail: CalcResult
+  finalDamageDps: Record<string, number>
+}
+
 export interface AnalysisScopeDetailResult {
   representative: CalcResult
+  skills: AnalysisSkillDetail[]
   finalDamageDps: Record<string, number>
+}
+
+function analysisSkillId(entry: SkillDpsEntry, index: number): string {
+  return [entry.groupId || '', entry.skillId || '', entry.skillPart || '', entry.name, entry.kind || '', index].join('|')
 }
 
 async function resolveScopeEntryDetail(
@@ -113,11 +124,12 @@ export async function calculateAnalysisScopeDetail(
   const scope = getAnalysisSkillScope(baseline, hasFullDpsSelection)
   const entries = [...scope.entries].sort((left, right) => right.dps - left.dps)
   const primary = entries[0]
-  if (!primary) return { representative: baseline, finalDamageDps: {} }
+  if (!primary) return { representative: baseline, skills: [], finalDamageDps: {} }
 
   const finalDamageDps: AnalysisScopeDetailResult['finalDamageDps'] = {}
+  const skills: AnalysisSkillDetail[] = []
   let representative = baseline
-  for (const entry of entries) {
+  for (const [index, entry] of entries.entries()) {
     if (!entry.groupId && entry !== primary) continue
     let detail: CalcResult
     try {
@@ -126,12 +138,16 @@ export async function calculateAnalysisScopeDetail(
       continue
     }
     if (entry === primary) representative = detail
+    const skillFinalDamageDps: Record<string, number> = {}
     for (const damageType of detail.SkillDetails?.damageTypes || []) {
       if (damageType.type === 'all' || !Number.isFinite(damageType.finalDps)) continue
-      finalDamageDps[damageType.type] = (finalDamageDps[damageType.type] || 0) + damageType.finalDps! * Math.max(1, entry.count || 1)
+      const value = damageType.finalDps! * Math.max(1, entry.count || 1)
+      skillFinalDamageDps[damageType.type] = (skillFinalDamageDps[damageType.type] || 0) + value
+      finalDamageDps[damageType.type] = (finalDamageDps[damageType.type] || 0) + value
     }
+    skills.push({ id: analysisSkillId(entry, index), entry, detail, finalDamageDps: skillFinalDamageDps })
   }
-  return { representative, finalDamageDps }
+  return { representative, skills, finalDamageDps }
 }
 
 /** Owns the probe queue so renderer state only receives complete, context-valid series. */

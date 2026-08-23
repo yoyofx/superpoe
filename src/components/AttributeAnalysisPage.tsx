@@ -7,7 +7,7 @@ import { getImportedCalculationMode } from '@/engine/calculationConfig'
 import { parseSkillsXml } from '@/engine/skills'
 import { getLocalizedSkillName, loadSkillCatalog, resolveSkillCatalogEntry, type SkillCatalog } from '@/engine/skillCatalog'
 import { ANALYSIS_DIMENSIONS, ATTRIBUTE_PROBE_CATALOG, METRIC_DEFINITIONS, PROBE_CATALOG_VERSION, getAnalysisSkillScope, getPowerStatValue, type AnalysisDimension, type AnalysisText, type MetricDefinition, type ProbeMetricDelta, type ProbeSeriesResult } from '@/engine/attributeAnalysis'
-import { calculateAnalysisResult, calculateAnalysisScopeDetail, runInvestmentProbeBatch } from '@/engine/investmentAnalysisService'
+import { calculateAnalysisResult, calculateAnalysisScopeDetail, runInvestmentProbeBatch, type AnalysisSkillDetail } from '@/engine/investmentAnalysisService'
 import type { CalcResult } from '@/types/calc'
 import { DamageStructureReport, buildDamageStructureReportData } from '@/components/DamageStructureReport'
 
@@ -106,14 +106,15 @@ function GainTable({ dimension, series, baseline, language, dpsComposition }: { 
       <div className="top-skill"><span>{uiText(language, 'Top contribution', '最高贡献', '最高貢獻', '최고 기여')}</span><strong title={dpsComposition.topSkill?.name || undefined}>{dpsComposition.topSkill ? `${dpsComposition.topSkill.name} ${dpsComposition.topSkill.share.toFixed(0)}%` : '—'}</strong></div>
     </div>}
     {!isAttack && <div className="simple-gain-defense-metrics">{defenseMetricKeys.map((key) => { const metricDefinition = METRIC_DEFINITIONS.find((entry) => entry.key === key)!; return <div key={key}><span>{localText(metricDefinition.label, language)}</span><strong>{formatMetric(getPowerStatValue(baseline, key), metricDefinition, language)}</strong></div> })}</div>}
-    {rows.length ? <div className="simple-gain-table-wrap"><table className="simple-gain-table"><thead><tr><th>{uiText(language, 'Attribute', '属性', '屬性', '속성')}</th><th>{uiText(language, 'Test', '测试', '測試', '테스트')}</th><th>{uiText(language, 'Actual change', '实际变化', '實際變化', '실제 변화')}</th><th>{uiText(language, 'Relative', '相对收益', '相對收益', '상대 수익')}</th></tr></thead><tbody>{rows.map((entry) => { const delta = firstDelta(entry)!; const pointLabel = entry.probe.pointUnit === 'level' ? `+${entry.probe.points[0]} ${uiText(language, 'level', '级', '級', '레벨')}` : `+${entry.probe.points[0]}%`; return <tr key={entry.probe.id} onMouseMove={trackGainRowPointer} onMouseLeave={resetGainRowPointer}><td><strong>{localText(entry.probe.label, language)}</strong><small>{probeScopeText(entry.probe.skillScope, language)} · {entry.probe.mutation.format(entry.probe.points[0])}</small></td><td>{pointLabel}</td><td className={delta.absoluteDelta! >= 0 ? 'positive' : 'negative'}>{signedMetric(delta.absoluteDelta, metric, language)}</td><td className={delta.relativeDelta != null && delta.relativeDelta >= 0 ? 'positive' : 'negative'}>{delta.relativeDelta == null ? '—' : `${delta.relativeDelta >= 0 ? '+' : ''}${delta.relativeDelta.toFixed(2)}%`}</td></tr> })}</tbody></table></div> : <div className="simple-gain-empty"><BarChart3 /><strong>{uiText(language, 'No calculable result', '暂无可计算结果', '暫無可計算結果', '계산 가능한 결과 없음')}</strong><span>{isAttack ? uiText(language, 'A working damage source is required.', '需要存在有效伤害来源。', '需要存在有效傷害來源。', '유효한 피해 원천이 필요합니다.') : uiText(language, 'The PoB result has no usable survival metric.', '当前 PoB 没有可用的生存指标。', '目前 PoB 沒有可用的生存指標。', '현재 PoB에 사용할 생존 지표가 없습니다.')}</span></div>}
-    <footer className="simple-gain-card-footer">{uiText(language, 'Only attributes with a real PoB result are shown.', '只显示 PoB 能实际算出结果的属性。', '只顯示 PoB 能實際算出結果的屬性。', 'PoB가 실제로 계산한 속성만 표시합니다.')}</footer>
+    {rows.length ? <div className="simple-gain-table-wrap"><table className="simple-gain-table"><thead><tr><th>{uiText(language, 'Attribute', '属性', '屬性', '속성')}</th><th>{uiText(language, 'Test', '测试', '測試', '테스트')}</th><th>{uiText(language, 'Actual change', '实际变化', '實際變化', '실제 변화')}</th><th>{uiText(language, 'Relative', '相对收益', '相對收益', '상대 수익')}</th></tr></thead><tbody>{rows.map((entry) => { const delta = firstDelta(entry)!; const pointLabel = entry.probe.pointUnit === 'level' ? `+${entry.probe.points[0]} ${uiText(language, 'level', '级', '級', '레벨')}` : `+${entry.probe.points[0]}%`; return <tr key={entry.probe.id} onMouseMove={trackGainRowPointer} onMouseLeave={resetGainRowPointer}><td><strong>{localText(entry.probe.label, language)}</strong><small>{probeScopeText(entry.probe.skillScope, language)} · {entry.probe.mutation.format(entry.probe.points[0])}</small></td><td>{pointLabel}</td><td className={delta.absoluteDelta! >= 0 ? 'positive' : 'negative'}>{signedMetric(delta.absoluteDelta, metric, language)}</td><td className={delta.relativeDelta != null && delta.relativeDelta >= 0 ? 'positive' : 'negative'}>{delta.relativeDelta == null ? '—' : `${delta.relativeDelta >= 0 ? '+' : ''}${delta.relativeDelta.toFixed(2)}%`}</td></tr> })}</tbody></table></div> : <div className="simple-gain-empty"><BarChart3 /><strong>{uiText(language, 'No calculable result', '暂无可计算结果', '暫無可計算結果', '계산 가능한 결과 없음')}</strong><span>{isAttack ? uiText(language, 'A working damage source is required.', '需要存在有效伤害来源。', '需要存在有效傷害來源。', '유효한 피해 원천이 필요합니다.') : uiText(language, 'No usable survival metric is available.', '当前没有可用的生存指标。', '目前沒有可用的生存指標。', '사용 가능한 생존 지표가 없습니다.')}</span></div>}
+    <footer className="simple-gain-card-footer">{uiText(language, 'Only attributes with a calculable result are shown.', '只显示可以实际算出结果的属性。', '只顯示可以實際算出結果的屬性。', '계산 가능한 결과가 있는 속성만 표시합니다.')}</footer>
   </div>
 }
 
 export function AttributeAnalysisPage({ onOpenSkills }: Props) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW = zhCN, koKR = en) => uiText(lang, en, zhCN, zhTW, koKR)
+  const treeData = useTreeStore((state) => state.treeData)
   const revision = useTreeStore((state) => state.pobBuildRevision)
   const getCode = useTreeStore((state) => state.getActivePobCode)
   const getXml = useTreeStore((state) => state.getActivePobXml)
@@ -124,6 +125,7 @@ export function AttributeAnalysisPage({ onOpenSkills }: Props) {
   const [baseline, setBaseline] = useState<CalcResult | null>(null)
   const [structureBaseline, setStructureBaseline] = useState<CalcResult | null>(null)
   const [structureFinalDamageDps, setStructureFinalDamageDps] = useState<Record<string, number>>({})
+  const [structureSkills, setStructureSkills] = useState<AnalysisSkillDetail[]>([])
   const [characterBaseline, setCharacterBaseline] = useState<CalcResult | null>(null)
   const [series, setSeries] = useState<ProbeSeriesResult[]>([])
   const [state, setState] = useState<LoadState>('idle')
@@ -370,6 +372,7 @@ export function AttributeAnalysisPage({ onOpenSkills }: Props) {
     setBaseline(null)
     setStructureBaseline(null)
     setStructureFinalDamageDps({})
+    setStructureSkills([])
     setCharacterBaseline(null)
     setSeries([])
     setError(null)
@@ -386,17 +389,20 @@ export function AttributeAnalysisPage({ onOpenSkills }: Props) {
       // representative skill from the exact same Full DPS/fallback scope.
       let nextStructureBaseline = nextBaseline
       let nextStructureFinalDamageDps: Record<string, number> = {}
+      let nextStructureSkills: AnalysisSkillDetail[] = []
       try {
         const scopeDetail = await calculateAnalysisScopeDetail(code, xml, weaponSet, calcMode, overrides, nextBaseline, hasFullDpsSelection)
         nextStructureBaseline = scopeDetail.representative
         nextStructureFinalDamageDps = scopeDetail.finalDamageDps
+        nextStructureSkills = scopeDetail.skills
       } catch {
         // A missing representative detail must not invalidate the complete
-        // attribute report; the baseline remains a useful PoB result.
+        // attribute report; the baseline remains a useful calculation result.
       }
       if (requestId !== requestRef.current) return
       setStructureBaseline(nextStructureBaseline)
       setStructureFinalDamageDps(nextStructureFinalDamageDps)
+      setStructureSkills(nextStructureSkills)
       const results = await runInvestmentProbeBatch({ code, xml, weaponSet, calcMode, baseOverrides: overrides, baseline: nextBaseline, defenseBaseline: nextCharacterBaseline, probes: analysisProbes, hasFullDpsSelection, isCurrent: () => requestId === requestRef.current, onProgress: (completed, total) => { if (requestId === requestRef.current) setProgress({ completed, total }) } })
       if (requestId !== requestRef.current) return
       setSeries(results)
@@ -408,8 +414,6 @@ export function AttributeAnalysisPage({ onOpenSkills }: Props) {
     })
     return () => { if (requestRef.current === requestId) requestRef.current += 1 }
   }, [activeProfileId, allocatedNodes.size, analysisProbes, calcMode, code, hasFullDpsSelection, overrides, revision, weaponSet, xml])
-
-  if (!code || !xml || !allocatedNodes.size) return <section className="attribute-analysis-empty"><BarChart3 /><h1>{l('Build gains analysis', '构筑收益分析')}</h1><p>{l('Open a build with an active passive tree to begin.', '打开包含有效天赋树的构筑后即可开始分析。')}</p></section>
 
   const attackSeries = seriesByDimension.get('attack') || []
   const defenseSeries = seriesByDimension.get('defense') || []
@@ -424,6 +428,23 @@ export function AttributeAnalysisPage({ onOpenSkills }: Props) {
     totalDps: getPowerStatValue(baseline, damageMetricKey),
     finalDamageDps: structureFinalDamageDps,
   }), [analysisScope, baseline, damageMetricKey, structureBaseline, structureFinalDamageDps])
+  const damageStructureSkills = useMemo(() => structureSkills.map((skill) => {
+    const gem = { name: skill.entry.name, skillId: skill.entry.skillId || '', gemId: skill.entry.skillId || '', variantId: '' }
+    return {
+      id: skill.id,
+      name: getLocalizedSkillName(gem, resolveSkillCatalogEntry(gem, skillCatalog), lang),
+      dps: skill.entry.dps,
+      level: skill.detail.SkillLevel,
+      data: buildDamageStructureReportData(skill.detail, undefined, {
+        totalDps: skill.entry.dps,
+        finalDamageDps: skill.finalDamageDps,
+        calculationScope: 'selectedSkill',
+        includedSkillCount: 1,
+      }),
+    }
+  }).filter((entry): entry is typeof entry & { data: NonNullable<typeof entry.data> } => Boolean(entry.data)), [lang, skillCatalog, structureSkills])
+
+  if (!code || !xml || !allocatedNodes.size) return <section className="attribute-analysis-empty"><BarChart3 /><h1>{l('Build gains analysis', '构筑收益分析')}</h1><p>{l('Open a build with an active passive tree to begin.', '打开包含有效天赋树的构筑后即可开始分析。')}</p></section>
 
   return <section ref={analysisExportRef} data-analysis-export-root="true" className="investment-analysis-workspace simple-gain-workspace">
     <header className="investment-analysis-header simple-gain-header"><div><span>{l('Attribute investment impact on DPS and EHP', '属性投入对 DPS 与 EHP 的实际影响')}</span><h1>{l('Build gains analysis', '构筑收益分析')}</h1></div><div className="simple-gain-header-tools"><div className="simple-gain-export" ref={exportMenuRef} data-export-exclude="true"><button type="button" className="simple-gain-export-trigger" aria-haspopup="menu" aria-expanded={exportMenuOpen} disabled={exporting || state === 'loading'} onClick={() => setExportMenuOpen((open) => !open)} title={l('Export image', '导出图片', '匯出圖片', '이미지 내보내기')}><ImageDown /><span>{exporting ? l('Exporting', '正在导出', '正在匯出', '내보내는 중') : l('Export image', '导出图片', '匯出圖片', '이미지 내보내기')}</span><ChevronDown /></button>{exportMenuOpen && <div className="simple-gain-export-menu" role="menu"><button type="button" role="menuitem" onClick={() => void handleAnalysisExport('save')}><Download /><span><strong>{l('Save image', '保存图片', '儲存圖片', '이미지 저장')}</strong><small>{l('Save a PNG file', '保存 PNG 文件', '儲存 PNG 檔案', 'PNG 파일 저장')}</small></span></button><button type="button" role="menuitem" onClick={() => void handleAnalysisExport('copy')}><Clipboard /><span><strong>{l('Copy to clipboard', '复制到剪贴板', '複製到剪貼簿', '클립보드에 복사')}</strong><small>{l('Copy the report image', '复制报告图片', '複製報告圖片', '보고서 이미지 복사')}</small></span></button></div>}</div><div className={`investment-runtime ${state}`}>{state === 'loading' ? <LoaderCircle className="spinning" /> : state === 'error' ? <AlertTriangle /> : <Activity className="simple-gain-runtime-ecg" />}<div><span>{state === 'loading' ? l('Calculating', '正在计算') : state === 'error' ? l('Calculation failed', '计算失败') : l('Report is current', '报告为最新')}</span><small>{state === 'loading' ? `${progress.completed} / ${progress.total}` : `${calcMode} · ${PROBE_CATALOG_VERSION}`}</small></div></div>{exportNotice && <span className="simple-gain-export-notice" data-export-exclude="true" role="status">{exportNotice}</span>}</div></header>
@@ -442,7 +463,7 @@ export function AttributeAnalysisPage({ onOpenSkills }: Props) {
       <a href="#attack-gains">{l('Attack gains', '攻击收益')}</a>
       <a href="#defense-gains">{l('Defense gains', '防御收益')}</a>
     </nav>
-    <DamageStructureReport data={damageStructureData} />
+    <DamageStructureReport data={damageStructureData} skills={damageStructureSkills} treeData={treeData} skillCatalog={skillCatalog} />
     <section className="simple-gain-summary"><div className="gain-highlight attack-gain"><TrendingUp /><span>{l('Best attack gain', '攻击最高收益')}{attackRows[0] ? ` · ${l('Test', '测试')} ${probeTestLabel(attackRows[0], lang)}` : ''}</span><strong>{attackRows[0] ? `${localText(attackRows[0].probe.label, lang)} · DPS ${signedMetric(firstDelta(attackRows[0])?.absoluteDelta ?? null, fullDpsMetric, lang)}` : '—'}</strong></div><div className="gain-highlight defense-gain"><Shield /><span>{l('Best defense gain', '防御最高收益')}{defenseRows[0] ? ` · ${l('Test', '测试')} ${probeTestLabel(defenseRows[0], lang)}` : ''}</span><strong>{defenseRows[0] ? `${localText(defenseRows[0].probe.label, lang)} · EHP ${signedMetric(firstDelta(defenseRows[0])?.absoluteDelta ?? null, ehpMetric, lang)}` : '—'}</strong></div></section>
     <section className="simple-gain-note"><Activity /><div><strong>{l('How to read', '如何阅读')}</strong><span>{l('Each row simulates adding 1% of the attribute and shows the real DPS or EHP change. Skill level uses +1 level.', '每一行模拟增加 1% 的该属性，并显示实际带来的 DPS 或 EHP 变化；技能等级按增加 1 级计算。')}</span></div></section>
     <section className="simple-gain-scope-note"><div className="simple-gain-scope-copy"><span className="simple-gain-scope-icon"><Activity /></span><div><strong>{l('Automatic analysis scope', '自动分析范围')} · {scopeModeLabel}</strong><p>{hasFullDpsSelection ? l(`All ${analysisScope.entries.length} effective skills included in Full DPS are aggregated. Multiple skills are not averaged.`, `完整 DPS 中的 ${analysisScope.entries.length} 个有效技能会全部计入总和，不会取平均值。`) : analysisScope.mode === 'fallback' ? l(`Full DPS has no configured skills, so all ${analysisScope.entries.length} positive actual DPS skills are used automatically.`, `当前未配置完整 DPS，已自动使用 ${analysisScope.entries.length} 个实际 DPS 大于 0 的技能。`) : l('No effective DPS skill is available, so attack gains cannot be calculated.', '当前没有有效 DPS 技能，暂时无法计算攻击收益。')} {l('Attack-only and spell-only attributes affect matching skills only; shared attributes can affect both. DoT, ailments, and trigger frequency are excluded in this version.', '攻击专属和法术专属属性只影响对应技能，共享属性可同时影响两者。本版本暂不纳入持续伤害、异常和触发频率。')}</p></div></div><div className="simple-gain-scope-counts"><span>{l('Skills', '技能')} <b>{analysisScope.entries.length}</b></span><span className="attack">{l('Attacks', '攻击')} <b>{analysisScope.attack.length}</b></span><span className="spell">{l('Spells', '法术')} <b>{analysisScope.spell.length}</b></span></div></section>
