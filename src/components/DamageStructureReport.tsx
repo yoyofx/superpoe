@@ -8,6 +8,7 @@ import type { AnalysisSkillScope } from '@/engine/attributeAnalysis'
 import { getLocalizedSkillName, resolveSkillCatalogName, type SkillCatalog } from '@/engine/skillCatalog'
 import { translateEquipmentItemName } from '@/components/equipment/EquipmentItemInspector'
 import type { TreeData } from '@/types/tree'
+import { DamageFlowGraph } from '@/components/DamageFlowGraph'
 
 type Language = Parameters<typeof uiText>[0]
 type SourceType = SkillContributionSourceType
@@ -471,14 +472,14 @@ function DamageRangeRows({ ranges, language, empty, showSource = false, treeData
   })}</div>
 }
 
-function FinalDamageBreakdown({ data, language, skillLevel, formulaLayers, onOpenLayer }: { data: DamageStructureReportData; language: Language; skillLevel?: number; formulaLayers: Array<{ id: string; title: string; subtitle: string; summary: string }>; onOpenLayer: (id: string) => void }) {
+function FinalDamageBreakdown({ data, language, skillLevel, formulaLayers, onOpenLayer, onOpenGraph }: { data: DamageStructureReportData; language: Language; skillLevel?: number; formulaLayers: Array<{ id: string; title: string; subtitle: string; summary: string }>; onOpenLayer: (id: string) => void; onOpenGraph: () => void }) {
   const l = (en: string, zhCN: string, zhTW = zhCN, koKR = en) => uiText(language, en, zhCN, zhTW, koKR)
   return (
     <section className="damage-structure-final-breakdown">
       <div id="damage-structure-formula" className="damage-structure-formula-wrap">
         <div className="damage-structure-formula-title">
           <span>{l('How damage is formed', '伤害如何形成', '傷害如何形成', '피해 형성 과정')} <b className="damage-structure-formula-stage-label">({l('7 major damage composition areas', '7大伤害构成区域', '7大傷害構成區域', '7대 피해 구성 영역')})</b></span>
-          <small>{l('Click a node to locate its result; use View details for the full breakdown', '点击节点定位统计结果；点击查看明细打开完整明细', '點擊節點定位統計結果；點擊查看明細開啟完整明細', '노드에서 결과를 찾고 상세 보기를 눌러 전체 내역을 확인합니다')}</small>
+          <div className="damage-structure-formula-title-actions"><button type="button" className="damage-structure-flow-link" onClick={onOpenGraph}><GitBranch /><span>{l('Open calculation graph', '打开伤害计算图', '開啟傷害計算圖', '피해 계산 그래프 열기')}</span></button><small>{l('Click a node to locate its result; use View details for the full breakdown', '点击节点定位统计结果；点击查看明细打开完整明细', '點擊節點定位統計結果；點擊查看明細開啟完整明細', '노드에서 결과를 찾고 상세 보기를 눌러 전체 내역을 확인합니다')}</small></div>
         </div>
         <p className="damage-structure-formula-note">{l('Conversion changes the damage type flow, while Gain adds extra damage. They share one display stage here, but the calculation still applies their rules separately.', '转换负责改变伤害类型的流向，额外 (Gain) 负责叠加新的伤害来源。这里合并为一个展示阶段，但计算仍按各自规则处理。', '轉換負責改變傷害類型的流向，額外 (Gain) 負責疊加新的傷害來源。這裡合併為一個展示階段，但計算仍按各自規則處理。', '변환은 피해 유형의 흐름을 바꾸고 Gain은 추가 피해를 더합니다. 여기서는 하나의 표시 단계로 묶지만 계산은 각 규칙을 따로 적용합니다.')}</p>
         <div className="damage-structure-formula" aria-label={l('Damage formula flow', '伤害公式流程', '傷害公式流程', '피해 공식 흐름')}>
@@ -648,8 +649,10 @@ export function DamageStructureReport({ data: scopeData, skillLevel, treeData, s
   const l = (en: string, zhCN: string, zhTW = zhCN, koKR = en) => uiText(lang, en, zhCN, zhTW, koKR)
   const data = scopeData
   const [detailLayerId, setDetailLayerId] = useState<string | null>(null)
+  const [flowGraphOpen, setFlowGraphOpen] = useState(false)
   useEffect(() => {
     setDetailLayerId(null)
+    setFlowGraphOpen(false)
   }, [scopeData])
   useEffect(() => {
     if (!detailLayerId) return
@@ -728,10 +731,11 @@ export function DamageStructureReport({ data: scopeData, skillLevel, treeData, s
     : detailLayerId ? displayedLayers.find((layer) => layer.id === detailLayerId) : null
 
   return <section id="damage-structure" className="damage-structure-report">
-    <FinalDamageBreakdown data={data} language={lang} skillLevel={skillLevel} formulaLayers={formulaLayers} onOpenLayer={setDetailLayerId} />
+    <FinalDamageBreakdown data={data} language={lang} skillLevel={skillLevel} formulaLayers={formulaLayers} onOpenLayer={setDetailLayerId} onOpenGraph={() => setFlowGraphOpen(true)} />
     {hints.length > 0 && <div className="damage-structure-hints"><span>{l('Current structure hints', '当前结构提示', '目前結構提示', '현재 구조 힌트')}</span>{hints.map((hint) => <p key={hint}>{hint}</p>)}</div>}
     <div className="damage-structure-grid">{displayedLayers.map(({ id, icon: Icon, title, subtitle, summary }) => <article id={`damage-layer-${id}`} key={id} className="damage-structure-layer"><div className="damage-structure-layer-heading"><span className="damage-structure-layer-icon"><Icon /></span><span role="button" tabIndex={0} onClick={() => setDetailLayerId(id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setDetailLayerId(id) } }} aria-label={l(`View ${title} details`, `查看${title}明细`, `查看${title}明細`, `查看${title} 상세`)} title={l('Click to view details', '点击查看明细', '點擊查看明細', '상세 보기')}><strong>{title}</strong><small>{subtitle}</small></span><div className="damage-structure-layer-heading-actions"><b>{summary}</b></div></div><div className="damage-structure-layer-body"><LayerSummary id={id} data={data} language={lang} /></div></article>)}</div>
     {detailLayer && <div className="damage-structure-detail-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailLayerId(null) }}><section className="damage-structure-detail-modal" role="dialog" aria-modal="true" aria-labelledby="damage-structure-detail-title"><header><div><span>{l('Damage area details', '伤害区域明细', '傷害區域明細', '피해 영역 상세')}</span><h3 id="damage-structure-detail-title">{detailLayer.title}</h3></div><button type="button" className="damage-structure-detail-close" onClick={() => setDetailLayerId(null)} aria-label={l('Close details', '关闭明细', '關閉明細', '상세 닫기')} title={l('Close details', '关闭明细', '關閉明細', '상세 닫기')}><X /></button></header><div className="damage-structure-detail-content">{detailLayer.body}</div></section></div>}
+    {flowGraphOpen && <DamageFlowGraph data={data} skillLevel={skillLevel} onClose={() => setFlowGraphOpen(false)} />}
     <footer className="damage-structure-footer"><span><i style={{ background: SOURCE_COLORS.equipment }} />{sourceLabel('equipment', lang)}</span><span><i style={{ background: SOURCE_COLORS.tree }} />{sourceLabel('tree', lang)}</span><span><i style={{ background: SOURCE_COLORS.jewel }} />{sourceLabel('jewel', lang)}</span><span><i style={{ background: SOURCE_COLORS.skill }} />{sourceLabel('skill', lang)}</span><span><i style={{ background: SOURCE_COLORS.buff }} />{sourceLabel('buff', lang)}</span><span><i style={{ background: SOURCE_COLORS.config }} />{sourceLabel('config', lang)}</span><small>{l('Each area uses its own unit. They are not added into one percentage.', '每个区域使用自己的单位，不会强行相加成一个百分比。', '每個區域使用自己的單位，不會強行相加成一個百分比。', '각 영역은 고유 단위를 사용하며 하나의 백분율로 합산하지 않습니다.')}</small></footer>
   </section>
 }
