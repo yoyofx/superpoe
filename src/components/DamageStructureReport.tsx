@@ -1,4 +1,4 @@
-import { ArrowRight, ChevronRight, CircleHelp, Crosshair, GitBranch, Gauge, Layers3, Shield, Sparkles, Target, X, Zap } from 'lucide-react'
+import { ArrowRight, CircleHelp, Crosshair, GitBranch, Gauge, Layers3, Shield, Sparkles, Target, X, Zap } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useTranslation } from '@/i18n/useTranslation'
 import { formatUiNumber, uiText } from '@/i18n/uiLocale'
@@ -636,33 +636,21 @@ function LayerSummary({ id, data, language }: { id: string; data: DamageStructur
   return <span className="damage-structure-muted">—</span>
 }
 
-export interface DamageStructureSkillTab {
-  id: string
-  name: string
-  dps: number
-  level?: number
-  data: DamageStructureReportData
-}
-
 interface Props {
   data: DamageStructureReportData | null
-  skills?: DamageStructureSkillTab[]
+  skillLevel?: number
   treeData?: TreeData | null
   skillCatalog?: SkillCatalog | null
 }
 
-export function DamageStructureReport({ data: scopeData, skills = [], treeData, skillCatalog }: Props) {
+export function DamageStructureReport({ data: scopeData, skillLevel, treeData, skillCatalog }: Props) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW = zhCN, koKR = en) => uiText(lang, en, zhCN, zhTW, koKR)
-  const [activeSkillId, setActiveSkillId] = useState<string | null>(null)
-  const activeSkill = skills.length ? skills.find((skill) => skill.id === activeSkillId) || skills[0] : null
-  const data = activeSkill?.data || scopeData
-  useEffect(() => {
-    if (activeSkillId && skills.some((skill) => skill.id === activeSkillId)) return
-    if (skills.length) setActiveSkillId(skills[0].id)
-    else if (activeSkillId) setActiveSkillId(null)
-  }, [activeSkillId, skills])
+  const data = scopeData
   const [detailLayerId, setDetailLayerId] = useState<string | null>(null)
+  useEffect(() => {
+    setDetailLayerId(null)
+  }, [scopeData])
   useEffect(() => {
     if (!detailLayerId) return
     const onKeyDown = (event: KeyboardEvent) => {
@@ -676,9 +664,7 @@ export function DamageStructureReport({ data: scopeData, skills = [], treeData, 
       ? (() => {
         const dominant = [...data.finalDamageTypes].sort((left, right) => right.finalDps - left.finalDps)[0]
         return dominant
-          ? activeSkill
-            ? l(`Most of this skill's final DPS is ${damageTypeLabel(dominant.type, lang)}.`, `当前技能的最终 DPS 主要来自${damageTypeLabel(dominant.type, lang)}。`, `目前技能的最終 DPS 主要來自${damageTypeLabel(dominant.type, lang)}。`, `현재 스킬의 최종 DPS는 주로 ${damageTypeLabel(dominant.type, lang)}입니다.`)
-            : l(`Most of the representative skill's final DPS is ${damageTypeLabel(dominant.type, lang)}.`, `代表技能的最终 DPS 主要来自${damageTypeLabel(dominant.type, lang)}。`, `代表技能的最終 DPS 主要來自${damageTypeLabel(dominant.type, lang)}。`, `대표 스킬의 최종 DPS는 주로 ${damageTypeLabel(dominant.type, lang)}입니다.`)
+          ? l(`Most of ${data.skillName}'s final DPS is ${damageTypeLabel(dominant.type, lang)}.`, `${data.skillName} 的最终 DPS 主要来自${damageTypeLabel(dominant.type, lang)}。`, `${data.skillName} 的最終 DPS 主要來自${damageTypeLabel(dominant.type, lang)}。`, `${data.skillName}의 최종 DPS는 주로 ${damageTypeLabel(dominant.type, lang)}입니다.`)
           : ''
       })()
       : '',
@@ -691,7 +677,7 @@ export function DamageStructureReport({ data: scopeData, skills = [], treeData, 
   ].filter((value): value is string => Boolean(value)).slice(0, 3) : []
   const layers = data ? [
     { id: 'base', icon: Layers3, title: l('Damage base', '伤害基底', '傷害基底', '피해 기반'), subtitle: data.baseRole === 'weapon' ? l('Weapon base damage plus added damage', '武器基础伤害加附加点伤', '武器基礎傷害加附加點傷', '무기 기본 피해와 추가 피해') : data.baseRole === 'skillLevel' ? l('Skill level base damage plus added damage', '技能等级基础伤害加附加点伤', '技能等級基礎傷害加附加點傷', '스킬 레벨 기본 피해와 추가 피해') : l('Where the skill starts its damage', '技能从哪里开始形成伤害', '技能從哪裡開始形成傷害', '스킬 피해의 시작점'), summary: data.averageHit == null ? '—' : number(data.averageHit, lang, 1), body: <div className="damage-structure-base"><div className="damage-structure-origin"><div className="damage-structure-origin-heading"><strong>{data.baseRole === 'weapon' ? l('Attack: weapon base', '攻击：武器基底', '攻擊：武器基底', '공격: 무기 기반') : data.baseRole === 'skillLevel' ? l('Spell: skill level base', '法术：技能等级基底', '法術：技能等級基底', '주문: 스킬 레벨 기반') : l('Starting base', '起始基底', '起始基底', '시작 기반')}</strong><small>{data.baseRole === 'weapon' ? l('The weapon supplies the starting range.', '武器提供起始伤害区间。', '武器提供起始傷害區間。', '무기가 시작 피해 범위를 제공합니다.') : data.baseRole === 'skillLevel' ? l('The active gem level supplies the starting range.', '当前技能等级提供起始伤害区间。', '目前技能等級提供起始傷害區間。', '현재 스킬 레벨이 시작 피해 범위를 제공합니다.') : l('The calculation provides the starting range for this skill.', '当前计算提供该技能的起始伤害区间。', '目前計算提供該技能的起始傷害區間。', '현재 계산이 이 스킬의 시작 피해 범위를 제공합니다.')}</small></div><DamageRangeRows ranges={data.baseRanges} language={lang} showSource empty={l('No base range exposed', '没有可读取的基底区间', '沒有可讀取的基底區間', '기본 범위가 노출되지 않음')} /></div><div className="damage-structure-added"><div className="damage-structure-kicker">{l('Added damage from current build', '当前构筑附加点伤', '目前構築附加點傷', '현재 구성의 추가 피해')}</div><DamageRangeRows ranges={data.addedRanges} language={lang} showSource empty={l('No separate added damage exposed', '没有单独暴露的附加点伤', '沒有單獨暴露的附加點傷', '별도 추가 피해가 노출되지 않음')} /></div></div> },
-    { id: 'flow', icon: GitBranch, title: l('Conversion and Gain', '转换与 Gain', '轉換與 Gain', '변환 및 Gain'), subtitle: l('Damage can change type or gain an extra branch', '伤害类型可以转换或额外获得分支', '傷害類型可以轉換或額外獲得分支', '피해 유형을 변환하거나 추가 분기를 얻음'), summary: `${data.gains.length + data.conversions.length}`, body: <div className="damage-structure-flow-columns"><div><span className="damage-structure-kicker">{l('Gain as extra', '额外获得', '額外獲得', '추가 획득')}</span><FlowRows flows={data.gains} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div><div><span className="damage-structure-kicker">{l('Conversion', '转换', '轉換', '변환')}</span><FlowRows flows={data.conversions} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div></div> },
+    { id: 'flow', icon: GitBranch, title: l('Conversion and Gain', '转换与 Gain', '轉換與 Gain', '변환 및 Gain'), subtitle: l('Damage can change type or gain an extra branch', '伤害类型可以转换或额外获得分支', '傷害類型可以轉換或額外獲得分支', '피해 유형을 변환하거나 추가 분기를 얻음'), summary: l(`Extra ${data.gains.length + data.conversions.length}`, `额外 ${data.gains.length + data.conversions.length} 条`, `額外 ${data.gains.length + data.conversions.length} 條`, `추가 ${data.gains.length + data.conversions.length}개`), body: <div className="damage-structure-flow-columns"><div><span className="damage-structure-kicker">{l('Gain as extra', '额外获得', '額外獲得', '추가 획득')}</span><FlowRows flows={data.gains} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div><div><span className="damage-structure-kicker">{l('Conversion', '转换', '轉換', '변환')}</span><FlowRows flows={data.conversions} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div></div> },
     { id: 'increased', icon: Sparkles, title: l('Increased / Reduced', '同类提高', '同類提高', '증가 / 감소'), subtitle: l('Matching modifiers are combined into one modifier', '同类修正按来源汇总为统一修正', '同類修正按來源彙總為統一修正', '같은 유형의 보정을 하나의 수정값으로 합산'), summary: data.increased.factor == null ? '—' : `×${data.increased.factor.toFixed(2)}`, body: data.increased.factor == null ? <span className="damage-structure-muted">{l('No detail is available for this layer in the current calculation.', '当前计算没有这一层的明细。', '目前計算沒有這一層的明細。', '현재 계산에는 이 레이어의 상세 정보가 없습니다.')}</span> : <div className="damage-structure-multiplier"><div className="damage-structure-factor"><span>{l('Combined factor', '合计倍率', '合計倍率', '합산 배율')}</span><strong>×{data.increased.factor.toFixed(2)}</strong><small>{number(data.increased.total, lang, 1)}%</small></div><SourceShareDetail label={l('Increased source share', '同类提高来源占比', '同類提高來源占比', '증가 출처 비율')} values={data.increased.sources} language={lang} unit="%" barsCaption={l('Modifier value', '修正值', '修正值', '보정값')} /><ModifierSourceRows modifiers={data.increased.details} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div> },
     { id: 'more', icon: Zap, title: l('More / Less', '独立增幅', '獨立增幅', 'More / Less'), subtitle: l('Each multiplier applies independently', '每个独立倍率分别相乘', '每個獨立倍率分別相乘', '각 배율은 독립적으로 곱해짐'), summary: data.more.factor == null ? '—' : `×${data.more.factor.toFixed(2)}`, body: data.more.factor == null ? <span className="damage-structure-muted">{l('No detail is available for this layer in the current calculation.', '当前计算没有这一层的明细。', '目前計算沒有這一層的明細。', '현재 계산에는 이 레이어의 상세 정보가 없습니다.')}</span> : <div className="damage-structure-multiplier"><div className="damage-structure-factor"><span>{l('Product of active multipliers', '当前独立倍率乘积', '目前獨立倍率乘積', '활성 배율 곱')}</span><strong>×{data.more.factor.toFixed(2)}</strong></div><SourceShareDetail label={l('More source share', '独立增幅来源占比', '獨立增幅來源占比', 'more 출처 비율')} values={data.more.sources} language={lang} unit="%" barsCaption={l('Modifier value', '修正值', '修正值', '보정값')} /><div className="damage-structure-chain">{data.more.nodes.length ? data.more.nodes.map((node, index) => <span key={`${node.type}-${node.value}-${index}`}><i style={{ borderColor: SOURCE_COLORS[node.type] }}><b>×{node.factor.toFixed(2)}</b><small>{sourceLabel(node.type, lang)}</small></i>{index < data.more.nodes.length - 1 && <ArrowRight />}</span>) : <i style={{ borderColor: '#917344' }}><b>×{data.more.factor.toFixed(2)}</b><small>{l('Combined result', '合并结果', '合併結果', '합산 결과')}</small></i>}</div><ModifierSourceRows modifiers={data.more.details} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div> },
     { id: 'crit', icon: Target, title: l('Critical and special hits', '暴击与特殊命中', '暴擊與特殊命中', '치명타 및 특수 적중'), subtitle: l('Normal and critical hits form expected damage', '普通命中与暴击合成期望伤害', '普通命中與暴擊合成期望傷害', '일반 및 치명타 적중의 기대 피해'), summary: data.critChance == null ? '—' : percent(data.critChance, lang), body: (() => {
@@ -742,12 +728,9 @@ export function DamageStructureReport({ data: scopeData, skills = [], treeData, 
     : detailLayerId ? displayedLayers.find((layer) => layer.id === detailLayerId) : null
 
   return <section id="damage-structure" className="damage-structure-report">
-    {skills.length > 1 && <div className="damage-structure-skill-tabs" role="tablist" aria-label={l('DPS skills', 'DPS 技能', 'DPS 技能', 'DPS 스킬')}>
-      {skills.map((skill) => <button key={skill.id} type="button" role="tab" aria-selected={activeSkill?.id === skill.id} className={activeSkill?.id === skill.id ? 'active' : ''} onClick={() => { setActiveSkillId(skill.id); setDetailLayerId(null) }}><span>{skill.name}</span><small>{skill.level == null ? l('Skill level unavailable', '技能等级未知', '技能等級未知', '스킬 레벨 없음') : l(`Level ${skill.level}`, `技能等级 ${skill.level}`, `技能等級 ${skill.level}`, `스킬 레벨 ${skill.level}`)}</small><strong>{l('DPS', 'DPS', 'DPS', 'DPS')} {number(skill.dps, lang, 0)}</strong></button>)}
-    </div>}
-    <FinalDamageBreakdown data={data} language={lang} skillLevel={activeSkill?.level} formulaLayers={formulaLayers} onOpenLayer={setDetailLayerId} />
+    <FinalDamageBreakdown data={data} language={lang} skillLevel={skillLevel} formulaLayers={formulaLayers} onOpenLayer={setDetailLayerId} />
     {hints.length > 0 && <div className="damage-structure-hints"><span>{l('Current structure hints', '当前结构提示', '目前結構提示', '현재 구조 힌트')}</span>{hints.map((hint) => <p key={hint}>{hint}</p>)}</div>}
-    <div className="damage-structure-grid">{displayedLayers.map(({ id, icon: Icon, title, subtitle, summary }) => <article id={`damage-layer-${id}`} key={id} className="damage-structure-layer"><div className="damage-structure-layer-heading"><span className="damage-structure-layer-icon"><Icon /></span><span><strong>{title}</strong><small>{subtitle}</small></span><div className="damage-structure-layer-heading-actions"><b>{summary}</b><button type="button" className="damage-structure-detail-button" onClick={() => setDetailLayerId(id)} aria-label={l('View details', '查看明细', '查看明細', '상세 보기')} title={l('View details', '查看明细', '查看明細', '상세 보기')}>{l('Details', '明细', '明細', '상세')}<ChevronRight /></button></div></div><div className="damage-structure-layer-body"><LayerSummary id={id} data={data} language={lang} /></div></article>)}</div>
+    <div className="damage-structure-grid">{displayedLayers.map(({ id, icon: Icon, title, subtitle, summary }) => <article id={`damage-layer-${id}`} key={id} className="damage-structure-layer"><div className="damage-structure-layer-heading"><span className="damage-structure-layer-icon"><Icon /></span><span role="button" tabIndex={0} onClick={() => setDetailLayerId(id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setDetailLayerId(id) } }} aria-label={l(`View ${title} details`, `查看${title}明细`, `查看${title}明細`, `查看${title} 상세`)} title={l('Click to view details', '点击查看明细', '點擊查看明細', '상세 보기')}><strong>{title}</strong><small>{subtitle}</small></span><div className="damage-structure-layer-heading-actions"><b>{summary}</b></div></div><div className="damage-structure-layer-body"><LayerSummary id={id} data={data} language={lang} /></div></article>)}</div>
     {detailLayer && <div className="damage-structure-detail-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setDetailLayerId(null) }}><section className="damage-structure-detail-modal" role="dialog" aria-modal="true" aria-labelledby="damage-structure-detail-title"><header><div><span>{l('Damage area details', '伤害区域明细', '傷害區域明細', '피해 영역 상세')}</span><h3 id="damage-structure-detail-title">{detailLayer.title}</h3></div><button type="button" className="damage-structure-detail-close" onClick={() => setDetailLayerId(null)} aria-label={l('Close details', '关闭明细', '關閉明細', '상세 닫기')} title={l('Close details', '关闭明细', '關閉明細', '상세 닫기')}><X /></button></header><div className="damage-structure-detail-content">{detailLayer.body}</div></section></div>}
     <footer className="damage-structure-footer"><span><i style={{ background: SOURCE_COLORS.equipment }} />{sourceLabel('equipment', lang)}</span><span><i style={{ background: SOURCE_COLORS.tree }} />{sourceLabel('tree', lang)}</span><span><i style={{ background: SOURCE_COLORS.jewel }} />{sourceLabel('jewel', lang)}</span><span><i style={{ background: SOURCE_COLORS.skill }} />{sourceLabel('skill', lang)}</span><span><i style={{ background: SOURCE_COLORS.buff }} />{sourceLabel('buff', lang)}</span><span><i style={{ background: SOURCE_COLORS.config }} />{sourceLabel('config', lang)}</span><small>{l('Each area uses its own unit. They are not added into one percentage.', '每个区域使用自己的单位，不会强行相加成一个百分比。', '每個區域使用自己的單位，不會強行相加成一個百分比。', '각 영역은 고유 단위를 사용하며 하나의 백분율로 합산하지 않습니다.')}</small></footer>
   </section>

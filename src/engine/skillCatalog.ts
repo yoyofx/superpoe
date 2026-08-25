@@ -1,5 +1,6 @@
 import type { BuildGem } from '@/engine/skills'
 import { translateGameText, type Language } from '@/i18n/translationLoader'
+import type { SkillDpsEntry } from '@/types/calc'
 
 export type SkillCatalogType = 'active' | 'support' | 'granted' | 'hidden' | 'internal'
 
@@ -108,6 +109,30 @@ export function getLocalizedSkillName(
     if (translated !== source) return translated
   }
   return gem.name || entry?.name || ''
+}
+
+/** Resolve a DPS row through the gem that granted it, including hidden forms. */
+export function getLocalizedSkillDpsName(
+  dpsEntry: Pick<SkillDpsEntry, 'name' | 'skillId' | 'hidden' | 'parentSkillId' | 'parentSkillName'>,
+  catalog: SkillCatalog | null,
+  language: Language,
+): string {
+  const parentEntry = dpsEntry.parentSkillId ? resolveSkillCatalogName(dpsEntry.parentSkillId, catalog) : undefined
+  const sourceName = dpsEntry.parentSkillName || dpsEntry.name || ''
+  const sourceId = dpsEntry.parentSkillId || dpsEntry.skillId || ''
+  const gem = { name: sourceName, skillId: sourceId, gemId: sourceId, variantId: '' }
+  const entry = parentEntry || resolveSkillCatalogEntry(gem, catalog) || resolveSkillCatalogName(sourceName, catalog)
+  if (entry?.userVisible === false) return ''
+  const localizedName = getLocalizedSkillName(gem, entry, language)
+  if (!dpsEntry.hidden || !localizedName) return localizedName
+  const triggeredLabel = language === 'zh-rCN'
+    ? '触发技能'
+    : language === 'zh-rTW'
+      ? '觸發技能'
+      : language === 'ko-KR'
+        ? '트리거 스킬'
+        : 'Triggered skill'
+  return `${localizedName} · ${triggeredLabel}`
 }
 
 export function getLocalizedSkillDescription(

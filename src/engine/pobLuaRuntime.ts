@@ -640,19 +640,37 @@ end
 -- Full DPS rows only carry their display name.  The project-owned marker added
 -- above gives us a stable group/skill identity, so recover the PoB skill flags
 -- here without changing any upstream Lua files.
-local dpsSkillTypeByKey = {}
+local dpsSkillMetadataByKey = {}
+local function getDpsSkillMetadata(activeSkill)
+  local activeEffect = activeSkill and activeSkill.activeEffect
+  local grantedEffect = activeEffect and activeEffect.grantedEffect
+  local sourceGem = activeEffect and (activeEffect.gemData
+    or (activeEffect.srcInstance and activeEffect.srcInstance.gemData))
+  local parentGrantedEffect = sourceGem and sourceGem.grantedEffect
+  local parentSkillId = parentGrantedEffect and parentGrantedEffect.id
+  local skillId = grantedEffect and grantedEffect.id
+  if parentSkillId == skillId then parentSkillId = nil end
+  local parentSkillName = sourceGem and StripEscapes(sourceGem.name or sourceGem.baseTypeName or "") or ""
+  if parentSkillName == "" then parentSkillName = nil end
+  local flags = activeEffect and (activeEffect.statSetCalcs and activeEffect.statSetCalcs.skillFlags
+    or activeEffect.statSet and activeEffect.statSet.skillFlags) or {}
+  local skillTypes = activeSkill and (activeSkill.skillTypes or (grantedEffect and grantedEffect.skillTypes) or {}) or {}
+  local isAttack = flags.attack or (SkillType and SkillType.Attack and skillTypes[SkillType.Attack])
+  local isSpell = flags.spell or (SkillType and SkillType.Spell and skillTypes[SkillType.Spell])
+  return {
+    skillType = isAttack and "attack" or isSpell and "spell" or "other",
+    hidden = grantedEffect and grantedEffect.hidden == true or false,
+    parentSkillId = parentSkillId,
+    parentSkillName = parentSkillName,
+  }
+end
 local function registerDpsSkillType(groupId, activeSkill)
   if not groupId or not activeSkill then return end
   local activeEffect = activeSkill.activeEffect
   local grantedEffect = activeEffect and activeEffect.grantedEffect
   local skillId = grantedEffect and grantedEffect.id
   if not skillId then return end
-  local flags = activeEffect and (activeEffect.statSetCalcs and activeEffect.statSetCalcs.skillFlags
-    or activeEffect.statSet and activeEffect.statSet.skillFlags) or {}
-  local skillTypes = activeSkill.skillTypes or grantedEffect.skillTypes or {}
-  local isAttack = flags.attack or (SkillType and SkillType.Attack and skillTypes[SkillType.Attack])
-  local isSpell = flags.spell or (SkillType and SkillType.Spell and skillTypes[SkillType.Spell])
-  dpsSkillTypeByKey[tostring(groupId) .. ":" .. tostring(skillId)] = isAttack and "attack" or isSpell and "spell" or "other"
+  dpsSkillMetadataByKey[tostring(groupId) .. ":" .. tostring(skillId)] = getDpsSkillMetadata(activeSkill)
 end
 for groupId, socketGroup in ipairs(dpsSocketGroups or {}) do
   local activeSkills = socketGroup.displaySkillListCalcs or socketGroup.displaySkillList or {}
@@ -674,7 +692,10 @@ local function encodeSkillDpsEntries(skillList)
       groupId = markerGroupId
       skillId = markerSkillId ~= "" and markerSkillId or nil
     end
-    local skillType = groupId and skillId and dpsSkillTypeByKey[tostring(groupId) .. ":" .. tostring(skillId)] or "other"
+    local metadata = groupId and skillId and dpsSkillMetadataByKey[tostring(groupId) .. ":" .. tostring(skillId)] or nil
+    if displayName == "" and metadata and metadata.parentSkillName then
+      displayName = metadata.parentSkillName
+    end
     table.insert(encoded, {
       name = displayName,
       dps = safeNum(skill.dps),
@@ -683,8 +704,11 @@ local function encodeSkillDpsEntries(skillList)
       skillPart = skill.skillPart,
       groupId = groupId,
       skillId = skillId,
-      kind = (skill.trigger and skill.trigger ~= "") and "trigger" or (skill.source and "dot" or "main"),
-      skillType = skillType,
+      hidden = metadata and metadata.hidden or false,
+      parentSkillId = metadata and metadata.parentSkillId,
+      parentSkillName = metadata and metadata.parentSkillName,
+      kind = (metadata and metadata.hidden) and "trigger" or ((skill.trigger and skill.trigger ~= "") and "trigger" or (skill.source and "dot" or "main")),
+      skillType = metadata and metadata.skillType or "other",
     })
   end
   return encoded
@@ -760,12 +784,20 @@ if playerMainSkill and playerMainSkill.activeEffect then
   for index, skill in ipairs(displaySkills) do
     local activeEffect = skill.activeEffect
     local grantedEffect = activeEffect and activeEffect.grantedEffect
+    local metadata = getDpsSkillMetadata(skill)
+    local optionLabel = StripEscapes(calcsTab.calcs.getActiveSkillDisplayName(skill) or "")
+    if optionLabel == "" then
+      optionLabel = metadata.parentSkillName or (metadata.hidden and "Triggered skill" or "")
+    end
     table.insert(details.activeSkills, {
       index = index,
-      label = calcsTab.calcs.getActiveSkillDisplayName(skill),
+      label = optionLabel,
       skillId = grantedEffect and grantedEffect.id,
       trigger = skill.infoTrigger,
       skillPart = skill.skillPartName,
+      hidden = metadata.hidden,
+      parentSkillId = metadata.parentSkillId,
+      parentSkillName = metadata.parentSkillName,
     })
   end
   for index, statSet in ipairs(playerActiveEffect.grantedEffect.statSets or {}) do

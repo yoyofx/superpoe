@@ -14,6 +14,7 @@ import { GemTooltip, type GemTooltipTarget } from '@/components/GemTooltip'
 import { getImportedCalculationModeFromCode, getImportedCalculationModeFromObject } from '@/engine/calculationConfig'
 import {
   getLocalizedSkillDescription,
+  getLocalizedSkillDpsName,
   getLocalizedSkillName,
   getLocalizedSupportEffectLines,
   getLocalizedSkillTags,
@@ -173,7 +174,7 @@ function skillMetadataMatches(left: string | undefined, right: string | undefine
 }
 
 function getDpsSkillNameCandidates(entry: SkillDpsEntry): string[] {
-  const candidates = [entry.name, entry.skillPart]
+  const candidates = [entry.name, entry.parentSkillName, entry.skillPart]
   if (entry.skillPart) candidates.push(entry.skillPart.split(':', 1)[0])
   return [...new Set(candidates
     .map(normalizeSkillOptionName)
@@ -181,6 +182,10 @@ function getDpsSkillNameCandidates(entry: SkillDpsEntry): string[] {
 }
 
 function findActiveSkillOptionIndex(details: SkillCalculationDetails, entry: SkillDpsEntry): number | undefined {
+  const exactMatch = entry.skillId && details.activeSkills.find((option) => option.skillId === entry.skillId)
+  if (exactMatch) return exactMatch.index
+  const parentMatch = entry.parentSkillId && details.activeSkills.find((option) => option.skillId === entry.parentSkillId)
+  if (parentMatch) return parentMatch.index
   const candidates = getDpsSkillNameCandidates(entry)
   if (!candidates.length) return undefined
   const match = details.activeSkills
@@ -258,6 +263,7 @@ function SkillDpsDrawer({
     const entryCandidates = getDpsSkillNameCandidates(entry)
     const matchesEntry = (gem: (typeof groups)[number]['gems'][number]) => Boolean(
       (entry.skillId && gem.skillId === entry.skillId)
+      || (entry.parentSkillId && gem.skillId === entry.parentSkillId)
       || entryCandidates.some((candidate) => skillNamesMatch(gem.name, candidate)),
     )
     const scoredGroups = groups.map((item, index) => {
@@ -275,22 +281,28 @@ function SkillDpsDrawer({
     const groupGem = group?.gems[0]
     const matchingGem = group?.gems.find(matchesEntry)
     const gemLike = {
-      name: entry.name,
-      skillId: entry.skillId || '',
-      gemId: entry.skillId || '',
+      name: entry.parentSkillName || entry.name,
+      skillId: entry.parentSkillId || entry.skillId || '',
+      gemId: entry.parentSkillId || entry.skillId || '',
       variantId: '',
     }
     const displayGem = matchingGem || gemLike
-    const detail = resolveSkillCatalogEntry(displayGem, catalog) || resolveSkillCatalogName(entry.name, catalog)
-    const localizedName = getLocalizedSkillName(displayGem, detail, language)
+    const detail = (entry.parentSkillId ? resolveSkillCatalogName(entry.parentSkillId, catalog) : undefined)
+      || resolveSkillCatalogEntry(displayGem, catalog)
+      || resolveSkillCatalogName(entry.parentSkillName || entry.name, catalog)
+    const localizedName = getLocalizedSkillDpsName(entry, catalog, language)
     return { group, groupGem, matchingGem, detail, localizedName }
   }
 
   const renderEntry = (entry: NormalizedSkillDpsEntry, index: number, section: 'full' | 'ranking') => {
     const { group, groupGem, detail, localizedName } = getSkillPresentation(entry)
+    const isHidden = Boolean(entry.hidden || detail?.userVisible === false)
+    const presentationName = localizedName || (isHidden
+      ? l('Triggered skill', '触发技能', '觸發技能', '트리거 스킬')
+      : entry.name || l('Calculated skill', '已计算技能', '已計算技能', '계산된 스킬'))
     const entryKey = `${section}:${entry.rowKey}`
     const expanded = expandedKey === entryKey
-    const kindLabel = entry.kind === 'trigger' || entry.trigger
+    const kindLabel = (!isHidden && (entry.kind === 'trigger' || entry.trigger))
       ? l('Trigger', '触发', '觸發', '트리거')
       : entry.kind === 'minion'
         ? l('Minion', '召唤物', '召喚物', '미니언')
@@ -326,7 +338,7 @@ function SkillDpsDrawer({
           <FallbackImage src={detail?.icon || undefined} alt="" fallback={<Sparkles />} />
         </span>
         <span className="skill-dps-entry-copy">
-          <strong>{localizedName || entry.name}</strong>
+          <strong>{presentationName}</strong>
           <small>
             {kindLabel && <em>{kindLabel}</em>}
             {source && <span>{source}</span>}
@@ -658,6 +670,10 @@ function SkillCalculationPanel({
     const entry = resolveSkillCatalogName(value, catalog)
     return entry ? getLocalizedSkillName({ name: entry.name }, entry, language) : translateCalculationText(value, language)
   }
+  const activeSkillOptionLabel = (option: (typeof activeSkills)[number]) => {
+    const label = localizeSkillOption(option.label) || l('Triggered skill', '触发技能', '觸發技能', '트리거 스킬')
+    return option.hidden ? `${label} · ${l('Triggered', '触发', '觸發', '트리거')}` : label
+  }
   return <section className="skill-calculation-panel">
     <div className="skill-calculation-controls">
       <label><span>{l('Socket Group', '插槽组', '插槽組', '홈 그룹')}</span><strong>{groupName}</strong></label>
@@ -665,7 +681,7 @@ function SkillCalculationPanel({
         value={selectedActiveSkill}
         disabled={!activeSkills.length || loading}
         onChange={(event) => onActiveSkillChange(Number(event.target.value))}
-      >{(activeSkills.length ? activeSkills : [{ index: 1, label: groupName }]).map((option) => <option key={option.index} value={option.index}>{localizeSkillOption(option.label)}</option>)}</select></label>
+      >{(activeSkills.length ? activeSkills : [{ index: 1, label: groupName }]).map((option) => <option key={option.index} value={option.index}>{activeSkillOptionLabel(option)}</option>)}</select></label>
       <label><span>{l('Stat Set', '技能形态', '技能型態', '능력치 세트')}</span><select
         value={selectedStatSet}
         disabled={!statSets.length || loading}

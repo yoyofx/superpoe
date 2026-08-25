@@ -168,11 +168,23 @@ function gemName(gem: BuildGem): string {
   return gem.name || gem.skillId || gem.gemId || 'Unknown skill'
 }
 
-function skippedSkillReason(gem: BuildGem, entry: SkillCatalogEntry | undefined): BuildPlannerSkippedSkillReason | undefined {
+function looksLikeSupportGem(gem: BuildGem): boolean {
+  return [gem.skillId, gem.gemId, gem.variantId].some((value) => /support/i.test(value))
+}
+
+function skippedSkillReason(
+  gem: BuildGem,
+  entry: SkillCatalogEntry | undefined,
+  resolvedId: string | undefined,
+): BuildPlannerSkippedSkillReason | undefined {
   if (/^Spectre\s*:/i.test(gemName(gem))) return 'spectre'
   if (entry && (!entry.userVisible || entry.type === 'granted' || entry.type === 'hidden' || entry.type === 'internal')) {
     return 'granted'
   }
+  // Any skill without a planner item ID cannot be represented in the game's
+  // schema. Keep it in the compatibility report, but do not block the rest
+  // of the build from being installed.
+  if (!resolvedId) return 'unsupported'
   return undefined
 }
 
@@ -185,15 +197,16 @@ function buildSkills(code: string | null | undefined, catalog: SkillCatalog | nu
 
   const parsed = parseSkillsXml(decodeCodeToXml(code))
   for (const group of parsed.groups) {
+    if (!group.enabled) continue
     const enabled = group.gems.filter((gem) => gem.enabled)
     if (!enabled.length) continue
     const resolved = enabled.map((gem) => {
       const entry = resolveSkillCatalogEntry(gem, catalog)
       return { gem, entry, id: resolveGemId(gem, entry, catalog) }
     })
-    const active = resolved.find((item) => item.entry?.type !== 'support') || resolved[0]
+    const active = resolved.find((item) => !looksLikeSupportGem(item.gem) && item.entry?.type !== 'support') || resolved[0]
     if (!active.id) {
-      const reason = skippedSkillReason(active.gem, active.entry)
+      const reason = skippedSkillReason(active.gem, active.entry, active.id)
       if (reason) skippedSkills.push({ name: gemName(active.gem), reason })
       else missingSkills.push(gemName(active.gem))
       continue
@@ -202,7 +215,7 @@ function buildSkills(code: string | null | undefined, catalog: SkillCatalog | nu
     for (const item of resolved) {
       if (item === active) continue
       if (!item.id) {
-        const reason = skippedSkillReason(item.gem, item.entry)
+        const reason = skippedSkillReason(item.gem, item.entry, item.id)
         if (reason) skippedSkills.push({ name: gemName(item.gem), reason })
         else missingSkills.push(gemName(item.gem))
         continue

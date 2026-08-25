@@ -195,6 +195,75 @@ Implicits: 0
     ])
   })
 
+  it('does not block installation on unsupported or disabled skills', () => {
+    const unsupportedCatalog: SkillCatalog = {
+      ...catalog,
+      entries: {
+        ...catalog.entries,
+        Poe2DbSkill: {
+          id: 'Poe2DB:ItemGrantedSkill', name: 'Item Granted Skill', type: 'active', userVisible: true,
+          gemIds: [], gameIds: [], variantIds: [], aliases: [], tags: [],
+        },
+      },
+      lookup: {
+        ...catalog.lookup,
+        itemgrantedskill: 'Poe2DbSkill',
+      },
+    }
+    const code = buildCode(`<PathOfBuilding2><Skills activeSkillSet="1"><SkillSet id="1">
+      <Skill enabled="true"><Gem nameSpec="Spear" skillId="SpearPlayer"/>
+        <Gem nameSpec="Unreleased Support" skillId="SupportUnreleasedPlayer"/>
+      </Skill>
+      <Skill enabled="true"><Gem nameSpec="Item Granted Skill" skillId="ItemGrantedSkill"/></Skill>
+      <Skill enabled="true"><Gem nameSpec="Unknown Active Skill" skillId="UnknownActivePlayer"/></Skill>
+      <Skill enabled="false"><Gem nameSpec="Missing Disabled Skill" skillId="MissingDisabledPlayer"/></Skill>
+    </SkillSet></Skills></PathOfBuilding2>`)
+    const result = createGameBuildPlanner({
+      name: 'Compatibility', treeVersion: '0_5', treeData, selectedClassId: 'Mercenary',
+      selectedAscendancyId: '', allocatedNodes: [], nodeWeaponSets: {}, nodeAttributeSelections: {},
+      importedBuildCode: code,
+      passiveMap: { schemaVersion: 1, treeVersion: '0_5', source: 'test', sourceVersion: 'test', nodes: {} },
+      skillCatalog: unsupportedCatalog,
+    })
+
+    expect(result.missingSkills).toEqual([])
+    expect(result.build.skills).toEqual([{ id: 'Metadata/Items/Gem/SkillGemPlayerDefaultSpear' }])
+    expect(result.skippedSkills).toEqual([
+      { name: 'Unreleased Support', reason: 'unsupported' },
+      { name: 'Item Granted Skill', reason: 'unsupported' },
+      { name: 'Unknown Active Skill', reason: 'unsupported' },
+    ])
+  })
+
+  it('skips PoB hidden item-granted Thorns skill without blocking export', () => {
+    const thornsCatalog: SkillCatalog = {
+      ...catalog,
+      entries: {
+        ...catalog.entries,
+        ThornsPlayer: {
+          id: 'ThornsPlayer', name: 'Thorns', type: 'hidden', userVisible: false,
+          gemIds: [], gameIds: [], variantIds: [], aliases: ['Thorns'], tags: [],
+        },
+      },
+      lookup: { ...catalog.lookup, thornsplayer: 'ThornsPlayer', thorns: 'ThornsPlayer' },
+    }
+    const code = buildCode(`<PathOfBuilding2><Skills activeSkillSet="1"><SkillSet id="1">
+      <Skill><Gem nameSpec="Spear" skillId="SpearPlayer"/></Skill>
+      <Skill><Gem nameSpec="Thorns" skillId="ThornsPlayer"/></Skill>
+    </SkillSet></Skills></PathOfBuilding2>`)
+    const result = createGameBuildPlanner({
+      name: 'Thorns', treeVersion: '0_5', treeData, selectedClassId: 'Mercenary',
+      selectedAscendancyId: '', allocatedNodes: [], nodeWeaponSets: {}, nodeAttributeSelections: {},
+      importedBuildCode: code,
+      passiveMap: { schemaVersion: 1, treeVersion: '0_5', source: 'test', sourceVersion: 'test', nodes: {} },
+      skillCatalog: thornsCatalog,
+    })
+
+    expect(result.missingSkills).toEqual([])
+    expect(result.build.skills).toEqual([{ id: 'Metadata/Items/Gem/SkillGemPlayerDefaultSpear' }])
+    expect(result.skippedSkills).toEqual([{ name: 'Thorns', reason: 'granted' }])
+  })
+
   it('silently excludes embedded equipment sockets from unsupported slot warnings', () => {
     const code = buildCode(`<PathOfBuilding2><Items activeItemSet="1">
       <Item id="1"><![CDATA[Rarity: RARE\nJewel\nTime-Lost Jewel\nImplicits: 0]]></Item>

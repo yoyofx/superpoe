@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, LoaderCircle, XCircle } from 'lucide-react
 import { useTreeStore } from '@/store/treeStore'
 import { Toolbar } from '@/components/Toolbar'
 import type { WorkspaceView } from '@/components/Toolbar'
+import type { AnalysisPage } from '@/components/AttributeAnalysisPage'
 import { useTranslation } from '@/i18n/useTranslation'
 import { writePersistedImportedBuild } from '@/engine/buildPersistence'
 import { BuildCenter } from '@/components/BuildCenter'
@@ -70,6 +71,7 @@ export default function App() {
   const [screen, setScreen] = useState<AppScreen>('center')
   const [libraryReturnScreen, setLibraryReturnScreen] = useState<LibraryReturnScreen>('center')
   const [activeView, setActiveView] = useState<WorkspaceView>('equipment')
+  const [analysisPage, setAnalysisPage] = useState<AnalysisPage>('structure')
   const [marketWorkspace, setMarketWorkspace] = useState<MarketWorkspaceView>('market')
   const [tradeReturnScreen, setTradeReturnScreen] = useState<'center' | 'editor' | 'library'>('center')
   const [monitoring, setMonitoring] = useState<MarketMonitoringSnapshot | null>(null)
@@ -784,7 +786,7 @@ export default function App() {
         )}
         {activeView === 'equipment' && <EquipmentPanel buildId={activeBuildId} realm={appSettings.defaultRealm} />}
         {activeView === 'skills' && <SkillsWorkspace />}
-        {activeView === 'analysis' && <AttributeAnalysisPage onOpenSkills={() => setActiveView('skills')} />}
+        {activeView === 'analysis' && <AttributeAnalysisPage page={analysisPage} onPageChange={setAnalysisPage} onOpenSkills={() => setActiveView('skills')} />}
         </Suspense>}
       </main>
       </>}

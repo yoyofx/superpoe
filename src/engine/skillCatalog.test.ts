@@ -1,6 +1,7 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import {
+  getLocalizedSkillDpsName,
   getLocalizedSkillDescription,
   getLocalizedSkillName,
   getLocalizedSupportEffectLines,
@@ -98,6 +99,27 @@ describe('canonical skill catalog', () => {
       expect(parent, entry.id).toBeDefined()
       expect([...parent.gameIds, ...parent.gemIds].some((id) => id.startsWith('Metadata/Items/')), entry.id).toBe(true)
     }
+  })
+
+  it('includes nested hidden item-granted skills in the lookup', () => {
+    expect(catalog.entries.ThornsPlayer?.type).toBe('hidden')
+    expect(catalog.entries.ThornsPlayer?.userVisible).toBe(false)
+    expect(resolveSkillCatalogName('ThornsPlayer', catalog)?.id).toBe('ThornsPlayer')
+  })
+
+  it('localizes hidden DPS rows through their granting skill', () => {
+    expect(getLocalizedSkillDpsName({
+      name: '',
+      skillId: 'VoltaicBarrierTriggeredChainLightningPlayer',
+      hidden: true,
+      parentSkillId: 'VoltaicBarrierPlayer',
+      parentSkillName: 'Voltaic Barrier',
+    }, catalog, 'zh-rCN')).toBe('电能屏障 · 触发技能')
+    expect(getLocalizedSkillDpsName({
+      name: 'ThornsPlayer',
+      skillId: 'ThornsPlayer',
+      hidden: true,
+    }, catalog, 'zh-rCN')).toBe('')
   })
 
   it('gives every ascendancy skill form a planner item id', () => {

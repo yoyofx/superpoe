@@ -85,6 +85,11 @@ export interface SkillDpsEntry {
   skillPart?: string
   groupId?: string
   skillId?: string
+  /** True when PoB created this row from an internal/triggered skill form. */
+  hidden?: boolean
+  /** The user-facing gem that granted this hidden runtime skill. */
+  parentSkillId?: string
+  parentSkillName?: string
   kind?: 'main' | 'trigger' | 'minion' | 'mirage' | 'dot' | 'other'
   /** PoB skill flags normalized for project-owned analysis surfaces. */
   skillType?: 'attack' | 'spell' | 'other'
@@ -167,6 +172,9 @@ export interface SkillCalculationOption {
   skillId?: string
   trigger?: string
   skillPart?: string
+  hidden?: boolean
+  parentSkillId?: string
+  parentSkillName?: string
 }
 
 export interface SkillDamageBreakdown {

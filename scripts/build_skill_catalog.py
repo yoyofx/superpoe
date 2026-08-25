@@ -104,7 +104,9 @@ def parse_skills() -> dict[str, dict[str, Any]]:
         if path.name == "SkillAssets.lua":
             continue
         text = path.read_text(encoding="utf-8", errors="replace")
-        for skill_id, block in top_level_blocks(text, r'^skills\["((?:\\.|[^"])*)"\]\s*=\s*\{'):
+        # Some internal skills are declared inside a nested table (for
+        # example ThornsPlayer in other.lua), so indentation is valid here.
+        for skill_id, block in top_level_blocks(text, r'^[ \t]*skills\["((?:\\.|[^"])*)"\]\s*=\s*\{'):
             record = definitions.setdefault(skill_id, {"id": skill_id, "sourceFiles": []})
             record["sourceFiles"].append(path.name)
             for source_key, target_key in (

@@ -10,13 +10,13 @@
     "supportEffects": "public/pob-lua via native/pob-lua-runner.lua"
   },
   "stats": {
-    "entries": 1483,
-    "userVisible": 1020,
-    "userVisibleWithIcon": 1020,
+    "entries": 1490,
+    "userVisible": 1021,
+    "userVisibleWithIcon": 1021,
     "userVisibleWithDescription": 1017,
     "active": 327,
     "support": 604,
-    "granted": 88,
+    "granted": 90,
     "iconFallbacks": 0,
     "localizedDescriptions": {
       "zh-rCN": 1017,
@@ -547,7 +547,7 @@
     "AncientGiftsPlayer": {
       "id": "AncientGiftsPlayer",
       "name": "Wildwood's Gifts",
-      "type": "hidden",
+      "type": "granted",
       "userVisible": true,
       "gemIds": [
         "Metadata/Items/Gems/SkillGemAncientGifts"
@@ -2626,6 +2626,28 @@
         "zh-rTW": "https://poe2db.tw/tw/Blink",
         "ko-KR": "https://poe2db.tw/kr/Blink"
       }
+    },
+    "BloodbarrierPlayer": {
+      "id": "BloodbarrierPlayer",
+      "name": "Bloodbarrier",
+      "baseTypeName": "Bloodbarrier",
+      "type": "granted",
+      "userVisible": true,
+      "gemIds": [],
+      "gameIds": [],
+      "variantIds": [],
+      "aliases": [
+        "Bloodbarrier"
+      ],
+      "tags": [],
+      "description": null,
+      "sourceIcon": null,
+      "sourceFiles": [
+        "other.lua"
+      ],
+      "color": null,
+      "icon": "/assets/items/poe2db/Art/2DItems/Offhand/Shields/Uniques/BloodBarrier.webp",
+      "iconSource": "poe2db"
     },
     "BloodBoilPlayer": {
       "id": "BloodBoilPlayer",
@@ -7128,6 +7150,28 @@
         "zh-rTW": "https://poe2db.tw/tw/Encase_in_Jade",
         "ko-KR": "https://poe2db.tw/kr/Encase_in_Jade"
       }
+    },
+    "EnemyExplode": {
+      "id": "EnemyExplode",
+      "name": "On Kill Monster Explosion",
+      "baseTypeName": null,
+      "type": "hidden",
+      "userVisible": false,
+      "gemIds": [],
+      "gameIds": [],
+      "variantIds": [],
+      "aliases": [
+        "On Kill Monster Explosion"
+      ],
+      "tags": [],
+      "description": null,
+      "sourceIcon": null,
+      "sourceFiles": [
+        "other.lua"
+      ],
+      "color": 4,
+      "icon": null,
+      "iconSource": null
     },
     "EnervatingNovaPlayer": {
       "id": "EnervatingNovaPlayer",
@@ -20389,6 +20433,43 @@
         "zh-rCN": "https://poe2db.tw/cn/Midnight_Zenith",
         "zh-rTW": "https://poe2db.tw/tw/Midnight_Zenith",
         "ko-KR": "https://poe2db.tw/kr/Midnight_Zenith"
+      }
+    },
+    "MinionInstability": {
+      "id": "MinionInstability",
+      "name": "Minion Instability",
+      "baseTypeName": null,
+      "type": "hidden",
+      "userVisible": false,
+      "gemIds": [],
+      "gameIds": [],
+      "variantIds": [],
+      "aliases": [
+        "Minion Instability"
+      ],
+      "tags": [],
+      "description": null,
+      "sourceIcon": null,
+      "sourceFiles": [
+        "minion.lua"
+      ],
+      "color": null,
+      "icon": "/assets/skills/poe2db/Art/2DArt/SkillIcons/Support/MinionInstabilitySupport.webp",
+      "iconSource": "poe2db",
+      "localizedNames": {
+        "zh-rCN": "复仇之灵",
+        "zh-rTW": "復仇之靈",
+        "ko-KR": "소환수 불안정"
+      },
+      "localizedDescriptions": {
+        "zh-rCN": "辅助产生召唤生物的技能，使召唤生物在低血时剧烈爆炸。",
+        "zh-rTW": "輔助創造出召喚物的技能，使其貧血時發生劇烈爆炸。",
+        "ko-KR": "소환수를 생성하는 스킬에 적용됩니다. 소환수가 낮은 생명력 상태가 되면 격렬하게 폭발합니다."
+      },
+      "localizationSources": {
+        "zh-rCN": "https://poe2db.tw/cn/Minion_Instability",
+        "zh-rTW": "https://poe2db.tw/tw/Minion_Instability",
+        "ko-KR": "https://poe2db.tw/kr/Minion_Instability"
       }
     },
     "MinionMelee": {
@@ -68841,6 +68922,28 @@
         "ko-KR": "https://poe2db.tw/kr/The_Stars_Answer"
       }
     },
+    "ThornsPlayer": {
+      "id": "ThornsPlayer",
+      "name": "Thorns",
+      "baseTypeName": null,
+      "type": "hidden",
+      "userVisible": false,
+      "gemIds": [],
+      "gameIds": [],
+      "variantIds": [],
+      "aliases": [
+        "Thorns"
+      ],
+      "tags": [],
+      "description": null,
+      "sourceIcon": null,
+      "sourceFiles": [
+        "other.lua"
+      ],
+      "color": null,
+      "icon": null,
+      "iconSource": null
+    },
     "ThrashingVinesPlayer": {
       "id": "ThrashingVinesPlayer",
       "name": "Thrashing Vines",
@@ -69653,6 +69756,117 @@
         "ko-KR": "https://poe2db.tw/kr/Abyssal_Apparition",
         "zh-rCN": "https://poe2db.tw/cn/Abyssal_Apparition",
         "zh-rTW": "https://poe2db.tw/tw/Abyssal_Apparition"
+      }
+    },
+    "TriggeredBarbsPlayer": {
+      "id": "TriggeredBarbsPlayer",
+      "name": "Barbs I",
+      "baseTypeName": null,
+      "type": "hidden",
+      "userVisible": false,
+      "gemIds": [],
+      "gameIds": [],
+      "variantIds": [],
+      "aliases": [
+        "Barbs I"
+      ],
+      "tags": [],
+      "description": "Deal your thorns damage.",
+      "sourceIcon": null,
+      "sourceFiles": [
+        "sup_str.lua"
+      ],
+      "color": null,
+      "icon": "/assets/skills/poe2db/Art/2DArt/SkillIcons/Support/BarbsSupport.webp",
+      "iconSource": "poe2db",
+      "localizedNames": {
+        "zh-rCN": "荆棘倒刺 I",
+        "zh-rTW": "倒刺 I",
+        "ko-KR": "미늘 I"
+      },
+      "localizedDescriptions": {
+        "zh-rCN": "辅助近战打击技能。当你用荆棘伤害进行反击后，你同时会对被辅助技能击中的敌人造成你的荆棘伤害。",
+        "zh-rTW": "輔助近戰打擊技能。當你以荊棘傷害進行反擊後，你也會對被輔助的技能擊中的敵人造成你的荊棘傷害。",
+        "ko-KR": "근접 타격 스킬에 적용됩니다. 가시 피해로 보복한 후 보조 대상 스킬이 명중한 적들에게 가시 피해를 추가로 줍니다."
+      },
+      "localizationSources": {
+        "zh-rCN": "https://poe2db.tw/cn/Barbs_I",
+        "zh-rTW": "https://poe2db.tw/tw/Barbs_I",
+        "ko-KR": "https://poe2db.tw/kr/Barbs_I"
+      }
+    },
+    "TriggeredBarbsPlayerThree": {
+      "id": "TriggeredBarbsPlayerThree",
+      "name": "Barbs III",
+      "baseTypeName": null,
+      "type": "hidden",
+      "userVisible": false,
+      "gemIds": [],
+      "gameIds": [],
+      "variantIds": [],
+      "aliases": [
+        "Barbs III"
+      ],
+      "tags": [],
+      "description": "Deal twice your thorns damage.",
+      "sourceIcon": null,
+      "sourceFiles": [
+        "sup_str.lua"
+      ],
+      "color": null,
+      "icon": "/assets/skills/poe2db/Art/2DArt/SkillIcons/Support/BarbsSupport.webp",
+      "iconSource": "poe2db",
+      "localizedNames": {
+        "zh-rCN": "荆棘倒刺 III",
+        "ko-KR": "미늘 III",
+        "zh-rTW": "倒刺 III"
+      },
+      "localizedDescriptions": {
+        "zh-rCN": "辅助近战打击技能。当你用荆棘伤害进行反击后，你会对被辅助技能击中的敌人造成两次你的荆棘伤害。",
+        "ko-KR": "근접 타격 스킬에 적용됩니다. 가시 피해로 보복한 후 보조 대상 스킬이 명중한 적들에게 가시 피해를 2회 추가로 줍니다.",
+        "zh-rTW": "輔助近戰打擊技能。當你以荊棘傷害進行反擊後，你也會對被輔助的技能擊中的敵人造成兩次你的荊棘傷害。"
+      },
+      "localizationSources": {
+        "zh-rCN": "https://poe2db.tw/cn/Barbs_III",
+        "ko-KR": "https://poe2db.tw/kr/Barbs_III",
+        "zh-rTW": "https://poe2db.tw/tw/Barbs_III"
+      }
+    },
+    "TriggeredBarbsPlayerTwo": {
+      "id": "TriggeredBarbsPlayerTwo",
+      "name": "Barbs II",
+      "baseTypeName": null,
+      "type": "hidden",
+      "userVisible": false,
+      "gemIds": [],
+      "gameIds": [],
+      "variantIds": [],
+      "aliases": [
+        "Barbs II"
+      ],
+      "tags": [],
+      "description": "Deal your thorns damage.",
+      "sourceIcon": null,
+      "sourceFiles": [
+        "sup_str.lua"
+      ],
+      "color": null,
+      "icon": "/assets/skills/poe2db/Art/2DArt/SkillIcons/Support/BarbsSupport.webp",
+      "iconSource": "poe2db",
+      "localizedNames": {
+        "zh-rTW": "倒刺 II",
+        "zh-rCN": "荆棘倒刺 II",
+        "ko-KR": "미늘 II"
+      },
+      "localizedDescriptions": {
+        "zh-rTW": "輔助近戰打擊技能。當你以荊棘傷害進行反擊後，你也會對被輔助的技能擊中的敵人造成你的荊棘傷害。",
+        "zh-rCN": "辅助近战打击技能。当你用荆棘伤害进行反击后，你同时会对被辅助技能击中的敌人造成你的荆棘伤害。",
+        "ko-KR": "근접 타격 스킬에 적용됩니다. 가시 피해로 보복한 후 보조 대상 스킬이 명중한 적들에게 가시 피해를 추가로 줍니다."
+      },
+      "localizationSources": {
+        "zh-rTW": "https://poe2db.tw/tw/Barbs_II",
+        "zh-rCN": "https://poe2db.tw/cn/Barbs_II",
+        "ko-KR": "https://poe2db.tw/kr/Barbs_II"
       }
     },
     "TriggeredBattershoutExplosionPlayer": {
@@ -75383,6 +75597,8 @@
     "blinkplayer": "BlinkPlayer",
     "blinkreservation": "BlinkReservationPlayer",
     "blinkreservationplayer": "BlinkReservationPlayer",
+    "bloodbarrier": "BloodbarrierPlayer",
+    "bloodbarrierplayer": "BloodbarrierPlayer",
     "bloodboil": "BloodBoilPlayer",
     "bloodboilplayer": "BloodBoilPlayer",
     "bloodexplosion": "BloodhoundsMarkExplosionPlayer",
@@ -75931,6 +76147,7 @@
     "enduringimpact": "SupportHeavyStunEndurancePlayerOne",
     "enduringimpacti": "SupportHeavyStunEndurancePlayerOne",
     "enduringimpactii": "SupportHeavyStunEndurancePlayerTwo",
+    "enemyexplode": "EnemyExplode",
     "energybarrier": "Poe2DB:Energy_Barrier",
     "energybarriersupport": "Poe2DB:Energy_Barrier",
     "energycapacitor": "SupportEnergyCapacitorPlayer",
@@ -78692,6 +78909,7 @@
     "olrothshubris": "SupportOlrothsHubrisPlayer",
     "olrothshubrissupport": "SupportOlrothsHubrisPlayer",
     "omegabeam": "GSHellscapePaleEliteOmegaBeam",
+    "onkillmonsterexplosion": "EnemyExplode",
     "openingmove": "SupportOpeningMovePlayer",
     "openingmovesupport": "SupportOpeningMovePlayer",
     "orbcharge": "TCExcavatorOrbCharge",
@@ -80044,11 +80262,13 @@
     "thestarsanswer": "TheStarsAnswerPlayer",
     "thestarsanswercometplayer": "TheStarsAnswerCometPlayer",
     "thestarsanswerplayer": "TheStarsAnswerPlayer",
+    "thorns": "ThornsPlayer",
     "thornskin": "SupportThornskinPlayer",
     "thornskini": "SupportThornskinPlayer",
     "thornskinii": "SupportThornskinPlayerTwo",
     "thornskinsupport": "SupportThornskinPlayer",
     "thornskinsupporttwo": "SupportThornskinPlayerTwo",
+    "thornsplayer": "ThornsPlayer",
     "thrashingvines": "ThrashingVinesPlayer",
     "thrashingvinesplayer": "ThrashingVinesPlayer",
     "thrillofthekill": "SupportThrillOfTheKillPlayer",
@@ -80088,6 +80308,9 @@
     "trickstersshardsupport": "SupportTrickstersShardPlayer",
     "triggeredabyssalapparition": "TriggeredAbyssalApparitionPlayer",
     "triggeredabyssalapparitionplayer": "TriggeredAbyssalApparitionPlayer",
+    "triggeredbarbsplayer": "TriggeredBarbsPlayer",
+    "triggeredbarbsplayerthree": "TriggeredBarbsPlayerThree",
+    "triggeredbarbsplayertwo": "TriggeredBarbsPlayerTwo",
     "triggeredbattershoutexplosionplayer": "TriggeredBattershoutExplosionPlayer",
     "triggeredboneshrapnelplayer": "TriggeredBoneShrapnelPlayer",
     "triggeredbrambleslamplayer": "TriggeredBrambleslamPlayer",
