@@ -231,6 +231,11 @@ describe('PoB Lua front-end runtime', () => {
       expect(result.data?.PowerStats?.ShockChance).toBeDefined()
       expect(result.data?.PowerStats?.EffectiveLootRarityMod).toBeDefined()
       expect(result.data?.SkillLevel).toBeGreaterThan(0)
+      const typedDamage = (result.data?.SkillDetails?.damageTypes || []).filter((entry) => entry.type !== 'all' && Number.isFinite(entry.finalAverage))
+      expect(typedDamage.every((entry) => Number.isFinite(entry.stages?.baseMin)
+        && Number.isFinite(entry.stages?.summedMin)
+        && Number.isFinite(entry.stages?.moreStageMin)
+        && Number.isFinite(entry.stages?.effectiveAverage))).toBe(true)
     const virtualModifier = calculateWithLuaEngine(lua, decoded.xml, {
       configOverrides: { customMods: '+100 to maximum Life' },
     })

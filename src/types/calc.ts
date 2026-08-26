@@ -101,6 +101,7 @@ export interface SkillCalculationSelection {
   skillGroupId?: string
   calcMode?: SkillCalculationMode
   activeSkillIndex?: number
+  skillPartIndex?: number
   statSetIndex?: number
   actor?: SkillCalculationActorSelection
   minionSkillIndex?: number
@@ -175,6 +176,10 @@ export interface SkillCalculationOption {
   hidden?: boolean
   parentSkillId?: string
   parentSkillName?: string
+  /** Stat sets exposed by this option (used for each minion skill). */
+  statSets?: SkillCalculationOption[]
+  /** Multipart skill parts exposed by this option. */
+  skillParts?: SkillCalculationOption[]
 }
 
 export interface SkillDamageBreakdown {
@@ -194,8 +199,55 @@ export interface SkillDamageBreakdown {
   effectiveMultiplier?: number
   moreMin?: number
   moreMax?: number
+  /** Exact intermediate values exported from PoB2's offence calculation. */
+  stages?: SkillDamageStageValues
   breakdown?: string[]
   effectiveBreakdown?: string[]
+}
+
+export interface SkillDamageStageValues {
+  baseMin?: number
+  baseMax?: number
+  /** Raw weapon or skill base before flat added damage and skill multiplier. */
+  baseSourceMin?: number
+  baseSourceMax?: number
+  /** Flat added damage included in the base formula, before its multiplier. */
+  flatAddedMin?: number
+  flatAddedMax?: number
+  flatAddedMultiplier?: number
+  /** Base formula input after flat added damage, before skill multiplier. */
+  baseInputMin?: number
+  baseInputMax?: number
+  /** Skill effectiveness/base damage multiplier for the selected form/stat set. */
+  baseMultiplier?: number
+  retainedMin?: number
+  retainedMax?: number
+  conversionFactor?: number
+  conversionMin?: number
+  conversionMax?: number
+  gainMin?: number
+  gainMax?: number
+  summedMin?: number
+  summedMax?: number
+  increasedFactor?: number
+  increasedMin?: number
+  increasedMax?: number
+  moreFactor?: number
+  moreMinFactor?: number
+  moreMaxFactor?: number
+  moreStageMin?: number
+  moreStageMax?: number
+  normalMin?: number
+  normalMax?: number
+  normalAverage?: number
+  criticalMin?: number
+  criticalMax?: number
+  criticalAverage?: number
+  expectedAverage?: number
+  effectiveMin?: number
+  effectiveMax?: number
+  effectiveAverage?: number
+  effectiveMultiplier?: number
 }
 
 export interface SkillModifierContribution {
@@ -313,6 +365,8 @@ export interface SkillCalculationDetails {
   minionName?: string
   activeSkillIndex: number
   activeSkills: SkillCalculationOption[]
+  skillPartIndex: number
+  skillParts: SkillCalculationOption[]
   statSetIndex: number
   statSets: SkillCalculationOption[]
   minionSkillIndex?: number
@@ -323,6 +377,7 @@ export interface SkillCalculationDetails {
   damageSource: 'skill' | 'mainHand' | 'offHand'
   damageTypes: SkillDamageBreakdown[]
   averageHit?: number
+  averageDamage?: number
   speed?: number
   /** Effective rate used by PoB2 when converting average damage to DPS. */
   effectiveRate?: number

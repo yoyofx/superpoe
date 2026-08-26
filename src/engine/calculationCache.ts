@@ -47,6 +47,7 @@ function selectionKey(selection?: SkillCalculationSelection): string {
     selection.skillGroupId || '',
     selection.calcMode || '',
     selection.activeSkillIndex ?? '',
+    selection.skillPartIndex ?? '',
     selection.statSetIndex ?? '',
     selection.actor || '',
     selection.minionSkillIndex ?? '',

@@ -112,12 +112,13 @@ lines.on('line', (line) => {
     const minionDetails = message.data.data?.SkillDetails
     if (!minionDetails?.hasMinion || minionDetails.actor !== 'minion'
       || !Array.isArray(minionDetails.minionSkills) || minionDetails.minionSkills.length < 2
+      || minionDetails.minionSkills.some((skill) => !Array.isArray(skill.statSets))
       || !Number.isFinite(minionDetails.totalDps) || minionDetails.totalDps <= 0) {
       throw new Error(`Unexpected automatic minion calculation: ${JSON.stringify(minionDetails)}`)
     }
     clearTimeout(timeout)
     const skillCount = (xml.match(/<Skill(?:\s|>)/g) || []).length
-    child.stdin.write(`${JSON.stringify({ id: 4, type: 'calculate', payload: { xml: minionXml, skillGroupId: '1', actor: 'minion', minionSkillIndex: 2 } })}\n`)
+    child.stdin.write(`${JSON.stringify({ id: 4, type: 'calculate', payload: { xml: minionXml, skillGroupId: '1', actor: 'minion', skillPartIndex: 1, minionSkillIndex: 2 } })}\n`)
     calculationData.minionSummary = { details: minionDetails, skillCount }
     return
   }
@@ -163,6 +164,12 @@ lines.on('line', (line) => {
     throw new Error(`Missing authoritative damage transfer tables: ${JSON.stringify(skillDetails)}`)
   }
   const typedDamage = (skillDetails.damageTypes || []).filter((entry) => entry.type !== 'all' && Number.isFinite(entry.finalAverage))
+  if (typedDamage.some((entry) => !Number.isFinite(entry.stages?.baseMin)
+    || !Number.isFinite(entry.stages?.summedMin)
+    || !Number.isFinite(entry.stages?.moreStageMin)
+    || !Number.isFinite(entry.stages?.effectiveAverage))) {
+    throw new Error(`Missing authoritative damage stages: ${JSON.stringify(skillDetails.damageTypes)}`)
+  }
   if (typedDamage.length && Number.isFinite(skillDetails.averageHit)) {
     const typedAverage = typedDamage.reduce((sum, entry) => sum + entry.finalAverage, 0)
     const tolerance = Math.max(0.1, Math.abs(skillDetails.averageHit) * 1e-6)

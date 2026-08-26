@@ -6,7 +6,7 @@ import { formatUiNumber, uiText } from '@/i18n/uiLocale'
 import { getImportedCalculationMode } from '@/engine/calculationConfig'
 import { parseSkillsXml } from '@/engine/skills'
 import { translateCalculationText } from '@/i18n/calculationTranslations'
-import { getLocalizedSkillDpsName, getLocalizedSkillName, loadSkillCatalog, resolveSkillCatalogEntry, type SkillCatalog } from '@/engine/skillCatalog'
+import { getLocalizedSkillDpsName, getLocalizedSkillName, loadSkillCatalog, resolveSkillCatalogEntry, resolveSkillCatalogName, type SkillCatalog } from '@/engine/skillCatalog'
 import { ANALYSIS_DIMENSIONS, ATTRIBUTE_PROBE_CATALOG, METRIC_DEFINITIONS, PROBE_CATALOG_VERSION, getAnalysisSkillScope, getPowerStatValue, type AnalysisDimension, type AnalysisText, type MetricDefinition, type ProbeMetricDelta, type ProbeSeriesResult } from '@/engine/attributeAnalysis'
 import { calculateAnalysisResult, calculateAnalysisScopeDetail, runInvestmentProbeBatch, type AnalysisSkillDetail } from '@/engine/investmentAnalysisService'
 import type { CalcResult } from '@/types/calc'
@@ -532,17 +532,30 @@ export function AttributeAnalysisPage({ page = 'structure', onPageChange, onOpen
   const damageStructureAggregateData = useMemo(() => buildDamageStructureReportData(structureBaseline, analysisScope, {
     totalDps: getPowerStatValue(baseline, damageMetricKey),
     finalDamageDps: structureFinalDamageDps,
-  }), [analysisScope, baseline, damageMetricKey, structureBaseline, structureFinalDamageDps])
+    aggregateSkills: structureSkills.filter((entry) => entry.isDefault).map((entry) => ({ result: entry.detail, count: entry.entry.count || 1 })),
+  }), [analysisScope, baseline, damageMetricKey, structureBaseline, structureFinalDamageDps, structureSkills])
   const damageStructureSkills = useMemo(() => structureSkills.map((skill) => {
     const details = skill.detail.SkillDetails
     const activeSkill = details?.activeSkills.find((entry) => entry.index === details.activeSkillIndex) || details?.activeSkills[0]
+    const activeSkillPart = details?.skillParts?.find((entry) => entry.index === details.skillPartIndex)
     const activeStatSet = details?.statSets.find((entry) => entry.index === details.statSetIndex) || details?.statSets[0]
     const activeMinionSkill = details?.minionSkills?.find((entry) => entry.index === details.minionSkillIndex) || details?.minionSkills?.[0]
-    const rawShapeName = skill.entry.skillPart || activeStatSet?.label || activeSkill?.skillPart || activeSkill?.label || skill.entry.name
+    const rawPartName = activeSkillPart?.label || activeSkill?.skillPart || skill.entry.skillPart || ''
+    const rawStatSetName = activeStatSet?.label || ''
+    const rawShapeName = rawPartName || rawStatSetName
     const shapeName = translateCalculationText(rawShapeName || l('Default form', '默认形态'), lang)
-    const statSetName = activeStatSet?.label && activeStatSet.label !== skill.entry.skillPart
-      ? translateCalculationText(activeStatSet.label, lang)
+    const statSetName = rawPartName && rawStatSetName && rawStatSetName !== rawPartName
+      ? translateCalculationText(rawStatSetName, lang)
       : ''
+    const parentSkillRawName = activeSkill?.parentSkillName || skill.entry.parentSkillName || ''
+    const parentSkillName = parentSkillRawName
+      ? getLocalizedSkillName(
+        { name: parentSkillRawName },
+        resolveSkillCatalogName(activeSkill?.parentSkillId || skill.entry.parentSkillId || parentSkillRawName, skillCatalog),
+        lang,
+      )
+      : getLocalizedSkillDpsName(skill.entry, skillCatalog, lang)
+    const minionSkillName = activeMinionSkill?.label ? translateCalculationText(activeMinionSkill.label, lang) : ''
     return {
       id: skill.id,
       name: getLocalizedSkillDpsName(skill.entry, skillCatalog, lang) || l('Triggered skill', '触发技能'),
@@ -552,12 +565,19 @@ export function AttributeAnalysisPage({ page = 'structure', onPageChange, onOpen
       entryGroupKey: `${skill.entry.groupId || skill.id}|${skill.entry.skillId || skill.entry.name}`,
       shapeName,
       statSetName,
-      minionSkillName: activeMinionSkill?.label || '',
+      minionSkillName,
       data: buildDamageStructureReportData(skill.detail, undefined, {
         totalDps: skill.entry.dps,
         finalDamageDps: skill.finalDamageDps,
         calculationScope: 'selectedSkill',
         includedSkillCount: 1,
+        skillContext: {
+          parentSkillName: parentSkillName || undefined,
+          formName: rawShapeName && shapeName !== parentSkillName ? shapeName : undefined,
+          statSetName: statSetName || undefined,
+          minionSkillName: minionSkillName || undefined,
+          actorName: details?.minionName ? translateCalculationText(details.minionName, lang) : undefined,
+        },
       }),
     }
   }).filter((entry): entry is typeof entry & { data: NonNullable<typeof entry.data> } => Boolean(entry.data)), [lang, skillCatalog, structureSkills])

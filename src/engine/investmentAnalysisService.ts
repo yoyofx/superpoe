@@ -11,7 +11,7 @@ import {
   type ProbePointResult,
   type ProbeSeriesResult,
 } from '@/engine/attributeAnalysis'
-import type { AttributeProbeBatchInput, AttributeProbeCalculationJob, CalcResult, SkillCalculationMode, SkillDpsEntry, SkillDamageBreakdown } from '@/types/calc'
+import type { AttributeProbeBatchInput, AttributeProbeCalculationJob, CalcResult, SkillCalculationActorSelection, SkillCalculationMode, SkillDpsEntry, SkillDamageBreakdown } from '@/types/calc'
 
 export interface InvestmentAnalysisRequest {
   code: string
@@ -102,13 +102,18 @@ export async function calculateAnalysisResult(
   weaponSet: 1 | 2,
   calcMode: SkillCalculationMode | undefined,
   configOverrides: Record<string, boolean | number | string>,
-  options: { characterOnly?: boolean; skillGroupId?: string; activeSkillIndex?: number } = {},
+  options: { characterOnly?: boolean; skillGroupId?: string; activeSkillIndex?: number; skillPartIndex?: number; statSetIndex?: number; actor?: SkillCalculationActorSelection; minionSkillIndex?: number; minionStatSetIndex?: number } = {},
 ): Promise<CalcResult> {
   const selection = {
     calcMode,
     characterOnly: options.characterOnly,
     skillGroupId: options.skillGroupId,
     activeSkillIndex: options.activeSkillIndex,
+    skillPartIndex: options.skillPartIndex,
+    statSetIndex: options.statSetIndex,
+    actor: options.actor,
+    minionSkillIndex: options.minionSkillIndex,
+    minionStatSetIndex: options.minionStatSetIndex,
   }
   const keys = createCalculationCacheKeys({ code, xml, weaponSet, calcMode, configOverrides, selection })
   const cached = calculationCache.get(keys.resultKey)
@@ -120,6 +125,11 @@ export async function calculateAnalysisResult(
     characterOnly: options.characterOnly,
     skillGroupId: options.skillGroupId,
     activeSkillIndex: options.activeSkillIndex,
+    skillPartIndex: options.skillPartIndex,
+    statSetIndex: options.statSetIndex,
+    actor: options.actor,
+    minionSkillIndex: options.minionSkillIndex,
+    minionStatSetIndex: options.minionStatSetIndex,
     configOverrides,
   })
   if (!response.success || response.error || !response.data) throw new Error(response.error || 'Calculation returned no data')
@@ -137,6 +147,7 @@ export interface AnalysisSkillDetail {
   entry: SkillDpsEntry
   detail: CalcResult
   finalDamageDps: Record<string, number>
+  isDefault: boolean
 }
 
 export interface AnalysisScopeDetailResult {
@@ -145,8 +156,21 @@ export interface AnalysisScopeDetailResult {
   finalDamageDps: Record<string, number>
 }
 
-function analysisSkillId(entry: SkillDpsEntry, index: number): string {
-  return [entry.groupId || '', entry.skillId || '', entry.skillPart || '', entry.name, entry.kind || '', index].join('|')
+interface AnalysisFormSelection {
+  actor?: SkillCalculationActorSelection
+  skillPartIndex?: number
+  statSetIndex?: number
+  minionSkillIndex?: number
+  minionStatSetIndex?: number
+}
+
+function analysisSkillId(entry: SkillDpsEntry, index: number, selection: AnalysisFormSelection): string {
+  return [
+    entry.groupId || '', entry.skillId || '', entry.skillPart || '', entry.name, entry.kind || '', index,
+    selection.actor || 'auto', selection.statSetIndex ?? 'default',
+    selection.skillPartIndex ?? 'default',
+    selection.minionSkillIndex ?? 'default', selection.minionStatSetIndex ?? 'default',
+  ].join('|')
 }
 
 async function resolveScopeEntryDetail(
@@ -157,25 +181,114 @@ async function resolveScopeEntryDetail(
   configOverrides: Record<string, boolean | number | string>,
   entry: SkillDpsEntry,
   baseline: CalcResult,
+  selection: AnalysisFormSelection = {},
 ): Promise<CalcResult> {
   if (!entry.groupId) return baseline
-  const currentSkill = baseline.SkillDetails?.activeSkills.find((skill) => skill.index === baseline.SkillDetails?.activeSkillIndex)
-  if (currentSkill && entry.skillId && currentSkill.skillId === entry.skillId
-    && (!entry.skillPart || !currentSkill.skillPart || currentSkill.skillPart === entry.skillPart)) return baseline
+  const baselineDetails = baseline.SkillDetails
+  const currentSkill = baselineDetails?.activeSkills.find((skill) => skill.index === baselineDetails.activeSkillIndex)
+  const matchesCurrentSkill = Boolean(currentSkill && entry.skillId && currentSkill.skillId === entry.skillId
+    && (!entry.skillPart || !currentSkill.skillPart || currentSkill.skillPart === entry.skillPart))
+  const requestedActor = selection.actor
+  const isDefaultActor = requestedActor == null || requestedActor === 'auto'
+  if (matchesCurrentSkill && isDefaultActor
+    && selection.minionSkillIndex == null
+    && selection.minionStatSetIndex == null
+    && (selection.statSetIndex == null || baselineDetails?.statSetIndex === selection.statSetIndex)) return baseline
 
   const groupResult = await calculateAnalysisResult(code, xml, weaponSet, calcMode, configOverrides, { skillGroupId: entry.groupId })
-  const activeSkills = groupResult.SkillDetails?.activeSkills || []
+  const groupDetails = groupResult.SkillDetails
+  const activeSkills = groupDetails?.activeSkills || []
   const matchingIndex = activeSkills.findIndex((skill) => {
     if (entry.skillId && skill.skillId === entry.skillId) {
       return !entry.skillPart || !skill.skillPart || skill.skillPart === entry.skillPart
     }
     return !entry.skillId && skill.label === entry.name
   })
-  if (matchingIndex < 0 || matchingIndex + 1 === groupResult.SkillDetails?.activeSkillIndex) return groupResult
+  const resolvedMatchingIndex = matchingIndex >= 0
+    ? matchingIndex
+    : entry.skillId
+      ? activeSkills.findIndex((skill) => skill.skillId === entry.skillId)
+      : -1
+  if (resolvedMatchingIndex < 0) return groupResult
+  const activeSkillIndex = resolvedMatchingIndex + 1
+  if (activeSkillIndex === groupDetails?.activeSkillIndex
+    && isDefaultActor
+    && selection.minionSkillIndex == null
+    && selection.minionStatSetIndex == null
+    && (selection.statSetIndex == null || groupDetails?.statSetIndex === selection.statSetIndex)) return groupResult
   return calculateAnalysisResult(code, xml, weaponSet, calcMode, configOverrides, {
     skillGroupId: entry.groupId,
-    activeSkillIndex: matchingIndex + 1,
+    activeSkillIndex,
+    ...selection,
   })
+}
+
+function formSelectionKey(selection: AnalysisFormSelection): string {
+  return [
+    selection.actor || 'auto',
+    selection.statSetIndex ?? '',
+    selection.skillPartIndex ?? '',
+    selection.minionSkillIndex ?? '',
+    selection.minionStatSetIndex ?? '',
+  ].join(':')
+}
+
+/**
+ * PoB exposes ordinary skill forms as stat sets, while minion skills add a
+ * second form axis: the selected minion skill also has its own stat sets.
+ * Keep the default calculation first and then enumerate every other valid
+ * combination so the UI cannot silently lose a form.
+ */
+function getAnalysisFormSelections(detail: CalcResult): AnalysisFormSelection[] {
+  const details = detail.SkillDetails
+  if (!details) return [{}]
+
+  const selections: AnalysisFormSelection[] = [{}]
+  const seen = new Set([formSelectionKey({})])
+  const add = (selection: AnalysisFormSelection) => {
+    const key = formSelectionKey(selection)
+    if (seen.has(key)) return
+    seen.add(key)
+    selections.push(selection)
+  }
+
+  if (details.actor === 'minion') {
+    const minionSkills = details.minionSkills?.length
+      ? details.minionSkills
+      : [{ index: details.minionSkillIndex || 1, label: '', statSets: details.minionStatSets || [] }]
+    for (const minionSkill of minionSkills) {
+      const statSets = minionSkill.statSets?.length
+        ? minionSkill.statSets
+        : minionSkill.index === (details.minionSkillIndex || 1)
+          ? details.minionStatSets || []
+          : []
+      if (statSets.length) {
+        for (const statSet of statSets) {
+          const isCurrent = minionSkill.index === (details.minionSkillIndex || 1)
+            && statSet.index === (details.minionStatSetIndex || 1)
+          if (!isCurrent) add({ actor: 'minion', minionSkillIndex: minionSkill.index, minionStatSetIndex: statSet.index })
+        }
+      } else if (minionSkill.index !== (details.minionSkillIndex || 1)) {
+        add({ actor: 'minion', minionSkillIndex: minionSkill.index })
+      }
+    }
+    return selections
+  }
+
+  const skillParts = details.skillParts?.length
+    ? details.skillParts
+    : [{ index: details.skillPartIndex || 1, label: '' }]
+  const statSets = details.statSets?.length
+    ? details.statSets
+    : [{ index: details.statSetIndex || 1, label: '' }]
+  for (const skillPart of skillParts) {
+    for (const statSet of statSets) {
+      const isCurrent = skillPart.index === (details.skillPartIndex || 1)
+        && statSet.index === (details.statSetIndex || 1)
+      if (!isCurrent) add({ actor: 'player', skillPartIndex: skillPart.index, statSetIndex: statSet.index })
+    }
+  }
+  return selections
 }
 
 export async function calculateAnalysisScopeDetail(
@@ -197,21 +310,47 @@ export async function calculateAnalysisScopeDetail(
   let representative = baseline
   for (const [index, entry] of entries.entries()) {
     if (!entry.groupId && entry !== primary) continue
-    let detail: CalcResult
+    let defaultDetail: CalcResult
     try {
-      detail = await resolveScopeEntryDetail(code, xml, weaponSet, calcMode, configOverrides, entry, baseline)
+      defaultDetail = await resolveScopeEntryDetail(code, xml, weaponSet, calcMode, configOverrides, entry, baseline)
     } catch {
       continue
     }
-    if (entry === primary) representative = detail
-    const skillFinalDamageDps: Record<string, number> = {}
-    for (const damageType of detail.SkillDetails?.damageTypes || []) {
-      if (damageType.type === 'all' || !Number.isFinite(damageType.finalDps)) continue
-      const value = damageType.finalDps! * Math.max(1, entry.count || 1)
-      skillFinalDamageDps[damageType.type] = (skillFinalDamageDps[damageType.type] || 0) + value
-      finalDamageDps[damageType.type] = (finalDamageDps[damageType.type] || 0) + value
+    if (entry === primary) representative = defaultDetail
+
+    for (const [formIndex, selection] of getAnalysisFormSelections(defaultDetail).entries()) {
+      let detail = defaultDetail
+      if (formIndex > 0) {
+        try {
+          detail = await resolveScopeEntryDetail(code, xml, weaponSet, calcMode, configOverrides, entry, baseline, selection)
+        } catch {
+          // One unavailable form should not hide the other forms of the skill.
+          continue
+        }
+      }
+      // For summon builds the selected actor is the minion, while the
+      // top-level TotalDPS still belongs to the player environment.
+      const calculatedDps = Number.isFinite(detail.SkillDetails?.totalDps)
+        ? detail.SkillDetails!.totalDps!
+        : Number.isFinite(detail.TotalDPS) ? detail.TotalDPS : entry.dps
+      const skillEntry = { ...entry, dps: calculatedDps }
+      const skillFinalDamageDps: Record<string, number> = {}
+      for (const damageType of detail.SkillDetails?.damageTypes || []) {
+        if (damageType.type === 'all' || !Number.isFinite(damageType.finalDps)) continue
+        const value = damageType.finalDps! * Math.max(1, entry.count || 1)
+        skillFinalDamageDps[damageType.type] = (skillFinalDamageDps[damageType.type] || 0) + value
+        if (formIndex === 0) {
+          finalDamageDps[damageType.type] = (finalDamageDps[damageType.type] || 0) + value
+        }
+      }
+      skills.push({
+        id: analysisSkillId(entry, index, selection),
+        entry: skillEntry,
+        detail,
+        finalDamageDps: skillFinalDamageDps,
+        isDefault: formIndex === 0,
+      })
     }
-    skills.push({ id: analysisSkillId(entry, index), entry, detail, finalDamageDps: skillFinalDamageDps })
   }
   return { representative, skills, finalDamageDps }
 }

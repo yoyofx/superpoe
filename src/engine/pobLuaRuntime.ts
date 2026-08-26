@@ -400,8 +400,12 @@ local calcOk, calcErr = pcall(function()
       socketGroup.mainActiveSkillCalcs = activeSkillIndex
       local activeEffect = activeSkills[activeSkillIndex].activeEffect
       local source = activeEffect and activeEffect.srcInstance
+      local skillPartIndex = tonumber(__pobSkillPartIndex)
+      if skillPartIndex and source and activeEffect and activeEffect.grantedEffect and (activeEffect.grantedEffect.parts or {})[skillPartIndex] then
+        source.skillPartCalcs = skillPartIndex
+      end
       local statSetIndex = tonumber(__pobStatSetIndex)
-      if statSetIndex and activeEffect and activeEffect.grantedEffect and activeEffect.grantedEffect.statSets[statSetIndex] then
+      if statSetIndex and source and activeEffect and activeEffect.grantedEffect and (activeEffect.grantedEffect.statSets or {})[statSetIndex] then
         source.statSetCalcs = source.statSetCalcs or {}
         source.statSetCalcs[activeEffect.grantedEffect.id] = statSetIndex
       end
@@ -421,7 +425,7 @@ local calcOk, calcErr = pcall(function()
   calcsTab.mainOutput = nil
   build.buildFlag = true
   calcsTab:BuildOutput()
-  if __pobSkillGroupId or __pobCalcMode or __pobActiveSkillIndex or __pobStatSetIndex
+  if __pobSkillGroupId or __pobCalcMode or __pobActiveSkillIndex or __pobSkillPartIndex or __pobStatSetIndex
     or __pobActor or __pobMinionSkillIndex or __pobMinionStatSetIndex then
     return calcsTab.calcsEnv
   end
@@ -729,7 +733,6 @@ if playerMainSkill and playerMainSkill.activeEffect then
   local displaySkills = socketGroup and (socketGroup.displaySkillListCalcs or socketGroup.displaySkillList) or {}
   local activeSkillIndex = socketGroup and (socketGroup.mainActiveSkillCalcs or 1) or 1
   local playerActiveEffect = playerMainSkill.activeEffect
-  local statSetIndex = playerActiveEffect.statSetCalcs and playerActiveEffect.statSetCalcs.index or 1
   local function hasDamage(actorOutput)
     return actorOutput and ((safeNum(actorOutput.TotalDPS) or 0) ~= 0
       or (safeNum(actorOutput.AverageHit) or 0) ~= 0
@@ -746,6 +749,8 @@ if playerMainSkill and playerMainSkill.activeEffect then
   local mainSkill = detailActor.mainSkill
   local activeEffect = mainSkill.activeEffect
   local actorOutput = detailActor.output or {}
+  local selectedSkillPartIndex = mainSkill.skillPart or (activeEffect.srcInstance and activeEffect.srcInstance.skillPartCalcs) or 1
+  local selectedStatSetIndex = activeEffect.statSetCalcs and activeEffect.statSetCalcs.index or 1
   local details = {
     mode = calcsTab.input.misc_buffMode,
     actor = detailActor == minionActor and "minion" or "player",
@@ -755,7 +760,9 @@ if playerMainSkill and playerMainSkill.activeEffect then
     minionName = minionActor and StripEscapes(minionActor.minionData and minionActor.minionData.name or "Minion") or nil,
     activeSkillIndex = activeSkillIndex,
     activeSkills = {},
-    statSetIndex = statSetIndex,
+    skillPartIndex = selectedSkillPartIndex,
+    skillParts = {},
+    statSetIndex = selectedStatSetIndex,
     statSets = {},
     skillType = "other",
     damageSource = "skill",
@@ -772,6 +779,7 @@ if playerMainSkill and playerMainSkill.activeEffect then
     conversionTotals = {},
     effects = { aurasAndBuffs = {}, combatBuffs = {}, cursesAndDebuffs = {} },
     averageHit = safeNum(actorOutput.AverageHit),
+    averageDamage = safeNum(actorOutput.AverageDamage),
     speed = safeNum(actorOutput.Speed),
     effectiveRate = safeNum(actorOutput.HitSpeed or actorOutput.Speed),
     hitChance = safeNum(actorOutput.HitChance),
@@ -800,7 +808,10 @@ if playerMainSkill and playerMainSkill.activeEffect then
       parentSkillName = metadata.parentSkillName,
     })
   end
-  for index, statSet in ipairs(playerActiveEffect.grantedEffect.statSets or {}) do
+  for index, part in ipairs(activeEffect.grantedEffect.parts or {}) do
+    table.insert(details.skillParts, { index = index, label = StripEscapes(part.name or "Part " .. index) })
+  end
+  for index, statSet in ipairs(activeEffect.grantedEffect.statSets or {}) do
     table.insert(details.statSets, { index = index, label = statSet.label })
   end
 
@@ -810,7 +821,15 @@ if playerMainSkill and playerMainSkill.activeEffect then
     local source = playerActiveEffect.srcInstance
     details.minionSkillIndex = source.skillMinionSkillCalcs or 1
     for index, skill in ipairs(minionActor.activeSkillList or {}) do
-      table.insert(details.minionSkills, { index = index, label = StripEscapes(skill.activeEffect.grantedEffect.name) })
+      local skillStatSets = {}
+      for statSetIndex, statSet in ipairs(skill.activeEffect.grantedEffect.statSets or {}) do
+        table.insert(skillStatSets, { index = statSetIndex, label = StripEscapes(statSet.label or skill.activeEffect.grantedEffect.name or "") })
+      end
+      local skillParts = {}
+      for partIndex, part in ipairs(skill.activeEffect.grantedEffect.parts or {}) do
+        table.insert(skillParts, { index = partIndex, label = StripEscapes(part.name or "Part " .. partIndex) })
+      end
+      table.insert(details.minionSkills, { index = index, label = StripEscapes(skill.activeEffect.grantedEffect.name), statSets = skillStatSets, skillParts = skillParts })
     end
     local minionEffect = minionActor.mainSkill.activeEffect
     details.minionStatSetIndex = minionEffect.statSetCalcs and minionEffect.statSetCalcs.index or 1
@@ -1011,6 +1030,7 @@ if playerMainSkill and playerMainSkill.activeEffect then
     weaponHand = "offHand"
   end
   details.averageHit = safeNum(sourceOutput.AverageHit or actorOutput.AverageHit)
+  details.averageDamage = safeNum(sourceOutput.AverageDamage or actorOutput.AverageDamage)
   details.effectiveRate = safeNum(actorOutput.HitSpeed or actorOutput.Speed)
   details.hitChance = safeNum(sourceOutput.HitChance or actorOutput.HitChance)
 
@@ -1230,12 +1250,78 @@ if playerMainSkill and playerMainSkill.activeEffect then
   for _, damageType in ipairs(damageTypeKeys) do
     local title = damageType:sub(1, 1):upper() .. damageType:sub(2)
     local names = damageNames[damageType]
+    local conversionTable = mainSkill.conversionTable or {}
+    local gainTable = mainSkill.gainTable or {}
+    local skillData = mainSkill.skillData or {}
+    local grantedEffectLevel = activeEffect.grantedEffectLevel or {}
+    local baseMultiplier = safeNum(grantedEffectLevel.baseMultiplier or skillData.baseMultiplier) or 1
+    local roundDamage = function(value)
+      return value >= 0 and math.floor(value + 0.5) or math.ceil(value - 0.5)
+    end
+    local convertedDamageFor = function(targetTitle)
+      local convertedMin, convertedMax = 0, 0
+      for _, originType in ipairs(damageTypeKeys) do
+        local originTitle = originType:sub(1, 1):upper() .. originType:sub(2)
+        local originBaseMin = safeNum(sourceOutput[originTitle .. "MinBase"]) or 0
+        local originBaseMax = safeNum(sourceOutput[originTitle .. "MaxBase"]) or 0
+        local conversion = conversionTable[originTitle] and safeNum(conversionTable[originTitle][targetTitle]) or 0
+        convertedMin = convertedMin + originBaseMin * (conversion or 0)
+        convertedMax = convertedMax + originBaseMax * (conversion or 0)
+      end
+      if convertedMin ~= 0 and convertedMax ~= 0 then
+        convertedMin = roundDamage(convertedMin)
+        convertedMax = roundDamage(convertedMax)
+      end
+      return convertedMin, convertedMax
+    end
+    local baseMin = safeNum(sourceOutput[title .. "MinBase"]) or 0
+    local baseMax = safeNum(sourceOutput[title .. "MaxBase"]) or 0
+    local flatAddedMin = safeNum(modList:Sum("BASE", cfg, title .. "Min")) or 0
+    local flatAddedMax = safeNum(modList:Sum("BASE", cfg, title .. "Max")) or 0
+    local flatAddedMultiplier = calcLib.mod(modList, cfg, "Added" .. damageType .. "Damage", "AddedDamage")
+    local baseInputMin = baseMultiplier ~= 0 and baseMin / baseMultiplier or 0
+    local baseInputMax = baseMultiplier ~= 0 and baseMax / baseMultiplier or 0
+    local baseSourceMin = baseInputMin - flatAddedMin * flatAddedMultiplier
+    local baseSourceMax = baseInputMax - flatAddedMax * flatAddedMultiplier
+    local conversionFactor = conversionTable[title] and (safeNum(conversionTable[title].mult) or 1) or 1
+    local retainedMin = baseMin * conversionFactor
+    local retainedMax = baseMax * conversionFactor
+    local conversionMin, conversionMax = convertedDamageFor(title)
+    local gainMin, gainMax = 0, 0
+    for _, fromType in ipairs(damageTypeKeys) do
+      local fromTitle = fromType:sub(1, 1):upper() .. fromType:sub(2)
+      local fromBaseMin = safeNum(sourceOutput[fromTitle .. "MinBase"]) or 0
+      local fromBaseMax = safeNum(sourceOutput[fromTitle .. "MaxBase"]) or 0
+      local fromConversion = conversionTable[fromTitle] and (safeNum(conversionTable[fromTitle].mult) or 0) or 0
+      local gain = gainTable[fromTitle] and (safeNum(gainTable[fromTitle][title]) or 0) or 0
+      if gain > 0 then
+        local convertedFromMin, convertedFromMax = convertedDamageFor(fromTitle)
+        gainMin = gainMin + (fromBaseMin * fromConversion + convertedFromMin) * gain
+        gainMax = gainMax + (fromBaseMax * fromConversion + convertedFromMax) * gain
+      end
+    end
+    local summedMin = safeNum(sourceOutput[title .. "SummedMinBase"]) or (retainedMin + conversionMin + gainMin)
+    local summedMax = safeNum(sourceOutput[title .. "SummedMaxBase"]) or (retainedMax + conversionMax + gainMax)
+    local increasedFactor = 1 + (safeNum(modList:Sum("INC", cfg, "Damage", unpack(names))) or 0) / 100
     local more = modList:More(cfg, "Damage", unpack(names))
     local moreMin = modList:More(cfg, "Min" .. title .. "Damage")
     local moreMax = modList:More(cfg, "Max" .. title .. "Damage")
+    local increasedMin = roundDamage(summedMin * increasedFactor)
+    local increasedMax = roundDamage(summedMax * increasedFactor)
+    local moreStageMin = roundDamage(summedMin * increasedFactor * more * moreMin)
+    local moreStageMax = roundDamage(summedMax * increasedFactor * more * moreMax)
     local nonCritAverage = safeNum(sourceOutput[title .. "HitAverage"])
     local critAverage = safeNum(sourceOutput[title .. "CritAverage"])
     local critChance = (safeNum(sourceOutput.CritChance or actorOutput.CritChance) or 0) / 100
+    local normalMin = safeNum(sourceOutput[title .. "StoredHitMin"])
+    local normalMax = safeNum(sourceOutput[title .. "StoredHitMax"])
+    local normalStoredAverage = safeNum(sourceOutput[title .. "StoredHitAvg"])
+    local criticalMin = safeNum(sourceOutput[title .. "StoredCritMin"])
+    local criticalMax = safeNum(sourceOutput[title .. "StoredCritMax"])
+    local criticalStoredAverage = safeNum(sourceOutput[title .. "StoredCritAvg"])
+    local expectedStoredAverage = (normalStoredAverage ~= nil or criticalStoredAverage ~= nil)
+      and ((normalStoredAverage or 0) * (1 - critChance) + (criticalStoredAverage or 0) * critChance)
+      or nil
     local finalAverage
     if nonCritAverage ~= nil or critAverage ~= nil then
       finalAverage = (nonCritAverage or 0) * (1 - critChance) + (critAverage or 0) * critChance
@@ -1254,6 +1340,46 @@ if playerMainSkill and playerMainSkill.activeEffect then
       critAverage = critAverage,
       finalAverage = finalAverage,
       effectiveMultiplier = safeNum(sourceOutput[title .. "EffMult"]),
+      stages = {
+        baseMin = baseMin,
+        baseMax = baseMax,
+        baseSourceMin = baseSourceMin,
+        baseSourceMax = baseSourceMax,
+        flatAddedMin = flatAddedMin,
+        flatAddedMax = flatAddedMax,
+        flatAddedMultiplier = flatAddedMultiplier,
+        baseInputMin = baseInputMin,
+        baseInputMax = baseInputMax,
+        baseMultiplier = baseMultiplier,
+        retainedMin = retainedMin,
+        retainedMax = retainedMax,
+        conversionFactor = conversionFactor,
+        conversionMin = conversionMin,
+        conversionMax = conversionMax,
+        gainMin = gainMin,
+        gainMax = gainMax,
+        summedMin = summedMin,
+        summedMax = summedMax,
+        increasedFactor = increasedFactor,
+        increasedMin = increasedMin,
+        increasedMax = increasedMax,
+        moreFactor = more,
+        moreMinFactor = moreMin,
+        moreMaxFactor = moreMax,
+        moreStageMin = moreStageMin,
+        moreStageMax = moreStageMax,
+        normalMin = normalMin,
+        normalMax = normalMax,
+        normalAverage = normalStoredAverage,
+        criticalMin = criticalMin,
+        criticalMax = criticalMax,
+        criticalAverage = criticalStoredAverage,
+        expectedAverage = expectedStoredAverage,
+        effectiveMin = safeNum(sourceOutput[title .. "Min"]),
+        effectiveMax = safeNum(sourceOutput[title .. "Max"]),
+        effectiveAverage = finalAverage,
+        effectiveMultiplier = safeNum(sourceOutput[title .. "EffMult"]),
+      },
       breakdown = copyLines(sourceBreakdown[title]),
       effectiveBreakdown = copyLines(sourceBreakdown[title .. "EffMult"]),
     })
@@ -1836,6 +1962,7 @@ export function calculateWithLuaEngine(engine: LuaEngine, xml: string, selection
     engine.global.set('__pobCalcMode', selection.calcMode)
     engine.global.set('__pobSkillGroupId', selection.skillGroupId)
     engine.global.set('__pobActiveSkillIndex', selection.activeSkillIndex)
+    engine.global.set('__pobSkillPartIndex', selection.skillPartIndex)
     engine.global.set('__pobStatSetIndex', selection.statSetIndex)
     engine.global.set('__pobActor', selection.actor)
     engine.global.set('__pobMinionSkillIndex', selection.minionSkillIndex)
@@ -1855,6 +1982,7 @@ export function calculateWithLuaEngine(engine: LuaEngine, xml: string, selection
       engine.global.set('__pobCalcMode', undefined)
       engine.global.set('__pobSkillGroupId', undefined)
       engine.global.set('__pobActiveSkillIndex', undefined)
+      engine.global.set('__pobSkillPartIndex', undefined)
       engine.global.set('__pobStatSetIndex', undefined)
       engine.global.set('__pobActor', undefined)
       engine.global.set('__pobMinionSkillIndex', undefined)

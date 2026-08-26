@@ -3,7 +3,7 @@ import { useEffect, useState } from 'react'
 import { useTranslation } from '@/i18n/useTranslation'
 import { formatUiNumber, uiText } from '@/i18n/uiLocale'
 import { getLocalizedNodeDisplay, translateGameText } from '@/i18n/translationLoader'
-import type { CalcResult, SkillCalculationDetails, SkillContributionSourceType, SkillCriticalContribution, SkillDamageBreakdown, SkillGainContribution, SkillConversionContribution, SkillModifierContribution, SkillSpeedContribution } from '@/types/calc'
+import type { CalcResult, SkillCalculationDetails, SkillContributionSourceType, SkillCriticalContribution, SkillDamageBreakdown, SkillDamageStageValues, SkillDamageTransferTotal, SkillGainContribution, SkillConversionContribution, SkillModifierContribution, SkillSpeedContribution } from '@/types/calc'
 import type { AnalysisSkillScope } from '@/engine/attributeAnalysis'
 import { getLocalizedSkillName, resolveSkillCatalogName, type SkillCatalog } from '@/engine/skillCatalog'
 import { translateEquipmentItemName } from '@/components/equipment/EquipmentItemInspector'
@@ -55,19 +55,31 @@ interface FinalDamageType {
   effectiveMultiplier: number | null
 }
 
+export interface DamageStructureSkillContext {
+  parentSkillName?: string
+  formName?: string
+  statSetName?: string
+  minionSkillName?: string
+  actorName?: string
+}
+
 export interface DamageStructureReportData {
   skillName: string
+  skillContext?: DamageStructureSkillContext
   skillType: SkillCalculationDetails['skillType']
   calculationScope: 'selectedSkill' | 'fullDps' | 'fallback'
   includedSkillCount: number
   totalDps: number | null
   averageHit: number | null
+  averageDamage: number | null
   speed: number | null
   effectiveRate: number | null
   hitChance: number | null
   dpsMultiplier: number | null
   quantityMultiplier: number | null
   damageTypes: SkillDamageBreakdown[]
+  /** Stage values used by the flow graph; for a full-DPS scope these are summed per skill. */
+  stageDamageTypes: SkillDamageBreakdown[]
   baseRanges: DamageRange[]
   addedRanges: AddedDamageRange[]
   /** Starting base plus all separately exposed added damage, grouped by damage type. */
@@ -76,9 +88,19 @@ export interface DamageStructureReportData {
   baseTotalAverage: number | null
   baseRole: 'weapon' | 'skillLevel' | 'mixed' | 'unknown'
   finalDamageTypes: FinalDamageType[]
+  /** PoB's final per-type damage transfer totals, independent of source rows. */
+  gainTotals: SkillDamageTransferTotal[]
+  conversionTotals: SkillDamageTransferTotal[]
   baseSources: SourceValue[]
   gains: DamageFlow[]
   conversions: DamageFlow[]
+  dpsVerification: {
+    reported: number | null
+    recalculated: number | null
+    difference: number | null
+    relativeDifference: number | null
+    status: 'match' | 'difference' | 'unavailable'
+  }
   increased: { total: number | null; factor: number | null; sources: SourceValue[]; details: ModifierSourceValue[] }
   more: { factor: number | null; sources: SourceValue[]; nodes: Array<{ type: SourceType; value: number; factor: number }>; details: ModifierSourceValue[] }
   speedModifiers: SkillSpeedContribution[]
@@ -88,6 +110,35 @@ export interface DamageStructureReportData {
   effectiveMultipliers: Array<{ type: string; value: number }>
   effectiveBreakdown: string[]
   formula: string[]
+}
+
+function cleanSkillTitlePart(value?: string): string {
+  return value?.replace(/\s+/g, ' ').trim() || ''
+}
+
+function isGenericSkillTitle(value: string): boolean {
+  return /^(current skill|selected skill|triggered skill|skill damage summary|damage structure summary|当前技能|当前技能结果|触发技能|技能伤害汇总|伤害结构汇总|目前技能|觸發技能|技能傷害彙總|傷害結構彙總|트리거 스킬)$/i.test(value)
+}
+
+function buildReportSkillTitle(
+  skill: SkillCalculationDetails['activeSkills'][number] | undefined,
+  context: DamageStructureSkillContext | undefined,
+  calculationScope: DamageStructureReportData['calculationScope'],
+): string {
+  const directName = cleanSkillTitlePart(skill?.label)
+  const parentName = cleanSkillTitlePart(context?.parentSkillName)
+  const baseName = !isGenericSkillTitle(parentName)
+    ? parentName
+    : !isGenericSkillTitle(directName)
+      ? directName
+      : cleanSkillTitlePart(context?.minionSkillName)
+  const parts = [baseName]
+  for (const value of [context?.formName, context?.statSetName, context?.minionSkillName]) {
+    const part = cleanSkillTitlePart(value)
+    if (part && !isGenericSkillTitle(part) && !parts.includes(part)) parts.push(part)
+  }
+  if (parts.some(Boolean)) return parts.filter(Boolean).join(' · ')
+  return calculationScope === 'fullDps' ? 'Skill damage summary' : 'Damage structure summary'
 }
 
 const SOURCE_COLORS: Record<SourceType, string> = {
@@ -201,10 +252,57 @@ function combineDamageRanges(ranges: Array<DamageRange | AddedDamageRange>): Dam
   return [...grouped.values()].map(({ sources: _sources, ...entry }) => entry)
 }
 
+function normalizeStageDamageType(
+  entry: SkillDamageBreakdown,
+): SkillDamageBreakdown {
+  // Stage values are calculated inside PoB's offence pass. A breakdown line
+  // is presentation text, so it must never be used to synthesize a stage.
+  return { ...entry, stages: entry.stages }
+}
+
+const STAGE_NUMBER_KEYS: Array<keyof SkillDamageStageValues> = [
+  'baseMin', 'baseMax', 'retainedMin', 'retainedMax', 'conversionMin', 'conversionMax', 'gainMin', 'gainMax',
+  'summedMin', 'summedMax', 'increasedMin', 'increasedMax', 'moreStageMin', 'moreStageMax',
+  'normalMin', 'normalMax', 'criticalMin', 'criticalMax', 'effectiveMin', 'effectiveMax',
+  'normalAverage', 'criticalAverage', 'expectedAverage', 'effectiveAverage',
+]
+
+function aggregateStageDamageTypes(entries: Array<{ result: CalcResult; count: number }>): SkillDamageBreakdown[] {
+  const grouped = new Map<Exclude<SkillDamageBreakdown['type'], 'all'>, SkillDamageBreakdown & { stages: SkillDamageStageValues }>()
+  for (const entry of entries) {
+    const count = Math.max(1, entry.count || 1)
+    for (const damageType of entry.result.SkillDetails?.damageTypes || []) {
+      if (damageType.type === 'all') continue
+      const normalized = normalizeStageDamageType(damageType)
+      const current = grouped.get(damageType.type) || {
+        type: damageType.type,
+        increased: 0,
+        more: 0,
+        finalDps: 0,
+        finalAverage: 0,
+        stages: {},
+      }
+      for (const key of STAGE_NUMBER_KEYS) {
+        const value = normalized.stages?.[key]
+        if (!Number.isFinite(value)) continue
+        current.stages[key] = (current.stages[key] || 0) + (value as number) * count
+      }
+      current.finalDps = (current.finalDps || 0) + (damageType.finalDps || 0) * count
+      current.finalAverage = current.stages.effectiveAverage ?? current.finalAverage ?? 0
+      current.hitMin = current.stages.effectiveMin
+      current.hitMax = current.stages.effectiveMax
+      current.nonCritAverage = current.stages.normalAverage
+      current.critAverage = current.stages.criticalAverage
+      grouped.set(damageType.type, current)
+    }
+  }
+  return [...grouped.values()]
+}
+
 export function buildDamageStructureReportData(
   result: CalcResult | null,
   scope?: AnalysisSkillScope,
-  options: { totalDps?: number | null; finalDamageDps?: Record<string, number>; calculationScope?: DamageStructureReportData['calculationScope']; includedSkillCount?: number } = {},
+  options: { totalDps?: number | null; finalDamageDps?: Record<string, number>; calculationScope?: DamageStructureReportData['calculationScope']; includedSkillCount?: number; aggregateSkills?: Array<{ result: CalcResult; count: number }>; skillContext?: DamageStructureSkillContext } = {},
 ): DamageStructureReportData | null {
   if (!result) return null
   const details = result.SkillDetails
@@ -228,6 +326,50 @@ export function buildDamageStructureReportData(
   const flows = (entries: Array<SkillGainContribution | SkillConversionContribution>, kind: DamageFlow['kind']): DamageFlow[] => entries
     .filter((entry) => Number.isFinite(entry.value) && entry.value !== 0)
     .map((entry) => ({ from: entry.fromType, to: entry.toType, value: entry.value, kind, source: entry.source, sourceType: entry.sourceType }))
+  const totalFlows = (entries: SkillDamageTransferTotal[], kind: DamageFlow['kind']): DamageFlow[] => entries
+    .filter((entry) => Number.isFinite(entry.value) && entry.value !== 0)
+    .map((entry) => ({
+      from: entry.fromType,
+      to: entry.toType,
+      value: entry.value,
+      kind,
+      source: kind === 'conversion' ? 'Calculated conversion' : 'Calculated extra damage',
+      sourceType: 'skill' as const,
+    }))
+  const collapseFlows = (entries: Array<SkillGainContribution | SkillConversionContribution>, kind: DamageFlow['kind']): DamageFlow[] => {
+    const grouped = new Map<string, { fromTypes: Set<string>; to: string; value: number; source: string; sourceType?: SourceType }>()
+    for (const entry of entries) {
+      if (!Number.isFinite(entry.value) || entry.value === 0) continue
+      const key = `${entry.stat}|${entry.source}|${entry.sourceType || ''}|${entry.toType}|${entry.value}`
+      const current = grouped.get(key)
+      if (current) current.fromTypes.add(entry.fromType)
+      else grouped.set(key, { fromTypes: new Set([entry.fromType]), to: entry.toType, value: entry.value, source: entry.source, sourceType: entry.sourceType })
+    }
+    return [...grouped.values()].map((entry) => {
+      const fromTypes = [...entry.fromTypes]
+      // The runtime reports aggregate modifiers together with their expanded
+      // elemental rows. Prefer the aggregate semantic so the graph can show
+      // one logical source and expand it into source lanes only when rendered.
+      const from = fromTypes.includes('all')
+        ? 'all'
+        : fromTypes.includes('nonChaos')
+          ? 'nonChaos'
+          : fromTypes.includes('elemental')
+            ? 'elemental'
+            : fromTypes.length === 1
+              ? fromTypes[0]
+              : fromTypes.length === 3 && ['fire', 'cold', 'lightning'].every((type) => fromTypes.includes(type))
+                ? 'elemental'
+                : fromTypes.length >= 4 && !fromTypes.includes('chaos')
+                  ? 'nonChaos'
+                  : 'all'
+      return { from, to: entry.to, value: entry.value, kind, source: entry.source, sourceType: entry.sourceType }
+    })
+  }
+  // The report lists logical modifier rows. The graph separately uses the
+  // full transfer matrix from gainTotals/conversionTotals for routing.
+  const gainFlows = details?.gains?.length ? collapseFlows(details.gains, 'gain') : details?.gainTotals?.length ? totalFlows(details.gainTotals, 'gain') : []
+  const conversionFlows = details?.conversions?.length ? collapseFlows(details.conversions, 'conversion') : details?.conversionTotals?.length ? totalFlows(details.conversionTotals, 'conversion') : []
   const increasedMods = uniqueModifierEntries((details?.modifiers || []).filter((entry) => entry.bucket === 'increased'))
   const moreMods = uniqueModifierEntries((details?.modifiers || []).filter((entry) => entry.bucket === 'more'))
   const increasedTotal = details ? increasedMods.reduce((sum, entry) => sum + entry.value, 0) : null
@@ -241,20 +383,33 @@ export function buildDamageStructureReportData(
   const dpsMultiplier = Number.isFinite(details?.dpsMultiplier) ? details!.dpsMultiplier! : 1
   const quantityMultiplier = Number.isFinite(details?.quantityMultiplier) ? details!.quantityMultiplier! : 1
   const damageTypes = (details?.damageTypes || []).filter((entry): entry is SkillDamageBreakdown & { type: Exclude<SkillDamageBreakdown['type'], 'all'> } => entry.type !== 'all')
+  const normalizedDamageTypes = damageTypes.map((entry) => normalizeStageDamageType(entry)) as Array<SkillDamageBreakdown & { type: Exclude<SkillDamageBreakdown['type'], 'all'> }>
+  const resolvedCombinedBaseRanges = combinedBaseRanges
+  const resolvedBaseTotalAverage = resolvedCombinedBaseRanges.length
+    ? resolvedCombinedBaseRanges.reduce((sum, entry) => sum + entry.average, 0)
+    : null
+  const calculationScope = options.calculationScope || (scope?.mode === 'full-dps' ? 'fullDps' : scope?.mode === 'fallback' ? 'fallback' : result.FullSkillDPS?.length ? 'fullDps' : 'selectedSkill')
+  const stageDamageTypes = calculationScope === 'selectedSkill'
+    ? normalizedDamageTypes
+    : aggregateStageDamageTypes(options.aggregateSkills || [])
+  const aggregateAverageHit = stageDamageTypes.reduce((sum, entry) => sum + (entry.stages?.effectiveAverage || 0), 0)
+  const reportAverageHit = calculationScope === 'selectedSkill'
+    ? (Number.isFinite(details?.averageHit) ? details!.averageHit! : Number.isFinite(result.AverageHit) ? result.AverageHit : null)
+    : stageDamageTypes.length ? aggregateAverageHit : null
   const finalTypeDpsOverride = options.finalDamageDps && Object.keys(options.finalDamageDps).length > 0 ? options.finalDamageDps : null
   const finalTypeTotal = finalTypeDpsOverride
     ? Object.values(finalTypeDpsOverride).reduce((sum, value) => sum + (Number.isFinite(value) && value > 0 ? value : 0), 0)
-    : damageTypes.reduce((sum, entry) => {
+    : normalizedDamageTypes.reduce((sum, entry) => {
     const average = damageTypeValue(entry)
     return sum + (Number.isFinite(entry.finalDps) ? entry.finalDps! : average * hitChance / 100 * (effectiveRate || 0) * dpsMultiplier * quantityMultiplier)
   }, 0)
-  const finalDamageTypes: FinalDamageType[] = damageTypes
+  const finalDamageTypes: FinalDamageType[] = normalizedDamageTypes
     .map((entry) => {
       const averageHit = damageTypeValue(entry)
       const finalDps = finalTypeDpsOverride?.[entry.type] ?? (Number.isFinite(entry.finalDps) ? entry.finalDps! : averageHit * hitChance / 100 * (effectiveRate || 0) * dpsMultiplier * quantityMultiplier)
       return { type: entry.type, averageHit, finalDps, share: finalTypeTotal > 0 ? finalDps / finalTypeTotal * 100 : 0, effectiveMultiplier: Number.isFinite(entry.effectiveMultiplier) ? entry.effectiveMultiplier! : null }
     })
-    .filter((entry) => entry.finalDps > 0 || damageTypes.some((source) => source.type === entry.type && damageTypeValue(source) > 0))
+    .filter((entry) => entry.finalDps > 0 || normalizedDamageTypes.some((source) => source.type === entry.type && damageTypeValue(source) > 0))
   if (finalTypeDpsOverride) {
     const existingTypes = new Set(finalDamageTypes.map((entry) => entry.type))
     for (const [type, finalDps] of Object.entries(finalTypeDpsOverride)) {
@@ -262,30 +417,49 @@ export function buildDamageStructureReportData(
       finalDamageTypes.push({ type: type as FinalDamageType['type'], averageHit: 0, finalDps, share: finalTypeTotal > 0 ? finalDps / finalTypeTotal * 100 : 0, effectiveMultiplier: null })
     }
   }
+  const reportTotalDps = options.totalDps != null
+    ? options.totalDps
+    : scope?.entries.length
+      ? scope.entries.reduce((sum, entry) => sum + entry.dps, 0)
+      : preferredDps(result, details)
+  const recalculatedDps = finalDamageTypes.length
+    ? finalDamageTypes.reduce((sum, entry) => sum + (Number.isFinite(entry.finalDps) ? Math.max(0, entry.finalDps) : 0), 0)
+    : null
+  const dpsDifference = reportTotalDps != null && recalculatedDps != null ? recalculatedDps - reportTotalDps : null
+  const dpsTolerance = reportTotalDps == null ? null : Math.max(1, Math.abs(reportTotalDps) * 0.001)
+  const dpsVerification = reportTotalDps == null || recalculatedDps == null
+    ? { reported: reportTotalDps, recalculated: recalculatedDps, difference: dpsDifference, relativeDifference: null, status: 'unavailable' as const }
+    : { reported: reportTotalDps, recalculated: recalculatedDps, difference: dpsDifference, relativeDifference: reportTotalDps === 0 ? null : dpsDifference! / reportTotalDps * 100, status: Math.abs(dpsDifference!) <= dpsTolerance! ? 'match' as const : 'difference' as const }
   return {
-    skillName: skill?.label || 'Current skill',
+    skillName: buildReportSkillTitle(skill, options.skillContext, calculationScope),
+    skillContext: options.skillContext,
     skillType: details?.skillType || 'other',
-    calculationScope: options.calculationScope || (scope?.mode === 'full-dps' ? 'fullDps' : scope?.mode === 'fallback' ? 'fallback' : result.FullSkillDPS?.length ? 'fullDps' : 'selectedSkill'),
+    calculationScope,
     includedSkillCount: options.includedSkillCount || scope?.entries.length || result.FullSkillDPS?.length || result.AllSkillDPS?.length || 1,
     // The analysis page aggregates the same scope. Do not replace that total
     // with the representative skill's own DPS.
-    totalDps: options.totalDps != null ? options.totalDps : scope?.entries.length ? scope.entries.reduce((sum, entry) => sum + entry.dps, 0) : preferredDps(result, details),
-    averageHit: Number.isFinite(details?.averageHit) ? details!.averageHit! : Number.isFinite(result.AverageHit) ? result.AverageHit : null,
-    speed: Number.isFinite(details?.speed) ? details!.speed! : Number.isFinite(result.Speed) ? result.Speed : null,
-    effectiveRate,
-    hitChance: Number.isFinite(details?.hitChance) ? details!.hitChance! : null,
-    dpsMultiplier: Number.isFinite(details?.dpsMultiplier) ? details!.dpsMultiplier! : null,
-    quantityMultiplier: Number.isFinite(details?.quantityMultiplier) ? details!.quantityMultiplier! : null,
-    damageTypes,
+    totalDps: reportTotalDps,
+    averageHit: reportAverageHit,
+    averageDamage: calculationScope === 'selectedSkill' && Number.isFinite(details?.averageDamage) ? details!.averageDamage! : null,
+    speed: calculationScope === 'selectedSkill' ? (Number.isFinite(details?.speed) ? details!.speed! : Number.isFinite(result.Speed) ? result.Speed : null) : null,
+    effectiveRate: calculationScope === 'selectedSkill' ? effectiveRate : null,
+    hitChance: calculationScope === 'selectedSkill' ? (Number.isFinite(details?.hitChance) ? details!.hitChance! : null) : null,
+    dpsMultiplier: calculationScope === 'selectedSkill' ? (Number.isFinite(details?.dpsMultiplier) ? details!.dpsMultiplier! : null) : null,
+    quantityMultiplier: calculationScope === 'selectedSkill' ? (Number.isFinite(details?.quantityMultiplier) ? details!.quantityMultiplier! : null) : null,
+    damageTypes: normalizedDamageTypes,
+    stageDamageTypes,
     baseRanges,
     addedRanges,
-    combinedBaseRanges,
-    baseTotalAverage,
+    combinedBaseRanges: resolvedCombinedBaseRanges,
+    baseTotalAverage: resolvedBaseTotalAverage,
     baseRole: weaponBaseRanges.length && skillBaseRanges.length ? 'mixed' : weaponBaseRanges.length ? 'weapon' : skillBaseRanges.length ? 'skillLevel' : 'unknown',
     finalDamageTypes,
+    gainTotals: details?.gainTotals || [],
+    conversionTotals: details?.conversionTotals || [],
     baseSources: sumSourceValues(baseSources),
-    gains: flows(details?.gains || [], 'gain'),
-    conversions: flows(details?.conversions || [], 'conversion'),
+    gains: gainFlows,
+    conversions: conversionFlows,
+    dpsVerification,
     increased: { total: increasedTotal, factor: increasedTotal == null ? null : 1 + increasedTotal / 100, sources: sumSourceValues(increasedMods.map((entry) => ({ type: sourceType(entry.source, entry.sourceType), value: entry.value }))), details: modifierSourceValues(increasedMods) },
     more: { factor: moreFactor, sources: sumSourceValues(moreMods.map((entry) => ({ type: sourceType(entry.source, entry.sourceType), value: entry.value }))), nodes: moreMods.map((entry) => ({ type: sourceType(entry.source, entry.sourceType), value: entry.value, factor: 1 + entry.value / 100 })), details: modifierSourceValues(moreMods) },
     speedModifiers: details?.speedModifiers || [],
@@ -305,6 +479,20 @@ function number(value: number | null | undefined, language: Language, digits = 1
 
 function percent(value: number | null | undefined, language: Language, digits = 1): string {
   return value == null || !Number.isFinite(value) ? '—' : `${number(value, language, digits)}%`
+}
+
+function criticalExpectationFactor(critChance: number | null | undefined, critMultiplier: number | null | undefined): number | null {
+  if (critChance == null || critMultiplier == null || !Number.isFinite(critChance) || !Number.isFinite(critMultiplier)) return null
+  return 1 + (Math.max(0, Math.min(100, critChance)) / 100) * (critMultiplier - 1)
+}
+
+function criticalExpectationFormula(critChance: number | null | undefined, critMultiplier: number | null | undefined, language: Language): string {
+  const chance = critChance == null || !Number.isFinite(critChance) ? null : Math.max(0, Math.min(100, critChance))
+  const multiplier = critMultiplier != null && Number.isFinite(critMultiplier) ? critMultiplier : null
+  const factor = criticalExpectationFactor(chance, multiplier)
+  return chance == null || multiplier == null || factor == null
+    ? uiText(language, 'Normal hit rate × 1.00 + critical hit rate × critical damage multiplier', '普通命中率 × 1.00 + 暴击率 × 暴击伤害倍率', '普通命中率 × 1.00 + 暴擊率 × 暴擊傷害倍率', '일반 적중률 × 1.00 + 치명타 확률 × 치명타 피해 배율')
+    : `${percent(100 - chance, language)} × 1.00 + ${percent(chance, language)} × ${number(multiplier, language, 2)} = ×${number(factor, language, 2)}`
 }
 
 function damageTypeValue(entry: SkillDamageBreakdown): number {
@@ -338,7 +526,7 @@ function sourceLabel(type: SourceType, language: Language): string {
 
 function damageTypeLabel(type: string, language: Language): string {
   const labels: Record<string, [string, string, string, string]> = {
-    physical: ['Physical', '物理', '物理', '물리'], lightning: ['Lightning', '闪电', '閃電', '번개'], cold: ['Cold', '冰霜', '冰霜', '냉기'], fire: ['Fire', '火焰', '火焰', '화염'], chaos: ['Chaos', '混沌', '混沌', '카오스'], all: ['All', '全部', '全部', '전체'],
+    physical: ['Physical', '物理', '物理', '물리'], lightning: ['Lightning', '闪电', '閃電', '번개'], cold: ['Cold', '冰霜', '冰霜', '냉기'], fire: ['Fire', '火焰', '火焰', '화염'], chaos: ['Chaos', '混沌', '混沌', '카오스'], all: ['All damage', '全部伤害', '全部傷害', '전체 피해'], elemental: ['Elemental', '元素伤害', '元素傷害', '원소 피해'], nonChaos: ['Non-chaos', '非混沌', '非混沌', '비카오스'],
   }
   const [en, zhCN, zhTW, koKR] = labels[type] || [type, type, type, type]
   return uiText(language, en, zhCN, zhTW, koKR)
@@ -442,19 +630,19 @@ function CriticalSourceRows({ modifiers, language, treeData, skillCatalog }: { m
 
 function CriticalAverageFormula({ critChance, critMultiplier, language }: { critChance: number | null; critMultiplier: number | null; language: Language }) {
   const l = (en: string, zhCN: string, zhTW = zhCN, koKR = en) => uiText(language, en, zhCN, zhTW, koKR)
-  const chance = critChance == null || !Number.isFinite(critChance) ? null : Math.max(0, Math.min(100, critChance))
-  const multiplier = critMultiplier != null && Number.isFinite(critMultiplier) ? critMultiplier : null
-  const expectedFactor = chance != null && multiplier != null ? 1 + (chance / 100) * (multiplier - 1) : null
-  const formula = chance == null || multiplier == null || expectedFactor == null
-    ? l('Normal hit rate × 1.00 + critical hit rate × critical damage multiplier', '普通命中率 × 1.00 + 暴击命中率 × 暴击伤害倍率', '普通命中率 × 1.00 + 暴擊命中率 × 暴擊傷害倍率', '일반 적중률 × 1.00 + 치명타 적중률 × 치명타 피해 배율')
-    : `${percent(100 - chance, language)} × 1.00 + ${percent(chance, language)} × ${number(multiplier, language, 2)} = ×${number(expectedFactor, language, 2)}`
+  const formula = criticalExpectationFormula(critChance, critMultiplier, language)
   return <div className="damage-structure-crit-formula"><span>{l('Average crit multiplier formula', '暴击平均倍率公式', '暴擊平均倍率公式', '치명타 평균 배율 공식')}</span><code>{formula}</code><small>{l('The result is the weighted average of normal hits and critical hits.', '结果是普通命中与暴击命中按概率加权后的平均倍率。', '結果是普通命中與暴擊命中按機率加權後的平均倍率。', '일반 적중과 치명타 적중을 확률로 가중한 평균 배율입니다.')}</small></div>
 }
 
 function FlowRows({ flows, language, treeData, skillCatalog }: { flows: DamageFlow[]; language: Language; treeData?: TreeData | null; skillCatalog?: SkillCatalog | null }) {
   return <div className="damage-structure-flow-list">{flows.length ? flows.map((entry, index) => {
     const type = sourceType(entry.source, entry.sourceType)
-    return <div key={`${entry.kind}-${entry.source}-${index}`} title={entry.source}><span>{damageTypeLabel(entry.from, language)}<small>{sourceLabel(type, language)} · {sourceName(entry.source, language, treeData, skillCatalog, type)}</small></span><ArrowRight /><strong>{damageTypeLabel(entry.to, language)}</strong><b>{number(entry.value, language, 1)}%</b></div>
+    const calculatedSource = entry.source === 'Calculated conversion'
+      ? uiText(language, 'Calculated conversion', '计算转换', '計算轉換', '계산 변환')
+      : entry.source === 'Calculated extra damage'
+        ? uiText(language, 'Calculated extra damage', '计算额外伤害', '計算額外傷害', '계산 추가 피해')
+        : sourceName(entry.source, language, treeData, skillCatalog, type)
+    return <div key={`${entry.kind}-${entry.source}-${index}`} title={entry.source}><span>{damageTypeLabel(entry.from, language)}<small>{sourceLabel(type, language)} · {calculatedSource}</small></span><ArrowRight /><strong>{damageTypeLabel(entry.to, language)}</strong><b>{number(entry.value, language, 1)}%</b></div>
   }) : <span className="damage-structure-muted">{uiText(language, 'No conversion or Gain is exposed for this skill.', '当前技能没有可展示的转换或 Gain。', '目前技能沒有可展示的轉換或 Gain。', '이 스킬에 표시할 변환 또는 Gain이 없습니다.')}</span>}</div>
 }
 
@@ -481,7 +669,7 @@ function FinalDamageBreakdown({ data, language, skillLevel, formulaLayers, onOpe
           <span>{l('How damage is formed', '伤害如何形成', '傷害如何形成', '피해 형성 과정')} <b className="damage-structure-formula-stage-label">({l('7 major damage composition areas', '7大伤害构成区域', '7大傷害構成區域', '7대 피해 구성 영역')})</b></span>
           <div className="damage-structure-formula-title-actions"><button type="button" className="damage-structure-flow-link" onClick={onOpenGraph}><GitBranch /><span>{l('Open calculation graph', '打开伤害计算图', '開啟傷害計算圖', '피해 계산 그래프 열기')}</span></button><small>{l('Click a node to locate its result; use View details for the full breakdown', '点击节点定位统计结果；点击查看明细打开完整明细', '點擊節點定位統計結果；點擊查看明細開啟完整明細', '노드에서 결과를 찾고 상세 보기를 눌러 전체 내역을 확인합니다')}</small></div>
         </div>
-        <p className="damage-structure-formula-note">{l('Conversion changes the damage type flow, while Gain adds extra damage. They share one display stage here, but the calculation still applies their rules separately.', '转换负责改变伤害类型的流向，额外 (Gain) 负责叠加新的伤害来源。这里合并为一个展示阶段，但计算仍按各自规则处理。', '轉換負責改變傷害類型的流向，額外 (Gain) 負責疊加新的傷害來源。這裡合併為一個展示階段，但計算仍按各自規則處理。', '변환은 피해 유형의 흐름을 바꾸고 Gain은 추가 피해를 더합니다. 여기서는 하나의 표시 단계로 묶지만 계산은 각 규칙을 따로 적용합니다.')}</p>
+        <p className="damage-structure-formula-note">{l('Conversion changes the damage type flow, while Gain adds a new damage pool from the converted pool. The graph shows them as separate stages and keeps their source lanes visible.', '转换负责改变伤害类型的流向，额外 (Gain) 负责从转换后的伤害池新增伤害。流图将两者拆成独立阶段，并保留来源泳道。', '轉換負責改變傷害類型的流向，額外 (Gain) 負責從轉換後的傷害池新增傷害。流圖將兩者拆成獨立階段，並保留來源泳道。', '변환은 피해 유형의 흐름을 바꾸고 Gain은 변환 후 피해 풀에서 새 피해를 더합니다. 그래프는 두 단계를 분리하고 출처 레인을 표시합니다.')}</p>
         <div className="damage-structure-formula" aria-label={l('Damage formula flow', '伤害公式流程', '傷害公式流程', '피해 공식 흐름')}>
           {formulaLayers.map((layer, index) => <span key={layer.id}>
             <button type="button" className={`damage-structure-formula-node damage-structure-formula-node-${layer.id}`} onClick={() => onOpenLayer(layer.id)}>
@@ -521,7 +709,14 @@ function FinalDamageTypes({ data, language }: { data: DamageStructureReportData;
 }
 
 function FinalDpsDetail({ data, language }: { data: DamageStructureReportData; language: Language }) {
-  return <div className="damage-structure-final-dps-detail"><FinalDamageTypes data={data} language={language} /></div>
+  const l = (en: string, zhCN: string, zhTW = zhCN, koKR = en) => uiText(language, en, zhCN, zhTW, koKR)
+  const verification = data.dpsVerification
+  const title = verification.status === 'match'
+    ? l('DPS check matches', 'DPS 校验一致', 'DPS 校驗一致', 'DPS 검증 일치')
+    : verification.status === 'difference'
+      ? l('DPS check differs', 'DPS 校验有差异', 'DPS 校驗有差異', 'DPS 검증 차이')
+      : l('DPS check unavailable', 'DPS 校验不可用', 'DPS 校驗不可用', 'DPS 검증 불가')
+  return <div className="damage-structure-final-dps-detail"><FinalDamageTypes data={data} language={language} /><div className={`damage-structure-dps-check ${verification.status}`}><span>{title}</span><strong>{l('Recalculated', '重新合计', '重新合計', '재계산')} {number(verification.recalculated, language, 0)}</strong><small>{l('Reported', '当前 DPS', '目前 DPS', '현재 DPS')} {number(verification.reported, language, 0)} · {l('Difference', '差值', '差值', '차이')} {verification.difference == null ? '—' : `${verification.difference >= 0 ? '+' : ''}${number(verification.difference, language, 0)}`}</small></div></div>
 }
 
 function SourceShareDetail({ label, values, language, unit = '', barsCaption = '' }: { label: string; values: SourceValue[]; language: Language; unit?: string; barsCaption?: string }) {
@@ -680,10 +875,10 @@ export function DamageStructureReport({ data: scopeData, skillLevel, treeData, s
   ].filter((value): value is string => Boolean(value)).slice(0, 3) : []
   const layers = data ? [
     { id: 'base', icon: Layers3, title: l('Damage base', '伤害基底', '傷害基底', '피해 기반'), subtitle: data.baseRole === 'weapon' ? l('Weapon base damage plus added damage', '武器基础伤害加附加点伤', '武器基礎傷害加附加點傷', '무기 기본 피해와 추가 피해') : data.baseRole === 'skillLevel' ? l('Skill level base damage plus added damage', '技能等级基础伤害加附加点伤', '技能等級基礎傷害加附加點傷', '스킬 레벨 기본 피해와 추가 피해') : l('Where the skill starts its damage', '技能从哪里开始形成伤害', '技能從哪裡開始形成傷害', '스킬 피해의 시작점'), summary: data.averageHit == null ? '—' : number(data.averageHit, lang, 1), body: <div className="damage-structure-base"><div className="damage-structure-origin"><div className="damage-structure-origin-heading"><strong>{data.baseRole === 'weapon' ? l('Attack: weapon base', '攻击：武器基底', '攻擊：武器基底', '공격: 무기 기반') : data.baseRole === 'skillLevel' ? l('Spell: skill level base', '法术：技能等级基底', '法術：技能等級基底', '주문: 스킬 레벨 기반') : l('Starting base', '起始基底', '起始基底', '시작 기반')}</strong><small>{data.baseRole === 'weapon' ? l('The weapon supplies the starting range.', '武器提供起始伤害区间。', '武器提供起始傷害區間。', '무기가 시작 피해 범위를 제공합니다.') : data.baseRole === 'skillLevel' ? l('The active gem level supplies the starting range.', '当前技能等级提供起始伤害区间。', '目前技能等級提供起始傷害區間。', '현재 스킬 레벨이 시작 피해 범위를 제공합니다.') : l('The calculation provides the starting range for this skill.', '当前计算提供该技能的起始伤害区间。', '目前計算提供該技能的起始傷害區間。', '현재 계산이 이 스킬의 시작 피해 범위를 제공합니다.')}</small></div><DamageRangeRows ranges={data.baseRanges} language={lang} showSource empty={l('No base range exposed', '没有可读取的基底区间', '沒有可讀取的基底區間', '기본 범위가 노출되지 않음')} /></div><div className="damage-structure-added"><div className="damage-structure-kicker">{l('Added damage from current build', '当前构筑附加点伤', '目前構築附加點傷', '현재 구성의 추가 피해')}</div><DamageRangeRows ranges={data.addedRanges} language={lang} showSource empty={l('No separate added damage exposed', '没有单独暴露的附加点伤', '沒有單獨暴露的附加點傷', '별도 추가 피해가 노출되지 않음')} /></div></div> },
-    { id: 'flow', icon: GitBranch, title: l('Conversion and Gain', '转换与 Gain', '轉換與 Gain', '변환 및 Gain'), subtitle: l('Damage can change type or gain an extra branch', '伤害类型可以转换或额外获得分支', '傷害類型可以轉換或額外獲得分支', '피해 유형을 변환하거나 추가 분기를 얻음'), summary: l(`Extra ${data.gains.length + data.conversions.length}`, `额外 ${data.gains.length + data.conversions.length} 条`, `額外 ${data.gains.length + data.conversions.length} 條`, `추가 ${data.gains.length + data.conversions.length}개`), body: <div className="damage-structure-flow-columns"><div><span className="damage-structure-kicker">{l('Gain as extra', '额外获得', '額外獲得', '추가 획득')}</span><FlowRows flows={data.gains} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div><div><span className="damage-structure-kicker">{l('Conversion', '转换', '轉換', '변환')}</span><FlowRows flows={data.conversions} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div></div> },
+    { id: 'flow', icon: GitBranch, title: l('Conversion and Gain', '转换与 Gain', '轉換與 Gain', '변환 및 Gain'), subtitle: l('Damage can change type or gain an extra branch', '伤害类型可以转换或额外获得分支', '傷害類型可以轉換或額外獲得分支', '피해 유형을 변환하거나 추가 분기를 얻음'), summary: `${l('Gain', '额外', '額外', 'Gain')} ${data.gains.length} · ${l('Conversion', '转换', '轉換', '변환')} ${data.conversions.length}`, body: <div className="damage-structure-flow-columns"><div><span className="damage-structure-kicker">{l('Gain as extra', '额外获得', '額外獲得', '추가 획득')}</span><FlowRows flows={data.gains} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div><div><span className="damage-structure-kicker">{l('Conversion', '转换', '轉換', '변환')}</span><FlowRows flows={data.conversions} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div></div> },
     { id: 'increased', icon: Sparkles, title: l('Increased / Reduced', '同类提高', '同類提高', '증가 / 감소'), subtitle: l('Matching modifiers are combined into one modifier', '同类修正按来源汇总为统一修正', '同類修正按來源彙總為統一修正', '같은 유형의 보정을 하나의 수정값으로 합산'), summary: data.increased.factor == null ? '—' : `×${data.increased.factor.toFixed(2)}`, body: data.increased.factor == null ? <span className="damage-structure-muted">{l('No detail is available for this layer in the current calculation.', '当前计算没有这一层的明细。', '目前計算沒有這一層的明細。', '현재 계산에는 이 레이어의 상세 정보가 없습니다.')}</span> : <div className="damage-structure-multiplier"><div className="damage-structure-factor"><span>{l('Combined factor', '合计倍率', '合計倍率', '합산 배율')}</span><strong>×{data.increased.factor.toFixed(2)}</strong><small>{number(data.increased.total, lang, 1)}%</small></div><SourceShareDetail label={l('Increased source share', '同类提高来源占比', '同類提高來源占比', '증가 출처 비율')} values={data.increased.sources} language={lang} unit="%" barsCaption={l('Modifier value', '修正值', '修正值', '보정값')} /><ModifierSourceRows modifiers={data.increased.details} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div> },
     { id: 'more', icon: Zap, title: l('More / Less', '独立增幅', '獨立增幅', 'More / Less'), subtitle: l('Each multiplier applies independently', '每个独立倍率分别相乘', '每個獨立倍率分別相乘', '각 배율은 독립적으로 곱해짐'), summary: data.more.factor == null ? '—' : `×${data.more.factor.toFixed(2)}`, body: data.more.factor == null ? <span className="damage-structure-muted">{l('No detail is available for this layer in the current calculation.', '当前计算没有这一层的明细。', '目前計算沒有這一層的明細。', '현재 계산에는 이 레이어의 상세 정보가 없습니다.')}</span> : <div className="damage-structure-multiplier"><div className="damage-structure-factor"><span>{l('Product of active multipliers', '当前独立倍率乘积', '目前獨立倍率乘積', '활성 배율 곱')}</span><strong>×{data.more.factor.toFixed(2)}</strong></div><SourceShareDetail label={l('More source share', '独立增幅来源占比', '獨立增幅來源占比', 'more 출처 비율')} values={data.more.sources} language={lang} unit="%" barsCaption={l('Modifier value', '修正值', '修正值', '보정값')} /><div className="damage-structure-chain">{data.more.nodes.length ? data.more.nodes.map((node, index) => <span key={`${node.type}-${node.value}-${index}`}><i style={{ borderColor: SOURCE_COLORS[node.type] }}><b>×{node.factor.toFixed(2)}</b><small>{sourceLabel(node.type, lang)}</small></i>{index < data.more.nodes.length - 1 && <ArrowRight />}</span>) : <i style={{ borderColor: '#917344' }}><b>×{data.more.factor.toFixed(2)}</b><small>{l('Combined result', '合并结果', '合併結果', '합산 결과')}</small></i>}</div><ModifierSourceRows modifiers={data.more.details} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div> },
-    { id: 'crit', icon: Target, title: l('Critical and special hits', '暴击与特殊命中', '暴擊與特殊命中', '치명타 및 특수 적중'), subtitle: l('Normal and critical hits form expected damage', '普通命中与暴击合成期望伤害', '普通命中與暴擊合成期望傷害', '일반 및 치명타 적중의 기대 피해'), summary: data.critChance == null ? '—' : percent(data.critChance, lang), body: (() => {
+    { id: 'crit', icon: Target, title: l('Critical and special hits', '暴击与特殊命中', '暴擊與特殊命中', '치명타 및 특수 적중'), subtitle: criticalExpectationFormula(data.critChance, data.critMultiplier, lang), summary: (() => { const factor = criticalExpectationFactor(data.critChance, data.critMultiplier); return factor == null ? '—' : `×${factor.toFixed(2)}` })(), body: (() => {
       const critChanceSources = contributionSources(data.critModifiers.filter((entry) => entry.stat === 'CritChance'))
       const critMultiplierSources = contributionSources(data.critModifiers.filter((entry) => entry.stat === 'CritMultiplier'))
       return <div className="damage-structure-crit"><div className="damage-structure-crit-branch"><div><span>{l('Normal hit', '普通命中', '普通命中', '일반 적중')}</span><b>{data.critChance == null ? '—' : percent(100 - data.critChance, lang)}</b></div><div><span>{l('Critical hit', '暴击命中', '暴擊命中', '치명타 적중')}</span><b>{percent(data.critChance, lang)}</b></div></div><CriticalAverageFormula critChance={data.critChance} critMultiplier={data.critMultiplier} language={lang} /><div className="damage-structure-crit-result"><span>{l('Critical damage', '暴击伤害', '暴擊傷害', '치명타 피해')}</span><strong>×{data.critMultiplier == null ? '—' : data.critMultiplier.toFixed(2)}</strong></div>{(critChanceSources.length > 0 || critMultiplierSources.length > 0) && <div className="damage-structure-crit-source-share-grid"><SourceShareDetail label={l('Critical chance source share', '暴击率来源占比', '暴擊率來源占比', '치명타 확률 출처 비율')} values={critChanceSources} language={lang} unit="%" barsCaption={l('Critical chance modifier', '暴击率修正', '暴擊率修正', '치명타 확률 보정')} /><SourceShareDetail label={l('Critical damage source share', '暴击伤害来源占比', '暴擊傷害來源占比', '치명타 피해 출처 비율')} values={critMultiplierSources} language={lang} unit="%" barsCaption={l('Critical damage modifier', '暴击伤害修正', '暴擊傷害修正', '치명타 피해 보정')} /></div>}<CriticalSourceRows modifiers={data.critModifiers} language={lang} treeData={treeData} skillCatalog={skillCatalog} /></div>
