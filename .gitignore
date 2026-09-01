@@ -22,9 +22,12 @@ log.txt
 _tsc*.txt
 .cache/
 
-# Committed development snapshots may contain LevelDB log files.
-!dev-data/
-!dev-data/**
+# Local development run artifacts
+/dev-*.out
+/dev-*.err
+/dev-data/*
+!/dev-data/README.md
+/release-local-*/
 
 # Python cache
 __pycache__/
