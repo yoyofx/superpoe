@@ -1,9 +1,9 @@
 {
   "name": "superpoe2",
   "private": true,
-  "version": "0.5.4",
+  "version": "0.5.5",
   "superpoe": {
-    "gameVersion": "0.5.0",
+    "gameVersion": "0.5.5",
     "revision": 4
   },
   "type": "module",

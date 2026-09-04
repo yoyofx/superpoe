@@ -1085,8 +1085,8 @@ function createWindow(): BrowserWindow {
 
 // Keep the main-process startup default aligned with the first-run settings.
 // The renderer may synchronize a saved preference later, but the initial
-// automatic check must not briefly fall back to the release feed.
-let updateChannel: UpdateChannel = 'dev'
+// automatic check should use the stable release feed.
+let updateChannel: UpdateChannel = 'release'
 let updateCheckIntervalMinutes = 60
 const pobLuaService = new PobLuaService()
 const itemTranslations = new ItemTranslationIndex()
@@ -1675,10 +1675,14 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   })
   ipcMain.handle('pob2:auth-storage-load', (event) => {
     requireMainWindowSender(event)
-    if (!safeStorage.isEncryptionAvailable() || !existsSync(authStoragePath)) return null
+    const available = safeStorage.isEncryptionAvailable()
+    const exists = existsSync(authStoragePath)
+    console.info(`[Auth] storage load available=${available} exists=${exists} path=${authStoragePath}`)
+    if (!available || !exists) return null
     try {
       return safeStorage.decryptString(readFileSync(authStoragePath))
-    } catch {
+    } catch (error) {
+      console.warn(`[Auth] storage decrypt failed path=${authStoragePath}`, error)
       return null
     }
   })
@@ -1687,7 +1691,16 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     if (typeof value !== 'string' || value.length < 2 || value.length > 32_000) throw new Error('Invalid auth session')
     if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure auth storage is unavailable')
     mkdirSync(path.dirname(authStoragePath), { recursive: true })
-    writeFileSync(authStoragePath, safeStorage.encryptString(value))
+    const encrypted = safeStorage.encryptString(value)
+    writeFileSync(authStoragePath, encrypted)
+    try {
+      const persisted = safeStorage.decryptString(readFileSync(authStoragePath))
+      if (persisted !== value) throw new Error('Auth session verification failed')
+    } catch (error) {
+      console.error(`[Auth] storage verification failed path=${authStoragePath}`, error)
+      throw error
+    }
+    console.info(`[Auth] session persisted path=${authStoragePath} bytes=${encrypted.byteLength}`)
   })
   ipcMain.handle('pob2:auth-storage-clear', (event) => {
     requireMainWindowSender(event)

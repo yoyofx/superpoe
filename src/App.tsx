@@ -875,7 +875,7 @@ function AuthenticatedWorkspace() {
         onBackupExport={() => void handleBackupExport()}
         onBackupImport={() => void handleBackupImport()}
       />
-      <UpdateDialog settings={appSettings} />
+      <UpdateDialog settings={appSettings} visible={screen === 'center'} />
       {buildUpdateTarget && <BuildUpdateDialog
         build={buildUpdateTarget}
         checking={buildUpdateChecking}

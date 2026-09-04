@@ -63,11 +63,16 @@ function getDeviceId(): string {
   return generated
 }
 
-const desktopStorage: AuthStorage | null = typeof window !== 'undefined' && window.pob2Desktop?.authStorage
-  ? window.pob2Desktop.authStorage
-  : null
+function getDesktopStorage(): AuthStorage | null {
+  try {
+    return typeof window !== 'undefined' ? window.pob2Desktop?.authStorage || null : null
+  } catch {
+    return null
+  }
+}
 
 async function loadStoredSession(): Promise<AuthSession | null> {
+  const desktopStorage = getDesktopStorage()
   const raw = desktopStorage
     ? await desktopStorage.load()
     : browserStorage()?.getItem(AUTH_STORAGE_KEY) || null
@@ -83,12 +88,14 @@ async function loadStoredSession(): Promise<AuthSession | null> {
 
 async function saveStoredSession(session: AuthSession): Promise<void> {
   const raw = JSON.stringify(session)
+  const desktopStorage = getDesktopStorage()
   if (desktopStorage) {
     try {
       await desktopStorage.save(raw)
     } catch {
-      // A Linux desktop without a system secret store can still use the
-      // session for this run; it simply will not be restored after restart.
+      // A desktop without a system secret store can still use the session for
+      // this run; never fall back to plaintext token storage in that case.
+      console.warn('[Auth] secure session persistence is unavailable; session will last only for this run')
     }
     return
   }
@@ -96,6 +103,7 @@ async function saveStoredSession(session: AuthSession): Promise<void> {
 }
 
 async function clearStoredSession(): Promise<void> {
+  const desktopStorage = getDesktopStorage()
   if (desktopStorage) {
     await desktopStorage.clear()
     return

@@ -30,7 +30,7 @@ function getDefaultAppSettings(): AppSettings {
     defaultRealm: mapSystemRealm(),
     confirmUnsavedExit: true,
     uiScalePercent: 120,
-    updateChannel: 'dev',
+    updateChannel: 'release',
     updateCheckIntervalMinutes: 60,
     proxyDomains: [],
     priceCheckEnabled: true,

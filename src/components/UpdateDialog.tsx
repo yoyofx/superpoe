@@ -7,9 +7,10 @@ import { formatUiDate, uiText } from '@/i18n/uiLocale'
 
 interface UpdateDialogProps {
   settings: AppSettings
+  visible?: boolean
 }
 
-export function UpdateDialog({ settings }: UpdateDialogProps) {
+export function UpdateDialog({ settings, visible = true }: UpdateDialogProps) {
   const { lang } = useTranslation()
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null)
   const [showPrompt, setShowPrompt] = useState(false)
@@ -98,12 +99,12 @@ export function UpdateDialog({ settings }: UpdateDialogProps) {
     setError(null)
   }, [])
 
-  if (!showPrompt || !updateInfo) return null
+  if (!visible || !showPrompt || !updateInfo) return null
 
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop update-dialog-backdrop" role="presentation">
       <section className="workflow-dialog update-dialog" role="dialog" aria-modal="true" aria-labelledby="update-dialog-title">
         <header className="dialog-header">
           <div>

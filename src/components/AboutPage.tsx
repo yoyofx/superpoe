@@ -1,6 +1,6 @@
 import { Headphones, Info } from 'lucide-react'
 import { BuildCenterNav } from '@/components/BuildCenter'
-import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
+import { SUPERPOE_GAME_VERSION, SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { useTranslation } from '@/i18n/useTranslation'
 import { uiText } from '@/i18n/uiLocale'
 import { AccountStatus } from '@/components/AuthGate'
@@ -33,7 +33,7 @@ export function AboutPage({ onCenter, onLibrary, onTradeCenter, onCommunity, onU
         </section>
         <dl className="about-details">
           <div><dt>{l('Application version', '应用版本', '應用程式版本', '애플리케이션 버전')}</dt><dd>{SUPERPOE_VERSION_LABEL}</dd></div>
-          <div><dt>{l('Game version', '游戏版本', '遊戲版本', '게임 버전')}</dt><dd>PoE2 0.5.0</dd></div>
+          <div><dt>{l('Game version', '游戏版本', '遊戲版本', '게임 버전')}</dt><dd>PoE2 {SUPERPOE_GAME_VERSION}</dd></div>
           <div><dt>{l('Calculation engine', '计算引擎', '計算引擎', '계산 엔진')}</dt><dd>PoB Lua Runtime</dd></div>
         </dl>
       </main>

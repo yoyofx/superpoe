@@ -40,7 +40,7 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose, backup
   if (!open) return null
 
   return (
-    <div className="modal-backdrop" role="presentation">
+    <div className="modal-backdrop global-settings-backdrop" role="presentation">
       <section className="workflow-dialog settings-dialog" role="dialog" aria-modal="true" aria-labelledby="global-settings-title">
         <header className="dialog-header">
           <div><span>{l('Application preferences', '应用配置', '應用程式偏好設定', '애플리케이션 설정')}</span><h2 id="global-settings-title">{l('Global settings', '全局设置', '全域設定', '전역 설정')}</h2></div>
