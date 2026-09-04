@@ -10,6 +10,7 @@ import { BuildCenter } from '@/components/BuildCenter'
 import { BuildUpdateDialog } from '@/components/BuildUpdateDialog'
 import { UtilityCenter } from '@/components/UtilityCenter'
 import { AboutPage } from '@/components/AboutPage'
+import { CommunityPage } from '@/components/CommunityPage'
 import { EquipmentLibraryPage } from '@/components/EquipmentLibraryPage'
 import { NewBuildDialog, type NewBuildInput } from '@/components/NewBuildDialog'
 import { UnifiedImportDialog, type ImportConfirmation } from '@/components/UnifiedImportDialog'
@@ -44,6 +45,8 @@ import type { MarketWorkspaceView } from '@/components/market/MarketShell'
 import type { MarketMonitoringSnapshot } from '@/types/market'
 import type { Language } from '@/i18n/translationLoader'
 import { uiText } from '@/i18n/uiLocale'
+import { AuthGate, useAuth } from '@/components/AuthGate'
+import { configureAnalytics, trackAnalytics } from '@/engine/analytics'
 
 const TreePixiCanvas = lazy(() => import('@/components/TreePixiCanvas').then((module) => ({ default: module.TreePixiCanvas })))
 const NodeTooltip = lazy(() => import('@/components/NodeTooltip').then((module) => ({ default: module.NodeTooltip })))
@@ -61,12 +64,13 @@ function WorkspaceLoading({ language, error }: { language: Language; error?: str
   </section>
 }
 
-export default function App() {
+function AuthenticatedWorkspace() {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
+  const { session, requestLogin } = useAuth()
   const hashLoadedRef = useRef(false)
   const cleanSignatureRef = useRef('')
-  type AppScreen = 'center' | 'utilities' | 'about' | 'library' | 'editor' | 'trade'
+  type AppScreen = 'center' | 'utilities' | 'about' | 'library' | 'editor' | 'trade' | 'community'
   type LibraryReturnScreen = Exclude<AppScreen, 'library'>
   const [screen, setScreen] = useState<AppScreen>('center')
   const [libraryReturnScreen, setLibraryReturnScreen] = useState<LibraryReturnScreen>('center')
@@ -74,6 +78,7 @@ export default function App() {
   const [analysisPage, setAnalysisPage] = useState<AnalysisPage>('structure')
   const [marketWorkspace, setMarketWorkspace] = useState<MarketWorkspaceView>('market')
   const [tradeReturnScreen, setTradeReturnScreen] = useState<'center' | 'editor' | 'library'>('center')
+  const [communityReturnScreen, setCommunityReturnScreen] = useState<Exclude<AppScreen, 'community'>>('center')
   const [monitoring, setMonitoring] = useState<MarketMonitoringSnapshot | null>(null)
   const [buildName, setBuildName] = useState(l('Untitled build', '未命名构筑', '未命名構築', '이름 없는 빌드'))
   const [activeBuildId, setActiveBuildId] = useState<string | null>(null)
@@ -123,6 +128,23 @@ export default function App() {
   const setBuildRealm = useTreeStore((s) => s.setBuildRealm)
   const calculationProfiles = useTreeStore((s) => s.calculationProfiles)
   const activeCalculationProfileId = useTreeStore((s) => s.activeCalculationProfileId)
+  const analyticsViewRef = useRef('')
+  useEffect(() => {
+    const event = screen === 'center'
+      ? 'view_center'
+      : screen === 'editor'
+        ? activeView === 'equipment' ? 'view_editor_equipment'
+          : activeView === 'skills' ? 'view_editor_skills'
+            : activeView === 'passive' ? 'view_editor_passive' : 'view_editor_analysis'
+        : screen === 'library' ? 'view_equipment_library'
+          : screen === 'community' ? 'view_voice_community'
+          : screen === 'trade' ? marketWorkspace === 'monitoring' ? 'view_market_monitoring' : 'view_trade_center'
+            : null
+    if (event && analyticsViewRef.current !== event) {
+      analyticsViewRef.current = event
+      trackAnalytics(event)
+    }
+  }, [activeView, marketWorkspace, screen])
 
   const activePobCode = useMemo(() => {
     return getActivePobCode() || ''
@@ -242,21 +264,25 @@ export default function App() {
     const bridge = window.pob2Market
     if (!bridge) return
     return bridge.onOpenMonitoring(() => {
-      if (screen !== 'trade') setTradeReturnScreen(screen === 'editor' ? 'editor' : screen === 'library' ? 'library' : 'center')
-      setMarketWorkspace('monitoring')
-      setScreen('trade')
+      requestLogin(() => {
+        if (screen !== 'trade') setTradeReturnScreen(screen === 'editor' ? 'editor' : screen === 'library' ? 'library' : 'center')
+        setMarketWorkspace('monitoring')
+        setScreen('trade')
+      })
     })
-  }, [screen])
+  }, [requestLogin, screen])
 
   useEffect(() => {
     const bridge = window.pob2Market
     if (!bridge?.onOpenTradeCenter) return
     return bridge.onOpenTradeCenter(() => {
-      setTradeReturnScreen(screen === 'editor' ? 'editor' : screen === 'library' ? 'library' : 'center')
-      setMarketWorkspace('market')
-      setScreen('trade')
+      requestLogin(() => {
+        setTradeReturnScreen(screen === 'editor' ? 'editor' : screen === 'library' ? 'library' : 'center')
+        setMarketWorkspace('market')
+        setScreen('trade')
+      })
     })
-  }, [screen])
+  }, [requestLogin, screen])
 
   useEffect(() => {
     if (screen !== 'trade' || marketWorkspace !== 'market') {
@@ -265,20 +291,34 @@ export default function App() {
   }, [marketWorkspace, screen])
 
   useEffect(() => {
+    if (screen !== 'community') {
+      void window.pob2Community?.deactivate().catch(() => {})
+    }
+  }, [screen])
+
+  useEffect(() => {
     const openEquipment = () => setActiveView('equipment')
     window.addEventListener('open-equipment-panel', openEquipment)
     return () => window.removeEventListener('open-equipment-panel', openEquipment)
   }, [])
 
   useEffect(() => {
+    if (session) return
+    if (screen === 'library' || screen === 'trade') setScreen('center')
+    if (activeView === 'analysis') setActiveView('equipment')
+  }, [activeView, screen, session])
+
+  useEffect(() => {
     const openMarket = () => {
-      setTradeReturnScreen('editor')
-      setMarketWorkspace('market')
-      setScreen('trade')
+      requestLogin(() => {
+        setTradeReturnScreen('editor')
+        setMarketWorkspace('market')
+        setScreen('trade')
+      })
     }
     window.addEventListener('open-market-panel', openMarket)
     return () => window.removeEventListener('open-market-panel', openMarket)
-  }, [])
+  }, [requestLogin])
 
   // Load from URL hash on tree ready
   useEffect(() => {
@@ -364,6 +404,7 @@ export default function App() {
 
   const handleOpenBuild = useCallback(async (build: SavedBuild) => {
     await Promise.resolve(loadBuild(build.id))
+    trackAnalytics('build_open')
     enterEditor(build.name, build.id, build.source || (build.importedBuildCode ? 'pob' : 'local'), build.sourceUrl || null)
   }, [enterEditor, loadBuild])
 
@@ -473,6 +514,7 @@ export default function App() {
     clearAllocatedNodes()
     setBuildRealm(input.realm)
     setNewBuildOpen(false)
+    trackAnalytics('build_create')
     enterEditor(input.name, null, 'local')
   }, [clearAllocatedNodes, enterEditor, selectAscendancy, selectClass, setBuildRealm, setTreeVersion])
 
@@ -489,6 +531,7 @@ export default function App() {
     setBuildSourceUrl(confirmation.sourceUrl || null)
     setActiveView('equipment')
     setScreen('editor')
+    trackAnalytics('build_import')
     window.setTimeout(markClean, 0)
   }, [markClean, screen, setBuildRealm])
 
@@ -498,6 +541,7 @@ export default function App() {
       const savedId = saveBuild(buildName.trim() || l('Untitled build', '未命名构筑', '未命名構築', '이름 없는 빌드'), activeBuildId, buildSource, buildSourceUrl)
       setActiveBuildId(savedId)
       markClean()
+      trackAnalytics('build_save')
       setSaveNotice({ type: 'success', message: l('Build saved', '构筑已保存', '構築已儲存', '빌드 저장됨') })
     } catch {
       setSaveStatus('error')
@@ -571,6 +615,7 @@ export default function App() {
       })
       setActiveBuildId(savedId)
       markClean()
+      trackAnalytics('build_export')
       setSaveNotice({ type: 'success', message: l(`Build copy saved to ${result.filePath}`, `构筑副本已保存到 ${result.filePath}`, `構築副本已儲存至 ${result.filePath}`, `빌드 복사본이 ${result.filePath}에 저장됨`) })
     } catch (reason) {
       setSaveStatus('error')
@@ -745,6 +790,7 @@ export default function App() {
   const handleSettingsChange = useCallback((settings: AppSettings) => {
     setAppSettings(settings)
     saveAppSettings(settings)
+    configureAnalytics(settings.analyticsEnabled)
   }, [])
 
   const requestHome = useCallback(() => {
@@ -755,26 +801,53 @@ export default function App() {
   const nativeBuildConflict = nativeBuildCandidate
     ? savedBuilds.find((build) => build.id === nativeBuildCandidate.parsed.envelope.data.id)
     : undefined
-  const openLibrary = (returnScreen: LibraryReturnScreen) => {
-    setLibraryReturnScreen(returnScreen)
-    setScreen('library')
-  }
+  const handleViewChange = useCallback((view: WorkspaceView) => {
+    if (view === 'analysis') {
+      requestLogin(() => setActiveView(view))
+      return
+    }
+    setActiveView(view)
+  }, [requestLogin])
+  const openLibrary = useCallback((returnScreen: LibraryReturnScreen) => {
+    requestLogin(() => {
+      setLibraryReturnScreen(returnScreen)
+      setScreen('library')
+    })
+  }, [requestLogin])
+  const openTradeCenter = useCallback((returnScreen: 'center' | 'editor' | 'library') => {
+    requestLogin(() => {
+      setTradeReturnScreen(returnScreen)
+      setMarketWorkspace('market')
+      setScreen('trade')
+    })
+  }, [requestLogin])
+  const openCommunity = useCallback((returnScreen: Exclude<AppScreen, 'community'>) => {
+    setCommunityReturnScreen(returnScreen)
+    setScreen('community')
+  }, [])
+  useEffect(() => {
+    const openCommunityPanel = () => openCommunity(screen === 'editor' ? 'editor' : screen === 'library' ? 'library' : screen === 'trade' ? 'trade' : screen === 'utilities' ? 'utilities' : screen === 'about' ? 'about' : 'center')
+    window.addEventListener('open-community-panel', openCommunityPanel)
+    return () => window.removeEventListener('open-community-panel', openCommunityPanel)
+  }, [openCommunity, screen])
   const tradeSuspended = settingsOpen || importOpen || newBuildOpen || leaveConfirmOpen || Boolean(nativeBuildCandidate)
 
   return (
     <div className={`superpoe-app${screen === 'library' ? ' library-screen' : ''}`}>
       {screen === 'center'
-        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onOpenFile={() => void handleOpenNativeBuildFile()} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onCheckForUpdate={(build) => void handleCheckBuildUpdate(build)} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onLibrary={() => openLibrary('center')} onUtilities={() => setScreen('utilities')} onAbout={() => setScreen('about')} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} />
+        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onOpenFile={() => void handleOpenNativeBuildFile()} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onCheckForUpdate={(build) => void handleCheckBuildUpdate(build)} onTradeCenter={() => openTradeCenter('center')} onCommunity={() => openCommunity('center')} onLibrary={() => openLibrary('center')} onUtilities={() => setScreen('utilities')} onAbout={() => setScreen('about')} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} />
         : screen === 'utilities'
-          ? <UtilityCenter onCenter={() => setScreen('center')} onLibrary={() => openLibrary('utilities')} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onAbout={() => setScreen('about')} onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} />
+          ? <UtilityCenter onCenter={() => setScreen('center')} onLibrary={() => openLibrary('utilities')} onTradeCenter={() => openTradeCenter('center')} onCommunity={() => openCommunity('utilities')} onAbout={() => setScreen('about')} onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} />
           : screen === 'about'
-            ? <AboutPage onCenter={() => setScreen('center')} onLibrary={() => openLibrary('about')} onTradeCenter={() => { setTradeReturnScreen('center'); setScreen('trade') }} onUtilities={() => setScreen('utilities')} />
+            ? <AboutPage onCenter={() => setScreen('center')} onLibrary={() => openLibrary('about')} onTradeCenter={() => openTradeCenter('center')} onCommunity={() => openCommunity('about')} onUtilities={() => setScreen('utilities')} />
           : screen === 'library'
-            ? <EquipmentLibraryPage realm={appSettings.defaultRealm} onBack={() => setScreen(libraryReturnScreen)} onSettings={() => setSettingsOpen(true)} />
+            ? <EquipmentLibraryPage realm={appSettings.defaultRealm} onBack={() => setScreen(libraryReturnScreen)} onSettings={() => setSettingsOpen(true)} onCommunity={() => openCommunity('library')} />
+        : screen === 'community'
+          ? <CommunityPage onCenter={() => setScreen('center')} onLibrary={() => openLibrary('community')} onTradeCenter={() => openTradeCenter('center')} onCommunity={() => {}} onUtilities={() => setScreen('utilities')} onAbout={() => setScreen('about')} onBack={() => setScreen(communityReturnScreen)} />
         : screen === 'trade'
-          ? <Suspense fallback={<WorkspaceLoading language={lang} />}><MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onLibrary={() => openLibrary('trade')} onSettings={() => setSettingsOpen(true)} /></Suspense>
+          ? <Suspense fallback={<WorkspaceLoading language={lang} />}><MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onLibrary={() => openLibrary('trade')} onSettings={() => setSettingsOpen(true)} onCommunity={() => openCommunity('trade')} /></Suspense>
           : <>
-      <Toolbar activeView={activeView} onViewChange={setActiveView} onTradeCenter={() => { setTradeReturnScreen('editor'); setScreen('trade') }} monitoring={monitoring} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onLibrary={() => openLibrary('editor')} onImport={() => setImportOpen(true)} onSave={handleSave} onSaveCopy={() => void handleSaveCopy()} onSettings={() => setSettingsOpen(true)} />
+      <Toolbar activeView={activeView} onViewChange={handleViewChange} onTradeCenter={() => openTradeCenter('editor')} onCommunity={() => openCommunity('editor')} monitoring={monitoring} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onLibrary={() => openLibrary('editor')} onImport={() => setImportOpen(true)} onSave={handleSave} onSaveCopy={() => void handleSaveCopy()} onSettings={() => setSettingsOpen(true)} />
       <main className="workspace-view">
         {!treeData ? <WorkspaceLoading language={lang} error={error} /> : <Suspense fallback={<WorkspaceLoading language={lang} />}>
         {activeView === 'passive' && (
@@ -833,4 +906,17 @@ export default function App() {
       </div>}
     </div>
   )
+}
+
+export default function App() {
+  const analyticsEnabled = useMemo(() => loadAppSettings().analyticsEnabled, [])
+  const analyticsStartedRef = useRef(false)
+  useEffect(() => {
+    configureAnalytics(analyticsEnabled)
+    if (!analyticsStartedRef.current) {
+      analyticsStartedRef.current = true
+      trackAnalytics('app_start')
+    }
+  }, [analyticsEnabled])
+  return <AuthGate><AuthenticatedWorkspace /></AuthGate>
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { AlertTriangle, Archive, BellRing, ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, FolderOpen, Info, LayoutDashboard, ListFilter, MoreVertical, Plus, RefreshCw, Search, Settings, Store, Trash2, Wrench } from 'lucide-react'
+import { AlertTriangle, Archive, BellRing, ChevronLeft, ChevronRight, CircleHelp, Clock3, FileInput, FolderOpen, Headphones, Info, LayoutDashboard, ListFilter, MoreVertical, Plus, RefreshCw, Search, Settings, Store, Trash2, Wrench } from 'lucide-react'
 import { FallbackImage } from '@/components/FallbackImage'
 import { translateGameText, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
@@ -14,6 +14,7 @@ import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
 import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketMonitoringSnapshot } from '@/types/market'
 import { formatUiDate, uiText } from '@/i18n/uiLocale'
+import { AccountStatus } from '@/components/AuthGate'
 
 interface BuildCenterProps {
   onCreate: () => void
@@ -22,6 +23,7 @@ interface BuildCenterProps {
   onOpen: (build: SavedBuild) => void
   onCheckForUpdate: (build: SavedBuild) => void
   onTradeCenter: () => void
+  onCommunity: () => void
   onLibrary: () => void
   onUtilities: () => void
   onAbout: () => void
@@ -29,13 +31,14 @@ interface BuildCenterProps {
   onSettings: () => void
 }
 
-export type BuildCenterNavPage = 'center' | 'library' | 'utilities' | 'about'
+export type BuildCenterNavPage = 'center' | 'library' | 'utilities' | 'about' | 'community'
 
 interface BuildCenterNavProps {
   active: BuildCenterNavPage
   onCenter: () => void
   onLibrary: () => void
   onTradeCenter: () => void
+  onCommunity: () => void
   onUtilities: () => void
   onAbout: () => void
 }
@@ -51,7 +54,7 @@ interface RowMenuState {
   top: number
 }
 
-export function BuildCenterNav({ active, onCenter, onLibrary, onTradeCenter, onUtilities, onAbout }: BuildCenterNavProps) {
+export function BuildCenterNav({ active, onCenter, onLibrary, onTradeCenter, onCommunity, onUtilities, onAbout }: BuildCenterNavProps) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   return (
@@ -70,6 +73,9 @@ export function BuildCenterNav({ active, onCenter, onLibrary, onTradeCenter, onU
         <button onClick={onTradeCenter}>
           <span className="build-center-nav-main"><Store aria-hidden="true" /><span>{l('Trade center', '交易中心', '交易中心', '거래 센터')}</span><span className="build-center-nav-tooltip" role="tooltip">{l('Search equipment, save market results, and view live prices.', '搜索装备、收藏市场结果并查看实时行情', '搜尋裝備、收藏市集結果並查看即時行情', '장비를 검색하고 거래소 결과를 저장하며 실시간 시세를 확인합니다.')}</span></span>
         </button>
+        <button className={[active === 'community' ? 'active' : '', 'community-nav-entry'].filter(Boolean).join(' ')} aria-current={active === 'community' ? 'page' : undefined} onClick={onCommunity}>
+          <span className="build-center-nav-main"><Headphones aria-hidden="true" /><span>{l('Voice community', '语音社区', '語音社群', '음성 커뮤니티')}</span><span className="build-center-nav-tooltip" role="tooltip">{l('Join the KOOK voice community without leaving SuperPoE.', '在不离开 SuperPoE 的情况下加入 KOOK 语音社区', '不離開 SuperPoE 即可加入 KOOK 語音社群', 'SuperPoE를 떠나지 않고 KOOK 음성 커뮤니티에 참여합니다.')}</span></span>
+        </button>
         <button className={active === 'utilities' ? 'active' : ''} aria-current={active === 'utilities' ? 'page' : undefined} onClick={onUtilities}>
           <span className="build-center-nav-main"><Wrench aria-hidden="true" /><span>{l('Utilities', '实用工具', '實用工具', '유틸리티')}</span><span className="build-center-nav-tooltip" role="tooltip">{l('Access currency prices, monitoring, and utility tools.', '访问通货行情、监控和其它辅助工具', '查看通貨行情、監控與其他輔助工具', '화폐 시세, 모니터링 및 기타 보조 도구를 엽니다.')}</span></span>
         </button>
@@ -77,6 +83,10 @@ export function BuildCenterNav({ active, onCenter, onLibrary, onTradeCenter, onU
           <span className="build-center-nav-main"><Info aria-hidden="true" /><span>{l('About', '关于', '關於', '정보')}</span><span className="build-center-nav-tooltip" role="tooltip">{l('View app version, data sources, and project information.', '查看应用版本、数据来源和项目信息', '查看應用程式版本、資料來源與專案資訊', '앱 버전, 데이터 출처 및 프로젝트 정보를 확인합니다.')}</span></span>
         </button>
       </nav>
+      <section className="build-center-sponsor" aria-label={l('Support SuperPoE2', '支持 SuperPoE2', '支援 SuperPoE2', 'SuperPoE2 후원')}>
+        <img src="/assets/ui/superpoe-sponsor-qr.png" alt={l('SuperPoE2 sponsor QR code', 'SuperPoE2 赞助二维码', 'SuperPoE2 贊助 QR Code', 'SuperPoE2 후원 QR 코드')} />
+        <p>{l('Your support keeps SuperPoE2 running long term.', '你的支持是我长期运营 SuperPoE2 的动力。', '你的支持是我長期營運 SuperPoE2 的動力。', '여러분의 응원이 SuperPoE2를 오래 운영하는 힘이 됩니다.')}</p>
+      </section>
     </aside>
   )
 }
@@ -95,7 +105,7 @@ function canRefreshBuild(build: SavedBuild): boolean {
   return Boolean(build.sourceUrl && (build.source === 'wegame' || build.source === 'poe-ninja'))
 }
 
-export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckForUpdate, onTradeCenter, onLibrary, onUtilities, onAbout, monitoring, onSettings }: BuildCenterProps) {
+export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckForUpdate, onTradeCenter, onCommunity, onLibrary, onUtilities, onAbout, monitoring, onSettings }: BuildCenterProps) {
   const { lang } = useTranslation()
   const treeData = useTreeStore((state) => state.treeData)
   const savedBuilds = useTreeStore((state) => state.savedBuilds)
@@ -217,12 +227,14 @@ export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckFor
 
   return (
     <div className="build-center">
-      <BuildCenterNav active="center" onCenter={() => {}} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onUtilities={onUtilities} onAbout={onAbout} />
+      <BuildCenterNav active="center" onCenter={() => {}} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onCommunity={onCommunity} onUtilities={onUtilities} onAbout={onAbout} />
       <header className="center-app-bar">
         <div className="center-actions">
           <GameRuntimeIndicator />
-          <button className="icon-command" onClick={onSettings} title={l('Global settings', '全局设置', '全域設定', '전역 설정')} aria-label={l('Global settings', '全局设置', '全域設定', '전역 설정')}><Settings /></button>
-          <button className="icon-command" title={l('Help', '帮助', '說明', '도움말')} aria-label={l('Help', '帮助', '說明', '도움말')}><CircleHelp /></button>
+          <button type="button" className="icon-command toolbar-community-button" onClick={onCommunity} title={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')} aria-label={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')}><Headphones /></button>
+          <button type="button" className="icon-command" onClick={onSettings} title={l('Global settings', '全局设置', '全域設定', '전역 설정')} aria-label={l('Global settings', '全局设置', '全域設定', '전역 설정')}><Settings /></button>
+          <button type="button" className="icon-command" onClick={onAbout} title={l('Help and about', '帮助与关于', '說明與關於', '도움말 및 정보')} aria-label={l('Help and about', '帮助与关于', '說明與關於', '도움말 및 정보')}><CircleHelp /></button>
+          <AccountStatus />
         </div>
         <div className="center-command-row">
           <div><button className="secondary-command" onClick={onOpenFile}><FolderOpen />{l('Open build', '打开构筑', '開啟構築', '빌드 열기')}</button><button className="secondary-command" onClick={onImport}><FileInput />{l('Import build', '导入构筑', '匯入構築', '빌드 가져오기')}</button><button className="primary-command" onClick={onCreate}><Plus />{l('New build', '新建构筑', '新增構築', '새 빌드')}</button></div>

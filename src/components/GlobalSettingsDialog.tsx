@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { ArchiveRestore, Download, FileCog, Globe2, Info, Keyboard, Languages, MonitorCog, RefreshCw, ShieldAlert, ShieldCheck, Upload, X } from 'lucide-react'
+import { Activity, ArchiveRestore, Download, FileCog, Globe2, Info, Keyboard, Languages, MonitorCog, RefreshCw, ShieldAlert, ShieldCheck, Upload, X } from 'lucide-react'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { MAX_UI_SCALE_PERCENT, MIN_UI_SCALE_PERCENT, UI_SCALE_STEP_PERCENT, type AppSettings, type UpdateChannel } from '@/engine/appSettings'
 import { LANGUAGE_OPTIONS, type Language } from '@/i18n/translationLoader'
@@ -120,6 +120,20 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose, backup
                 <output>{settings.uiScalePercent}%</output>
               </div>
             </label>
+          </section>
+
+          <section className="settings-section">
+            <header><Activity /><h3>{l('Usage metrics', '使用统计', '使用統計', '사용 통계')}</h3></header>
+            <label className="settings-row settings-toggle-row">
+              <span>{l('Share anonymous operation metrics', '分享匿名使用统计', '分享匿名使用統計', '익명 사용 통계 공유')}</span>
+              <input type="checkbox" checked={settings.analyticsEnabled} onChange={(event) => onChange({ ...settings, analyticsEnabled: event.target.checked })} />
+            </label>
+            <p className="settings-backup-hint">{l(
+              'Only fixed operation events are sent. Build codes, equipment data, account details and tokens are never included.',
+              '仅发送固定的操作事件，不会包含构筑代码、装备数据、账号信息或令牌。',
+              '只會傳送固定的操作事件，不會包含構築代碼、裝備資料、帳號資訊或權杖。',
+              '고정된 작업 이벤트만 전송되며 빌드 코드, 장비 데이터, 계정 정보 또는 토큰은 포함되지 않습니다.',
+            )}</p>
           </section>
 
           <section className="settings-section">

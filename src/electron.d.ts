@@ -58,6 +58,11 @@ declare global {
       onState?(callback: (state: import('@/types/market').PriceCheckContextState) => void): () => void
     }
     pob2Desktop?: {
+      authStorage?: {
+        load(): Promise<string | null>
+        save(value: string): Promise<void>
+        clear(): Promise<void>
+      }
       getSystemLocale(): string
       importWeGame(url: string): Promise<{ code: string; sourceUrl: string }>
       importPoeNinja(url: string): Promise<{ code: string; sourceUrl: string; suggestedName: string }>
@@ -145,6 +150,18 @@ declare global {
       onMonitoringChanged(callback: (snapshot: import('@/types/market').MarketMonitoringSnapshot) => void): () => void
       onOpenMonitoring(callback: () => void): () => void
       onOpenTradeCenter(callback: () => void): () => void
+      onEscape(callback: () => void): () => void
+    }
+    pob2Community?: {
+      activate(bounds: import('@/types/market').MarketBounds): Promise<import('@/types/community').CommunityViewState>
+      deactivate(): Promise<void>
+      setBounds(bounds: import('@/types/market').MarketBounds): Promise<void>
+      navigate(command: import('@/types/community').CommunityNavigationCommand): Promise<void>
+      openExternal(): Promise<void>
+      reload(): Promise<void>
+      getState(): Promise<import('@/types/community').CommunityViewState>
+      onStateChanged(callback: (state: import('@/types/community').CommunityViewState) => void): () => void
+      onEscape(callback: () => void): () => void
     }
     pob2CurrencyMarket?: {
       get(forceRefresh?: boolean): Promise<import('@/types/currencyMarket').CurrencyMarketState>

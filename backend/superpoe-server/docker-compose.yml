@@ -1,0 +1,25 @@
+services:
+  mysql:
+    image: mysql:8.4
+    container_name: superpoe-mysql
+    restart: unless-stopped
+    env_file:
+      - .env.mysql
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - superpoe_mysql_data:/var/lib/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --skip-name-resolve
+      - --innodb-buffer-pool-size=384M
+      - --max-connections=50
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  superpoe_mysql_data:

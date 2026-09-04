@@ -1,4 +1,5 @@
-import { Archive, ArrowLeft, BellRing, Coins, Settings, Store } from 'lucide-react'
+import { useEffect } from 'react'
+import { Archive, ArrowLeft, BellRing, Coins, Headphones, Settings, Store } from 'lucide-react'
 import { MarketPanel } from '@/components/market/MarketPanel'
 import { MonitoringWorkspace } from '@/components/market/MonitoringWorkspace'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
@@ -8,6 +9,7 @@ import type { BuildRealm } from '@/types/tree'
 import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
 import { CurrencyMarketWorkspace } from '@/components/market/currency/CurrencyMarketWorkspace'
 import { uiText } from '@/i18n/uiLocale'
+import { AccountStatus } from '@/components/AuthGate'
 
 export type MarketWorkspaceView = 'market' | 'currency' | 'monitoring'
 
@@ -22,14 +24,22 @@ interface MarketShellProps {
   onBack: () => void
   onLibrary: () => void
   onSettings: () => void
+  onCommunity: () => void
 }
-export function MarketShell({ realm, suspended, view, onViewChange, monitoring, backTarget, buildName, onBack, onLibrary, onSettings }: MarketShellProps) {
+export function MarketShell({ realm, suspended, view, onViewChange, monitoring, backTarget, buildName, onBack, onLibrary, onSettings, onCommunity }: MarketShellProps) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const armedCount = monitoring?.purchaseTargets.filter((target) => target.status === 'armed').length || 0
   const connectedCount = monitoring?.targets.filter((target) => target.connectionStatus === 'connected').length || 0
   const pendingCount = monitoring?.targets.reduce((total, target) => total + target.pendingOpportunityCount, 0) || 0
   const isActivelyMonitoring = armedCount > 0 && !monitoring?.globalPaused
+  useEffect(() => {
+    const bridge = window.pob2Market
+    if (!bridge) return
+    return bridge.onEscape(() => {
+      void bridge.deactivate().catch(() => {}).finally(onBack)
+    })
+  }, [onBack])
   const backLabel = backTarget === 'editor'
     ? l(`Back to build: ${buildName || 'Untitled build'}`, `返回构筑：${buildName || '未命名构筑'}`, `返回構築：${buildName || '未命名構築'}`, `빌드로 돌아가기: ${buildName || '이름 없는 빌드'}`)
     : backTarget === 'library'
@@ -49,7 +59,9 @@ export function MarketShell({ realm, suspended, view, onViewChange, monitoring, 
         <div className="command-actions">
           <button className="secondary-command toolbar-library-command" onClick={onLibrary} title={l('Open equipment library', '打开装备仓库', '開啟裝備倉庫', '장비 라이브러리 열기')} aria-label={l('Open equipment library', '打开装备仓库', '開啟裝備倉庫', '장비 라이브러리 열기')}><Archive /><span>{l('Equipment library', '装备仓库', '裝備倉庫', '장비 라이브러리')}</span></button>
           <GameRuntimeIndicator />
+          <button className="icon-command" onClick={onCommunity} title={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')} aria-label={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')}><Headphones /></button>
           <button className="icon-command" onClick={onSettings} title={l('Global settings', '全局设置', '全域設定', '전역 설정')} aria-label={l('Global settings', '全局设置', '全域設定', '전역 설정')}><Settings /></button>
+          <AccountStatus />
         </div>
       </div>
       <div className="workspace-tabs-bar">

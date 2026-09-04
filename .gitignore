@@ -29,6 +29,10 @@ _tsc*.txt
 !/dev-data/README.md
 /release-local-*/
 
+# Local deployment secrets for the authentication database
+backend/superpoe-server/.env.mysql
+backend/superpoe-server/DEPLOYMENT-SECRETS.local.md
+
 # Python cache
 __pycache__/
 *.py[cod]

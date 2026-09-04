@@ -11,6 +11,7 @@ import {
   FileOutput,
   Files,
   Globe2,
+  Headphones,
   LockKeyhole,
   MoreVertical,
   Redo2,
@@ -37,6 +38,7 @@ import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
 import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketMonitoringSnapshot } from '@/types/market'
 import { uiText } from '@/i18n/uiLocale'
+import { AccountStatus } from '@/components/AuthGate'
 import {
   DEFAULT_ZOOM,
   MAX_ZOOM,
@@ -51,6 +53,7 @@ interface ToolbarProps {
   activeView: WorkspaceView
   onViewChange: (view: WorkspaceView) => void
   onTradeCenter: () => void
+  onCommunity: () => void
   monitoring?: MarketMonitoringSnapshot | null
   buildName: string
   buildSourceUrl?: string | null
@@ -73,7 +76,7 @@ const VIEW_ICONS = {
 
 const VIEW_ORDER: WorkspaceView[] = ['equipment', 'skills', 'passive', 'analysis']
 
-export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onLibrary, onImport, onSave, onSaveCopy, onSettings }: ToolbarProps) {
+export function Toolbar({ activeView, onViewChange, onTradeCenter, onCommunity, monitoring, buildName, buildSourceUrl, onBuildNameChange, saveStatus, onHome, onLibrary, onImport, onSave, onSaveCopy, onSettings }: ToolbarProps) {
   const { t, lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const zoom = useTreeStore((state) => state.zoom)
@@ -317,7 +320,9 @@ export function Toolbar({ activeView, onViewChange, onTradeCenter, monitoring, b
             <button className="icon-command toolbar-file-more" onClick={() => toggleMenu('file')} title={l('More build file actions', '更多构筑文件操作', '更多構築檔案操作', '더 많은 빌드 파일 작업')} aria-label={l('More build file actions', '更多构筑文件操作', '更多構築檔案操作', '더 많은 빌드 파일 작업')} aria-expanded={activeMenu === 'file'}><MoreVertical /></button>
           </div>
           <GameRuntimeIndicator />
+          <button className="icon-command toolbar-community-button" onClick={onCommunity} title={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')} aria-label={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')}><Headphones /></button>
           <button className="icon-command" onClick={() => { setActiveMenu(null); onSettings() }} title={l('Global settings', '全局设置', '全域設定', '전역 설정')} aria-label={l('Global settings', '全局设置', '全域設定', '전역 설정')}><Settings /></button>
+          <AccountStatus />
         </div>
       </div>
 

@@ -1,5 +1,5 @@
-import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, screen, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { app, BrowserWindow, clipboard, dialog, globalShortcut, ipcMain, Menu, nativeImage, net, powerMonitor, protocol, safeStorage, screen, session, shell, type IpcMainEvent, type IpcMainInvokeEvent, type Rectangle } from 'electron'
+import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from 'node:fs'
 import { execFile } from 'node:child_process'
 import path from 'node:path'
 import { createHash, randomUUID } from 'node:crypto'
@@ -14,6 +14,7 @@ import { canonicalToLegacySnapshot, PobItemBridge } from './pobItemBridge.js'
 import { detectItemRawLanguage, ItemTranslationIndex, type ItemRawLanguage } from './itemTranslationIndex.js'
 import { ItemIconIndex } from './itemIconIndex.js'
 import { MarketViewManager, type MarketNavigationCommand, type MarketRealm } from './marketView.js'
+import { CommunityViewManager, type CommunityNavigationCommand } from './communityView.js'
 import { TradeCredentialStore } from './tradeCredentialStore.js'
 import { EquipmentLibraryRepository, equipmentSourceKey, fingerprintLibraryItem, pobSourceKey } from './equipmentLibraryRepository.js'
 import { normalizeMarketListing, type MarketStatTextResolution } from './marketListing.js'
@@ -38,6 +39,7 @@ import { EquipmentTryOnWindowManager } from './equipmentTryOnWindow.js'
 import { GameClipboardService, processIsElevated } from './priceCheck/GameClipboardService.js'
 import { applyXiletradeParseEvidence, parseXiletradeItemText, type CanonicalStatContext, type CanonicalStatMatch, type XiletradeItemParseResult } from './xiletradeItemParser.js'
 import { XiletradeDataCatalog, XiletradeModifierMatcher } from './xiletradeDataCatalog.js'
+import { buildMarketPageTranslation } from './marketPageTranslationCatalog.js'
 import { MAX_SUPERPOE_BACKUP_FILE_SIZE, SUPERPOE_BACKUP_EXTENSION, type SuperPoeBackupMainData } from '../src/engine/superPoeBackup.js'
 import type { EquipmentTryOnOpenRequest } from '../src/types/tryOn.js'
 import type { EquipmentDiffStat, EquipmentDifferenceResult } from '../src/equipmentDifference/types.js'
@@ -57,6 +59,7 @@ const appUserModelId = packageMetadata.build?.appId || 'com.yoyofx.superpoe'
 const SUPERPOE_BUILD_EXTENSION = '.spoe'
 const SUPERPOE_BUILD_FILE_CLASS = 'SuperPoE Build'
 const MAX_SUPERPOE_BUILD_FILE_SIZE = 10_000_000
+const BAIDU_TONGJI_SITE_ID = '725c4f84e1ae27957234928bcb47a47d'
 const execFileAsync = promisify(execFile)
 
 if (!productName) throw new Error('package.json must define build.productName or name')
@@ -249,6 +252,7 @@ const userDataPath = rendererUrl && process.env.SUPERPOE_USER_DATA
   : path.join(appDataPath, productName)
 app.setPath('userData', userDataPath)
 app.setName(productName)
+const authStoragePath = path.join(userDataPath, 'auth', 'session.bin')
 if (process.platform === 'win32') app.setAppUserModelId(appUserModelId)
 
 // Register before app ready so absolute paths like `/data/...` resolve under the
@@ -318,8 +322,39 @@ function registerAppProtocol(): void {
   })
 }
 
+/**
+ * Baidu Tongji site IDs are domain-scoped. Electron's app://localhost origin
+ * is not a registered website domain, so Baidu serves an empty hm.js unless
+ * the request carries the registered site's Referer. Scope this header
+ * override to this site's hm.js/hm.gif requests only; no application URL or
+ * user data is put into the header.
+ */
+function registerBaiduTongjiRequestHeaders(): void {
+  session.defaultSession.webRequest.onBeforeSendHeaders(
+    { urls: ['https://hm.baidu.com/hm.js?*', 'https://hm.baidu.com/hm.gif?*'] },
+    (details, callback) => {
+      let isSiteRequest = false
+      try {
+        const url = new URL(details.url)
+        isSiteRequest = url.pathname === '/hm.js'
+          ? url.search === `?${BAIDU_TONGJI_SITE_ID}`
+          : url.pathname === '/hm.gif' && url.searchParams.get('si') === BAIDU_TONGJI_SITE_ID
+      } catch {
+        isSiteRequest = false
+      }
+      if (isSiteRequest) {
+        delete details.requestHeaders.referer
+        delete details.requestHeaders.Referer
+        details.requestHeaders.Referer = 'http://superpoe2.vip/'
+      }
+      callback({ requestHeaders: details.requestHeaders })
+    },
+  )
+}
+
 let mainWindow: BrowserWindow | null = null
 let marketViewManager: MarketViewManager | null = null
+let communityViewManager: CommunityViewManager | null = null
 let tradeProvider: OfficialTradeProvider | null = null
 let gameWindowService: GameWindowService | null = null
 let marketMonitoring: MarketMonitoringCoordinator | null = null
@@ -783,7 +818,20 @@ function createWindow(): BrowserWindow {
   marketViewManager?.dispose()
   marketViewManager = new MarketViewManager(window, (state) => {
     if (!window.isDestroyed()) window.webContents.send('market:state-changed', state)
-  }, tradeCredentialStore)
+  }, tradeCredentialStore, (language) => getMarketPageTranslation(language), () => {
+    if (!window.isDestroyed()) window.webContents.send('market:escape')
+  })
+  communityViewManager?.dispose()
+  communityViewManager = new CommunityViewManager(window, (state) => {
+    if (!window.isDestroyed()) window.webContents.send('community:state-changed', state)
+  }, () => {
+    if (!window.isDestroyed()) window.webContents.send('community:escape')
+  })
+  window.webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown' || input.isAutoRepeat || (input.key !== 'Escape' && input.code !== 'Escape')) return
+    if (input.alt || input.control || input.meta || input.shift) return
+    if (communityViewManager?.handleEscape() || marketViewManager?.handleEscape()) event.preventDefault()
+  })
   tradeProvider = new OfficialTradeProvider(
     marketViewManager,
     new TradeReferenceDataCache(path.join(userDataPath, 'trade', 'reference')),
@@ -1052,6 +1100,20 @@ interface MarketStatCatalogBundle {
 
 const marketStatCatalogPromises = new Map<MarketRealm, Promise<MarketStatCatalogBundle>>()
 const marketStatResolverPromises = new Map<MarketRealm, Promise<(queryStatId: string) => MarketStatTextResolution | undefined>>()
+const marketPageTranslationCache = new Map<UiLanguage, ReturnType<typeof buildMarketPageTranslation>>()
+
+function getMarketPageTranslation(language: UiLanguage): ReturnType<typeof buildMarketPageTranslation> {
+  const cached = marketPageTranslationCache.get(language)
+  if (cached) return cached
+  const itemTranslation = language === 'zh-rCN' || language === 'zh-rTW'
+    ? getItemTranslationIndex(language)
+    : undefined
+  const translation = buildMarketPageTranslation(getXiletradeDataCatalog(), language, {
+    translateItem: itemTranslation ? (source) => itemTranslation.toChinese(source) : undefined,
+  })
+  marketPageTranslationCache.set(language, translation)
+  return translation
+}
 
 function getItemTranslationIndex(language: ItemRawLanguage): ItemTranslationIndex {
   if (language === 'en') return itemTranslations
@@ -1611,6 +1673,26 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     // even while the user's active UI/region is zh-CN.
     event.returnValue = /^(?:zh|ko)(?:[-_]|$)/i.test(applicationLocale) ? applicationLocale : systemLocale
   })
+  ipcMain.handle('pob2:auth-storage-load', (event) => {
+    requireMainWindowSender(event)
+    if (!safeStorage.isEncryptionAvailable() || !existsSync(authStoragePath)) return null
+    try {
+      return safeStorage.decryptString(readFileSync(authStoragePath))
+    } catch {
+      return null
+    }
+  })
+  ipcMain.handle('pob2:auth-storage-save', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (typeof value !== 'string' || value.length < 2 || value.length > 32_000) throw new Error('Invalid auth session')
+    if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure auth storage is unavailable')
+    mkdirSync(path.dirname(authStoragePath), { recursive: true })
+    writeFileSync(authStoragePath, safeStorage.encryptString(value))
+  })
+  ipcMain.handle('pob2:auth-storage-clear', (event) => {
+    requireMainWindowSender(event)
+    try { if (existsSync(authStoragePath)) unlinkSync(authStoragePath) } catch { /* best effort */ }
+  })
   try {
     const saved = JSON.parse(readFileSync(path.join(userDataPath, 'price-check', 'settings.json'), 'utf8')) as { enabled?: unknown; hotkey?: unknown }
     registerPriceCheckHotkey(saved.enabled === true, typeof saved.hotkey === 'string' ? saved.hotkey : 'Ctrl+D')
@@ -1625,6 +1707,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   if (!rendererUrl) {
     registerAppProtocol()
   }
+  registerBaiduTongjiRequestHeaders()
 
   ipcMain.handle('pob2:import-wegame', async (_event, url: unknown) => {
     const shareCode = parseWeGameShareCode(url)
@@ -2041,6 +2124,39 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     requireMainWindowSender(event)
     if (!marketViewManager) throw new Error('Market browser is unavailable')
     return marketViewManager.getState()
+  })
+  ipcMain.handle('community:activate', async (event, value: unknown) => {
+    const bounds = validateMarketBounds(event, value)
+    if (!communityViewManager) throw new Error('Community browser is unavailable')
+    return communityViewManager.activate(bounds)
+  })
+  ipcMain.handle('community:deactivate', (event) => {
+    requireMainWindowSender(event)
+    communityViewManager?.deactivate()
+  })
+  ipcMain.handle('community:set-bounds', (event, value: unknown) => {
+    const bounds = validateMarketBounds(event, value)
+    communityViewManager?.setBounds(bounds)
+  })
+  ipcMain.handle('community:navigate', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!['home', 'back', 'forward', 'reload', 'stop'].includes(String(value))) {
+      throw new Error('Invalid community navigation command')
+    }
+    communityViewManager?.navigate(value as CommunityNavigationCommand)
+  })
+  ipcMain.handle('community:open-external', (event) => {
+    requireMainWindowSender(event)
+    communityViewManager?.openExternal()
+  })
+  ipcMain.handle('community:reload', (event) => {
+    requireMainWindowSender(event)
+    communityViewManager?.reload()
+  })
+  ipcMain.handle('community:get-state', (event) => {
+    requireMainWindowSender(event)
+    if (!communityViewManager) throw new Error('Community browser is unavailable')
+    return communityViewManager.getState()
   })
   ipcMain.handle('currency-market:get', (event, value: unknown) => {
     requireMainWindowSender(event)
@@ -2868,6 +2984,7 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => globalShortcut.unregisterAll())
 
 app.on('before-quit', () => {
+  communityViewManager?.dispose()
   marketViewManager?.dispose()
   pobLuaService.dispose()
 })

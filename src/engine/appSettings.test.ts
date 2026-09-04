@@ -12,14 +12,14 @@ function createStorage(initial?: string) {
 
 describe('global app settings', () => {
   it('loads defaults for empty or invalid storage', () => {
-    expect(loadAppSettings(createStorage())).toMatchObject({ confirmUnsavedExit: true, uiScalePercent: 120, updateChannel: 'dev', updateCheckIntervalMinutes: 60, proxyDomains: [], priceCheckEnabled: true })
-    expect(loadAppSettings(createStorage('{invalid'))).toMatchObject({ confirmUnsavedExit: true, uiScalePercent: 120, updateChannel: 'dev', updateCheckIntervalMinutes: 60, proxyDomains: [], priceCheckEnabled: true })
+    expect(loadAppSettings(createStorage())).toMatchObject({ confirmUnsavedExit: true, uiScalePercent: 120, updateChannel: 'dev', updateCheckIntervalMinutes: 60, proxyDomains: [], priceCheckEnabled: true, analyticsEnabled: true })
+    expect(loadAppSettings(createStorage('{invalid'))).toMatchObject({ confirmUnsavedExit: true, uiScalePercent: 120, updateChannel: 'dev', updateCheckIntervalMinutes: 60, proxyDomains: [], priceCheckEnabled: true, analyticsEnabled: true })
   })
 
   it('persists supported settings', () => {
     const storage = createStorage()
-    saveAppSettings({ defaultRealm: 'cn', confirmUnsavedExit: false, uiScalePercent: 125, updateChannel: 'dev', updateCheckIntervalMinutes: 30, proxyDomains: ['https://proxy.example'], priceCheckEnabled: true, priceCheckHotkey: 'Alt+D' }, storage)
-    expect(loadAppSettings(storage)).toEqual({ defaultRealm: 'cn', confirmUnsavedExit: false, uiScalePercent: 125, updateChannel: 'dev', updateCheckIntervalMinutes: 30, proxyDomains: ['https://proxy.example'], priceCheckEnabled: true, priceCheckHotkey: 'Alt+D' })
+    saveAppSettings({ defaultRealm: 'cn', confirmUnsavedExit: false, uiScalePercent: 125, updateChannel: 'dev', updateCheckIntervalMinutes: 30, proxyDomains: ['https://proxy.example'], priceCheckEnabled: true, priceCheckHotkey: 'Alt+D', analyticsEnabled: true }, storage)
+    expect(loadAppSettings(storage)).toEqual({ defaultRealm: 'cn', confirmUnsavedExit: false, uiScalePercent: 125, updateChannel: 'dev', updateCheckIntervalMinutes: 30, proxyDomains: ['https://proxy.example'], priceCheckEnabled: true, priceCheckHotkey: 'Alt+D', analyticsEnabled: true })
   })
 
   it('normalizes UI scale to supported five-percent steps', () => {
@@ -40,7 +40,7 @@ describe('global app settings', () => {
   })
 
   it('does not fail when persistent storage is unavailable', () => {
-    expect(() => saveAppSettings({ defaultRealm: 'global', confirmUnsavedExit: true, uiScalePercent: 100, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [], priceCheckEnabled: false, priceCheckHotkey: 'Ctrl+D' }, {
+    expect(() => saveAppSettings({ defaultRealm: 'global', confirmUnsavedExit: true, uiScalePercent: 100, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [], priceCheckEnabled: false, priceCheckHotkey: 'Ctrl+D', analyticsEnabled: true }, {
       getItem: () => null,
       setItem: () => { throw new Error('storage unavailable') },
     })).not.toThrow()

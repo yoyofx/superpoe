@@ -391,7 +391,7 @@ export class XiletradeDataCatalog {
     const words = parseJson<{ result?: Array<{ data?: XiletradeWordEntry[] }> }>(path.join(this.root, key, 'WordsTwo.json'))
     const items = parseJson<{ result?: XiletradeItemGroup[] }>(path.join(this.root, key, 'ItemsTwo.json'))
     const mods = parseJson<{ result?: Array<{ data?: Array<Record<string, unknown>> }> }>(path.join(this.root, key, 'ModsTwo.json'))
-    const currencies = parseJson<{ result?: Array<{ data?: Array<Record<string, unknown>> }> }>(path.join(this.root, key, 'CurrencyTwo.json'))
+    const currencies = parseJson<{ result?: Array<{ entries?: Array<Record<string, unknown>> }> }>(path.join(this.root, key, 'CurrencyTwo.json'))
     const catalog = {
       locale: key,
       upstreamCommit: this.manifest.upstreamCommit,
@@ -401,7 +401,7 @@ export class XiletradeDataCatalog {
       words: (words.result || []).flatMap((group) => group.data || []),
       items: items.result || [],
       mods: (mods.result || []).flatMap((group) => group.data || []),
-      currencies: (currencies.result || []).flatMap((group) => group.data || []),
+      currencies: (currencies.result || []).flatMap((group) => group.entries || []),
     }
     this.catalogs.set(key, catalog)
     return catalog

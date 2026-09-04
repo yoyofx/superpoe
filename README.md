@@ -12,6 +12,10 @@ SuperPoE2 是面向 Path of Exile 2 的 Electron 桌面构筑规划工具。它�
 
 项目官网位于 [`website/`](./website/)，与桌面端独立部署。开发预览使用 `npm run dev:website`，生产构建使用 `npm run build:website`；它是纯静态页面，不需要 API、登录或数据库。
 
+SuperPoE 账号后端已在 [`backend/superpoe-server/`](./backend/superpoe-server/) 实现用户名/密码注册登录、邮箱验证码找回密码和会话管理；Electron 主窗口现在启动时要求登录，右上角提供账号状态、修改密码和退出登录。会话在桌面端使用 Electron `safeStorage` 加密保存，微信/QQ OAuth 仍未接入。密码找回邮件只发送一次性 6 位验证码，由应用内输入完成重置，注册后无需额外验证邮箱。设计边界见 [`docs/auth-provider-design.md`](./docs/auth-provider-design.md)。它与交易中心的 PoE 官方登录分离，不会影响本地构筑数据。
+
+桌面端匿名运营统计见 [`docs/analytics-privacy.md`](./docs/analytics-privacy.md)。统计默认开启，可在全局设置关闭；不会上报 PoB Code、装备内容、用户名、邮箱或令牌。
+
 产品完成度和后续里程碑见 [`docs/ROADMAP.md`](./docs/ROADMAP.md)，当前任务看板见 [`docs/TASKS.md`](./docs/TASKS.md)。
 
 ## Electron 桌面版

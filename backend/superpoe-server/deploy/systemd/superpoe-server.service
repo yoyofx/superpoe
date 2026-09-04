@@ -1,0 +1,25 @@
+[Unit]
+Description=SuperPoE authentication API
+After=network-online.target mysql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=superpoe
+Group=superpoe
+WorkingDirectory=/opt/superpoe-server
+ExecStartPre=/opt/superpoe-server/superpoe-server migrate
+ExecStart=/opt/superpoe-server/superpoe-server serve
+EnvironmentFile=/etc/superpoe/superpoe-server.env
+Restart=on-failure
+RestartSec=5s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/superpoe-server
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

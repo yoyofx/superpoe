@@ -1,6 +1,11 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
 contextBridge.exposeInMainWorld('pob2Desktop', {
+  authStorage: {
+    load: () => ipcRenderer.invoke('pob2:auth-storage-load') as Promise<string | null>,
+    save: (value: string) => ipcRenderer.invoke('pob2:auth-storage-save', value) as Promise<void>,
+    clear: () => ipcRenderer.invoke('pob2:auth-storage-clear') as Promise<void>,
+  },
   getSystemLocale: () => ipcRenderer.sendSync('pob2:get-system-locale') as string,
   importWeGame: (url: string) => ipcRenderer.invoke('pob2:import-wegame', url),
   importPoeNinja: (url: string) => ipcRenderer.invoke('pob2:import-poe-ninja', url),
@@ -130,6 +135,31 @@ contextBridge.exposeInMainWorld('pob2Market', {
     const handler = () => callback()
     ipcRenderer.on('market:open-trade-center', handler)
     return () => { ipcRenderer.removeListener('market:open-trade-center', handler) }
+  },
+  onEscape: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('market:escape', handler)
+    return () => { ipcRenderer.removeListener('market:escape', handler) }
+  },
+})
+
+contextBridge.exposeInMainWorld('pob2Community', {
+  activate: (bounds: import('../src/types/market.js').MarketBounds) => ipcRenderer.invoke('community:activate', bounds) as Promise<import('../src/types/community.js').CommunityViewState>,
+  deactivate: () => ipcRenderer.invoke('community:deactivate') as Promise<void>,
+  setBounds: (bounds: import('../src/types/market.js').MarketBounds) => ipcRenderer.invoke('community:set-bounds', bounds) as Promise<void>,
+  navigate: (command: import('../src/types/community.js').CommunityNavigationCommand) => ipcRenderer.invoke('community:navigate', command) as Promise<void>,
+  openExternal: () => ipcRenderer.invoke('community:open-external') as Promise<void>,
+  reload: () => ipcRenderer.invoke('community:reload') as Promise<void>,
+  getState: () => ipcRenderer.invoke('community:get-state') as Promise<import('../src/types/community.js').CommunityViewState>,
+  onStateChanged: (callback: (state: import('../src/types/community.js').CommunityViewState) => void) => {
+    const handler = (_event: unknown, state: import('../src/types/community.js').CommunityViewState) => callback(state)
+    ipcRenderer.on('community:state-changed', handler)
+    return () => { ipcRenderer.removeListener('community:state-changed', handler) }
+  },
+  onEscape: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('community:escape', handler)
+    return () => { ipcRenderer.removeListener('community:escape', handler) }
   },
 })
 

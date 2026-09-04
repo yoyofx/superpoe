@@ -1,18 +1,20 @@
-import { ArrowLeft, Settings } from 'lucide-react'
+import { ArrowLeft, Headphones, Settings } from 'lucide-react'
 import { EquipmentLibraryWorkspace } from '@/components/market/EquipmentLibraryWorkspace'
 import { GameRuntimeIndicator } from '@/components/GameRuntimeIndicator'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { useTranslation } from '@/i18n/useTranslation'
 import type { BuildRealm } from '@/types/tree'
 import { uiText } from '@/i18n/uiLocale'
+import { AccountStatus } from '@/components/AuthGate'
 
 interface EquipmentLibraryPageProps {
   realm: BuildRealm
   onBack: () => void
   onSettings: () => void
+  onCommunity: () => void
 }
 
-export function EquipmentLibraryPage({ realm, onBack, onSettings }: EquipmentLibraryPageProps) {
+export function EquipmentLibraryPage({ realm, onBack, onSettings, onCommunity }: EquipmentLibraryPageProps) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   return <>
@@ -28,7 +30,9 @@ export function EquipmentLibraryPage({ realm, onBack, onSettings }: EquipmentLib
         </div>
         <div className="command-actions">
           <GameRuntimeIndicator />
+          <button className="icon-command" onClick={onCommunity} title={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')} aria-label={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')}><Headphones /></button>
           <button className="icon-command" onClick={onSettings} title={l('Global settings', '全局设置', '全域設定', '전역 설정')} aria-label={l('Global settings', '全局设置', '全域設定', '전역 설정')}><Settings /></button>
+          <AccountStatus />
         </div>
       </div>
     </header>

@@ -1,25 +1,28 @@
-import { FileInput, Plus, Store, Wrench } from 'lucide-react'
+import { FileInput, Headphones, Plus, Store, Wrench } from 'lucide-react'
 import { BuildCenterNav } from '@/components/BuildCenter'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { useTranslation } from '@/i18n/useTranslation'
 import { uiText } from '@/i18n/uiLocale'
+import { AccountStatus } from '@/components/AuthGate'
 
 interface UtilityCenterProps {
   onCenter: () => void
   onLibrary: () => void
   onTradeCenter: () => void
+  onCommunity: () => void
   onAbout: () => void
   onCreate: () => void
   onImport: () => void
 }
 
-export function UtilityCenter({ onCenter, onLibrary, onTradeCenter, onAbout, onCreate, onImport }: UtilityCenterProps) {
+export function UtilityCenter({ onCenter, onLibrary, onTradeCenter, onCommunity, onAbout, onCreate, onImport }: UtilityCenterProps) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   return (
     <div className="build-center utility-center">
-      <BuildCenterNav active="utilities" onCenter={onCenter} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onUtilities={() => {}} onAbout={onAbout} />
+      <BuildCenterNav active="utilities" onCenter={onCenter} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onCommunity={onCommunity} onUtilities={() => {}} onAbout={onAbout} />
       <header className="center-app-bar utility-center-header">
+        <div className="center-actions utility-center-actions"><button type="button" className="icon-command toolbar-community-button" onClick={onCommunity} title={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')} aria-label={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')}><Headphones /></button><AccountStatus /></div>
         <div className="build-center-page-heading">
           <Wrench aria-hidden="true" />
           <div><span>{l('WORKSPACE', '工作区', '工作區', '작업 공간')}</span><h1>{l('Utilities', '实用工具', '實用工具', '유틸리티')}</h1></div>

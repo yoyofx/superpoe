@@ -6,9 +6,11 @@ import { TradeCredentialStore } from './tradeCredentialStore.js'
 import { isGameOfflineVisitError, OfficialTradeRequestError } from './officialTradeRequestError.js'
 import { createSearchQuerySnapshot, parseOfficialSearchUrl, withSearchSnapshot } from './marketSearch.js'
 import type { UiLanguage } from './uiLocale.js'
+import type { MarketPageTranslationPayload } from '../src/engine/marketPageTranslation.js'
 
 export type MarketRealm = 'cn' | 'global'
 export type MarketNavigationCommand = 'back' | 'forward' | 'reload' | 'stop' | 'home'
+export type MarketTranslationProvider = (language: UiLanguage) => MarketPageTranslationPayload
 
 export interface MarketViewState {
   realm: MarketRealm
@@ -118,6 +120,8 @@ export class MarketViewManager {
     private readonly window: BrowserWindow,
     private readonly emitState: (state: MarketViewState) => void,
     private readonly credentialStore: TradeCredentialStore,
+    private readonly translationProvider?: MarketTranslationProvider,
+    private readonly emitEscape: () => void = () => {},
   ) {
     window.on('minimize', () => this.detach())
     window.on('restore', () => {
@@ -140,7 +144,7 @@ export class MarketViewManager {
   setLanguage(language: UiLanguage): void {
     this.language = language
     for (const view of this.views.values()) {
-      if (!view.webContents.isDestroyed()) view.webContents.send('market-enhancement:set-language', language)
+      this.sendLanguage(view.webContents)
     }
   }
 
@@ -158,7 +162,16 @@ export class MarketViewManager {
 
   deactivate(): void {
     this.visible = false
+    this.hideActiveView()
     this.detach()
+  }
+
+  /** Hide the market immediately when the user needs an emergency escape. */
+  handleEscape(): boolean {
+    if (!this.visible) return false
+    this.deactivate()
+    this.emitEscape()
+    return true
   }
 
   setBounds(bounds: Rectangle): void {
@@ -344,14 +357,31 @@ export class MarketViewManager {
     view.setBackgroundColor('#090b0c')
     this.configureWebContents(view.webContents, profile)
     view.webContents.on('did-finish-load', () => {
-      if (!view.webContents.isDestroyed()) view.webContents.send('market-enhancement:set-language', this.language)
+      this.sendLanguage(view.webContents)
     })
     this.views.set(realm, view)
     return view
   }
 
+  private sendLanguage(contents: WebContents): void {
+    if (contents.isDestroyed()) return
+    try {
+      contents.send('market-enhancement:set-language', this.translationProvider?.(this.language) || {
+        schemaVersion: 1,
+        language: this.language,
+        enabled: false,
+        source: 'disabled',
+        uiPairs: [],
+        gamePairs: [],
+      } satisfies MarketPageTranslationPayload)
+    } catch {
+      // A page may be closing while the global language preference changes.
+    }
+  }
+
   private configureWebContents(contents: WebContents, profile: MarketRealmProfile): void {
     const publish = () => void this.publishStateFor(contents, profile.realm)
+    this.bindEscape(contents)
 
     contents.on('did-start-loading', publish)
     contents.on('did-stop-loading', publish)
@@ -396,6 +426,7 @@ export class MarketViewManager {
     })
 
     contents.on('did-create-window', (childWindow) => {
+      this.bindEscape(childWindow.webContents)
       childWindow.webContents.on('will-navigate', (event, url) => guardNavigation(event, url))
       childWindow.webContents.on('will-redirect', (event, url) => guardNavigation(event, url))
       childWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -446,7 +477,19 @@ export class MarketViewManager {
       this.window.contentView.addChildView(view)
       this.attached = true
     }
+    this.setViewVisible(view, true)
     view.setBounds(this.bounds)
+  }
+
+  private hideActiveView(): void {
+    if (!this.activeView || this.activeView.webContents.isDestroyed()) return
+    this.setViewVisible(this.activeView, false)
+    this.activeView.setBounds({ x: 0, y: 0, width: 1, height: 1 })
+  }
+
+  private setViewVisible(view: WebContentsView, visible: boolean): void {
+    const setVisible = (view as WebContentsView & { setVisible?: (value: boolean) => void }).setVisible
+    setVisible?.call(view, visible)
   }
 
   private detach(): void {
@@ -455,6 +498,14 @@ export class MarketViewManager {
     this.attached = false
     if (this.window.isDestroyed() || view.webContents.isDestroyed()) return
     this.window.contentView.removeChildView(view)
+  }
+
+  private bindEscape(contents: WebContents): void {
+    contents.on('before-input-event', (event, input) => {
+      if (input.type !== 'keyDown' || input.isAutoRepeat || (input.key !== 'Escape' && input.code !== 'Escape')) return
+      if (input.alt || input.control || input.meta || input.shift) return
+      if (this.handleEscape()) event.preventDefault()
+    })
   }
 
   private async publishStateFor(contents: WebContents, realm: MarketRealm, error?: string): Promise<void> {

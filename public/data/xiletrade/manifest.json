@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "upstreamCommit": "c16c145f30aced5aa667456dd5f6897a2af3af3b",
+  "upstreamCommit": "a5ebb9f91dc865178cc9a880f39d8a5315cd2445",
   "languages": {
     "en-US": {
       "files": {
@@ -10,7 +10,7 @@
         "BasesTwo.json": "bb376235e4d23b343e0472706e0daeeb9745de66c671ce4bc87fa98665487d67",
         "ModsTwo.json": "7e439e053569871159a8f32d7ce1fbc3b6ee77886ad1ddc9a670bf279f871dd5",
         "WordsTwo.json": "6046198dcc4cd9febef517d65b29ec2cd7c768d31c7d8f526adba3bc151c4aff",
-        "ParsingRules.json": "1a5a8156b20983e33be0199e4cbe784b6cdc0b6abdc30e75570cb7a66193df47"
+        "ParsingRules.json": "2b59dd7b67c9316232111b7114ebdc199382a6aafc173651473adffef6af46c4"
       }
     },
     "zh-CN": {

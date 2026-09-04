@@ -21,6 +21,8 @@ export interface AppSettings {
   proxyDomains: string[]
   priceCheckEnabled: boolean
   priceCheckHotkey: string
+  /** Anonymous operation metrics; enabled by default and user-controllable. */
+  analyticsEnabled: boolean
 }
 
 function getDefaultAppSettings(): AppSettings {
@@ -33,6 +35,7 @@ function getDefaultAppSettings(): AppSettings {
     proxyDomains: [],
     priceCheckEnabled: true,
     priceCheckHotkey: 'Ctrl+D',
+    analyticsEnabled: true,
   }
 }
 
@@ -63,6 +66,7 @@ export function loadAppSettings(storage: SettingsStorage | undefined = typeof lo
         : [],
       priceCheckEnabled: typeof parsed.priceCheckEnabled === 'boolean' ? parsed.priceCheckEnabled : defaults.priceCheckEnabled,
       priceCheckHotkey: typeof parsed.priceCheckHotkey === 'string' && parsed.priceCheckHotkey.trim() ? parsed.priceCheckHotkey.trim().slice(0, 64) : defaults.priceCheckHotkey,
+      analyticsEnabled: typeof parsed.analyticsEnabled === 'boolean' ? parsed.analyticsEnabled : defaults.analyticsEnabled,
     }
   } catch {
     return getDefaultAppSettings()
