@@ -411,6 +411,24 @@ export class XiletradeDataCatalog {
     return { display: this.get(locale), canonical: this.get('en-US') }
   }
 
+  /** Resolves a localized base name through the stable Xiletrade base ID. */
+  resolveBaseType(locale: LibraryTextLocale, value: string): string | undefined {
+    const normalized = normalizedKey(value)
+    if (!normalized) return undefined
+    const preferred = locale in localeMap ? localeMap[locale as LibraryTextLocale] : locale as XiletradeLocale
+    const locales: XiletradeLocale[] = [preferred, 'zh-CN', 'zh-TW', 'ko-KR', 'en-US']
+    const canonicalBases = this.get('en-US').bases || []
+    for (const candidateLocale of [...new Set(locales)]) {
+      const displayBases = this.get(candidateLocale).bases || []
+      const displayBase = displayBases.find((entry) => (
+        normalizedKey(entry.name) === normalized || normalizedKey(entry.name_en) === normalized
+      ))
+      if (!displayBase) continue
+      return canonicalBases.find((entry) => entry.id === displayBase.id)?.name_en || displayBase.name_en
+    }
+    return undefined
+  }
+
   resolveItemContext(locale: LibraryTextLocale, input: XiletradeItemContextInput): XiletradeItemContext {
     return resolveItemContext(this.bundle(locale), input)
   }

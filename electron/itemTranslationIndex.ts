@@ -9,7 +9,7 @@ export function detectItemRawLanguage(value: string): ItemRawLanguage {
   const text = value.replace(/\r\n/g, '\n')
   if (/^\s*Rarity\s*:/im.test(text)) return 'en'
   if (/[\uAC00-\uD7AF]/u.test(text)) return 'ko-KR'
-  if (/(?:物品類別|物品等級|傳奇|品質\s*[：:]|獲得技能|屬性需求|攻擊速度|閃電傷害)/u.test(text)) return 'zh-rTW'
+  if (/(?:物品類別|物品種類|物品等級|傳奇|品質\s*[：:]|獲得技能|屬性需求|攻擊速度|閃電傷害)/u.test(text)) return 'zh-rTW'
   if (/(?:物品类别|物品等级|传奇|品质\s*[：:]|获得技能|属性需求|攻击速度|闪电伤害)/u.test(text)) return 'zh-rCN'
   return 'en'
 }

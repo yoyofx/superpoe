@@ -577,6 +577,7 @@ interface LiveConnection {
 
 const liveConnections = new Map<string, LiveConnection>()
 const retryDelays = [1_000, 2_000, 5_000, 10_000, 30_000, 60_000]
+const MAX_LIVE_SEARCH_CODE_LENGTH = 8_192
 
 function sendMonitorState(connection: LiveConnection, connectionStatus: string, extra: Record<string, unknown> = {}): void {
   ipcRenderer.send('market-monitor:state', {
@@ -592,7 +593,7 @@ function validLiveUrl(config: MonitorConfig): boolean {
     const url = new URL(config.liveUrl)
     const host = config.realm === 'cn' ? 'poe.game.qq.com' : 'www.pathofexile.com'
     return url.protocol === 'wss:' && url.hostname === host
-      && /^\/api\/trade2\/live\/poe2\/[^/]+\/[A-Za-z0-9_-]{1,128}$/.test(url.pathname)
+      && new RegExp(`^/api/trade2/live/poe2/[^/]+/[A-Za-z0-9_-]{1,${MAX_LIVE_SEARCH_CODE_LENGTH}}$`).test(url.pathname)
   } catch {
     return false
   }
@@ -755,14 +756,19 @@ function safeId(value: string | null | undefined): string | undefined {
   return normalized && /^[A-Za-z0-9_-]{4,160}$/.test(normalized) ? normalized : undefined
 }
 
+function safeSearchCode(value: string | null | undefined): string | undefined {
+  const normalized = value?.trim()
+  return normalized && /^[A-Za-z0-9_-]{1,8192}$/.test(normalized) ? normalized : undefined
+}
+
 function queryIdFromUrl(value: string): string | undefined {
   try {
     const url = new URL(value, window.location.href)
-    const query = safeId(url.searchParams.get('query'))
+    const query = safeSearchCode(url.searchParams.get('query'))
     if (query) return query
     const parts = url.pathname.split('/').filter(Boolean)
     const searchIndex = parts.indexOf('search')
-    if (searchIndex >= 0) return safeId(parts[searchIndex + 3])
+    if (searchIndex >= 0) return safeSearchCode(parts[searchIndex + 3])
     return undefined
   } catch {
     return undefined
@@ -780,11 +786,11 @@ function extractRef(card: Element): ListingRef | null {
     || element.getAttribute('data-id'),
   )
   if (!listingId) return null
-  const queryId = safeId(element.dataset.queryId || element.dataset.query)
+  const queryId = safeSearchCode(element.dataset.queryId || element.dataset.query)
     || queryIdFromUrl(element.querySelector<HTMLAnchorElement>('a[href*="query="]')?.href || '')
     || queryIdFromUrl(window.location.href)
   const realm = window.location.hostname === 'poe.game.qq.com' ? 'cn' : 'global'
-  return { realm, listingId, queryId, sourceUrl: window.location.href.slice(0, 2_048) }
+  return { realm, listingId, queryId, sourceUrl: window.location.href.slice(0, 8_192) }
 }
 
 function applyButtonState(button: HTMLButtonElement, state: FavoriteVisualState): void {

@@ -6,7 +6,10 @@ import type {
   SavedSearchQuerySnapshot,
 } from '../src/types/market.js'
 
-const SEARCH_CODE_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+// PoE2 can encode a complete, user-created query directly in the URL. These
+// compressed search codes are considerably longer than API result IDs.
+export const MAX_SEARCH_CODE_LENGTH = 8_192
+export const SEARCH_CODE_PATTERN = new RegExp(`^[A-Za-z0-9_-]{1,${MAX_SEARCH_CODE_LENGTH}}$`)
 const MAX_LEAGUE_LENGTH = 128
 const MAX_QUERY_BYTES = 500_000
 const MAX_QUERY_DEPTH = 16
@@ -51,6 +54,10 @@ export function parseOfficialSearchUrl(value: string, realm: MarketRealm): Marke
     canonicalUrl: `https://${canonicalHost(realm)}/trade2/search/poe2/${encodeURIComponent(leagueId)}/${encodeURIComponent(searchCode)}`,
     captureSource: 'code-only',
   }
+}
+
+export function isValidSearchCode(value: string): boolean {
+  return SEARCH_CODE_PATTERN.test(value)
 }
 
 function sanitizeJson(value: unknown, state: { nodes: number }, depth: number): unknown {

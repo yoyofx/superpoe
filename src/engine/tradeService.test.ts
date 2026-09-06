@@ -83,6 +83,12 @@ describe('trade query builder', () => {
     expect((built.query as { query: Record<string, unknown> }).query).not.toHaveProperty('type')
   })
 
+  it('retains canonical item text for checker-side weapon metrics', () => {
+    const source = item(['+109 to maximum Life'])
+    source.rawText = ['Rarity: RARE', 'Doom Shell', 'Expert Hexer Robe', '+109 to maximum Life'].join('\n')
+    expect(createPriceCheckDraft(source, 'global').rawText).toBe(source.rawText)
+  })
+
   it('fixes unique searches to their name and base type', () => {
     const unique = item([])
     unique.rarity = 'UNIQUE'
@@ -94,6 +100,34 @@ describe('trade query builder', () => {
     expect(built.query).toMatchObject({ query: {
       name: 'Svalinn', type: 'Runemastered Crucible Tower Shield', status: { option: 'online' }, stats: [],
     } })
+  })
+
+  it('retries a global unique search without an unknown item name', async () => {
+    const submitted: unknown[] = []
+    const manager = {
+      search: async (_realm: string, _leagueId: string, query: unknown) => {
+        submitted.push(query)
+        if (submitted.length === 1) throw new OfficialTradeRequestError(400, 'Unknown item name')
+        return { id: 'fallback-search', total: 3, result: [] }
+      },
+      rememberGeneratedSearch: () => undefined,
+    } as unknown as MarketViewManager
+    const cache = {
+      get: async () => ({ realm: 'global' as const, fetchedAt: '2026-08-04T00:00:00.000Z', payloadHash: 'test-catalog', entries: [] }),
+    } as unknown as TradeReferenceDataCache
+    const unique = item([])
+    unique.rarity = 'UNIQUE'
+    unique.name = 'Legacy Unique Name'
+    unique.baseType = 'Diamond'
+
+    const result = await new OfficialTradeProvider(manager, cache, undefined, (_realm, source) => source).search(
+      'global', 'Standard', unique,
+      { listedStatus: 'securable', useBaseType: true, modifiers: [] },
+    )
+
+    expect(result.searchId).toBe('fallback-search')
+    expect((submitted[0] as { query: Record<string, unknown> }).query.name).toBe('Legacy Unique Name')
+    expect((submitted[1] as { query: Record<string, unknown> }).query).not.toHaveProperty('name')
   })
 
   it('keeps the lightweight fallback distinct from a price check', () => {

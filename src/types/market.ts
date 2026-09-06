@@ -585,6 +585,8 @@ export interface TradePriceCheckDraft {
   rarity: string
   name: string
   baseType: string
+  /** Canonical PoB text used to derive local weapon metrics in the checker. */
+  rawText?: string
   localizedName?: string
   localizedBaseType?: string
   unique: boolean

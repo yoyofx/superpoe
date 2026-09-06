@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url'
 import type { MarketDomListingRef, MarketSearchReference, MarketVisitHideoutResult, SavedSearchQuerySnapshot } from '../src/types/market.js'
 import { TradeCredentialStore } from './tradeCredentialStore.js'
 import { isGameOfflineVisitError, OfficialTradeRequestError } from './officialTradeRequestError.js'
-import { createSearchQuerySnapshot, parseOfficialSearchUrl, withSearchSnapshot } from './marketSearch.js'
+import { createSearchQuerySnapshot, isValidSearchCode, parseOfficialSearchUrl, withSearchSnapshot } from './marketSearch.js'
 import type { UiLanguage } from './uiLocale.js'
 import type { MarketPageTranslationPayload } from '../src/engine/marketPageTranslation.js'
 
@@ -248,7 +248,7 @@ export class MarketViewManager {
 
   async fetchListing(ref: MarketDomListingRef): Promise<unknown> {
     if (!MARKET_ID_PATTERN.test(ref.listingId)
-      || (ref.queryId != null && !MARKET_ID_PATTERN.test(ref.queryId))) {
+      || (ref.queryId != null && !isValidSearchCode(ref.queryId))) {
       throw new Error('Invalid official trade listing reference')
     }
     const origin = ref.realm === 'cn' ? 'https://poe.game.qq.com' : 'https://www.pathofexile.com'
@@ -261,7 +261,7 @@ export class MarketViewManager {
 
   async fetchListings(realm: MarketRealm, listingIds: string[], searchCode: string): Promise<unknown> {
     const ids = [...new Set(listingIds)].filter((id) => MARKET_ID_PATTERN.test(id)).slice(0, 10)
-    if (!ids.length || !MARKET_ID_PATTERN.test(searchCode)) throw new Error('Invalid official trade fetch request')
+    if (!ids.length || !isValidSearchCode(searchCode)) throw new Error('Invalid official trade fetch request')
     const origin = realm === 'cn' ? 'https://poe.game.qq.com' : 'https://www.pathofexile.com'
     return this.requestJson(realm,
       `${origin}/api/trade2/fetch/${ids.map(encodeURIComponent).join(',')}?query=${encodeURIComponent(searchCode)}&realm=poe2`,
@@ -271,7 +271,7 @@ export class MarketViewManager {
 
   async fetchLiveResult(realm: MarketRealm, resultToken: string, searchCode: string): Promise<unknown> {
     if (resultToken.length > 4_096 || !/^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+){2}$/.test(resultToken)
-      || !MARKET_ID_PATTERN.test(searchCode)) throw new Error('Invalid official live result token')
+      || !isValidSearchCode(searchCode)) throw new Error('Invalid official live result token')
     const origin = realm === 'cn' ? 'https://poe.game.qq.com' : 'https://www.pathofexile.com'
     return this.requestJson(realm,
       `${origin}/api/trade2/fetch/${encodeURIComponent(resultToken)}?query=${encodeURIComponent(searchCode)}&realm=poe2`,

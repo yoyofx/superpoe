@@ -4,6 +4,10 @@ import type { PriceCheckContextState, TradeListedStatus, TradePriceCheckCriteria
 import { uiText } from '@/i18n/uiLocale'
 import { loadTranslations, normalizeDisplayTags, translateGameText } from '@/i18n/translationLoader'
 import { loadAppSettings } from '@/engine/appSettings'
+import { deriveWeaponComparisonStatsFromRaw } from '@/engine/itemDisplayStats'
+import { loadItemBaseData, type ItemBaseData } from '@/engine/itemBaseData'
+import { EquipmentWeaponStats } from '@/components/equipment/EquipmentWeaponStats'
+import { localizedPrice } from './priceFormatting'
 import './priceCheck.css'
 
 interface ModifierInput { selected: boolean; min: string; max: string }
@@ -67,6 +71,7 @@ export function PriceCheckApp() {
   const [searchActionError, setSearchActionError] = useState<string | null>(null)
   const [uiScalePercent, setUiScalePercent] = useState(() => loadAppSettings().uiScalePercent)
   const [translationRevision, setTranslationRevision] = useState(0)
+  const [itemBases, setItemBases] = useState<Record<string, ItemBaseData>>({})
   const language = state?.language || 'en'
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
   // The coordinator keeps one generation for the whole price-check session. Its
@@ -84,6 +89,14 @@ export function PriceCheckApp() {
     const syncScale = () => setUiScalePercent(loadAppSettings().uiScalePercent)
     window.addEventListener('storage', syncScale)
     return () => window.removeEventListener('storage', syncScale)
+  }, [])
+
+  useEffect(() => {
+    let active = true
+    void loadItemBaseData().then((index) => {
+      if (active) setItemBases(index.bases)
+    })
+    return () => { active = false }
   }, [])
 
   // Price check is rendered in its own window, so it does not inherit the
@@ -147,6 +160,16 @@ export function PriceCheckApp() {
     const baseType = language === 'zh-rCN' ? (draft.localizedBaseType || translateGameText(draft.baseType, language)) : translateGameText(draft.baseType, language)
     return { name, baseType }
   }, [language, state?.draft, translationRevision])
+
+  const checkedItemWeaponStats = useMemo(() => {
+    const raw = state?.draft?.rawText
+    if (!raw || !Object.keys(itemBases).length) return []
+    try {
+      return deriveWeaponComparisonStatsFromRaw(raw, itemBases, 'price-check-source')
+    } catch {
+      return []
+    }
+  }, [itemBases, state?.draft?.rawText])
 
   const listedTime = (value?: string) => {
     if (!value) return l('Unknown time', '时间未知', '時間未知', '시간 알 수 없음')
@@ -228,6 +251,10 @@ export function PriceCheckApp() {
     </header>
     {!state || state.phase === 'idle' ? <div className="pc-empty">{l('Select Price check from an item.', '请从装备上选择“查价”。', '請從裝備上選擇「查價」。', '아이템에서 가격 확인을 선택하세요.')}</div> : null}
     {state?.draft && <>
+      {checkedItemWeaponStats.length > 0 && <section className="pc-source-metrics" aria-label={l('Checked item metrics', '被查价装备指标', '被查價裝備指標', '조회 아이템 지표')}>
+        <div className="pc-source-metrics-copy"><span>{l('Checked item metrics', '被查价装备指标', '被查價裝備指標', '조회 아이템 지표')}</span><strong>{localizedDraft?.name || state.draft.name}</strong><small>{localizedDraft?.baseType || state.draft.baseType}</small></div>
+        <EquipmentWeaponStats stats={checkedItemWeaponStats} language={language} />
+      </section>}
       <section className="pc-controls">
         <label><span>{l('League', '赛季', '賽季', '리그')}</span><select value={leagueId} onChange={(event) => setLeagueId(event.target.value)}>{state.leagues.map((league) => <option key={league.id} value={league.id}>{translateGameText(league.text, language)}</option>)}</select></label>
         <label><span>{l('Listed', '上架', '上架', '등록')}</span><select value={listedStatus} onChange={(event) => setListedStatus(event.target.value as TradeListedStatus)} aria-label={l('Listed status', '上架状态', '上架狀態', '등록 상태')}><option value="securable">{l('Instant', '一口价', '直購', '즉시 구매')}</option></select></label>
@@ -268,7 +295,7 @@ export function PriceCheckApp() {
           const selected = selectedListingId === listing.id
           return <article className={selected ? 'selected' : ''} key={listing.id}>
             <div className="pc-listing-main">
-              <b>{listing.price?.display || l('No price', '未标价', '未標價', '가격 없음')}</b>
+              <b>{localizedPrice(listing.price, language, l)}</b>
               <span>{listedTime(listing.listedAt)}</span>
               <span className={`seller-status ${listing.seller.status}`}>{listing.seller.status}</span>
               <span className="seller-name">{listing.seller.accountName || l('Unknown seller', '未知卖家', '未知賣家', '알 수 없는 판매자')}</span>

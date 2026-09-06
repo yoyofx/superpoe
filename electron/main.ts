@@ -14,6 +14,7 @@ import { canonicalToLegacySnapshot, PobItemBridge } from './pobItemBridge.js'
 import { detectItemRawLanguage, ItemTranslationIndex, type ItemRawLanguage } from './itemTranslationIndex.js'
 import { ItemIconIndex } from './itemIconIndex.js'
 import { MarketViewManager, type MarketNavigationCommand, type MarketRealm } from './marketView.js'
+import { isValidSearchCode, MAX_SEARCH_CODE_LENGTH } from './marketSearch.js'
 import { CommunityViewManager, type CommunityNavigationCommand } from './communityView.js'
 import { TradeCredentialStore } from './tradeCredentialStore.js'
 import { EquipmentLibraryRepository, equipmentSourceKey, fingerprintLibraryItem, pobSourceKey } from './equipmentLibraryRepository.js'
@@ -674,9 +675,9 @@ function validateListingRef(value: unknown, senderRealm: MarketRealm): MarketDom
   if (input.realm !== senderRealm) throw new Error('Market realm mismatch')
   const listingId = validateShortString(input.listingId, 'listing ID', 128)
   if (!/^[A-Za-z0-9_-]+$/.test(listingId)) throw new Error('Invalid listing ID')
-  const queryId = input.queryId == null ? undefined : validateShortString(input.queryId, 'query ID', 128)
-  if (queryId && !/^[A-Za-z0-9_-]+$/.test(queryId)) throw new Error('Invalid query ID')
-  const sourceUrl = validateShortString(input.sourceUrl, 'market source URL', 2_048)
+  const queryId = input.queryId == null ? undefined : validateShortString(input.queryId, 'query ID', MAX_SEARCH_CODE_LENGTH)
+  if (queryId && !isValidSearchCode(queryId)) throw new Error('Invalid query ID')
+  const sourceUrl = validateShortString(input.sourceUrl, 'market source URL', 8_192)
   const url = new URL(sourceUrl)
   const allowedHost = senderRealm === 'cn'
     ? url.hostname === 'poe.game.qq.com'
@@ -813,6 +814,9 @@ function createWindow(): BrowserWindow {
     // Packaged: custom scheme so root-absolute asset URLs work.
     void window.loadURL('app://localhost/index.html')
   }
+  window.webContents.on('console-message', (_event, _level, message) => {
+    if (message.startsWith('[Auth]')) console.info(`[Renderer] ${message}`)
+  })
   window.webContents.once('did-finish-load', flushPendingNativeBuildFiles)
   mainWindow = window
   marketViewManager?.dispose()
@@ -1208,10 +1212,65 @@ function createStatCanonicalizer(
   return (value, group = 'explicit', context = {}, nextLine = '') => matcher.match(value, group, context, nextLine)
 }
 
+function xiletradeLocaleFor(language: ItemRawLanguage): 'en' | 'zh-CN' | 'zh-TW' | 'ko-KR' {
+  return language === 'zh-rCN' ? 'zh-CN' : language === 'zh-rTW' ? 'zh-TW' : language === 'ko-KR' ? 'ko-KR' : 'en'
+}
+
+function containsLocalizedItemText(value: string): boolean {
+  return /[\u3400-\u9fff\uac00-\ud7af]/u.test(value)
+}
+
+function canonicalEnglishItemText(value: string | undefined, preferredLanguage?: ItemRawLanguage): string | undefined {
+  const trimmed = value?.trim()
+  if (!trimmed || /(?:\?{2,}|\uFFFD)/u.test(trimmed)) return undefined
+  if (!containsLocalizedItemText(trimmed)) return trimmed
+  const languages: ItemRawLanguage[] = preferredLanguage && preferredLanguage !== 'en'
+    ? [preferredLanguage]
+    : ['zh-rCN', 'zh-rTW', 'ko-KR']
+  for (const language of languages) {
+    const translated = getItemTranslationIndex(language).toEnglish(trimmed)
+    if (translated && !containsLocalizedItemText(translated) && !/(?:\?{2,}|\uFFFD)/u.test(translated)) return translated
+  }
+  return undefined
+}
+
+function localizedIdentityCandidates(item: LibraryItemSnapshot): Array<{ language: ItemRawLanguage; name?: string; baseType?: string }> {
+  return Object.entries(item.localized || {}).flatMap(([locale, localized]) => {
+    const language = locale === 'zh-CN' ? 'zh-rCN'
+      : locale === 'zh-TW' ? 'zh-rTW'
+        : locale === 'ko-KR' ? 'ko-KR' : locale === 'en' ? 'en' : undefined
+    return language ? [{ language, name: localized.name, baseType: localized.baseType }] : []
+  })
+}
+
+function globalTradeIdentity(item: LibraryItemSnapshot): { name?: string; baseType?: string } {
+  const localized = localizedIdentityCandidates(item)
+  const resolve = (value: string | undefined, field: 'name' | 'baseType'): string | undefined => {
+    const direct = canonicalEnglishItemText(value)
+    if (direct) return direct
+    for (const candidate of localized) {
+      const translated = canonicalEnglishItemText(candidate[field], candidate.language)
+      if (translated) return translated
+    }
+    return undefined
+  }
+  const name = resolve(item.name, 'name')
+  const baseType = resolve(item.baseType, 'baseType')
+  return {
+    ...(name ? { name } : {}),
+    ...(baseType ? { baseType } : {}),
+  }
+}
+
 function projectTradeItemForRealm(realm: MarketRealm, item: LibraryItemSnapshot, catalog: CatalogSnapshot): LibraryItemSnapshot {
   const locale = realm === 'cn' ? 'zh-CN' : 'en'
   const source = getXiletradeDataCatalog()
-  const context = source.resolveItemContext(locale, item)
+  const identity = realm === 'global' ? globalTradeIdentity(item) : {}
+  const context = source.resolveItemContext(locale, {
+    ...item,
+    ...(identity.name ? { name: identity.name } : {}),
+    ...(identity.baseType ? { baseType: identity.baseType } : {}),
+  })
   const matcher = new XiletradeModifierMatcher(source.bundle(locale))
   const catalogHas = (id: string) => {
     const [baseId] = id.split('|')
@@ -1219,6 +1278,8 @@ function projectTradeItemForRealm(realm: MarketRealm, item: LibraryItemSnapshot,
   }
   return {
     ...structuredClone(item),
+    ...(realm === 'global' && identity.name ? { name: identity.name } : {}),
+    ...(realm === 'global' && identity.baseType ? { baseType: identity.baseType } : {}),
     itemClass: context.itemClass,
     tradeCategory: context.tradeCategory,
     modifiers: item.modifiers.map((modifier) => {
@@ -1329,7 +1390,7 @@ function gameClipboardToPobRaw(value: string, options: GameClipboardParseOptions
   // the next section. Select the last two name-like lines rather than treating
   // that warning as the item name.
   const nameNoise = /^(?:You cannot use|你无法使用|您无法使用|你無法使用|사용할 수 없는|이 아이템을 사용할 수 없습니다)/iu
-  const nameMetadata = /^(?:物品类别|物品類別|稀有度|Rarity|品质|品質|物理伤害|物理傷害|元素伤害|元素傷害|暴击率|暴擊率|每秒攻击次数|每秒攻擊次數|需求|插槽|物品等级|物品等級|Item Level|Sockets|Quality|품질|소켓|요구|아이템 레벨|물리 피해|원소 피해|치명타 확률|초당 공격 횟수)\s*[：:]/iu
+  const nameMetadata = /^(?:物品类别|物品類別|物品種類|稀有度|Rarity|品质|品質|物理伤害|物理傷害|元素伤害|元素傷害|暴击率|暴擊率|每秒攻击次数|每秒攻擊次數|需求|插槽|物品等级|物品等級|Item Level|Sockets|Quality|품질|소켓|요구|아이템 레벨|물리 피해|원소 피해|치명타 확률|초당 공격 횟수)\s*[：:]/iu
   const nameCandidates = (lines: string[]) => lines.filter((line) => line && !nameNoise.test(line) && !nameMetadata.test(line))
   let names = nameCandidates(inlineNames).slice(-2)
   if (names.length < 2) {
@@ -1348,7 +1409,9 @@ function gameClipboardToPobRaw(value: string, options: GameClipboardParseOptions
       : /magic|魔法|마법/i.test(raritySource) ? 'MAGIC' : 'NORMAL'
   const displayName = names[0] || ''
   const displayBaseType = names[1] || names[0] || ''
-  const baseType = translations.toEnglish(displayBaseType) || (/^[\x20-\x7e]+$/.test(displayBaseType) ? displayBaseType : '')
+  const baseType = translations.toEnglish(displayBaseType)
+    || getXiletradeDataCatalog().resolveBaseType(xiletradeLocaleFor(language), displayBaseType)
+    || (/^[\x20-\x7e]+$/.test(displayBaseType) ? displayBaseType : '')
   const name = translations.toEnglish(displayName) || (/^[\x20-\x7e]+$/.test(displayName) ? displayName : '')
   if (!baseType) throw new Error(`Unsupported item base language: ${displayBaseType}`)
   const itemLevelLine = sections.flat().find((line) => /^(?:Item Level|物品等级|物品等級|아이템 레벨)\s*[：:]/iu.test(line))
@@ -1498,6 +1561,7 @@ function parseGameClipboardItem(value: string, options: GameClipboardParseOption
       toEnglish: (text) => translations.toEnglish(text),
       statToEnglish: (text) => translations.statToEnglish(text),
     },
+    resolveBaseType: (text) => getXiletradeDataCatalog().resolveBaseType(locale, text),
     canonicalizeStat: options.canonicalizeStat
       ? (text, group, itemClass, nextLine) => options.canonicalizeStat?.(text, group, itemClass, nextLine)
       : createStatCanonicalizer(language),
@@ -1508,7 +1572,7 @@ function parseGameClipboardItem(value: string, options: GameClipboardParseOption
 
 function looksLikeGameClipboardItem(value: string): boolean {
   const normalized = value.replace(/\r\n?/g, '\n')
-  return /^(?:物品类别|物品類別|Item Class|아이템 종류)\s*[：:]/m.test(normalized)
+  return /^(?:物品类别|物品類別|物品種類|Item Class|아이템 종류)\s*[：:]/m.test(normalized)
     && /^(?:稀有度|Rarity|희귀도)\s*[：:]/m.test(normalized)
 }
 
@@ -1704,6 +1768,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   })
   ipcMain.handle('pob2:auth-storage-clear', (event) => {
     requireMainWindowSender(event)
+    console.info(`[Auth] storage clear path=${authStoragePath}`)
     try { if (existsSync(authStoragePath)) unlinkSync(authStoragePath) } catch { /* best effort */ }
   })
   try {

@@ -92,6 +92,54 @@ describe('Xiletrade-compatible game item parser', () => {
     })).toMatchObject({ tradeCategory: 'armour.helmet', flags: { weapon: false, armourPiece: true } })
   })
 
+  it('resolves Traditional Chinese base names from the Xiletrade base catalog', () => {
+    const catalog = new XiletradeDataCatalog(path.join(process.cwd(), 'public', 'data', 'xiletrade'))
+    expect(catalog.resolveBaseType('zh-TW', '黃金塔盾')).toBe('Goldworked Tower Shield')
+    expect(catalog.resolveBaseType('zh-TW', '響聲紋章盾')).toBe('Jingling Crest Shield')
+    expect(catalog.resolveBaseType('zh-CN', '響聲紋章盾')).toBe('Jingling Crest Shield')
+
+    const result = parseXiletradeItemText([
+      '物品類別: 盾牌', '稀有度: 稀有', '蒼空 守護', '黃金塔盾', '--------',
+      '物品等級: 84', '--------', '{ 後綴屬性 }', '火焰抗性 +20%',
+    ].join('\n'), {
+      language: { locale: 'zh-TW', toEnglish: () => undefined, statToEnglish: () => undefined },
+      resolveBaseType: (value) => catalog.resolveBaseType('zh-TW', value),
+    })
+
+    expect(result.localized.baseType).toBe('黃金塔盾')
+    expect(result.raw).toContain('Goldworked Tower Shield')
+  })
+
+  it('recognizes the Traditional Chinese 物品種類 clipboard field and canonicalizes its shield base', () => {
+    const catalog = new XiletradeDataCatalog(path.join(process.cwd(), 'public', 'data', 'xiletrade'))
+    const matcher = new XiletradeModifierMatcher(catalog.bundle('zh-TW'))
+    const translations = new ItemTranslationIndex(path.join(process.cwd(), 'public', 'data', 'Translate', 'zh-rTW'))
+    const raw = [
+      '物品種類: 盾', '稀有度: 傳奇', '阿杜拉之冠', '響聲紋章盾', '--------',
+      '格擋機率: 25%', '護甲值: 106 (augmented)', '能量護盾: 34 (augmented)', '--------',
+      '需求: 等級 28, 21 (augmented) 力量, 21 (augmented) 智慧', '--------',
+      '物品等級: 67', '--------', '賦予技能: 舉盾', '--------',
+      '{ 傳奇詞綴 — 護甲,能量護盾 }', '增加100(60-100)%護甲值和能量護盾',
+      '{ 傳奇詞綴 — 魔力 }', '增加39(30-50)%魔力回復率',
+      '{ 傳奇詞綴 — 能力 }', '+10(10-20)點智慧',
+      '{ 傳奇詞綴 }', '增加50(30-50)%冷卻時間恢復率',
+    ].join('\n')
+    const result = parseXiletradeItemText(raw, {
+      language: {
+        locale: 'zh-TW',
+        toEnglish: (value) => translations.toEnglish(value),
+        statToEnglish: (value) => translations.statToEnglish(value),
+      },
+      resolveBaseType: (value) => catalog.resolveBaseType('zh-TW', value),
+      canonicalizeStat: (text, group, context, nextLine) => matcher.match(text, group, context, nextLine),
+      parsingRules: catalog.get('zh-TW').rules,
+    })
+
+    expect(result.localized).toEqual({ name: '阿杜拉之冠', baseType: '響聲紋章盾' })
+    expect(result.raw).toContain('Jingling Crest Shield')
+    expect(result.raw).not.toContain('響聲紋章盾')
+  })
+
   it('ports Xiletrade PoE2 unique-name disambiguation rules', () => {
     const catalog = new XiletradeDataCatalog(path.join(process.cwd(), 'public', 'data', 'xiletrade'))
     const bundle = catalog.bundle('en')

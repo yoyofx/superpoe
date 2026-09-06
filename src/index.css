@@ -4054,6 +4054,10 @@ body:has(.update-dialog-backdrop) .build-center-nav { padding-bottom: 172px; }
 
 .workbench-header { background: rgba(7, 9, 8, .98); }
 .workspace-tabs-bar { background: rgba(6, 8, 7, .96); }
+/* Keep first-row popovers above the workspace tabs row.  Raising only the
+   menu's z-index cannot escape the sibling stacking order created here. */
+.workbench-header > .app-command-bar { z-index: 3; }
+.workbench-header > .workspace-tabs-bar { z-index: 2; }
 .workspace-view,
 .market-workspace { background: #070908; }
 .currency-market-workspace,

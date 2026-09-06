@@ -5,6 +5,7 @@ import type { PriceCheckContextState, PriceCheckListingView } from '@/types/mark
 import { uiText } from '@/i18n/uiLocale'
 import { loadTranslations } from '@/i18n/translationLoader'
 import { loadAppSettings } from '@/engine/appSettings'
+import { localizedPrice } from './priceFormatting'
 import './priceCheck.css'
 
 export function PriceCheckDetailApp() {
@@ -15,6 +16,7 @@ export function PriceCheckDetailApp() {
   const [favoriteBusy, setFavoriteBusy] = useState(false)
   const [favoriteSaved, setFavoriteSaved] = useState(false)
   const [favoriteError, setFavoriteError] = useState<string | null>(null)
+  const [translationRevision, setTranslationRevision] = useState(0)
   const language = state?.language || 'en'
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
 
@@ -32,7 +34,11 @@ export function PriceCheckDetailApp() {
 
   useEffect(() => {
     let active = true
-    void loadTranslations(language).catch(() => undefined).finally(() => { if (active) window.dispatchEvent(new Event('resize')) })
+    void loadTranslations(language).catch(() => undefined).finally(() => {
+      if (!active) return
+      setTranslationRevision((value) => value + 1)
+      window.dispatchEvent(new Event('resize'))
+    })
     return () => { active = false }
   }, [language])
 
@@ -86,7 +92,7 @@ export function PriceCheckDetailApp() {
   }
 
   return <main className="pc-detail-shell">
-    <header className="pc-detail-titlebar">
+    <header className="pc-detail-titlebar" key={`translation-${translationRevision}`}>
       <div className="pc-title">
         <strong>{listing ? equipmentItemName(listing.item, language) : l('Item details', '商品详情', '商品詳情', '상품 상세')}</strong>
         <span>{listing ? equipmentItemBaseType(listing.item, language) : l('Waiting for a listing', '等待商品', '等待商品', '매물 대기 중')}</span>
@@ -98,7 +104,7 @@ export function PriceCheckDetailApp() {
       view={listing.item}
       language={language}
       sourceLabels={[l('Market listing', '集市商品', '市集商品', '거래소 매물')]}
-      price={listing.price?.display}
+      price={localizedPrice(listing.price, language, l)}
     /><footer className="pc-detail-footer"><button className="pc-library-button" disabled={favoriteBusy || favoriteSaved} onClick={() => void saveToEquipmentLibrary()}><>{favoriteSaved ? <Check /> : <BookmarkPlus />}</>{favoriteBusy ? l('Saving...', '收藏中...', '收藏中...', '저장 중...') : favoriteSaved ? l('Saved to equipment library', '已收藏到装备仓库', '已收藏到裝備倉庫', '장비 라이브러리에 저장됨') : l('Save to equipment library', '收藏到装备仓库', '收藏到裝備倉庫', '장비 라이브러리에 저장')}</button>{favoriteError && <small className="pc-detail-action-error">{favoriteError}</small>}</footer></div> : <div className="pc-detail-empty">{l('Select a listing to view details.', '选择商品查看详情。', '選擇商品查看詳情。', '상품을 선택해 상세 정보를 확인하세요.')}</div>}
   </main>
 }

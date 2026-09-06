@@ -4,16 +4,20 @@ import type { CommunityNavigationCommand, CommunityViewState } from '../src/type
 
 export type { CommunityNavigationCommand } from '../src/types/community.js'
 
-export const COMMUNITY_URL = 'https://www.kookapp.cn/app/channels/6941799861711054/6573078396861793'
+export const COMMUNITY_URL = 'https://kook.vip/CU9Bfx'
 
 const COMMUNITY_PARTITION = 'persist:superpoe-kook'
-const COMMUNITY_HOST = 'kookapp.cn'
+const COMMUNITY_HOSTS = ['kook.vip', 'kookapp.cn'] as const
+
+function isCommunityHost(hostname: string): boolean {
+  return COMMUNITY_HOSTS.some((host) => hostname === host || hostname.endsWith(`.${host}`))
+}
 
 function isAllowedUrl(value: string): URL | null {
   try {
     const url = new URL(value)
     if (url.protocol !== 'https:') return null
-    if (url.hostname !== COMMUNITY_HOST && !url.hostname.endsWith(`.${COMMUNITY_HOST}`)) return null
+    if (!isCommunityHost(url.hostname)) return null
     return url
   } catch {
     return null

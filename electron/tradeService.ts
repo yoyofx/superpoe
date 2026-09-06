@@ -29,6 +29,12 @@ function clean(value: unknown): string {
   return typeof value === 'string' ? value.replace(/<<[^>]+>>/g, '').trim() : ''
 }
 
+function usableGlobalItemText(value: unknown): string | undefined {
+  const text = clean(value)
+  if (!text || /(?:\?{2,}|\uFFFD|[\u3400-\u9fff\uac00-\ud7af])/u.test(text)) return undefined
+  return text
+}
+
 function searchResultIds(response: SearchResponse): string[] {
   return Array.isArray(response.result)
     ? response.result.filter((value): value is string => typeof value === 'string' && /^[A-Za-z0-9_-]+$/.test(value))
@@ -167,12 +173,12 @@ function localizedTradeBaseType(item: LibraryItemSnapshot): string | undefined {
 
 function queryItemType(item: LibraryItemSnapshot, realm: MarketRealm): string | undefined {
   if (realm === 'cn') return localizedTradeBaseType(item) || (!/[A-Za-z]/.test(item.baseType) ? clean(item.baseType) : undefined)
-  return clean(item.baseType) || undefined
+  return usableGlobalItemText(item.baseType)
 }
 
 function queryItemName(item: LibraryItemSnapshot, realm: MarketRealm): string | undefined {
   if (realm === 'cn') return clean(item.localized?.['zh-CN']?.name) || (!/[A-Za-z]/.test(item.name) ? clean(item.name) : undefined)
-  return clean(item.name) || undefined
+  return usableGlobalItemText(item.name)
 }
 
 function isUniqueItem(item: LibraryItemSnapshot): boolean {
@@ -216,6 +222,7 @@ export function createPriceCheckDraft(item: LibraryItemSnapshot, realm: MarketRe
     rarity: item.rarity,
     name: item.name,
     baseType: item.baseType,
+    ...(item.rawText ? { rawText: item.rawText } : {}),
     localizedName: localized?.name,
     localizedBaseType: localized?.baseType,
     unique: isUniqueItem(item),
@@ -304,10 +311,19 @@ function buildTypeOnlyQuery(item: LibraryItemSnapshot, realm: MarketRealm): unkn
   }
 }
 
+function withoutQueryItemName(query: unknown): unknown | undefined {
+  const next = structuredClone(query) as { query?: unknown }
+  const root = record(next.query)
+  if (!Object.prototype.hasOwnProperty.call(root, 'name')) return undefined
+  delete root.name
+  next.query = root
+  return next
+}
+
 function logTradeQuery(
   realm: MarketRealm,
   leagueId: string,
-  phase: 'detailed' | 'type-only',
+  phase: 'detailed' | 'type-only' | 'identity-fallback',
   mode: PriceCheckMode,
   item: LibraryItemSnapshot,
   query: unknown,
@@ -491,12 +507,23 @@ export class OfficialTradeProvider {
       // weighted search this includes PoB2's threshold adjustment.
       logTradeQuery(realm, leagueId, 'detailed', mode, resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
     } catch (error) {
-      if (criteria || mode !== 'price-check' || !(error instanceof OfficialTradeRequestError) || error.status !== 400 || built.resolved === 0 || !queryItemType(resolvedItem, realm)) throw error
-      query = buildTypeOnlyQuery(resolvedItem, realm)
-      resolvedModifierCount = 0
-      unresolvedModifierCount = resolvedItem.modifiers.length
-      logTradeQuery(realm, leagueId, 'type-only', mode, resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
-      response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
+      const unknownItemName = error instanceof OfficialTradeRequestError
+        && error.status === 400
+        && /unknown item name/i.test(error.detail || '')
+      const identityFallback = unknownItemName && realm === 'global' ? withoutQueryItemName(query) : undefined
+      if (identityFallback) {
+        console.warn(`[Market search] global item name was rejected; retrying without query.name league=${leagueId}`)
+        query = identityFallback
+        logTradeQuery(realm, leagueId, 'identity-fallback', mode, resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
+        response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
+      } else {
+        if (criteria || mode !== 'price-check' || !(error instanceof OfficialTradeRequestError) || error.status !== 400 || built.resolved === 0 || !queryItemType(resolvedItem, realm)) throw error
+        query = buildTypeOnlyQuery(resolvedItem, realm)
+        resolvedModifierCount = 0
+        unresolvedModifierCount = resolvedItem.modifiers.length
+        logTradeQuery(realm, leagueId, 'type-only', mode, resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
+        response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
+      }
     }
     const searchId = clean(response.id)
     if (!searchId) throw new Error('Official trade search did not return a search ID')

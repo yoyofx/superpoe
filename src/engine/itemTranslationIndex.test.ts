@@ -56,6 +56,7 @@ describe('CN item translation index', () => {
   it('identifies supported game clipboard languages without using UI language', () => {
     expect(detectItemRawLanguage('物品类别: 法杖\n稀有度: 传奇')).toBe('zh-rCN')
     expect(detectItemRawLanguage('物品類別: 法杖\n稀有度: 傳奇')).toBe('zh-rTW')
+    expect(detectItemRawLanguage('物品種類: 盾\n稀有度: 傳奇')).toBe('zh-rTW')
     expect(detectItemRawLanguage('아이템 종류: 지팡이\n희귀도: 고유')).toBe('ko-KR')
     expect(detectItemRawLanguage('Rarity: UNIQUE\nDoom Branch')).toBe('en')
   })

@@ -14,6 +14,15 @@ describe('official market search references', () => {
       .toBe('https://www.pathofexile.com/trade2/search/poe2/Test/abc-123')
   })
 
+  it('accepts compressed search codes longer than API result IDs', () => {
+    const searchCode = 'A'.repeat(210)
+    const reference = parseOfficialSearchUrl(
+      `https://www.pathofexile.com/trade2/search/poe2/Forbidden%20Rites/${searchCode}`,
+      'global',
+    )
+    expect(reference?.searchCode).toBe(searchCode)
+  })
+
   it('rejects non-search pages, realm mismatches, malformed encoding and invalid codes', () => {
     expect(parseOfficialSearchUrl('https://poe.game.qq.com/trade2', 'cn')).toBeNull()
     expect(parseOfficialSearchUrl('https://poe.game.qq.com/trade2/search/poe2/Test', 'cn')).toBeNull()

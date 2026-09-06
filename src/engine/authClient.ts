@@ -21,6 +21,11 @@ export interface AuthSession {
   session: AuthSessionTokens
 }
 
+interface PersistedAuthSession extends AuthSession {
+  /** Local convenience window; this is not a server authorization expiry. */
+  remembered_until?: string
+}
+
 export interface AuthStorage {
   load(): Promise<string | null>
   save(value: string): Promise<void>
@@ -41,10 +46,18 @@ export class AuthApiError extends Error {
 
 const AUTH_STORAGE_KEY = 'superpoe-auth-session-v1'
 const DEVICE_ID_KEY = 'superpoe-auth-device-id-v1'
+const LOCAL_REMEMBER_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 const configuredBaseUrl = typeof import.meta.env.VITE_SUPERPOE_AUTH_URL === 'string'
   ? import.meta.env.VITE_SUPERPOE_AUTH_URL.trim()
   : ''
 export const AUTH_BASE_URL = (configuredBaseUrl || 'http://api.superpoe2.vip').replace(/\/+$/, '')
+
+// The renderer is mounted under React.StrictMode during development, which
+// intentionally runs effects twice. Refresh tokens are rotated by the server
+// and can only be consumed once, so concurrent restore/refresh calls must
+// share the same in-flight request instead of racing each other.
+let restoreInFlight: Promise<AuthSession | null> | null = null
+const refreshInFlight = new Map<string, Promise<AuthSession>>()
 
 function browserStorage(): Storage | null {
   try {
@@ -71,7 +84,7 @@ function getDesktopStorage(): AuthStorage | null {
   }
 }
 
-async function loadStoredSession(): Promise<AuthSession | null> {
+async function loadStoredSession(): Promise<PersistedAuthSession | null> {
   const desktopStorage = getDesktopStorage()
   const raw = desktopStorage
     ? await desktopStorage.load()
@@ -80,14 +93,29 @@ async function loadStoredSession(): Promise<AuthSession | null> {
   try {
     const value = JSON.parse(raw) as Partial<AuthSession>
     if (!value.user || !value.session || typeof value.session.access_token !== 'string' || typeof value.session.refresh_token !== 'string') return null
-    return value as AuthSession
+    return value as PersistedAuthSession
   } catch {
     return null
   }
 }
 
-async function saveStoredSession(session: AuthSession): Promise<void> {
-  const raw = JSON.stringify(session)
+function nextRememberedUntil(): string {
+  return new Date(Date.now() + LOCAL_REMEMBER_WINDOW_MS).toISOString()
+}
+
+function rememberedUntil(session: PersistedAuthSession | AuthSession): string | undefined {
+  const value = (session as PersistedAuthSession).remembered_until
+  return typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? value : undefined
+}
+
+function isLocallyRemembered(session: PersistedAuthSession): boolean {
+  const expiresAt = rememberedUntil(session)
+  return Boolean(expiresAt && Date.parse(expiresAt) > Date.now())
+}
+
+async function saveStoredSession(session: AuthSession, rememberUntil = rememberedUntil(session) || nextRememberedUntil()): Promise<void> {
+  const persisted: PersistedAuthSession = { ...session, remembered_until: rememberUntil }
+  const raw = JSON.stringify(persisted)
   const desktopStorage = getDesktopStorage()
   if (desktopStorage) {
     try {
@@ -120,6 +148,15 @@ function sessionFromResponse(value: unknown): AuthSession {
     throw new Error('The server returned an invalid session.')
   }
   return { user: response.user as AuthUser, session: session as AuthSessionTokens }
+}
+
+function isTransientAuthError(error: unknown): boolean {
+  return error instanceof AuthApiError && (error.status === 0 || error.status >= 500)
+}
+
+function authErrorSummary(error: unknown): string {
+  if (error instanceof AuthApiError) return `${error.status}/${error.code}`
+  return error instanceof Error ? error.message : String(error)
 }
 
 async function request(path: string, init: RequestInit = {}, accessToken?: string): Promise<unknown> {
@@ -165,16 +202,40 @@ export async function getCurrentUser(session: AuthSession): Promise<AuthUser> {
   return result.user
 }
 
-export async function refreshSession(session: AuthSession): Promise<AuthSession> {
+async function refreshSessionRequest(session: AuthSession): Promise<AuthSession> {
   const result = await request('/api/auth/session/refresh', {
     method: 'POST',
     body: JSON.stringify({ refresh_token: session.session.refresh_token }),
   }) as { session?: AuthSessionTokens }
   if (!result?.session) throw new AuthApiError(401, 'session_invalid', 'The session is invalid or expired.')
-  const user = await getCurrentUser({ user: session.user, session: result.session })
-  const refreshed = { user, session: result.session }
-  await saveStoredSession(refreshed)
-  return refreshed
+  // The server rotates the refresh token before /me is called. Persist the
+  // rotated token immediately so a transient /me failure cannot leave the
+  // client with a refresh token that the server has already consumed.
+  const refreshed = { user: session.user, session: result.session }
+  await saveStoredSession(refreshed, rememberedUntil(session) || nextRememberedUntil())
+  try {
+    const user = await getCurrentUser(refreshed)
+    const current = { user, session: result.session }
+    await saveStoredSession(current, rememberedUntil(session) || nextRememberedUntil())
+    return current
+  } catch (error) {
+    if (isTransientAuthError(error)) return refreshed
+    throw error
+  }
+}
+
+export function refreshSession(session: AuthSession): Promise<AuthSession> {
+  const key = session.session.session_id || session.session.refresh_token
+  const existing = refreshInFlight.get(key)
+  if (existing) return existing
+
+  const pending = refreshSessionRequest(session)
+  refreshInFlight.set(key, pending)
+  void pending.then(
+    () => { if (refreshInFlight.get(key) === pending) refreshInFlight.delete(key) },
+    () => { if (refreshInFlight.get(key) === pending) refreshInFlight.delete(key) },
+  )
+  return pending
 }
 
 export async function changePassword(session: AuthSession, currentPassword: string, newPassword: string): Promise<void> {
@@ -206,25 +267,53 @@ export async function logout(session: AuthSession): Promise<void> {
   }
 }
 
-export async function restoreSession(): Promise<AuthSession | null> {
+async function restoreSessionRequest(): Promise<AuthSession | null> {
   const stored = await loadStoredSession()
-  if (!stored) return null
+  if (!stored) {
+    console.info('[Auth] restore no valid stored session')
+    return null
+  }
+  console.info(`[Auth] restore stored session session_id=${stored.session.session_id}`)
+  if (isLocallyRemembered(stored)) {
+    console.info('[Auth] restore local session accepted within seven-day remember window')
+    return stored
+  }
   try {
     const user = await getCurrentUser(stored)
     const current = { ...stored, user }
-    await saveStoredSession(current)
+    await saveStoredSession(current, nextRememberedUntil())
+    console.info('[Auth] restore access token accepted')
     return current
   } catch (error) {
+    console.warn(`[Auth] restore access token failed error=${authErrorSummary(error)}`)
     if (!(error instanceof AuthApiError) || error.status !== 401) {
       throw error
     }
     try {
-      return await refreshSession(stored)
-    } catch {
+      const refreshed = await refreshSession(stored)
+      console.info('[Auth] restore refresh succeeded')
+      return refreshed
+    } catch (error) {
+      console.warn(`[Auth] restore refresh failed error=${authErrorSummary(error)}`)
+      // Keep a valid local session across temporary API outages. It will be
+      // retried on the next app start instead of forcing a new login now.
+      if (isTransientAuthError(error)) return stored
       await clearStoredSession()
       return null
     }
   }
+}
+
+export function restoreSession(): Promise<AuthSession | null> {
+  if (restoreInFlight) return restoreInFlight
+
+  const pending = restoreSessionRequest()
+  restoreInFlight = pending
+  void pending.then(
+    () => { if (restoreInFlight === pending) restoreInFlight = null },
+    () => { if (restoreInFlight === pending) restoreInFlight = null },
+  )
+  return pending
 }
 
 export async function clearSession(): Promise<void> {

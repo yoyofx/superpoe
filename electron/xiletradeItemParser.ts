@@ -20,6 +20,8 @@ export interface XiletradeItemParserLanguage {
 export interface XiletradeItemParserOptions {
   strict?: boolean
   language: XiletradeItemParserLanguage
+  /** Resolves localized base types from the vendored Xiletrade base catalog. */
+  resolveBaseType?: (value: string) => string | undefined
   canonicalizeStat?: (value: string, group: LibraryModifierGroup, context?: CanonicalStatContext, nextLine?: string) => CanonicalStatMatch | undefined
   parsingRules?: XiletradeParsingRule[]
   upstreamCommit?: string
@@ -81,7 +83,7 @@ export function applyXiletradeParseEvidence(view: CanonicalItemView, evidence: I
   return view
 }
 
-const FIELD_LINE = /^(?:物品类别|物品類別|아이템 종류|稀有度|Rarity|品质|品質|Quality|物理伤害|物理傷害|Physical Damage|元素伤害|元素傷害|Elemental Damage|暴击率|暴擊率|Critical Hit Chance|每秒攻击次数|每秒攻擊次數|Attacks per Second|需求|Requirements?|插槽|Sockets?|物品等级|物品等級|Item Level|仅限|僅限|Limited to|范围|範圍|Radius|품질|소켓|요구|아이템 레벨|물리 피해|원소 피해|치명타 확률|초당 공격 횟수)\s*[：:]/iu
+const FIELD_LINE = /^(?:物品类别|物品類別|物品種類|아이템 종류|稀有度|Rarity|品质|品質|Quality|物理伤害|物理傷害|Physical Damage|元素伤害|元素傷害|Elemental Damage|暴击率|暴擊率|Critical Hit Chance|每秒攻击次数|每秒攻擊次數|Attacks per Second|需求|Requirements?|插槽|Sockets?|物品等级|物品等級|Item Level|仅限|僅限|Limited to|范围|範圍|Radius|품질|소켓|요구|아이템 레벨|물리 피해|원소 피해|치명타 확률|초당 공격 횟수)\s*[：:]/iu
 const FOOTER_LINE = /^(?:Corrupted|Twice Corrupted|Sanctified|Sanctified Item|已腐化|已污染|被腐化|双重腐化|雙重腐化|圣化|聖化|圣化物品|Split|分裂|分裂之物|引路石掉落|Waystone Drop|타락|이중 타락|분열|웨이스톤 드롭)$/iu
 const PROPERTY_LINE = /^(?:Requirements?|Sockets?|Quality|Physical Damage|Elemental Damage|Critical Hit Chance|Attacks per Second|Weapon Range|Armour|Evasion|Energy Shield|Ward|Spirit|Charm Slots|Requires)\s*:/i
 
@@ -211,7 +213,7 @@ export function parseXiletradeItemText(value: string, options: XiletradeItemPars
   if (sections.length < 2) throw new Error('Clipboard does not contain a supported Path of Exile 2 item')
 
   const first = sections[0]
-  const itemClass = first.find((line) => /^(?:Item Class|物品类别|物品類別|아이템 종류)\s*[：:]/iu.test(line))
+  const itemClass = first.find((line) => /^(?:Item Class|物品类别|物品類別|物品種類|아이템 종류)\s*[：:]/iu.test(line))
     ?.split(/[：:]/u).slice(1).join(':').trim() || ''
   const rarityIndex = first.findIndex((line) => /^(?:Rarity|稀有度|희귀도)\s*[：:]/iu.test(line))
   const inlineNames = rarityIndex >= 0 ? first.slice(rarityIndex + 1) : []
@@ -231,7 +233,9 @@ export function parseXiletradeItemText(value: string, options: XiletradeItemPars
       : /magic|魔法|마법/i.test(rarityValue) ? 'MAGIC' : 'NORMAL'
   const localizedName = names[0] || ''
   const localizedBaseType = names[1] || names[0] || ''
-  const baseType = options.language.toEnglish(localizedBaseType) || (/^[\x20-\x7e]+$/.test(localizedBaseType) ? localizedBaseType : '')
+  const baseType = options.language.toEnglish(localizedBaseType)
+    || options.resolveBaseType?.(localizedBaseType)
+    || (/^[\x20-\x7e]+$/.test(localizedBaseType) ? localizedBaseType : '')
   const name = options.language.toEnglish(localizedName) || (/^[\x20-\x7e]+$/.test(localizedName) ? localizedName : '')
   if (!baseType) throw new Error(`Unsupported item base language: ${localizedBaseType}`)
   const itemContext: CanonicalStatContext = { itemClass, rarity, name, baseType }

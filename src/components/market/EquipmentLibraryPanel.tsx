@@ -282,9 +282,18 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   }
 
   const openSearchCreator = async () => {
-    if (!bridge || !currentSearch) return
-    const existing = sidebar.searches.find((search) => search.realm === currentSearch.realm
-      && search.leagueId === currentSearch.leagueId && search.searchCode === currentSearch.searchCode)
+    if (!bridge) return
+    // The embedded trade page can finish a SPA navigation before the
+    // renderer receives its state event. Read the live state here so a valid
+    // search is not incorrectly blocked by a stale currentSearch prop.
+    const liveState = await bridge.getState().catch(() => undefined)
+    const activeSearch = liveState?.currentSearch || currentSearch
+    if (!activeSearch) {
+      setNotice(l('Open a valid official search result first', '请先打开有效的官方搜索结果页', '請先開啟有效的官方搜尋結果頁', '유효한 공식 검색 결과 페이지를 먼저 여세요'))
+      return
+    }
+    const existing = sidebar.searches.find((search) => search.realm === activeSearch.realm
+      && search.leagueId === activeSearch.leagueId && search.searchCode === activeSearch.searchCode)
     if (existing) {
       await selectFolder('searches', existing.folderId)
       setNotice(l(`“${existing.name}” is already saved`, `“${existing.name}”已经收藏`, `「${existing.name}」已收藏`, `“${existing.name}”이(가) 이미 저장되어 있습니다`))
@@ -292,7 +301,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
     }
     setSearchEditor({
       mode: 'create',
-      name: currentSearch.leagueId || l('Saved search', '已保存的搜索', '已儲存的搜尋', '저장된 검색'),
+      name: activeSearch.leagueId || l('Saved search', '已保存的搜索', '已儲存的搜尋', '저장된 검색'),
       note: '',
       folderId: selectedFolderId || '',
     })
@@ -676,7 +685,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
         <div className="trade-helper-content-top">
           {(notice || error) && <div className={error ? 'trade-helper-message error' : 'trade-helper-message'}>{error || notice}<button onClick={() => { setError(null); setNotice(null) }}><X /></button></div>}
           <div className="trade-helper-actions">
-            {activeTab === 'searches' && <button disabled={!currentSearch} onClick={() => void openSearchCreator()} title={!currentSearch ? l('Open a valid official search result first', '请先打开有效的官方搜索结果页', '請先開啟有效的官方搜尋結果頁', '유효한 공식 검색 결과 페이지를 먼저 여세요') : undefined}><Bookmark />{l('Save current search', '保存当前搜索', '儲存目前搜尋', '현재 검색 저장')}</button>}
+            {activeTab === 'searches' && <button disabled={!bridge} onClick={() => void openSearchCreator()} title={l('Save the current official search', '保存当前官方搜索', '儲存目前官方搜尋', '현재 공식 검색 저장')}><Bookmark />{l('Save current search', '保存当前搜索', '儲存目前搜尋', '현재 검색 저장')}</button>}
           {activeTab === 'items' && <>
             <label><Search /><input value={query} onChange={(event) => { setBulkSelecting(false); setSelectedEntryIds(new Set()); setQuery(event.target.value) }} placeholder={l('Search favorites', '搜索收藏', '搜尋收藏', '즐겨찾기 검색')} /></label>
           </>}
