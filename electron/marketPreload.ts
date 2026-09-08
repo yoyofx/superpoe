@@ -6,8 +6,12 @@ import {
   MarketPageTranslator,
   normalizeMarketText,
   type MarketPageTranslationPayload,
-  type MarketTranslationSuggestionScope,
+  type MarketTranslationPair,
 } from '../src/engine/marketPageTranslation.js'
+import {
+  buildOfficialMarketSuggestionCatalogAsync,
+  type OfficialMarketSuggestionCatalog,
+} from '../src/engine/marketOfficialSuggestions.js'
 
 let language: UiLanguage = 'en'
 const l = (en: string, zhCN: string, zhTW: string, koKR: string) => desktopText(language, en, zhCN, zhTW, koKR)
@@ -79,11 +83,19 @@ const observedMarketRoots = new Set<ParentNode>()
 let suggestionDecorationTimer: ReturnType<typeof setTimeout> | undefined
 const LOCALIZED_SUGGESTION_CLASS = 'superpoe-market-localized-suggestions'
 const LOCALIZED_SUGGESTION_ROW_CLASS = 'superpoe-market-localized-suggestion'
+const LOCALIZED_FILTER_INPUT_ACTIVE_CLASS = 'superpoe-market-localized-input-active'
 let localizedSuggestionPanel: HTMLDivElement | undefined
 let localizedSuggestionList: HTMLUListElement | undefined
 let localizedSuggestionInput: HTMLInputElement | undefined
 let localizedSuggestionCandidates: Array<readonly [source: string, target: string]> = []
+let localizedSuggestionHighlightIndex = 0
 let localizedSuggestionSelectionTimer: ReturnType<typeof setTimeout> | undefined
+let localizedSuggestionRequestId = 0
+let officialSelectionInput: HTMLInputElement | undefined
+let localizedSuggestionPendingInput: HTMLInputElement | undefined
+type OfficialSuggestionDataKind = 'items' | 'filters' | 'stats'
+const officialSuggestionDataPromises = new Map<OfficialSuggestionDataKind, Promise<unknown>>()
+const officialSuggestionCatalogPromises = new Map<OfficialSuggestionDataKind, Promise<OfficialMarketSuggestionCatalog | undefined>>()
 const originalFilterInputValues = new WeakMap<HTMLInputElement, string>()
 const renderedFilterInputValues = new WeakMap<HTMLInputElement, string>()
 const trackedFilterInputs = new Set<HTMLInputElement>()
@@ -129,15 +141,165 @@ function localizedFilterInputDescriptor(input: HTMLInputElement, context: Elemen
   return [...inputAttributes, ...contextAttributes].filter(Boolean).join(' ').toLocaleLowerCase()
 }
 
-function localizedSuggestionScope(input: HTMLInputElement): MarketTranslationSuggestionScope {
-  const context = input.closest(FILTER_CONTEXT_SELECTOR)
-  if (!context) return 'all'
-  const descriptor = localizedFilterInputDescriptor(input, context)
-  // Item/base selectors are checked first because they are usually nested in
-  // a generic `.filter` or `.multiselect` container as well.
-  if (/(?:search\s*items?|item\s*(?:name|type|category)?|base\s*type|物品|基底)/u.test(descriptor)) return 'items'
-  if (/(?:stat|mod|property|attribute|词缀|属性|筛选)/u.test(descriptor)) return 'filters'
-  return 'all'
+const OFFICIAL_TRADE_DATA_PATHS = {
+  items: '/api/trade2/data/items',
+  filters: '/api/trade2/data/filters',
+  stats: '/api/trade2/data/stats',
+} as const
+
+function parseOfficialCacheValue(value: string | null): unknown {
+  if (!value) return undefined
+  let parsed: unknown = value
+  for (let attempt = 0; attempt < 4 && typeof parsed === 'string'; attempt += 1) {
+    try { parsed = JSON.parse(parsed) } catch { return undefined }
+  }
+  const record = parsed && typeof parsed === 'object' && !Array.isArray(parsed)
+    ? parsed as Record<string, unknown>
+    : undefined
+  const expires = record?.expires
+  if (typeof expires === 'number' && expires > 0) {
+    const now = expires > 1_000_000_000_000 ? Date.now() : Math.floor(Date.now() / 60_000)
+    if (expires <= now) return undefined
+  }
+  const cachedValue = record?.value
+  if (typeof cachedValue === 'string') {
+    try { return JSON.parse(cachedValue) } catch { return undefined }
+  }
+  const result = cachedValue ?? parsed
+  return result == null ? undefined : result
+}
+
+function readOfficialCache(key: string): unknown {
+  try {
+    return parseOfficialCacheValue(window.localStorage?.getItem(key) || null)
+  } catch {
+    return undefined
+  }
+}
+
+async function fetchOfficialTradeData(path: string): Promise<unknown> {
+  const response = await fetch(path, { credentials: 'same-origin' })
+  if (!response.ok) throw new Error(`Official trade data request failed: ${response.status}`)
+  return response.json()
+}
+
+async function readOrFetchOfficialData(key: string, path: string): Promise<unknown> {
+  const cached = readOfficialCache(key)
+  if (cached !== undefined) return cached
+  try { return await fetchOfficialTradeData(path) } catch { return undefined }
+}
+
+function localizeOfficialSuggestion(source: string): string {
+  return marketPageTranslator.translate(source, true)
+}
+
+function officialDataCacheKey(kind: OfficialSuggestionDataKind): string {
+  return `lscache-trade2${kind}`
+}
+
+function getOfficialSuggestionData(kind: OfficialSuggestionDataKind): Promise<unknown> {
+  const existing = officialSuggestionDataPromises.get(kind)
+  if (existing) return existing
+  const promise = readOrFetchOfficialData(officialDataCacheKey(kind), OFFICIAL_TRADE_DATA_PATHS[kind])
+  officialSuggestionDataPromises.set(kind, promise)
+  return promise
+}
+
+async function loadOfficialSuggestionCatalog(
+  kind: OfficialSuggestionDataKind,
+): Promise<OfficialMarketSuggestionCatalog | undefined> {
+  if (!isMarketTranslationEnabled()) return undefined
+  const data = await getOfficialSuggestionData(kind)
+  return buildOfficialMarketSuggestionCatalogAsync(
+    kind === 'items' ? data : undefined,
+    kind === 'filters' ? data : undefined,
+    kind === 'stats' ? data : undefined,
+    localizeOfficialSuggestion,
+  )
+}
+
+function getOfficialSuggestionCatalog(
+  kind: OfficialSuggestionDataKind,
+): Promise<OfficialMarketSuggestionCatalog | undefined> {
+  const existing = officialSuggestionCatalogPromises.get(kind)
+  if (existing) return existing
+  const promise = loadOfficialSuggestionCatalog(kind).catch(() => undefined)
+  officialSuggestionCatalogPromises.set(kind, promise)
+  return promise
+}
+
+function resetOfficialSuggestionCatalog(): void {
+  officialSuggestionDataPromises.clear()
+  officialSuggestionCatalogPromises.clear()
+}
+
+function directSourceText(element: Element): string {
+  return normalizeMarketText(Array.from(element.childNodes)
+    .filter((node): node is Text => node.nodeType === Node.TEXT_NODE)
+    .map((node) => originalText(node))
+    .join(' '))
+}
+
+function officialFilterLabel(input: HTMLInputElement): string {
+  const title = input.closest('.filter-body')?.querySelector(':scope > .filter-title')
+  return title ? directSourceText(title) : ''
+}
+
+function officialOptionSource(option: Element): string {
+  const markedSource = option.getAttribute('data-superpoe-market-source')
+  if (markedSource) return normalizeMarketText(markedSource)
+  const walker = document.createTreeWalker(option, NodeFilter.SHOW_TEXT)
+  const parts: string[] = []
+  let node: Node | null = walker.nextNode()
+  while (node) {
+    const textNode = node as Text
+    if (!isOwnedElement(textNode.parentElement) && !isUserContent(textNode.parentElement)) {
+      parts.push(originalText(textNode))
+    }
+    node = walker.nextNode()
+  }
+  return normalizeMarketText(parts.join(' '))
+}
+
+function officialPairsFromContainer(container: Element): MarketTranslationPair[] {
+  const pairs: MarketTranslationPair[] = []
+  for (const option of Array.from(container.querySelectorAll(SUGGESTION_OPTION_SELECTOR))) {
+    if (option.classList.contains('multiselect__option--disabled')) continue
+    const source = officialOptionSource(option)
+    if (!source || /No elements found|Consider changing the search query/i.test(source)) continue
+    const target = localizeOfficialSuggestion(source)
+    if (pairs.some(([candidate]) => candidate === source)) continue
+    pairs.push([source, target])
+  }
+  return pairs
+}
+
+function officialSuggestionDataKindForInput(input: HTMLInputElement): OfficialSuggestionDataKind | undefined {
+  const multiselect = input.closest('.multiselect')
+  if (!multiselect || multiselect.classList.contains('filter-group-select')) return undefined
+  if (multiselect.classList.contains('search-select')) return 'items'
+  if (multiselect.classList.contains('filter-select-mutate')) return 'stats'
+  return 'filters'
+}
+
+function officialSuggestionPairsForInput(
+  input: HTMLInputElement,
+  catalog?: OfficialMarketSuggestionCatalog,
+): MarketTranslationPair[] {
+  const multiselect = input.closest('.multiselect')
+  if (!multiselect) return []
+  if (multiselect.classList.contains('filter-group-select')) return officialPairsFromContainer(multiselect)
+  if (!catalog) return []
+  if (multiselect.classList.contains('search-select')) return catalog.itemPairs
+  if (multiselect.classList.contains('filter-select-mutate')) return catalog.statPairs
+
+  const label = officialFilterLabel(input)
+  if (!label) return []
+  for (const [id, officialLabel] of catalog.filterLabelsById) {
+    if (normalizeMarketText(officialLabel).toLocaleLowerCase() !== label.toLocaleLowerCase()) continue
+    return catalog.filterPairsById.get(id) || []
+  }
+  return []
 }
 
 function isFilterSuggestion(element: Element | null): boolean {
@@ -165,13 +327,18 @@ function setNativeInputValue(input: HTMLInputElement, value: string): void {
 }
 
 function removeLocalizedSuggestionPanel(): void {
+  localizedSuggestionRequestId += 1
   if (localizedSuggestionSelectionTimer) clearTimeout(localizedSuggestionSelectionTimer)
   localizedSuggestionSelectionTimer = undefined
+  officialSelectionInput = undefined
+  localizedSuggestionPendingInput = undefined
+  localizedSuggestionInput?.classList.remove(LOCALIZED_FILTER_INPUT_ACTIVE_CLASS)
   localizedSuggestionPanel?.remove()
   localizedSuggestionPanel = undefined
   localizedSuggestionList = undefined
   localizedSuggestionInput = undefined
   localizedSuggestionCandidates = []
+  localizedSuggestionHighlightIndex = 0
 }
 
 function restoreFilterInputValues(): void {
@@ -193,6 +360,7 @@ function translateFilterInputValues(): void {
   for (const element of queryMarketElements('input')) {
     if (!isLocalizedFilterInput(element)) continue
     const input = element
+    if (officialSelectionInput === input) continue
     const current = input.value
     const rendered = renderedFilterInputValues.get(input)
     const source = !originalFilterInputValues.has(input) || rendered !== current
@@ -214,17 +382,29 @@ function translateFilterInputValues(): void {
 
 function positionLocalizedSuggestionPanel(): void {
   if (!localizedSuggestionPanel || !localizedSuggestionInput?.isConnected) return
-  const rect = localizedSuggestionInput.getBoundingClientRect()
-  localizedSuggestionPanel.style.left = `${Math.round(rect.left + window.scrollX)}px`
-  localizedSuggestionPanel.style.top = `${Math.round(rect.bottom + window.scrollY + 3)}px`
-  localizedSuggestionPanel.style.minWidth = `${Math.max(260, Math.round(rect.width))}px`
+  const inputRect = localizedSuggestionInput.getBoundingClientRect()
+  const anchorRect = localizedSuggestionInput.closest('.multiselect')?.getBoundingClientRect() || inputRect
+  const viewportPadding = 8
+  const availableWidth = Math.max(0, window.innerWidth - viewportPadding * 2)
+  const width = Math.min(Math.max(0, Math.round(anchorRect.width)), availableWidth)
+  const left = Math.min(
+    Math.max(viewportPadding, Math.round(anchorRect.left)),
+    Math.max(viewportPadding, window.innerWidth - width - viewportPadding),
+  )
+  localizedSuggestionPanel.style.left = `${Math.round(left + window.scrollX)}px`
+  localizedSuggestionPanel.style.top = `${Math.round(inputRect.bottom + window.scrollY + 3)}px`
+  localizedSuggestionPanel.style.width = `${width}px`
+  localizedSuggestionPanel.style.minWidth = '0px'
+  localizedSuggestionPanel.style.maxWidth = `${availableWidth}px`
 }
 
 function selectLocalizedSuggestion(index: number): void {
   const input = localizedSuggestionInput
   const pair = localizedSuggestionCandidates[index]
   if (!input || !pair) return
+  const officialContainer = input.closest('.multiselect')
   removeLocalizedSuggestionPanel()
+  officialSelectionInput = input
   setNativeInputValue(input, pair[0])
   input.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: pair[0] }))
 
@@ -234,23 +414,42 @@ function selectLocalizedSuggestion(index: number): void {
   let attempts = 0
   const selectOfficialOption = () => {
     attempts += 1
+    if (!input.isConnected || !officialContainer?.isConnected || officialSelectionInput !== input) return
     const expected = normalizeMarketText(pair[0]).toLocaleLowerCase()
-    const options = queryMarketElements(SUGGESTION_OPTION_SELECTOR)
+    // The official menu belongs to this multiselect. Searching the document
+    // here can select an identical option from a different filter field.
+    const options = Array.from(officialContainer.querySelectorAll(SUGGESTION_OPTION_SELECTOR))
     const option = options.find((candidate) => {
       if (isOwnedElement(candidate) || !isFilterSuggestion(candidate)) return false
-      const source = candidate.getAttribute('data-superpoe-market-source')
-        || candidate.textContent
-        || ''
+      const source = officialOptionSource(candidate)
       const normalized = normalizeMarketText(source).toLocaleLowerCase()
-      return normalized === expected || normalized.includes(expected)
+      return normalized === expected
     })
     if (option) {
       ;(option as HTMLElement).click()
+      officialSelectionInput = undefined
+      scheduleMarketTranslation(true)
       return
     }
     if (attempts < 30) localizedSuggestionSelectionTimer = setTimeout(selectOfficialOption, 50)
+    else officialSelectionInput = undefined
   }
   localizedSuggestionSelectionTimer = setTimeout(selectOfficialOption, 50)
+}
+
+function setLocalizedSuggestionHighlight(index: number): void {
+  if (!localizedSuggestionCandidates.length) return
+  const count = localizedSuggestionCandidates.length
+  localizedSuggestionHighlightIndex = (index + count) % count
+  const rows = localizedSuggestionList
+    ? Array.from(localizedSuggestionList.querySelectorAll(`.${LOCALIZED_SUGGESTION_ROW_CLASS}`))
+    : []
+  rows.forEach((row, rowIndex) => {
+    const highlighted = rowIndex === localizedSuggestionHighlightIndex
+    row.classList.toggle('multiselect__option--highlight', highlighted)
+    row.setAttribute('aria-selected', highlighted ? 'true' : 'false')
+    if (highlighted) (row as HTMLElement).scrollIntoView({ block: 'nearest' })
+  })
 }
 
 function queryMarketElements(selector: string): Element[] {
@@ -259,10 +458,21 @@ function queryMarketElements(selector: string): Element[] {
   return result
 }
 
-function showLocalizedSuggestionPanel(input: HTMLInputElement, value: string): void {
+async function showLocalizedSuggestionPanel(input: HTMLInputElement, value: string): Promise<void> {
+  if (localizedSuggestionInput && localizedSuggestionInput !== input) removeLocalizedSuggestionPanel()
+  localizedSuggestionPendingInput = input
+  const requestId = ++localizedSuggestionRequestId
   if (localizedSuggestionSelectionTimer) clearTimeout(localizedSuggestionSelectionTimer)
   localizedSuggestionSelectionTimer = undefined
-  const candidates = marketPageTranslator.findMatches(value, true, 40, localizedSuggestionScope(input))
+  officialSelectionInput = undefined
+  const dataKind = officialSuggestionDataKindForInput(input)
+  const catalog = dataKind ? await getOfficialSuggestionCatalog(dataKind) : undefined
+  if (requestId !== localizedSuggestionRequestId || input.value !== value) {
+    if (localizedSuggestionPendingInput === input) localizedSuggestionPendingInput = undefined
+    return
+  }
+  const pairs = catalog ? officialSuggestionPairsForInput(input, catalog) : []
+  const candidates = marketPageTranslator.findMatchesInPairs(value, pairs, 40)
   if (!candidates.length) {
     removeLocalizedSuggestionPanel()
     return
@@ -277,8 +487,13 @@ function showLocalizedSuggestionPanel(input: HTMLInputElement, value: string): v
     localizedSuggestionPanel.appendChild(localizedSuggestionList)
     document.body.appendChild(localizedSuggestionPanel)
   }
+  if (localizedSuggestionInput && localizedSuggestionInput !== input) {
+    localizedSuggestionInput.classList.remove(LOCALIZED_FILTER_INPUT_ACTIVE_CLASS)
+  }
   localizedSuggestionInput = input
+  input.classList.add(LOCALIZED_FILTER_INPUT_ACTIVE_CLASS)
   localizedSuggestionCandidates = candidates
+  localizedSuggestionHighlightIndex = 0
   localizedSuggestionList?.replaceChildren()
   for (let index = 0; index < candidates.length; index += 1) {
     const [source, target] = candidates[index]
@@ -287,6 +502,7 @@ function showLocalizedSuggestionPanel(input: HTMLInputElement, value: string): v
     const option = document.createElement('span')
     option.className = `multiselect__option ${LOCALIZED_SUGGESTION_ROW_CLASS}${index === 0 ? ' multiselect__option--highlight' : ''}`
     option.setAttribute('role', 'option')
+    option.setAttribute('aria-selected', index === 0 ? 'true' : 'false')
     const targetLabel = document.createElement('span')
     targetLabel.className = 'superpoe-market-localized-target'
     targetLabel.textContent = target
@@ -307,6 +523,7 @@ function showLocalizedSuggestionPanel(input: HTMLInputElement, value: string): v
     localizedSuggestionList?.appendChild(row)
   }
   positionLocalizedSuggestionPanel()
+  if (localizedSuggestionPendingInput === input) localizedSuggestionPendingInput = undefined
 }
 
 function handleLocalizedFilterInput(event: Event): void {
@@ -316,11 +533,11 @@ function handleLocalizedFilterInput(event: Event): void {
   if (event instanceof InputEvent && event.isComposing) return
   const value = input.value
   if (!/[\u0080-\uFFFF]/u.test(value)) {
-    removeLocalizedSuggestionPanel()
+    if (officialSelectionInput !== input) removeLocalizedSuggestionPanel()
     scheduleMarketTranslation()
     return
   }
-  showLocalizedSuggestionPanel(input, value)
+  void showLocalizedSuggestionPanel(input, value)
   scheduleMarketTranslation()
 }
 
@@ -538,7 +755,9 @@ function translateMarketDocument(): void {
   if (translatedTitle !== document.title) document.title = translatedTitle
 }
 
-function scheduleMarketTranslation(): void {
+function scheduleMarketTranslation(force = false): void {
+  const activeInput = localizedSuggestionPendingInput || localizedSuggestionInput
+  if (!force && activeInput && /[\u0080-\uFFFF]/u.test(activeInput.value)) return
   if (translationTimer) clearTimeout(translationTimer)
   translationTimer = setTimeout(() => {
     translationTimer = undefined
@@ -553,12 +772,14 @@ function setMarketTranslation(value: unknown): void {
     if (payload.schemaVersion === 1 && isUiLanguage(payload.language) && typeof payload.enabled === 'boolean') {
       marketTranslationPayload = payload as MarketPageTranslationPayload
       marketPageTranslator = new MarketPageTranslator(marketTranslationPayload)
+      resetOfficialSuggestionCatalog()
       scheduleMarketTranslation()
       return
     }
   }
   marketTranslationPayload = DISABLED_MARKET_TRANSLATION
   marketPageTranslator = new MarketPageTranslator(DISABLED_MARKET_TRANSLATION)
+  resetOfficialSuggestionCatalog()
 }
 
 interface MonitorConfig {
@@ -986,6 +1207,15 @@ function installStyle(): void {
   const style = document.createElement('style')
   style.id = 'superpoe-market-style'
   style.textContent = `
+    @keyframes superpoe-market-gold-flow {
+      0% { background-position: 0 0, 0% 50%; }
+      50% { background-position: 0 0, 100% 50%; }
+      100% { background-position: 0 0, 200% 50%; }
+    }
+    @keyframes superpoe-market-gold-glow {
+      0%, 100% { box-shadow: 0 0 0 1px rgba(255, 224, 151, .12), 0 0 12px rgba(201, 163, 89, .22), 0 10px 28px rgba(0,0,0,.82), inset 0 1px rgba(255, 237, 184, .13); }
+      50% { box-shadow: 0 0 0 1px rgba(255, 224, 151, .24), 0 0 24px rgba(201, 163, 89, .42), 0 12px 32px rgba(0,0,0,.86), inset 0 1px rgba(255, 237, 184, .22); }
+    }
     :root {
       scrollbar-color: #62563f #111310 !important;
       scrollbar-width: thin !important;
@@ -1013,12 +1243,26 @@ function installStyle(): void {
       position: absolute !important;
       z-index: 2147483646 !important;
       max-height: min(420px, 60vh) !important;
+      box-sizing: border-box !important;
       overflow-y: auto !important;
+      overflow-x: hidden !important;
       padding: 0 !important;
-      border: 1px solid #4d5661 !important;
-      border-radius: 0 !important;
-      background: #1d2126 !important;
-      box-shadow: 0 8px 22px rgba(0,0,0,.7) !important;
+      border: 1px solid transparent !important;
+      border-radius: 4px !important;
+      background: linear-gradient(180deg, rgba(17, 18, 16, .99), rgba(4, 5, 5, .99)) padding-box, linear-gradient(110deg, rgba(104, 79, 38, .9), rgba(255, 224, 151, .98), rgba(147, 108, 48, .92), rgba(255, 241, 187, .96), rgba(104, 79, 38, .9)) border-box !important;
+      background-size: 100% 100%, 240% 100% !important;
+      animation: superpoe-market-gold-flow 5.5s linear infinite, superpoe-market-gold-glow 3.6s ease-in-out infinite !important;
+    }
+    input.${LOCALIZED_FILTER_INPUT_ACTIVE_CLASS} {
+      border-color: transparent !important;
+      background-color: #15120c !important;
+      color: #f0d39b !important;
+      background-image: linear-gradient(#15120c, #15120c), linear-gradient(110deg, rgba(104, 79, 38, .9), rgba(255, 224, 151, .98), rgba(147, 108, 48, .92), rgba(255, 241, 187, .96), rgba(104, 79, 38, .9)) !important;
+      background-origin: padding-box, border-box !important;
+      background-clip: padding-box, border-box !important;
+      background-size: 100% 100%, 240% 100% !important;
+      animation: superpoe-market-gold-flow 5.5s linear infinite, superpoe-market-gold-glow 3.6s ease-in-out infinite !important;
+      transition: background-color .18s ease !important;
     }
     .${LOCALIZED_SUGGESTION_CLASS} .multiselect__content {
       display: block !important;
@@ -1037,22 +1281,26 @@ function installStyle(): void {
       display: block !important;
       width: 100% !important;
       box-sizing: border-box !important;
+      white-space: normal !important;
+      overflow-wrap: anywhere !important;
       padding: 8px 12px !important;
       border: 0 !important;
-      border-bottom: 1px solid rgba(118,130,143,.22) !important;
-      background: #20252b !important;
-      color: #d0b078 !important;
+      border-bottom: 1px solid rgba(173, 137, 70, .2) !important;
+      background: linear-gradient(180deg, rgba(28, 29, 27, .98), rgba(7, 8, 8, .98)) !important;
+      color: #d7c08d !important;
       font: 14px/1.35 Arial, sans-serif !important;
       text-align: left !important;
       cursor: pointer !important;
+      transition: background .18s ease, color .18s ease, box-shadow .18s ease !important;
     }
     .${LOCALIZED_SUGGESTION_CLASS} .multiselect__element:last-child .${LOCALIZED_SUGGESTION_ROW_CLASS} { border-bottom: 0 !important; }
     .${LOCALIZED_SUGGESTION_CLASS} .${LOCALIZED_SUGGESTION_ROW_CLASS}:hover,
     .${LOCALIZED_SUGGESTION_CLASS} .${LOCALIZED_SUGGESTION_ROW_CLASS}:focus-visible,
     .${LOCALIZED_SUGGESTION_CLASS} .multiselect__option--highlight {
       outline: 0 !important;
-      background: #4b5865 !important;
-      color: #f0d19a !important;
+      background: linear-gradient(90deg, rgba(86, 64, 31, .7), rgba(18, 17, 13, .98) 58%, rgba(5, 6, 6, .98)) !important;
+      color: #ffe0a1 !important;
+      box-shadow: inset 3px 0 #d0a85d, inset 0 1px rgba(255, 227, 163, .1), 0 0 12px rgba(201, 163, 89, .14) !important;
     }
     .superpoe-market-localized-source {
       margin-left: 6px !important;
@@ -1191,6 +1439,20 @@ window.addEventListener('DOMContentLoaded', () => {
   }, true)
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && localizedSuggestionPanel) removeLocalizedSuggestionPanel()
+    if (event.isComposing || !localizedSuggestionPanel || event.target !== localizedSuggestionInput) return
+    if (!localizedSuggestionCandidates.length) return
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault()
+      event.stopPropagation()
+      const direction = event.key === 'ArrowDown' ? 1 : -1
+      setLocalizedSuggestionHighlight(localizedSuggestionHighlightIndex + direction)
+      return
+    }
+    if (event.key === 'Enter') {
+      event.preventDefault()
+      event.stopPropagation()
+      selectLocalizedSuggestion(localizedSuggestionHighlightIndex)
+    }
   }, true)
   document.addEventListener('mousedown', (event) => {
     const target = event.target as Node | null

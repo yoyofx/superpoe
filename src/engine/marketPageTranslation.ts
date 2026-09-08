@@ -131,23 +131,23 @@ function matchTemplate(
   const normalized = normalizeMarketText(value)
   const key = normalized.toLocaleLowerCase()
   const bucket = templateBucket(normalized)
-  const candidates = [
-    ...(templates.get(bucket) || []),
-    ...(bucket === '*' ? [] : templates.get('*') || []),
-  ].sort((left, right) => right.literalLength - left.literalLength)
-  for (const template of candidates) {
-    const match = key.match(template.pattern)
-    if (!match) continue
-    const values = match.slice(1)
-    const hashCaptureIndexes = template.placeholders.flatMap((value, index) => value === 'hash' ? [index] : [])
-    let hashOrdinal = 0
-    const translated = template.target.replace(/#|\{(\d+)\}/g, (placeholder, index: string | undefined) => {
-      const captureIndex = placeholder === '#'
-        ? hashCaptureIndexes[hashOrdinal++] ?? -1
-        : template.placeholders.findIndex((value) => value === Number(index))
-      return captureIndex >= 0 ? values[captureIndex] || placeholder : placeholder
-    })
-    return translated
+  const templateLists = [templates.get(bucket) || []]
+  if (bucket !== '*') templateLists.push(templates.get('*') || [])
+  for (const templatesForBucket of templateLists) {
+    for (const template of templatesForBucket) {
+      const match = key.match(template.pattern)
+      if (!match) continue
+      const values = match.slice(1)
+      const hashCaptureIndexes = template.placeholders.flatMap((value, index) => value === 'hash' ? [index] : [])
+      let hashOrdinal = 0
+      const translated = template.target.replace(/#|\{(\d+)\}/g, (placeholder, index: string | undefined) => {
+        const captureIndex = placeholder === '#'
+          ? hashCaptureIndexes[hashOrdinal++] ?? -1
+          : template.placeholders.findIndex((value) => value === Number(index))
+        return captureIndex >= 0 ? values[captureIndex] || placeholder : placeholder
+      })
+      return translated
+    }
   }
   return undefined
 }
@@ -270,6 +270,41 @@ function scoreLocalizedMatch(query: string, target: string): LocalizedMatchScore
   return undefined
 }
 
+function findLocalizedMatches(
+  value: string,
+  pairs: readonly MarketTranslationPair[],
+  limit: number,
+): MarketTranslationPair[] {
+  if (!value || !/[\u0080-\uFFFF]/.test(value)) return []
+  const normalized = normalizeMarketText(value).toLocaleLowerCase()
+  if (!normalized) return []
+
+  const seen = new Set<string>()
+  const result: MarketTranslationPair[] = []
+  const candidates = pairs
+    .map((pair, index) => ({
+      pair,
+      index,
+      score: scoreLocalizedMatch(value, pair[1]),
+    }))
+    .filter((candidate): candidate is { pair: MarketTranslationPair; index: number; score: LocalizedMatchScore } => Boolean(candidate.score))
+    .sort((left, right) => {
+      return left.score.kind - right.score.kind
+        || right.score.span - left.score.span
+        || left.score.gap - right.score.gap
+        || left.pair[0].length - right.pair[0].length
+        || left.index - right.index
+    })
+
+  for (const { pair } of candidates) {
+    const key = `${pair[0]}\u0000${pair[1]}`
+    if (seen.has(key) || result.length >= limit) continue
+    seen.add(key)
+    result.push(pair)
+  }
+  return result
+}
+
 /**
  * Display-only translator used by the official trade page preload. It never
  * knows about query IDs or form values; callers decide whether game-content
@@ -286,6 +321,7 @@ export class MarketPageTranslator {
   private readonly allGamePairs: MarketTranslationPair[]
   private readonly allItemPairs: MarketTranslationPair[]
   private readonly allFilterPairs: MarketTranslationPair[]
+  private readonly translationCache = new Map<string, string>()
 
   constructor(payload: MarketPageTranslationPayload) {
     this.allUiPairs = (Array.isArray(payload.uiPairs) ? payload.uiPairs : [])
@@ -306,16 +342,32 @@ export class MarketPageTranslator {
   }
 
   translate(value: string, includeGame = false): string {
+    const cacheKey = `${includeGame ? 'game' : 'ui'}\u0000${value}`
+    const cached = this.translationCache.get(cacheKey)
+    if (cached !== undefined) return cached
     if (!value || !/[A-Za-z]/.test(value)) return value
     const normalized = normalizeMarketText(value).toLocaleLowerCase()
     const exact = this.uiExact.get(normalized) || (includeGame ? this.gameExact.get(normalized) : undefined)
-    if (exact) return preserveWhitespace(value, exact)
+    if (exact) {
+      const translated = preserveWhitespace(value, exact)
+      this.translationCache.set(cacheKey, translated)
+      return translated
+    }
     const uiTemplate = matchTemplate(value, this.uiTemplates)
-    if (uiTemplate) return preserveWhitespace(value, uiTemplate)
+    if (uiTemplate) {
+      const translated = preserveWhitespace(value, uiTemplate)
+      this.translationCache.set(cacheKey, translated)
+      return translated
+    }
     if (includeGame) {
       const gameTemplate = matchTemplate(value, this.gameTemplates)
-      if (gameTemplate) return preserveWhitespace(value, gameTemplate)
+      if (gameTemplate) {
+        const translated = preserveWhitespace(value, gameTemplate)
+        this.translationCache.set(cacheKey, translated)
+        return translated
+      }
     }
+    this.translationCache.set(cacheKey, value)
     return value
   }
 
@@ -346,39 +398,26 @@ export class MarketPageTranslator {
     limit = 40,
     scope: MarketTranslationSuggestionScope = 'all',
   ): MarketTranslationPair[] {
-    if (!value || !/[\u0080-\uFFFF]/.test(value)) return []
-    const normalized = normalizeMarketText(value).toLocaleLowerCase()
-    if (!normalized) return []
     const scopedGamePairs = scope === 'items' ? this.allItemPairs
       : scope === 'filters' ? this.allFilterPairs
         : this.allGamePairs
     const sourcePairs = !includeGame ? this.allUiPairs
       : scope === 'all' ? [...this.allUiPairs, ...scopedGamePairs]
         : scopedGamePairs
-    const seen = new Set<string>()
-    const result: MarketTranslationPair[] = []
-    const add = (pair: MarketTranslationPair) => {
-      const key = `${pair[0]}\u0000${pair[1]}`
-      if (seen.has(key) || result.length >= limit) return
-      seen.add(key)
-      result.push(pair)
-    }
-    const candidates = sourcePairs
-      .map((pair, index) => ({
-        pair,
-        index,
-        score: scoreLocalizedMatch(value, pair[1]),
-      }))
-      .filter((candidate): candidate is { pair: MarketTranslationPair; index: number; score: LocalizedMatchScore } => Boolean(candidate.score))
-      .sort((left, right) => {
-        return left.score.kind - right.score.kind
-          || right.score.span - left.score.span
-          || left.score.gap - right.score.gap
-          || left.pair[0].length - right.pair[0].length
-          || left.index - right.index
-      })
-    for (const { pair } of candidates) add(pair)
-    return result
+    return findLocalizedMatches(value, sourcePairs, limit)
+  }
+
+  /**
+   * Searches a caller-provided official candidate set. The market preload uses
+   * this for one concrete input field so candidates from other filters cannot
+   * leak into the current list.
+   */
+  findMatchesInPairs(
+    value: string,
+    pairs: readonly MarketTranslationPair[],
+    limit = 40,
+  ): MarketTranslationPair[] {
+    return findLocalizedMatches(value, pairs, limit)
   }
 
   findPairByTarget(value: string, includeGame = false): MarketTranslationPair | undefined {
