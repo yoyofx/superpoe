@@ -10,6 +10,7 @@ import type { MarketPageTranslationPayload } from '../src/engine/marketPageTrans
 
 export type MarketRealm = 'cn' | 'global'
 export type MarketNavigationCommand = 'back' | 'forward' | 'reload' | 'stop' | 'home'
+export type MarketPageCommand = 'search' | 'clear'
 export type MarketTranslationProvider = (language: UiLanguage) => MarketPageTranslationPayload
 
 export interface MarketViewState {
@@ -197,6 +198,16 @@ export class MarketViewManager {
   openCurrentExternal(): void {
     const url = this.activeView?.webContents.getURL()
     if (url && parseAllowedUrl(url, MARKET_PROFILES[this.activeRealm])) void shell.openExternal(url)
+  }
+
+  sendPageCommand(command: MarketPageCommand): void {
+    if (!this.activeView || this.activeView.webContents.isDestroyed()) return
+    this.activeView.webContents.send('market-page:command', command)
+  }
+
+  focusPageListing(listingId: string): void {
+    if (!this.activeView || this.activeView.webContents.isDestroyed()) return
+    this.activeView.webContents.send('market-page:focus-listing', listingId)
   }
 
   openSource(realm: MarketRealm, value: string): void {

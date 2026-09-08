@@ -106,6 +106,8 @@ declare global {
       navigate(command: import('@/types/market').MarketNavigationCommand): Promise<void>
       login(): Promise<void>
       openExternal(): Promise<void>
+      marketPageCommand(command: 'search' | 'clear'): Promise<void>
+      focusPageListing(listingId: string): Promise<void>
       getState(): Promise<import('@/types/market').MarketViewState>
       listLibrary(filter?: import('@/types/market').EquipmentLibraryFilter): Promise<import('@/types/market').EquipmentLibraryEntry[]>
       getSidebar(): Promise<import('@/types/market').EquipmentLibrarySidebarSnapshot>
@@ -144,6 +146,7 @@ declare global {
       previewOpportunityOverlay(): Promise<void>
       attemptMonitorOpportunity(id: string): Promise<import('@/types/market').MarketOpportunityAttemptResult>
       onStateChanged(callback: (state: import('@/types/market').MarketViewState) => void): () => void
+      onPageListings(callback: (payload: { realm: import('@/types/market').MarketRealm; listings: import('@/types/market').MarketPageListingSummary[] }) => void): () => void
       onLibraryChanged(callback: () => void): () => void
       onSidebarRequest(callback: (scope: import('@/types/market').LibraryTreeScope) => void): () => void
       onTryOnRequest(callback: (entry: import('@/types/market').EquipmentLibraryEntry) => void): () => void

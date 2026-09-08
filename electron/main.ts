@@ -13,7 +13,7 @@ import { PobLuaService } from './pobLuaService.js'
 import { canonicalToLegacySnapshot, PobItemBridge } from './pobItemBridge.js'
 import { detectItemRawLanguage, ItemTranslationIndex, type ItemRawLanguage } from './itemTranslationIndex.js'
 import { ItemIconIndex } from './itemIconIndex.js'
-import { MarketViewManager, type MarketNavigationCommand, type MarketRealm } from './marketView.js'
+import { MarketViewManager, type MarketNavigationCommand, type MarketPageCommand, type MarketRealm } from './marketView.js'
 import { isValidSearchCode, MAX_SEARCH_CODE_LENGTH } from './marketSearch.js'
 import { CommunityViewManager, type CommunityNavigationCommand } from './communityView.js'
 import { TradeCredentialStore } from './tradeCredentialStore.js'
@@ -22,7 +22,7 @@ import { normalizeMarketListing, type MarketStatTextResolution } from './marketL
 import type {
   EquipmentCollectionRoot, EquipmentLibraryEntry, EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
   EquipmentLibraryMetadataPatch, EquipmentLibraryMoveInput, EquipmentLibrarySource, EquipmentTradeSearchRequest, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
-  MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch, TradePriceCheckCriteria, TradePriceCheckPrepareRequest,
+  MarketPageListingSummary, MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch, TradePriceCheckCriteria, TradePriceCheckPrepareRequest,
   TradePriceCheckSearchRequest,
   PriceCheckOpenRequest, LibraryModifierGroup, LibraryItemSnapshot, TradeStatResolutionSnapshot, FindBetterSearchOptions,
   PriceCheckListingView,
@@ -2198,6 +2198,17 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     requireMainWindowSender(event)
     marketViewManager?.openCurrentExternal()
   })
+  ipcMain.handle('market:page-command', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (value !== 'search' && value !== 'clear') throw new Error('Invalid market page command')
+    marketViewManager?.sendPageCommand(value as MarketPageCommand)
+  })
+  ipcMain.handle('market:focus-listing', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    const listingId = validateShortString(value, 'listing ID', 128)
+    if (!/^[A-Za-z0-9_-]+$/.test(listingId)) throw new Error('Invalid listing ID')
+    marketViewManager?.focusPageListing(listingId)
+  })
   ipcMain.handle('market:get-state', (event) => {
     requireMainWindowSender(event)
     if (!marketViewManager) throw new Error('Market browser is unavailable')
@@ -2248,6 +2259,39 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     if (!realm) return
     if (rendererUrl) console.info(`[Market monitor] preload ready realm=${realm}`)
     marketMonitoring?.handlePreloadReady(realm)
+  })
+  ipcMain.on('market-page:listings', (event, value: unknown) => {
+    const realm = marketViewManager?.getRealmForSender(event.sender)
+    if (!realm || !mainWindow || mainWindow.isDestroyed()) return
+    const rawListings = value && typeof value === 'object' && Array.isArray((value as { listings?: unknown }).listings)
+      ? (value as { listings: unknown[] }).listings
+      : []
+    const listings: MarketPageListingSummary[] = []
+    for (const raw of rawListings.slice(0, 20)) {
+      if (!raw || typeof raw !== 'object') continue
+      const candidate = raw as Record<string, unknown>
+      const listingId = typeof candidate.listingId === 'string' && /^[A-Za-z0-9_-]{1,128}$/.test(candidate.listingId)
+        ? candidate.listingId
+        : undefined
+      if (!listingId) continue
+      const text = (value: unknown, max: number): string | undefined => {
+        if (typeof value !== 'string') return undefined
+        const normalized = value.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim()
+        return normalized ? normalized.slice(0, max) : undefined
+      }
+      const name = text(candidate.name, 180) || `Item ${listingId}`
+      const queryId = typeof candidate.queryId === 'string' && isValidSearchCode(candidate.queryId) ? candidate.queryId : undefined
+      listings.push({
+        realm,
+        listingId,
+        ...(queryId ? { queryId } : {}),
+        name,
+        ...(text(candidate.baseType, 120) ? { baseType: text(candidate.baseType, 120) } : {}),
+        ...(text(candidate.price, 120) ? { price: text(candidate.price, 120) } : {}),
+        ...(text(candidate.seller, 120) ? { seller: text(candidate.seller, 120) } : {}),
+      })
+    }
+    mainWindow.webContents.send('market:page-listings', { realm, listings })
   })
   ipcMain.on('market-monitor:state', (event, value: unknown) => {
     const realm = marketViewManager?.getRealmForSender(event.sender)

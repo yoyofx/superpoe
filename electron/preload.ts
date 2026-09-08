@@ -62,6 +62,8 @@ contextBridge.exposeInMainWorld('pob2Market', {
   navigate: (command: import('../src/types/market.js').MarketNavigationCommand) => ipcRenderer.invoke('market:navigate', command),
   login: () => ipcRenderer.invoke('market:login'),
   openExternal: () => ipcRenderer.invoke('market:open-external'),
+  marketPageCommand: (command: 'search' | 'clear') => ipcRenderer.invoke('market:page-command', command) as Promise<void>,
+  focusPageListing: (listingId: string) => ipcRenderer.invoke('market:focus-listing', listingId) as Promise<void>,
   getState: () => ipcRenderer.invoke('market:get-state') as Promise<import('../src/types/market.js').MarketViewState>,
   listLibrary: (filter: import('../src/types/market.js').EquipmentLibraryFilter) => ipcRenderer.invoke('market:list-library', filter) as Promise<import('../src/types/market.js').EquipmentLibraryEntry[]>,
   getSidebar: () => ipcRenderer.invoke('market:get-sidebar') as Promise<import('../src/types/market.js').EquipmentLibrarySidebarSnapshot>,
@@ -103,6 +105,11 @@ contextBridge.exposeInMainWorld('pob2Market', {
     const handler = (_event: unknown, state: import('../src/types/market.js').MarketViewState) => callback(state)
     ipcRenderer.on('market:state-changed', handler)
     return () => { ipcRenderer.removeListener('market:state-changed', handler) }
+  },
+  onPageListings: (callback: (payload: { realm: import('../src/types/market.js').MarketRealm; listings: import('../src/types/market.js').MarketPageListingSummary[] }) => void) => {
+    const handler = (_event: unknown, payload: { realm: import('../src/types/market.js').MarketRealm; listings: import('../src/types/market.js').MarketPageListingSummary[] }) => callback(payload)
+    ipcRenderer.on('market:page-listings', handler)
+    return () => { ipcRenderer.removeListener('market:page-listings', handler) }
   },
   onLibraryChanged: (callback: () => void) => {
     const handler = () => callback()

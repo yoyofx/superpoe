@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron'
 import { parseLiveResult } from './marketLive.js'
-import { MAX_ACTIVE_PURCHASE_TARGETS } from '../src/types/market.js'
+import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketPageListingSummary } from '../src/types/market.js'
 import { desktopText, isUiLanguage, type UiLanguage } from './uiLocale.js'
 import {
   MarketPageTranslator,
@@ -943,6 +943,14 @@ const TRY_ON_BUTTON_CLASS = 'superpoe-market-try-on'
 const COPY_POB_BUTTON_CLASS = 'superpoe-market-copy-pob'
 const ACTIONS_CLASS = 'superpoe-market-actions'
 const CARD_MARKER = 'data-superpoe-market-listing'
+const RESULT_CARD_SELECTORS = [
+  '.resultset .row[data-id]',
+  '.search-results .row[data-id]',
+  '.row[data-listing-id]',
+  '.row[data-result-id]',
+  '[data-listing-id][class*="result"]',
+  '[data-result-id][class*="result"]',
+].join(',')
 const buttonsByListing = new Map<string, Set<HTMLButtonElement>>()
 const stateByListing = new Map<string, FavoriteVisualState>()
 const tryOnButtonsByListing = new Map<string, Set<HTMLButtonElement>>()
@@ -953,6 +961,7 @@ const copyPobStateByListing = new Map<string, CopyPobState>()
 const copyPobResetTimers = new Map<string, ReturnType<typeof setTimeout>>()
 let scanTimer: ReturnType<typeof setTimeout> | undefined
 let statusTimer: ReturnType<typeof setTimeout> | undefined
+let pageListingsSignature = ''
 
 function migrateTencentTradeState(): void {
   if (window.location.hostname !== 'poe.game.qq.com') return
@@ -1012,6 +1021,139 @@ function extractRef(card: Element): ListingRef | null {
     || queryIdFromUrl(window.location.href)
   const realm = window.location.hostname === 'poe.game.qq.com' ? 'cn' : 'global'
   return { realm, listingId, queryId, sourceUrl: window.location.href.slice(0, 8_192) }
+}
+
+function sourceTextFromElement(element: Element | null): string {
+  if (!element) return ''
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+  const parts: string[] = []
+  let node: Node | null = walker.nextNode()
+  while (node) {
+    const textNode = node as Text
+    if (!isOwnedElement(textNode.parentElement) && !isUserContent(textNode.parentElement)) parts.push(originalText(textNode))
+    node = walker.nextNode()
+  }
+  return normalizeMarketText(parts.join(' '))
+}
+
+function sourceAttributeFromElement(element: Element | null, attribute: string): string {
+  if (!element) return ''
+  return normalizeMarketText(originalAttributeValue(element, attribute))
+}
+
+function firstCardText(card: Element, selectors: string[]): string {
+  for (const selector of selectors) {
+    const value = sourceTextFromElement(card.querySelector(selector))
+    if (value) return value
+  }
+  return ''
+}
+
+function currentPageListingSummary(card: Element, ref: ListingRef): MarketPageListingSummary {
+  const name = firstCardText(card, [
+    '.item-name .name',
+    '.item-name [class~="name"]',
+    '.item-name',
+    '[class*="item-name"]',
+  ])
+  const baseType = firstCardText(card, [
+    '.item-name .typeLine',
+    '.item-name .type-line',
+    '.typeLine',
+    '.type-line',
+    '[class*="typeLine"]',
+  ])
+  const price = firstCardText(card, [
+    '.price',
+    '[class*="price"]',
+  ])
+  const seller = firstCardText(card, [
+    '.account-name',
+    '.account',
+    '.seller',
+    '[class*="account"]',
+    '[class*="seller"]',
+  ])
+  return {
+    realm: ref.realm,
+    listingId: ref.listingId,
+    ...(ref.queryId ? { queryId: ref.queryId } : {}),
+    name: name || `Item ${ref.listingId}`,
+    ...(baseType && baseType !== name ? { baseType } : {}),
+    ...(price ? { price } : {}),
+    ...(seller ? { seller } : {}),
+  }
+}
+
+function currentPageCards(): Element[] {
+  const seen = new Set<Element>()
+  const cards: Element[] = []
+  for (const card of Array.from(document.querySelectorAll(RESULT_CARD_SELECTORS))) {
+    if (seen.has(card)) continue
+    seen.add(card)
+    cards.push(card)
+  }
+  return cards
+}
+
+function publishCurrentPageListings(): void {
+  const listings = currentPageCards()
+    .map((card) => {
+      const ref = extractRef(card)
+      return ref ? currentPageListingSummary(card, ref) : undefined
+    })
+    .filter((listing): listing is MarketPageListingSummary => Boolean(listing))
+    .slice(0, 20)
+  const signature = JSON.stringify(listings)
+  if (signature === pageListingsSignature) return
+  pageListingsSignature = signature
+  ipcRenderer.send('market-page:listings', { listings })
+}
+
+function findPageCard(listingId: string): Element | undefined {
+  return currentPageCards().find((card) => extractRef(card)?.listingId === listingId)
+}
+
+function focusPageListing(listingId: string): void {
+  const card = findPageCard(listingId)
+  if (!card) return
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  card.classList.remove('superpoe-market-page-focus')
+  requestAnimationFrame(() => {
+    card.classList.add('superpoe-market-page-focus')
+    window.setTimeout(() => card.classList.remove('superpoe-market-page-focus'), 1_800)
+  })
+}
+
+function officialControlLabel(element: Element): string {
+  const text = sourceTextFromElement(element)
+  const attributes = ['aria-label', 'title', 'data-label', 'value']
+    .map((attribute) => sourceAttributeFromElement(element, attribute))
+    .filter(Boolean)
+  return normalizeMarketText([text, ...attributes].join(' ')).toLocaleLowerCase()
+}
+
+function clickOfficialPageCommand(command: 'search' | 'clear'): void {
+  const candidates = Array.from(document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"]'))
+    .filter((element) => !isOwnedElement(element))
+    .map((element) => {
+      const label = officialControlLabel(element)
+      const className = (element.getAttribute('class') || '').toLocaleLowerCase()
+      const inSearchContext = Boolean(element.closest('form, .search, [class*="search"], [class*="filter"]'))
+      const searchMatch = /(?:^|\s)(search|搜索)(?:\s|$)/u.test(label) || /search|submit/u.test(className)
+      const clearMatch = /(?:^|\s)(clear|reset|clear all|清空|重置)(?:\s|$)/u.test(label) || /clear|reset/u.test(className)
+      const matched = command === 'search' ? searchMatch : clearMatch
+      if (!matched) return undefined
+      const score = (inSearchContext ? 10 : 0)
+        + (element instanceof HTMLButtonElement && element.type === (command === 'search' ? 'submit' : 'button') ? 3 : 0)
+        + (command === 'search' ? (label.includes('search') || label.includes('搜索') ? 5 : 0) : (label.includes('clear') || label.includes('清空') ? 5 : 0))
+      return { element, score }
+    })
+    .filter((candidate): candidate is { element: Element; score: number } => Boolean(candidate))
+    .sort((left, right) => right.score - left.score)
+  const target = candidates[0]?.element
+  if (target instanceof HTMLElement) target.click()
+  else if (target instanceof HTMLInputElement) target.click()
 }
 
 function applyButtonState(button: HTMLButtonElement, state: FavoriteVisualState): void {
@@ -1184,16 +1326,9 @@ function scan(root: ParentNode = document): void {
       copyPobResetTimers.delete(listingId)
     }
   }
-  const selectors = [
-    '.resultset .row[data-id]',
-    '.search-results .row[data-id]',
-    '.row[data-listing-id]',
-    '.row[data-result-id]',
-    '[data-listing-id][class*="result"]',
-    '[data-result-id][class*="result"]',
-  ]
-  if (root instanceof Element && selectors.some((selector) => root.matches(selector))) decorateCard(root)
-  for (const card of root.querySelectorAll(selectors.join(','))) decorateCard(card)
+  if (root instanceof Element && root.matches(RESULT_CARD_SELECTORS)) decorateCard(root)
+  for (const card of root.querySelectorAll(RESULT_CARD_SELECTORS)) decorateCard(card)
+  publishCurrentPageListings()
   scheduleStatusRequest()
 }
 
@@ -1215,6 +1350,10 @@ function installStyle(): void {
     @keyframes superpoe-market-gold-glow {
       0%, 100% { box-shadow: 0 0 0 1px rgba(255, 224, 151, .12), 0 0 12px rgba(201, 163, 89, .22), 0 10px 28px rgba(0,0,0,.82), inset 0 1px rgba(255, 237, 184, .13); }
       50% { box-shadow: 0 0 0 1px rgba(255, 224, 151, .24), 0 0 24px rgba(201, 163, 89, .42), 0 12px 32px rgba(0,0,0,.86), inset 0 1px rgba(255, 237, 184, .22); }
+    }
+    @keyframes superpoe-market-page-focus {
+      0%, 100% { box-shadow: inset 0 0 0 1px rgba(224, 190, 111, .2); }
+      35% { box-shadow: inset 0 0 0 2px rgba(255, 219, 135, .92), 0 0 26px rgba(207, 163, 70, .46); }
     }
     :root {
       scrollbar-color: #62563f #111310 !important;
@@ -1306,6 +1445,9 @@ function installStyle(): void {
       margin-left: 6px !important;
       color: #aaa39a !important;
       font-size: .9em !important;
+    }
+    .superpoe-market-page-focus {
+      animation: superpoe-market-page-focus 1.8s ease-in-out !important;
     }
     .${ACTIONS_CLASS} {
       display: inline-flex !important;
@@ -1400,6 +1542,16 @@ ipcRenderer.on('market-enhancement:copy-pob-result', (_event, payload: unknown) 
   }
 })
 
+ipcRenderer.on('market-page:command', (_event, value: unknown) => {
+  if (value !== 'search' && value !== 'clear') return
+  clickOfficialPageCommand(value)
+})
+
+ipcRenderer.on('market-page:focus-listing', (_event, value: unknown) => {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) return
+  focusPageListing(value)
+})
+
 ipcRenderer.on('market-enhancement:set-language', (_event, value: unknown) => {
   const nextLanguage = value && typeof value === 'object' && !Array.isArray(value)
     ? (value as { language?: unknown }).language
@@ -1461,6 +1613,10 @@ window.addEventListener('DOMContentLoaded', () => {
   }, true)
   window.addEventListener('resize', positionLocalizedSuggestionPanel)
   window.addEventListener('scroll', positionLocalizedSuggestionPanel, true)
+  window.addEventListener('beforeunload', () => {
+    pageListingsSignature = ''
+    ipcRenderer.send('market-page:listings', { listings: [] })
+  })
   window.addEventListener('popstate', scheduleScan)
   window.addEventListener('hashchange', scheduleScan)
 })

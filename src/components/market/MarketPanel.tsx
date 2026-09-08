@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { Archive, ArrowLeft, ArrowRight, ChevronLeft, ExternalLink, Globe2, Home, Library, LoaderCircle, LogIn, RefreshCw, Square, Store } from 'lucide-react'
 import type { BuildRealm } from '@/types/tree'
-import type { LibraryTreeScope, MarketBounds, MarketMonitoringSnapshot, MarketNavigationCommand, MarketViewState } from '@/types/market'
+import type { LibraryTreeScope, MarketBounds, MarketMonitoringSnapshot, MarketNavigationCommand, MarketPageListingSummary, MarketViewState } from '@/types/market'
 import { useTranslation } from '@/i18n/useTranslation'
 import { EquipmentLibraryPanel } from '@/components/market/EquipmentLibraryPanel'
 import { uiText } from '@/i18n/uiLocale'
@@ -9,6 +9,8 @@ import { loadAppSettings } from '@/engine/appSettings'
 import { parseEquipmentXml } from '@/engine/equipment'
 import { useTreeStore } from '@/store/treeStore'
 import type { BuildContextSnapshot } from '@/equipmentDifference'
+
+export type MarketShortcutTab = 'market' | LibraryTreeScope
 
 interface MarketPanelProps {
   realm: BuildRealm
@@ -55,8 +57,10 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
   const [bridgeError, setBridgeError] = useState<string | null>(null)
   const [libraryOpen, setLibraryOpen] = useState(true)
   const [libraryWidthPercent, setLibraryWidthPercent] = useState(30)
-  const [libraryTab, setLibraryTab] = useState<LibraryTreeScope>('items')
+  const [libraryTab, setLibraryTab] = useState<MarketShortcutTab>('market')
   const [monitoring, setMonitoring] = useState<MarketMonitoringSnapshot | null>(null)
+  const [pageListings, setPageListings] = useState<MarketPageListingSummary[]>([])
+  const [marketCommand, setMarketCommand] = useState<'search' | 'clear' | null>(null)
   const importedBuildCode = useTreeStore((store) => store.importedBuildCode)
   const pobBuildRevision = useTreeStore((store) => store.pobBuildRevision)
   const activeWeaponSet = useTreeStore((store) => store.activeWeaponSet)
@@ -111,6 +115,18 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
     setLibraryTab(scope)
     setLibraryOpen(true)
   }), [bridge])
+
+  useEffect(() => {
+    if (!bridge) return
+    const unsubscribe = bridge.onPageListings((payload) => {
+      if (payload.realm === realm) setPageListings(payload.listings)
+    })
+    return unsubscribe
+  }, [bridge, realm])
+
+  useEffect(() => {
+    setPageListings([])
+  }, [realm])
 
   useEffect(() => bridge?.onTryOnRequest((entry) => {
     setLibraryOpen(true)
@@ -175,6 +191,20 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
     void bridge?.navigate(command).catch((error: unknown) => {
       setBridgeError(error instanceof Error ? error.message : String(error))
     })
+  }, [bridge])
+
+  const runMarketCommand = useCallback(async (command: 'search' | 'clear') => {
+    if (!bridge || marketCommand) return
+    setMarketCommand(command)
+    try {
+      await bridge.marketPageCommand(command)
+    } finally {
+      setMarketCommand(null)
+    }
+  }, [bridge, marketCommand])
+
+  const focusPageListing = useCallback((listingId: string) => {
+    void bridge?.focusPageListing(listingId)
   }, [bridge])
 
   const resizeLibrary = useCallback((clientX: number) => {
@@ -266,7 +296,7 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
             setLibraryWidthPercent((current) => Math.min(75, Math.max(30, current + (event.key === 'ArrowLeft' ? 2 : -2))))
           }}
         />
-        <EquipmentLibraryPanel realm={realm} language={lang} currentSearch={state.currentSearch} monitoring={monitoring} activeTab={libraryTab} onTabChange={setLibraryTab} onClose={() => setLibraryOpen(false)} headerTitle={l('Trade center shortcuts', '交易中心快捷栏', '交易中心快捷欄', '거래 센터 바로 가기')} />
+        <EquipmentLibraryPanel realm={realm} language={lang} currentSearch={state.currentSearch} currentPageListings={pageListings} marketCommand={marketCommand} onMarketCommand={runMarketCommand} onFocusPageListing={focusPageListing} monitoring={monitoring} activeTab={libraryTab} onTabChange={setLibraryTab} onClose={() => setLibraryOpen(false)} headerTitle={l('Trade center shortcuts', '交易中心快捷栏', '交易中心快捷欄', '거래 센터 바로 가기')} />
       </>
       : <button className="trade-helper-rail" onClick={() => setLibraryOpen(true)} title={l('Open trade center shortcuts', '打开交易中心快捷栏', '開啟交易中心快捷欄', '거래 센터 바로 가기 열기')} aria-label={l('Open trade center shortcuts', '打开交易中心快捷栏', '開啟交易中心快捷欄', '거래 센터 바로 가기 열기')}><Archive /><strong>{l('Trade shortcuts', '交易中心快捷栏', '交易中心快捷欄', '거래 바로 가기')}</strong><ChevronLeft /></button>}
     </div>

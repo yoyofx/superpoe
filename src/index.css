@@ -557,7 +557,7 @@ svg { flex: 0 0 auto; }
 .trade-helper-header button, .trade-helper-folder button, .trade-helper-item button, .trade-helper-search button, .trade-helper-message button { width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 1px solid #454545; border-radius: 3px; background: #181818; color: #777; cursor: pointer; }
 .trade-helper-header button:hover, .trade-helper-folder button:hover, .trade-helper-item button:hover, .trade-helper-search button:hover { border-color: #a38d6d; color: #f0d0a0; background: #27231d; }
 .trade-helper-header button svg, .trade-helper-folder button svg, .trade-helper-item button svg, .trade-helper-search button svg, .trade-helper-message button svg { width: 14px; height: 14px; }
-.trade-helper-tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 3px; padding: 4px 4px 0; border-bottom: 1px solid #424242; background: #0c0c0c; }
+.trade-helper-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3px; padding: 4px 4px 0; border-bottom: 1px solid #424242; background: #0c0c0c; }
 .trade-helper-tabs button { position: relative; top: 1px; border: 1px solid transparent; border-bottom: 0; border-radius: 3px 3px 0 0; background: #141414; color: #777; cursor: pointer; font-size: 11px; }
 .trade-helper-tabs button:hover { color: #e0e0e0; background: #1e1e1e; }
 .trade-helper-tabs button.active { border-color: #4a4a4a; border-top: 2px solid #a38d6d; background: linear-gradient(#1f1f1f, #1a1a1a); color: #d4b483; }
@@ -587,6 +587,36 @@ svg { flex: 0 0 auto; }
 .trade-helper-workspace { min-width: 0; min-height: 0; display: grid; grid-template-columns: clamp(132px, 20%, 160px) minmax(0, 1fr); }
 .trade-helper-workspace.no-directory { grid-template-columns: minmax(0, 1fr); }
 .trade-helper-workspace.directory-compact { grid-template-columns: 54px minmax(0, 1fr); }
+.trade-helper-workspace.market-tab { grid-template-columns: minmax(0, 1fr); }
+.trade-helper-market-pane { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto 34px minmax(0, 1fr); background: #101110; }
+.trade-helper-market-actions { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px; border-bottom: 1px solid #292929; background: linear-gradient(180deg, #171713, #0f100e); }
+.trade-helper-market-actions > div { min-width: 0; display: grid; gap: 3px; }
+.trade-helper-market-actions strong { color: #d4b483; font-size: 11px; font-weight: 600; }
+.trade-helper-market-actions small { overflow: hidden; color: #777168; font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.trade-helper-market-actions > span { flex: 0 0 auto; display: flex; gap: 5px; }
+.trade-helper-market-actions button { min-height: 27px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; padding: 0 8px; border: 1px solid #4a463b; border-radius: 3px; background: linear-gradient(#24241e, #151613); color: #bdb19a; cursor: pointer; font: 9px Arial, "Microsoft YaHei", sans-serif; }
+.trade-helper-market-actions button.primary { border-color: #967743; background: linear-gradient(#3a2f1e, #1c1912); color: #e7ca87; }
+.trade-helper-market-actions button:hover:not(:disabled) { border-color: #c29e5e; color: #f1d79b; box-shadow: 0 0 10px rgba(194, 158, 94, .16); }
+.trade-helper-market-actions button:disabled { opacity: .45; cursor: default; }
+.trade-helper-market-actions button svg { width: 13px; height: 13px; }
+.trade-helper-market-list-header { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 0 9px; border-bottom: 1px solid #302e2a; background: #151614; color: #a99b7c; }
+.trade-helper-market-list-header > span { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.trade-helper-market-list-header svg { width: 14px; height: 14px; color: #a38d6d; }
+.trade-helper-market-list-header strong { overflow: hidden; font-size: 10px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.trade-helper-market-list-header small { color: #68645d; font: 9px Arial, sans-serif; }
+.trade-helper-market-list { min-width: 0; min-height: 0; display: grid; align-content: start; overflow-y: auto; scrollbar-width: thin; scrollbar-color: #555 #1a1a1a; }
+.trade-helper-market-listing { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) auto 17px; align-items: center; gap: 7px; padding: 8px 9px; border: 0; border-bottom: 1px solid #2a2a25; background: linear-gradient(90deg, #1b1c19, #0d0e0d); color: #c5b99f; text-align: left; cursor: pointer; }
+.trade-helper-market-listing:hover { background: linear-gradient(90deg, #30281b, #12130f); box-shadow: inset 2px 0 #c09a55; }
+.trade-helper-market-listing > span { min-width: 0; display: grid; gap: 3px; }
+.trade-helper-market-listing strong, .trade-helper-market-listing small, .trade-helper-market-listing em { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.trade-helper-market-listing strong { color: #dbc17f; font-size: 10px; font-weight: 600; }
+.trade-helper-market-listing small { color: #a49a88; font-size: 9px; }
+.trade-helper-market-listing em { color: #746f66; font-size: 8px; font-style: normal; }
+.trade-helper-market-listing > b { max-width: 78px; overflow: hidden; color: #e0bd72; font: 600 10px Georgia, "Microsoft YaHei", serif; text-overflow: ellipsis; white-space: nowrap; }
+.trade-helper-market-listing > svg { width: 13px; height: 13px; color: #777168; }
+.trade-helper-market-listing:hover > svg { color: #e0c37e; }
+.trade-helper-market-empty { min-height: 110px; display: grid; place-items: center; align-content: center; gap: 7px; padding: 20px; color: #777168; font-size: 10px; text-align: center; }
+.trade-helper-market-empty svg { width: 20px; height: 20px; color: #7e6b4d; }
 .trade-helper-directory-pane, .trade-helper-content-pane { min-width: 0; min-height: 0; }
 .trade-helper-directory-pane { display: flex; flex-direction: column; border-right: 1px solid #3e382f; background: #0d0e0d; }
 .trade-helper-directory-pane > header { min-height: 32px; display: grid; grid-template-columns: minmax(0, 1fr) auto 24px; align-items: center; gap: 5px; padding: 0 5px 0 9px; border-bottom: 1px solid #302e2a; color: #a99b7c; }

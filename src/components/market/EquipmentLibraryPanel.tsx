@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type ReactNode } from 'react'
 import {
-  ArrowLeft, BellOff, BellRing, Bookmark, Check, ChevronDown, ChevronRight, ExternalLink, Eye, Folder, FolderInput, FolderPlus, Home,
+  ArrowLeft, BellOff, BellRing, Bookmark, Check, ChevronDown, ChevronRight, Eraser, ExternalLink, Eye, Folder, FolderInput, FolderPlus, Home,
   ListChecks, PanelLeftClose, PanelLeftOpen, Pencil, Save, Search, Square,
   RefreshCw, Replace, Shirt, SquareCheckBig, Tags, Trash2, X,
 } from 'lucide-react'
 import type {
   EquipmentLibraryEntry, EquipmentLibraryFolder, EquipmentLibrarySidebarSnapshot, LibraryTreeScope,
-  EquipmentLibrarySourceKind, MarketFavoriteSource, MarketMonitoringSnapshot, MarketRealm, MarketSearchReference, SavedMarketSearch, TradeLeague,
+  EquipmentLibrarySourceKind, MarketFavoriteSource, MarketMonitoringSnapshot, MarketPageListingSummary, MarketRealm, MarketSearchReference, SavedMarketSearch, TradeLeague,
 } from '@/types/market'
 import { MAX_ACTIVE_PURCHASE_TARGETS } from '@/types/market'
 import type { Language } from '@/i18n/translationLoader'
@@ -19,13 +19,19 @@ import { loadItemBaseData, type ItemBaseData } from '@/engine/itemBaseData'
 import { useTreeStore } from '@/store/treeStore'
 import type { BuildContextSnapshot } from '@/equipmentDifference'
 
+export type EquipmentLibraryPanelTab = 'market' | LibraryTreeScope
+
 interface EquipmentLibraryPanelProps {
   realm: MarketRealm
   language: Language
   currentSearch?: MarketSearchReference
+  currentPageListings: MarketPageListingSummary[]
+  marketCommand: 'search' | 'clear' | null
+  onMarketCommand: (command: 'search' | 'clear') => void
+  onFocusPageListing: (listingId: string) => void
   monitoring: MarketMonitoringSnapshot | null
-  activeTab: LibraryTreeScope
-  onTabChange: (tab: LibraryTreeScope) => void
+  activeTab: EquipmentLibraryPanelTab
+  onTabChange: (tab: EquipmentLibraryPanelTab) => void
   onClose: () => void
   headerTitle?: string
 }
@@ -89,7 +95,7 @@ function isDescendant(folder: EquipmentLibraryFolder, ancestorId: string, folder
   return false
 }
 
-export function EquipmentLibraryPanel({ realm, language, currentSearch, monitoring, activeTab, onTabChange, onClose, headerTitle }: EquipmentLibraryPanelProps) {
+export function EquipmentLibraryPanel({ realm, language, currentSearch, currentPageListings, marketCommand, onMarketCommand, onFocusPageListing, monitoring, activeTab, onTabChange, onClose, headerTitle }: EquipmentLibraryPanelProps) {
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(language, en, zhCN, zhTW, koKR)
   const importedBuildCode = useTreeStore((state) => state.importedBuildCode)
   const pobBuildRevision = useTreeStore((state) => state.pobBuildRevision)
@@ -138,6 +144,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   const [searchEditor, setSearchEditor] = useState<SearchEditorState | null>(null)
   const contentListRef = useRef<HTMLDivElement | null>(null)
   const listScrollTopRef = useRef(0)
+  const libraryScope: LibraryTreeScope = activeTab === 'searches' ? 'searches' : 'items'
 
   useEffect(() => {
     let active = true
@@ -268,7 +275,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
     const name = folderEditor.name.trim()
     if (!name) return
     if (folderEditor.mode === 'create') {
-      await run('new-folder', () => bridge.createFolder({ scope: activeTab, ...(activeTab === 'items' ? { collectionRoot: 'market' as const } : {}), name, ...(folderEditor.parentId ? { parentId: folderEditor.parentId } : {}) }), l('Folder created', '目录已创建', '目錄已建立', '폴더 생성됨'))
+      await run('new-folder', () => bridge.createFolder({ scope: libraryScope, ...(libraryScope === 'items' ? { collectionRoot: 'market' as const } : {}), name, ...(folderEditor.parentId ? { parentId: folderEditor.parentId } : {}) }), l('Folder created', '目录已创建', '目錄已建立', '폴더 생성됨'))
     } else {
       await run(folderEditor.folderId, () => bridge.updateFolder({ id: folderEditor.folderId, name }), l('Folder renamed', '目录已重命名', '目錄已重新命名', '폴더 이름 변경됨'))
     }
@@ -542,7 +549,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
         onDrop={(event) => dropInto(event, folder.id, dragOverPosition)}
       >
         <button onClick={() => void run(folder.id, () => bridge!.updateFolder({ id: folder.id, expanded: !folder.expanded }))} title={folder.expanded ? l('Collapse', '折叠', '收合', '접기') : l('Expand', '展开', '展開', '펼치기')}>{folder.expanded ? <ChevronDown /> : <ChevronRight />}</button>
-        <button className="folder-name" onClick={() => void selectFolder(activeTab, folder.id)} title={folder.name}><Folder /><span>{folder.name}</span><small>{folderEntries.length + folderSearches.length}</small></button>
+        <button className="folder-name" onClick={() => void selectFolder(libraryScope, folder.id)} title={folder.name}><Folder /><span>{folder.name}</span><small>{folderEntries.length + folderSearches.length}</small></button>
       </div>
       {folder.expanded && <div className="trade-helper-tree-children">
         {children.map((child) => renderFolder(child, depth + 1))}
@@ -596,10 +603,29 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
   return <aside className="equipment-library-panel trade-helper-sidebar">
     <header className="trade-helper-header"><Bookmark /><strong>{headerTitle || l('Equipment Library', '装备仓库', '裝備倉庫', '장비 라이브러리')}</strong><span className="trade-helper-header-actions"><button onClick={onClose} title={l('Collapse shortcuts', '收起快捷栏', '收合快捷欄', '바로 가기 접기')}><X /></button></span></header>
     <nav className="trade-helper-tabs">
+      <button className={activeTab === 'market' ? 'active' : ''} onClick={() => onTabChange('market')}>{l('Market', '集市', '市集', '거래소')}</button>
       <button className={activeTab === 'items' ? 'active' : ''} onClick={() => onTabChange('items')}>{l('Equipment favorites', '装备收藏', '裝備收藏', '장비 즐겨찾기')}</button>
       <button className={activeTab === 'searches' ? 'active' : ''} onClick={() => onTabChange('searches')}>{l('Search favorites', '搜索收藏', '搜尋收藏', '검색 즐겨찾기')}</button>
     </nav>
-    <div className={`trade-helper-workspace${directoryCompact ? ' directory-compact' : ''}`}>
+    <div className={`trade-helper-workspace${directoryCompact ? ' directory-compact' : ''}${activeTab === 'market' ? ' market-tab' : ''}`}>
+      {activeTab === 'market' && <section className="trade-helper-market-pane">
+        <header className="trade-helper-market-actions">
+          <div><strong>{l('Market actions', '集市操作', '市集操作', '거래소 작업')}</strong><small>{l('Control the current official search', '控制当前官方搜索', '控制目前官方搜尋', '현재 공식 검색 제어')}</small></div>
+          <span>
+            <button className="primary" disabled={!bridge || marketCommand != null} onClick={() => onMarketCommand('search')} title={l('Search current conditions', '搜索当前条件', '搜尋目前條件', '현재 조건 검색')}><Search />{l('Search', '搜索', '搜尋', '검색')}</button>
+            <button disabled={!bridge || marketCommand != null} onClick={() => onMarketCommand('clear')} title={l('Clear current conditions', '清空当前条件', '清空目前條件', '현재 조건 지우기')}><Eraser />{l('Clear', '清空', '清除', '지우기')}</button>
+          </span>
+        </header>
+        <div className="trade-helper-market-list-header"><span><Eye /><strong>{l('Items on this page', '本页物品', '本頁物品', '이 페이지의 아이템')}</strong></span><small>{currentPageListings.length}</small></div>
+        <div className="trade-helper-market-list">
+          {currentPageListings.map((listing) => <button className="trade-helper-market-listing" key={`${listing.realm}:${listing.listingId}`} onClick={() => onFocusPageListing(listing.listingId)} title={l('Locate this item on the official page', '定位到官方页面中的这件物品', '定位到官方頁面的這件物品', '공식 페이지에서 이 아이템 위치로 이동')}>
+            <span><strong>{listing.name}</strong>{listing.baseType && <small>{listing.baseType}</small>}{listing.seller && <em>{listing.seller}</em>}</span>
+            <b>{listing.price || l('No price', '未标价', '未標價', '가격 없음')}</b>
+            <Eye />
+          </button>)}
+          {!currentPageListings.length && <div className="trade-helper-market-empty"><Eye /><span>{l('Search results will appear here', '当前搜索结果会显示在这里', '目前搜尋結果會顯示在這裡', '현재 검색 결과가 여기에 표시됩니다')}</span></div>}
+        </div>
+      </section>}
       {activeTab === 'items' && <section className="trade-helper-directory-pane">
         <header><strong>{l('Market favorite folders', '集市收藏目录', '市集收藏目錄', '거래소 즐겨찾기 폴더')}</strong><span>{folders.length}</span><button onClick={() => setDirectoryCompact((compact) => !compact)} title={directoryCompact ? l('Expand folders', '展开目录栏', '展開目錄欄', '폴더 펼치기') : l('Compact folders', '缩小目录栏', '縮小目錄欄', '폴더 축소')}>{directoryCompact ? <PanelLeftOpen /> : <PanelLeftClose />}</button></header>
         <EquipmentCollectionTree
@@ -681,7 +707,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
           {!rootFolders.length && <div className="trade-helper-directory-empty"><Folder /><span>{l('No folders', '暂无目录', '暫無目錄', '폴더 없음')}</span></div>}
         </div>
       </section>}
-      <section className="trade-helper-content-pane">
+      {activeTab !== 'market' && <section className="trade-helper-content-pane">
         <div className="trade-helper-content-top">
           {(notice || error) && <div className={error ? 'trade-helper-message error' : 'trade-helper-message'}>{error || notice}<button onClick={() => { setError(null); setNotice(null) }}><X /></button></div>}
           <div className="trade-helper-actions">
@@ -724,7 +750,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, monitori
           {activeTab === 'searches' && visibleSearches.map(renderSearch)}
           {!contentCount && <div className="trade-helper-empty"><Bookmark /><span>{activeTab === 'items' ? l('No favorite items in this folder', '此目录还没有收藏装备', '此目錄尚無收藏裝備', '이 폴더에 즐겨찾기 장비가 없습니다') : l('No saved searches in this folder', '此目录还没有保存的搜索', '此目錄尚無已儲存搜尋', '이 폴더에 저장된 검색이 없습니다')}</span></div>}
         </div>}
-      </section>
+      </section>}
       {searchEditor && <div className="trade-helper-dialog-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSearchEditor(null) }}>
         <section className="trade-helper-search-dialog" role="dialog" aria-modal="true" aria-labelledby="saved-search-dialog-title">
           <header><div><small>{l('Saved search', '保存的搜索', '已儲存搜尋', '저장된 검색')}</small><strong id="saved-search-dialog-title">{searchEditor.mode === 'create' ? l('Save current search', '保存当前搜索', '儲存目前搜尋', '현재 검색 저장') : l('Edit saved search', '编辑保存的搜索', '編輯已儲存搜尋', '저장된 검색 편집')}</strong></div><button onClick={() => setSearchEditor(null)} title={l('Close', '关闭', '關閉', '닫기')}><X /></button></header>

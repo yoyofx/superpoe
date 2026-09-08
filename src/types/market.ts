@@ -23,6 +23,16 @@ export interface MarketViewState {
   error?: string
 }
 
+export interface MarketPageListingSummary {
+  realm: MarketRealm
+  listingId: string
+  queryId?: string
+  name: string
+  baseType?: string
+  price?: string
+  seller?: string
+}
+
 export type SavedSearchCaptureSource = 'official-page' | 'superpoe-query' | 'code-only'
 export type SavedSearchValidity = 'unknown' | 'valid' | 'needs-refresh' | 'invalid'
 export type MonitorTaskStatus = 'saved' | 'armed' | 'paused' | 'completed'
