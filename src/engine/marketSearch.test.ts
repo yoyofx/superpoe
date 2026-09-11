@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { createSearchQuerySnapshot, parseOfficialSearchUrl } from '../../electron/marketSearch'
+import { createSearchQuerySnapshot, diagnoseOfficialSearchUrl, parseOfficialSearchUrl } from '../../electron/marketSearch'
 
 describe('official market search references', () => {
   it('parses and canonicalizes CN and global search URLs', () => {
@@ -29,6 +29,21 @@ describe('official market search references', () => {
     expect(parseOfficialSearchUrl('https://www.pathofexile.com/trade2/search/poe2/Test/abc', 'cn')).toBeNull()
     expect(parseOfficialSearchUrl('https://poe.game.qq.com/trade2/search/poe2/%ZZ/abc', 'cn')).toBeNull()
     expect(parseOfficialSearchUrl('https://poe.game.qq.com/trade2/search/poe2/Test/a.b', 'cn')).toBeNull()
+  })
+
+  it('explains why a generated official search reference was rejected', () => {
+    expect(diagnoseOfficialSearchUrl(
+      'https://www.pathofexile.com/trade2/search/poe2/Standard/a.b',
+      'global',
+    )).toEqual({
+      ok: false,
+      code: 'invalid-search-code',
+      reason: 'the search ID contains unsupported characters (U+002E); allowed characters are A-Z, a-z, 0-9, _ and -',
+    })
+    expect(diagnoseOfficialSearchUrl(
+      `https://www.pathofexile.com/trade2/search/poe2/Standard/${'A'.repeat(8_193)}`,
+      'global',
+    )).toMatchObject({ ok: false, code: 'invalid-search-code' })
   })
 
   it('sanitizes query snapshots and creates stable hashes', () => {

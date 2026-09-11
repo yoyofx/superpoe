@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react'
-import { Activity, ArchiveRestore, Download, FileCog, Globe2, Info, Keyboard, Languages, MonitorCog, RefreshCw, ShieldAlert, ShieldCheck, Upload, X } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Activity, ArchiveRestore, Download, FileCog, FolderOpen, Globe2, Info, Keyboard, Languages, MonitorCog, RefreshCw, ScrollText, ShieldAlert, ShieldCheck, Upload, X } from 'lucide-react'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { MAX_UI_SCALE_PERCENT, MIN_UI_SCALE_PERCENT, UI_SCALE_STEP_PERCENT, type AppSettings, type UpdateChannel } from '@/engine/appSettings'
+import type { GameDirectoryDetectionResult, GameDirectoryRealm } from '@/types/gameDirectory'
 import { LANGUAGE_OPTIONS, type Language } from '@/i18n/translationLoader'
 import { useTranslation } from '@/i18n/useTranslation'
 import { uiText } from '@/i18n/uiLocale'
@@ -16,9 +17,13 @@ interface GlobalSettingsDialogProps {
   backupNotice: string | null
   onBackupExport: () => void
   onBackupImport: () => void
+  diagnosticBusy: boolean
+  diagnosticNotice: string | null
+  onDiagnosticExport: () => void
+  onDiagnosticOpenDirectory: () => void
 }
 
-export function GlobalSettingsDialog({ open, settings, onChange, onClose, backupBusy, backupNotice, onBackupExport, onBackupImport }: GlobalSettingsDialogProps) {
+export function GlobalSettingsDialog({ open, settings, onChange, onClose, backupBusy, backupNotice, onBackupExport, onBackupImport, diagnosticBusy, diagnosticNotice, onDiagnosticExport, onDiagnosticOpenDirectory }: GlobalSettingsDialogProps) {
   const { lang, setLanguage } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const [checking, setChecking] = useState(false)
@@ -27,6 +32,113 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose, backup
   const [registeringAssociation, setRegisteringAssociation] = useState(false)
   const [elevationResult, setElevationResult] = useState<string | null>(null)
   const [elevating, setElevating] = useState(false)
+  const [settingsTab, setSettingsTab] = useState<'general' | 'maintenance'>('general')
+  const [gameDirectoryChecking, setGameDirectoryChecking] = useState(false)
+  const [gameDirectoryResult, setGameDirectoryResult] = useState<GameDirectoryDetectionResult | null>(null)
+  const [gameDirectoryError, setGameDirectoryError] = useState<string | null>(null)
+  const settingsRef = useRef(settings)
+
+  const selectedRealm = settings.defaultRealm
+  const selectedGameDirectory = settings.gameDirectories[selectedRealm]
+  const realmLabel = (realm: GameDirectoryRealm) => realm === 'cn'
+    ? l('Tencent CN', '腾讯服', '騰訊服', '텐센트 중국 서버')
+    : l('Global', '国际服', '國際服', '글로벌')
+  const detectionSourceLabel = (source: GameDirectoryDetectionResult['source']) => {
+    if (source === 'running-client') return l('Running client', '运行中的客户端', '執行中的用戶端', '실행 중인 클라이언트')
+    if (source === 'registry') return l('Windows registry', 'Windows 注册表', 'Windows 登錄檔', 'Windows 레지스트리')
+    if (source === 'steam-library') return l('Steam library', 'Steam 库', 'Steam 收藏庫', 'Steam 라이브러리')
+    if (source === 'known-location') return l('Known location', '常见安装位置', '常見安裝位置', '알려진 설치 위치')
+    if (source === 'manual') return l('Manual selection', '手动选择', '手動選擇', '수동 선택')
+    return ''
+  }
+  const detectionMessage = (result: GameDirectoryDetectionResult | null) => {
+    if (!result) return null
+    if (result.status === 'found') {
+      return l(
+        `Found via ${detectionSourceLabel(result.source)}`,
+        `已找到（来源：${detectionSourceLabel(result.source)}）`,
+        `已找到（來源：${detectionSourceLabel(result.source)}）`,
+        `${detectionSourceLabel(result.source)}에서 찾음`,
+      )
+    }
+    if (result.status === 'unsupported') return l('Automatic detection is supported on Windows only', '自动检测目前仅支持 Windows', '自動偵測目前僅支援 Windows', '자동 검색은 현재 Windows에서만 지원됩니다')
+    return l('Game directory was not found', '未找到游戏目录', '找不到遊戲目錄', '게임 폴더를 찾지 못했습니다')
+  }
+
+  const applyGameDirectoryResult = (result: GameDirectoryDetectionResult) => {
+    const currentSettings = settingsRef.current
+    if (result.canceled) {
+      setGameDirectoryResult(null)
+      setGameDirectoryError(null)
+      return
+    }
+    if (currentSettings.defaultRealm === result.realm) setGameDirectoryResult(result)
+    setGameDirectoryError(null)
+    if (result.status === 'not-found') {
+      setGameDirectoryError(l(
+        'No PathOfExile*.exe was found in the selected directory. Choose the game installation folder.',
+        '所选目录中没有找到 PathOfExile*.exe，请选择实际的游戏安装目录。',
+        '所選目錄中沒有找到 PathOfExile*.exe，請選擇實際的遊戲安裝目錄。',
+        '선택한 폴더에서 PathOfExile*.exe를 찾지 못했습니다. 실제 게임 설치 폴더를 선택하세요.',
+      ))
+      return
+    }
+    if (result.status !== 'found' || !result.directory) return
+    onChange({
+      ...currentSettings,
+      gameDirectories: { ...currentSettings.gameDirectories, [result.realm]: result.directory },
+    })
+  }
+
+  const detectSelectedGameDirectory = async (mode: 'detect' | 'choose') => {
+    const bridge = window.pob2Desktop
+    if (!bridge) {
+      setGameDirectoryResult({ realm: selectedRealm, status: 'unsupported', checkedAt: new Date().toISOString() })
+      return
+    }
+    setGameDirectoryChecking(true)
+    setGameDirectoryResult(null)
+    setGameDirectoryError(null)
+    try {
+      const result = mode === 'detect'
+        ? await bridge.detectGameDirectory(selectedRealm)
+        : await bridge.chooseGameDirectory(selectedRealm, selectedGameDirectory)
+      applyGameDirectoryResult(result)
+    } catch (error) {
+      console.error('[Settings] game directory detection failed', error)
+      setGameDirectoryError(l('Unable to detect the game directory', '无法检测游戏目录', '無法偵測遊戲目錄', '게임 폴더를 검색할 수 없습니다'))
+    } finally {
+      setGameDirectoryChecking(false)
+    }
+  }
+
+  useEffect(() => {
+    settingsRef.current = settings
+  }, [settings])
+
+  useEffect(() => {
+    if (!open || !window.pob2Desktop) return
+    let active = true
+    const realm = settings.defaultRealm
+    setGameDirectoryChecking(true)
+    setGameDirectoryResult(null)
+    setGameDirectoryError(null)
+    void window.pob2Desktop.detectGameDirectory(realm).then((result) => {
+      if (!active) return
+      const currentSettings = settingsRef.current
+      setGameDirectoryResult(result)
+      if (result.status === 'found' && result.directory && !currentSettings.gameDirectories[realm]) {
+        onChange({ ...currentSettings, gameDirectories: { ...currentSettings.gameDirectories, [realm]: result.directory } })
+      }
+    }).catch((error) => {
+      if (!active) return
+      console.error('[Settings] initial game directory detection failed', error)
+      setGameDirectoryError(l('Unable to detect the game directory', '无法检测游戏目录', '無法偵測遊戲目錄', '게임 폴더를 검색할 수 없습니다'))
+    }).finally(() => {
+      if (active) setGameDirectoryChecking(false)
+    })
+    return () => { active = false }
+  }, [open, settings.defaultRealm])
 
   useEffect(() => {
     if (!open) return
@@ -47,8 +159,29 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose, backup
           <button className="icon-command" onClick={onClose} aria-label={l('Close', '关闭', '關閉', '닫기')}><X /></button>
         </header>
 
+        <div className="settings-tabs" role="tablist" aria-label={l('Settings categories', '设置分类', '設定分類', '설정 카테고리')}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={settingsTab === 'general'}
+            className={settingsTab === 'general' ? 'active' : ''}
+            onClick={() => setSettingsTab('general')}
+          >
+            {l('General', '常规', '一般', '일반')}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={settingsTab === 'maintenance'}
+            className={settingsTab === 'maintenance' ? 'active' : ''}
+            onClick={() => setSettingsTab('maintenance')}
+          >
+            {l('Maintenance & diagnostics', '维护与诊断', '維護與診斷', '유지 관리 및 진단')}
+          </button>
+        </div>
+
         <div className="settings-body">
-          <section className="settings-section">
+          {settingsTab === 'general' && <section className="settings-section">
             <header><Keyboard /><h3>{l('Price checker', '查价器', '查價器', '가격 확인')}</h3></header>
             <label className="settings-row settings-toggle-row">
               <span>{l('Enable the in-game price check hotkey', '启用游戏内查价热键', '啟用遊戲內查價快捷鍵', '게임 내 가격 확인 단축키 사용')}</span>
@@ -93,8 +226,8 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose, backup
                 {elevationResult && <small>{elevationResult}</small>}
               </div>
             </div>
-          </section>
-          <section className="settings-section">
+          </section>}
+          {settingsTab === 'general' && <section className="settings-section">
             <header><Languages /><h3>{l('Interface language', '界面语言', '介面語言', '인터페이스 언어')}</h3></header>
             <label className="settings-row">
               <span>{l('Language', '语言', '語言', '언어')}</span>
@@ -102,9 +235,9 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose, backup
                 {LANGUAGE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>
-          </section>
+          </section>}
 
-          <section className="settings-section">
+          {settingsTab === 'general' && <section className="settings-section">
             <header><MonitorCog /><h3>{l('Display', '界面显示', '介面顯示', '화면 표시')}</h3></header>
             <label className="settings-row settings-scale-row">
               <span>{l('Interface scale', '界面缩放', '介面縮放', '인터페이스 배율')}</span>
@@ -120,9 +253,9 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose, backup
                 <output>{settings.uiScalePercent}%</output>
               </div>
             </label>
-          </section>
+          </section>}
 
-          <section className="settings-section">
+          {settingsTab === 'maintenance' && <section className="settings-section">
             <header><Activity /><h3>{l('Usage metrics', '使用统计', '使用統計', '사용 통계')}</h3></header>
             <label className="settings-row settings-toggle-row">
               <span>{l('Share anonymous operation metrics', '分享匿名使用统计', '分享匿名使用統計', '익명 사용 통계 공유')}</span>
@@ -134,28 +267,61 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose, backup
               '只會傳送固定的操作事件，不會包含構築代碼、裝備資料、帳號資訊或權杖。',
               '고정된 작업 이벤트만 전송되며 빌드 코드, 장비 데이터, 계정 정보 또는 토큰은 포함되지 않습니다.',
             )}</p>
-          </section>
+          </section>}
 
-          <section className="settings-section">
+          {settingsTab === 'maintenance' && <section className="settings-section">
+            <header><ScrollText /><h3>{l('Logs & diagnostics', '日志与诊断', '記錄與診斷', '로그 및 진단')}</h3></header>
+            <p className="settings-backup-hint">{l(
+              'Export recent client events when you need help diagnosing a problem. Credentials, cookies, tokens and build XML are removed automatically.',
+              '遇到问题时可导出最近的客户端事件，帮助我们定位原因。凭据、Cookie、令牌和构筑 XML 会自动移除。',
+              '遇到問題時可匯出最近的用戶端事件，協助我們定位原因。憑證、Cookie、權杖與構築 XML 會自動移除。',
+              '문제 진단이 필요할 때 최근 클라이언트 이벤트를 내보낼 수 있습니다. 자격 증명, 쿠키, 토큰 및 빌드 XML은 자동으로 제거됩니다.',
+            )}</p>
+            <div className="settings-row settings-file-association-row">
+              <span>{l('Client log', '客户端日志', '用戶端記錄', '클라이언트 로그')}</span>
+              <div className="settings-file-association-control settings-diagnostics-control">
+                <button type="button" className="secondary-command" disabled={diagnosticBusy} onClick={onDiagnosticExport}><Download />{diagnosticBusy ? l('Exporting...', '导出中...', '匯出中...', '내보내는 중...') : l('Export diagnostic log', '导出诊断日志', '匯出診斷記錄', '진단 로그 내보내기')}</button>
+                <button type="button" className="secondary-command" disabled={diagnosticBusy} onClick={onDiagnosticOpenDirectory}><FolderOpen />{l('Open folder', '打开目录', '開啟資料夾', '폴더 열기')}</button>
+                {diagnosticNotice && <small role="status" aria-live="polite">{diagnosticNotice}</small>}
+              </div>
+            </div>
+          </section>}
+
+          {settingsTab === 'general' && <section className="settings-section">
             <header><Globe2 /><h3>{l('Build defaults', '构筑默认值', '構築預設值', '빌드 기본값')}</h3></header>
             <div className="settings-row settings-realm-row">
               <span>{l('Default realm', '默认服务器', '預設伺服器', '기본 서버')}</span>
               <div className="realm-selector">
-                <button type="button" className={settings.defaultRealm === 'cn' ? 'active cn' : ''} onClick={() => onChange({ ...settings, defaultRealm: 'cn' })}>{l('Tencent CN', '腾讯服', '騰訊服', '텐센트 중국 서버')}</button>
-                <button type="button" className={settings.defaultRealm === 'global' ? 'active global' : ''} onClick={() => onChange({ ...settings, defaultRealm: 'global' })}>{l('Global', '国际服', '國際服', '글로벌')}</button>
+                <button type="button" className={settings.defaultRealm === 'cn' ? 'active cn' : ''} onClick={() => { setGameDirectoryResult(null); onChange({ ...settings, defaultRealm: 'cn' }) }}>{l('Tencent CN', '腾讯服', '騰訊服', '텐센트 중국 서버')}</button>
+                <button type="button" className={settings.defaultRealm === 'global' ? 'active global' : ''} onClick={() => { setGameDirectoryResult(null); onChange({ ...settings, defaultRealm: 'global' }) }}>{l('Global', '国际服', '國際服', '글로벌')}</button>
               </div>
             </div>
-          </section>
+            <div className="settings-row settings-game-directory-row">
+              <span>{l('Game directory', '游戏目录', '遊戲目錄', '게임 폴더')}<small>{realmLabel(selectedRealm)}</small></span>
+              <div className="settings-game-directory-control">
+                <strong className={selectedGameDirectory ? '' : 'empty'} title={selectedGameDirectory || undefined}>{selectedGameDirectory || l('Not configured', '未设置', '未設定', '설정되지 않음')}</strong>
+                <div className="settings-game-directory-actions">
+                  <button type="button" className="secondary-command" disabled={gameDirectoryChecking || !window.pob2Desktop} onClick={() => void detectSelectedGameDirectory('detect')}>
+                    <RefreshCw className={gameDirectoryChecking ? 'spinning' : ''} />{gameDirectoryChecking ? l('Checking...', '检测中...', '檢測中...', '검색 중...') : l('Detect', '自动检测', '自動偵測', '자동 검색')}
+                  </button>
+                  <button type="button" className="secondary-command" disabled={gameDirectoryChecking || !window.pob2Desktop} onClick={() => void detectSelectedGameDirectory('choose')}><FolderOpen />{l('Choose', '选择目录', '選擇目錄', '폴더 선택')}</button>
+                </div>
+                {gameDirectoryResult && <small className={`settings-game-directory-status${gameDirectoryResult.status === 'not-found' ? ' error' : ''}`} role="status" aria-live="polite">{detectionMessage(gameDirectoryResult)}</small>}
+                {gameDirectoryError && <small className="settings-game-directory-status error" role="alert">{gameDirectoryError}</small>}
+                {!window.pob2Desktop && <small className="settings-game-directory-status">{l('Desktop app only', '仅桌面版支持', '僅限桌面版支援', '데스크톱 앱 전용')}</small>}
+              </div>
+            </div>
+          </section>}
 
-          <section className="settings-section">
+          {settingsTab === 'general' && <section className="settings-section">
             <header><ShieldAlert /><h3>{l('Editing protection', '编辑保护', '編輯保護', '편집 보호')}</h3></header>
             <label className="settings-row settings-toggle-row">
               <span>{l('Confirm before leaving an unsaved build', '离开未保存构筑前确认', '離開未儲存構築前確認', '저장하지 않은 빌드를 나가기 전에 확인')}</span>
               <input type="checkbox" checked={settings.confirmUnsavedExit} onChange={(event) => onChange({ ...settings, confirmUnsavedExit: event.target.checked })} />
             </label>
-          </section>
+          </section>}
 
-          <section className="settings-section">
+          {settingsTab === 'maintenance' && <section className="settings-section">
             <header><ArchiveRestore /><h3>{l('Data backup', '数据备份', '資料備份', '데이터 백업')}</h3></header>
             <p className="settings-backup-hint">{l(
               'Move builds, settings, equipment library and market data to another device. Login sessions and downloadable caches are not included.',
@@ -171,9 +337,9 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose, backup
                 {backupNotice && <small role="status" aria-live="polite">{backupNotice}</small>}
               </div>
             </div>
-          </section>
+          </section>}
 
-          <section className="settings-section">
+          {settingsTab === 'general' && <section className="settings-section">
             <header><FileCog /><h3>{l('File associations', '文件关联', '檔案關聯', '파일 연결')}</h3></header>
             <div className="settings-row settings-file-association-row">
               <span><strong>.spoe</strong> {l('build files', '构筑文件', '構築檔案', '빌드 파일')}</span>
@@ -204,9 +370,9 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose, backup
                 {associationResult && <small>{associationResult}</small>}
               </div>
             </div>
-          </section>
+          </section>}
 
-          <section className="settings-section">
+          {settingsTab === 'maintenance' && <section className="settings-section">
             <header><RefreshCw /><h3>{l('Auto update', '自动更新', '自動更新', '자동 업데이트')}</h3></header>
             <label className="settings-row">
               <span>{l('Update channel', '更新通道', '更新頻道', '업데이트 채널')}</span>
@@ -246,13 +412,13 @@ export function GlobalSettingsDialog({ open, settings, onChange, onClose, backup
               </button>
               {checkResult && <span className="update-check-result">{checkResult}</span>}
             </div>
-          </section>
+          </section>}
 
-          <section className="settings-section settings-about">
+          {settingsTab === 'general' && <section className="settings-section settings-about">
             <header><Info /><h3>{l('About', '关于', '關於', '정보')}</h3></header>
             <div className="settings-row"><span>{l('Application', '应用', '應用程式', '애플리케이션')}</span><strong>{SUPERPOE_NAME}</strong></div>
             <div className="settings-row"><span>{l('Version', '版本', '版本', '버전')}</span><strong>{SUPERPOE_VERSION_LABEL}</strong></div>
-          </section>
+          </section>}
         </div>
 
         <footer className="dialog-footer"><span /><button className="primary-command" onClick={onClose}>{l('Done', '完成', '完成', '완료')}</button></footer>

@@ -1,0 +1,146 @@
+html:has(.timer-app),
+html:has(.timer-app) body,
+html:has(.timer-app) #root,
+body:has(.timer-app),
+body:has(.timer-app) #root {
+  background: transparent !important;
+}
+
+.timer-app { width: 100%; height: 100%; padding: 0; background: transparent !important; color: #d7c79e; font-family: "Segoe UI", "Microsoft YaHei", sans-serif; user-select: none; }
+.timer-app.is-settings { display: block; clip-path: none; }
+.timer-app.is-collapsed { display: grid; place-items: center; }
+.timer-app button { font: inherit; }
+.timer-face-container { position: relative; width: min(calc(100% - 44px), calc(100vh - 44px)); height: min(calc(100% - 44px), calc(100vw - 44px)); flex: 0 0 auto; aspect-ratio: 1; }
+.timer-face-collapsed, .timer-face-expanded { position: relative; display: grid; place-items: center; overflow: hidden; border: 0; color: var(--timer-accent); background: var(--timer-dial); box-shadow: inset 0 0 0 3px rgba(255,255,255,.025), inset 0 0 18px var(--timer-inner-glow), 0 0 16px var(--timer-outer-glow); animation: timer-breathe 4s ease-in-out infinite; cursor: pointer; }
+.timer-face-collapsed { width: 100%; height: 100%; border-radius: 50%; cursor: move; -webkit-app-region: drag; }
+.timer-face-open-button { position: absolute; inset: 32% 25%; z-index: 3; border: 0; border-radius: 50%; background: transparent; color: transparent; cursor: pointer; -webkit-app-region: no-drag; }
+.timer-face-open-button:hover:not(:disabled), .timer-face-open-button:focus-visible { border-color: transparent; background: transparent; color: transparent; box-shadow: none; }
+.timer-hover-actions { position: absolute; z-index: 5; top: 50%; right: -22px; display: flex; flex-direction: column; gap: 2px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; opacity: 0; pointer-events: none; transform: translate(3px, -50%); transition: opacity .16s ease, transform .16s ease; -webkit-app-region: no-drag; }
+.timer-face-container:hover .timer-hover-actions, .timer-face-container:focus-within .timer-hover-actions { opacity: 1; pointer-events: auto; transform: translate(0, -50%); }
+.timer-action-button { width: 18px; height: 18px; display: grid; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 2px; background: transparent; color: var(--timer-muted); cursor: pointer; filter: drop-shadow(0 0 4px var(--timer-outer-glow)); }
+.timer-action-button:hover, .timer-action-button:focus-visible { border-color: var(--timer-edge); background: rgba(5,6,5,.42); color: var(--timer-accent); outline: 0; }
+.timer-action-button svg { width: 11px; height: 11px; }
+.timer-move-handle { cursor: grab; -webkit-app-region: drag; }
+.timer-move-handle:hover, .timer-move-handle:focus-visible { cursor: grab; }
+.timer-move-handle:active { cursor: grabbing; }
+.timer-app.is-resizing .timer-hover-actions { opacity: 1; pointer-events: auto; transform: translate(0, -50%); }
+.timer-face-collapsed::before, .timer-face-expanded::before { content: ''; position: absolute; inset: 7%; border: 1px solid var(--timer-ring); border-top-color: var(--timer-accent); border-right-color: transparent; border-radius: 50%; opacity: .75; animation: timer-ring-spin 12s linear infinite; }
+.timer-face-collapsed::after, .timer-face-expanded::after { content: ''; position: absolute; inset: 13%; border: 1px dashed var(--timer-ring); border-radius: 50%; opacity: .32; animation: timer-ring-pulse 3.5s ease-in-out infinite; }
+.timer-face-expanded { width: 164px; height: 164px; flex: 0 0 164px; border-radius: 50%; }
+.timer-face-ornament { position: absolute; inset: 19%; border: 1px dashed var(--timer-ring); border-radius: 50%; opacity: .36; animation: timer-orbit 18s linear infinite; }
+.timer-face-caption { position: absolute; top: 27%; color: var(--timer-muted); font-size: 7px; letter-spacing: 2px; }
+.timer-face-collapsed strong, .timer-face-expanded strong { position: relative; z-index: 1; margin-top: 2px; color: var(--timer-number); font: 500 19px ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 0; text-shadow: 0 0 12px var(--timer-number-glow); }
+.timer-face-expanded strong { font-size: 25px; }
+.timer-face-state { position: absolute; bottom: 27%; color: var(--timer-muted); font-size: 7px; letter-spacing: 1px; }
+.timer-face-expanded .timer-face-caption { top: 39px; }
+.timer-face-expanded .timer-face-state { bottom: 38px; }
+.timer-hand { position: absolute; left: 50%; top: 50%; width: 1px; height: 34%; transform-origin: 50% 100%; transform: translate(-50%, -100%) rotate(18deg); background: var(--timer-hand); box-shadow: 0 0 7px var(--timer-number-glow); animation: timer-hand 60s linear infinite; }
+.timer-face-expanded .timer-hand { height: 48px; }
+.timer-app.state-paused .timer-hand, .timer-app.state-idle .timer-hand, .timer-app.state-finished .timer-hand { animation-play-state: paused; }
+.timer-app.state-finished .timer-face-collapsed, .timer-app.state-finished .timer-face-expanded { animation: timer-finished 1.3s ease-out 1; }
+
+.timer-shell { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+.timer-settings-shell { width: 100%; height: 100%; display: grid; grid-template-rows: 40px minmax(0, 1fr) 42px; overflow: hidden; border: 1px solid var(--timer-divider); background: var(--timer-panel); box-shadow: inset 0 1px rgba(255,255,255,.04), 0 0 20px var(--timer-outer-glow); }
+.timer-settings-header { min-width: 0; display: flex; align-items: center; gap: 8px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--timer-divider); background: rgba(0,0,0,.15); cursor: move; }
+.timer-settings-heading { min-width: 0; display: grid; gap: 1px; }
+.timer-settings-heading strong { overflow: hidden; color: var(--timer-text); font: 500 12px Georgia, "Microsoft YaHei", serif; text-overflow: ellipsis; white-space: nowrap; }
+.timer-settings-heading small { color: var(--timer-muted); font-size: 8px; letter-spacing: 1.1px; text-transform: uppercase; }
+.timer-settings-body { min-height: 0; overflow: hidden; padding: 8px 13px 6px; }
+.timer-settings-section-title { height: 20px; display: flex; align-items: center; gap: 6px; color: var(--timer-muted); }
+.timer-settings-section-title svg { width: 13px; height: 13px; color: var(--timer-accent); }
+.timer-settings-section-title strong { color: var(--timer-accent); font-size: 11px; font-weight: 500; }
+.timer-settings-section-title small { margin-left: auto; color: var(--timer-muted); font-size: 8px; }
+.timer-skin-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin-top: 5px; }
+.timer-skin-card { position: relative; min-width: 0; height: 74px; display: grid; grid-template-rows: 44px 18px; gap: 3px; padding: 4px 8px; border: 1px solid var(--timer-divider); background: rgba(0,0,0,.2); color: var(--timer-text); text-align: left; cursor: pointer; }
+.timer-skin-card:hover:not(:disabled) { border-color: var(--timer-edge); background: rgba(255,255,255,.035); color: var(--timer-text); box-shadow: 0 0 12px var(--timer-outer-glow); }
+.timer-skin-card.active { border-color: var(--timer-accent); background: rgba(183,143,65,.09); box-shadow: inset 0 0 16px rgba(183,143,65,.07), 0 0 13px var(--timer-outer-glow); }
+.timer-skin-preview { position: relative; min-width: 0; display: grid; place-items: center; overflow: hidden; border: 1px solid rgba(255,255,255,.08); background: rgba(0,0,0,.22); }
+.timer-skin-preview::before { content: ''; position: absolute; width: 43px; height: 43px; border: 1px solid var(--timer-ring); border-top-color: var(--timer-accent); border-radius: 50%; background: var(--timer-dial); box-shadow: inset 0 0 12px var(--timer-inner-glow), 0 0 9px var(--timer-outer-glow); }
+.timer-skin-preview::after { content: ''; position: absolute; width: 32px; height: 32px; border: 1px dashed var(--timer-ring); border-radius: 50%; opacity: .55; animation: timer-ring-spin 9s linear infinite; }
+.timer-skin-preview > i { position: absolute; z-index: 1; width: 1px; height: 17px; background: var(--timer-hand); box-shadow: 0 0 5px var(--timer-number-glow); transform: translateY(-5px) rotate(22deg); transform-origin: 50% 100%; }
+.timer-skin-preview > b { position: relative; z-index: 2; color: var(--timer-number); font: 500 9px ui-monospace, SFMono-Regular, Consolas, monospace; text-shadow: 0 0 7px var(--timer-number-glow); }
+.timer-skin-preview.skin-strip::before { width: 124px; height: 29px; border-radius: 16px; }
+.timer-skin-preview.skin-strip::after { width: 104px; height: 15px; border-radius: 9px; border-style: solid; animation: timer-strip-sheen 4s linear infinite; }
+.timer-skin-preview.skin-strip > i { width: 1px; height: 22px; transform: translateY(0) rotate(22deg); }
+.timer-skin-card-label { min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.timer-skin-card-label strong { overflow: hidden; color: var(--timer-text); font-size: 10px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.timer-skin-card-label small { flex: 0 0 auto; color: var(--timer-muted); font-size: 8px; }
+.timer-skin-card-check { position: absolute; top: 7px; right: 7px; width: 12px; height: 12px; color: var(--timer-accent); filter: drop-shadow(0 0 4px var(--timer-number-glow)); }
+.timer-settings-footer { min-width: 0; display: flex; align-items: center; gap: 12px; padding: 0 13px; border-top: 1px solid var(--timer-divider); background: rgba(0,0,0,.16); }
+.timer-settings-status { min-width: 0; display: grid; gap: 1px; margin-right: auto; }
+.timer-settings-status span { overflow: hidden; color: var(--timer-muted); font-size: 8px; letter-spacing: .9px; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
+.timer-settings-status strong { color: var(--timer-number); font: 500 14px ui-monospace, SFMono-Regular, Consolas, monospace; text-shadow: 0 0 8px var(--timer-number-glow); }
+.timer-shell-header { height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 7px 0 10px; background: transparent; cursor: move; }
+.timer-drag-region { -webkit-app-region: drag; }
+.no-drag { -webkit-app-region: no-drag; }
+.timer-brand-mark { color: var(--timer-accent); font-size: 12px; }
+.timer-shell-title { color: var(--timer-muted); font: 500 9px Georgia, "Microsoft YaHei", serif; letter-spacing: 1.6px; text-transform: uppercase; }
+.timer-window-actions { display: flex; gap: 3px; margin-left: auto; }
+.timer-window-button, .timer-control { display: inline-grid; place-items: center; border: 1px solid transparent; background: transparent; color: var(--timer-muted); cursor: pointer; }
+.timer-window-button { width: 22px; height: 22px; }
+.timer-window-button:hover, .timer-control:hover:not(:disabled) { border-color: var(--timer-edge); color: var(--timer-accent); background: rgba(255,255,255,.035); }
+.timer-window-button svg { width: 12px; height: 12px; }
+.timer-content { min-height: 0; height: calc(100% - 67px); display: flex; align-items: center; gap: 15px; padding: 10px 17px; }
+.timer-details { min-width: 0; flex: 1; display: grid; gap: 12px; }
+.timer-map-name { display: grid; gap: 5px; }
+.timer-map-name span, .timer-stat-strip span { color: var(--timer-muted); font-size: 8px; letter-spacing: 1.2px; }
+.timer-map-name input { width: 100%; min-width: 0; height: 28px; padding: 0 8px; border: 1px solid var(--timer-divider); outline: 0; background: rgba(0,0,0,.3); color: var(--timer-text); font-size: 11px; }
+.timer-map-name input:focus { border-color: var(--timer-accent); box-shadow: 0 0 9px var(--timer-outer-glow); }
+.timer-map-name input::placeholder { color: var(--timer-muted); }
+.timer-stat-strip { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.timer-stat-strip > div { display: grid; gap: 3px; padding: 7px 8px; border-left: 2px solid var(--timer-ring); background: rgba(255,255,255,.025); }
+.timer-stat-strip strong { color: var(--timer-text); font: 500 12px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.timer-controls { display: flex; align-items: center; gap: 6px; }
+.timer-control-main, .timer-control { height: 29px; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: 1px solid var(--timer-edge); background: rgba(255,255,255,.035); color: var(--timer-accent); cursor: pointer; }
+.timer-control-main { min-width: 82px; padding: 0 11px; background: var(--timer-button); font-size: 10px; }
+.timer-control { width: 30px; }
+.timer-control-main:hover, .timer-control:hover:not(:disabled) { box-shadow: 0 0 12px var(--timer-outer-glow); }
+.timer-control:disabled { opacity: .35; cursor: default; }
+.timer-control-main svg, .timer-control svg { width: 13px; height: 13px; }
+.timer-skin-bar { height: 37px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px; background: transparent; }
+.timer-skin-bar > span { display: inline-flex; align-items: center; gap: 5px; color: var(--timer-muted); font-size: 8px; letter-spacing: 1px; }
+.timer-skin-bar > span svg { width: 11px; height: 11px; }
+.timer-skin-bar > div { display: flex; gap: 7px; }
+.timer-skin-bar button { width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 1px solid transparent; background: transparent; cursor: pointer; }
+.timer-skin-bar button:hover, .timer-skin-bar button.active { border-color: var(--timer-accent); }
+.timer-skin-bar button i { width: 11px; height: 11px; display: block; border: 1px solid rgba(255,255,255,.35); border-radius: 50%; background: var(--swatch); box-shadow: 0 0 7px var(--swatch); }
+.timer-skin-bar button:nth-child(1) i { --swatch: #c8a75d; }
+.timer-skin-bar button:nth-child(2) i { --swatch: #ba5945; }
+.timer-skin-bar button:nth-child(3) i { --swatch: #a8c8da; }
+.timer-skin-bar button:nth-child(4) i { --swatch: #e0bd71; }
+
+.skin-obsidian { --timer-edge: #a98b4f; --timer-ring: #80673a; --timer-accent: #ddc27c; --timer-number: #f0d898; --timer-number-glow: rgba(220,175,76,.6); --timer-hand: #f0d898; --timer-muted: #8f8266; --timer-text: #c9c0ad; --timer-dial: radial-gradient(circle at 48% 38%, #2a271d 0, #12130f 52%, #080a09 100%); --timer-panel: linear-gradient(135deg, #171812, #0b0d0b 70%); --timer-button: #2b2518; --timer-divider: #3d3528; --timer-inner-glow: rgba(183,143,65,.13); --timer-outer-glow: rgba(188,145,58,.16); }
+.skin-ember { --timer-edge: #a85d43; --timer-ring: #713f32; --timer-accent: #e08b65; --timer-number: #f0b080; --timer-number-glow: rgba(204,87,49,.55); --timer-hand: #f0b080; --timer-muted: #9c7464; --timer-text: #d4b8a8; --timer-dial: radial-gradient(circle at 48% 38%, #32231d 0, #16110f 52%, #0a0908 100%); --timer-panel: linear-gradient(135deg, #211714, #0d0b0a 70%); --timer-button: #342019; --timer-divider: #4a2e26; --timer-inner-glow: rgba(192,72,42,.15); --timer-outer-glow: rgba(192,72,42,.17); }
+.skin-frost { --timer-edge: #91b3be; --timer-ring: #587b87; --timer-accent: #b9e0e5; --timer-number: #d9f5f4; --timer-number-glow: rgba(116,201,218,.55); --timer-hand: #d9f5f4; --timer-muted: #77959d; --timer-text: #c2d7d8; --timer-dial: radial-gradient(circle at 48% 38%, #202d30 0, #11191b 52%, #080b0c 100%); --timer-panel: linear-gradient(135deg, #172124, #0a0f10 70%); --timer-button: #1a3034; --timer-divider: #2e4b51; --timer-inner-glow: rgba(80,172,190,.15); --timer-outer-glow: rgba(80,172,190,.18); }
+.skin-strip { --timer-edge: #b18b4a; --timer-ring: #756039; --timer-accent: #e2c274; --timer-number: #f2d992; --timer-number-glow: rgba(221,176,73,.62); --timer-hand: #f0d28a; --timer-muted: #9a8966; --timer-text: #d7c89d; --timer-dial: linear-gradient(110deg, #272319 0%, #11130f 32%, #090b09 55%, #252016 100%); --timer-panel: linear-gradient(135deg, #171812, #0b0d0b 70%); --timer-button: #2b2518; --timer-divider: #3d3528; --timer-inner-glow: rgba(183,143,65,.16); --timer-outer-glow: rgba(188,145,58,.22); }
+
+/* The rail skin keeps the timer readable at a glance while the whole pill
+   remains a native drag region. */
+.skin-strip .timer-face-container { width: calc(100% - 52px); height: auto; aspect-ratio: 276 / 84; }
+.skin-strip .timer-face-collapsed { width: 100%; height: 100%; border-radius: 999px; cursor: move; grid-template-columns: 20% minmax(0, 1fr) 20%; padding: 0 5%; background: var(--timer-dial); }
+.skin-strip .timer-face-collapsed::before { inset: 2%; border-radius: 999px; border-top-color: var(--timer-accent); border-right-color: var(--timer-ring); animation-duration: 9s; }
+.skin-strip .timer-face-collapsed::after { inset: 4%; border-radius: 999px; border-style: solid; opacity: .24; animation: timer-strip-pulse 3.2s ease-in-out infinite; }
+.skin-strip .timer-face-ornament { inset: 25% 7.5%; border-radius: 999px; border-style: solid; opacity: .28; animation: timer-orbit 13s linear infinite; }
+.skin-strip .timer-face-caption { left: 14px; top: 50%; transform: translateY(-50%); font-size: 6px; letter-spacing: 1.4px; }
+.skin-strip .timer-face-collapsed strong { margin: 0; font-size: 17px; letter-spacing: .04em; transform: translateX(24px); }
+.skin-strip .timer-face-state { right: 14px; bottom: auto; top: 50%; transform: translateY(-50%); font-size: 6px; letter-spacing: .6px; text-align: right; }
+.skin-strip .timer-face-collapsed::after { background: linear-gradient(90deg, transparent 0%, rgba(255,226,152,.04) 35%, rgba(255,226,152,.2) 50%, rgba(255,226,152,.04) 65%, transparent 100%); background-size: 240% 100%; animation: timer-strip-sheen 4.2s linear infinite, timer-strip-pulse 3.2s ease-in-out infinite; }
+.skin-strip .timer-hand { left: 50%; top: 11%; width: 1px; height: 78%; transform-origin: 50% 100%; opacity: .6; animation-duration: 60s; }
+.skin-strip .timer-face-open-button { inset: 15% 25%; border-radius: 999px; }
+.skin-strip .timer-face-expanded { width: 188px; height: 72px; flex: 0 0 188px; border-radius: 36px; }
+.skin-strip .timer-face-expanded::before { inset: 5px; border-radius: 31px; border-top-color: var(--timer-accent); border-right-color: var(--timer-ring); }
+.skin-strip .timer-face-expanded::after { inset: 11px; border-radius: 25px; border-style: solid; }
+.skin-strip .timer-face-expanded .timer-face-ornament { inset: 17px 21px; border-radius: 19px; border-style: solid; }
+.skin-strip .timer-face-expanded .timer-face-caption { left: 20px; top: 50%; transform: translateY(-50%); font-size: 7px; }
+.skin-strip .timer-face-expanded strong { margin: 0; font-size: 20px; }
+.skin-strip .timer-face-expanded .timer-face-state { right: 20px; bottom: auto; top: 50%; transform: translateY(-50%); font-size: 7px; text-align: right; }
+.skin-strip .timer-face-expanded .timer-hand { left: 50%; top: 8px; height: 56px; }
+
+@keyframes timer-orbit { to { transform: rotate(360deg); } }
+@keyframes timer-ring-spin { to { transform: rotate(360deg); } }
+@keyframes timer-ring-pulse { 0%, 100% { opacity: .22; transform: scale(.97); } 50% { opacity: .52; transform: scale(1); } }
+@keyframes timer-strip-sheen { from { background-position: 130% 0; } to { background-position: -130% 0; } }
+@keyframes timer-strip-pulse { 0%, 100% { opacity: .18; transform: scale(.985); } 50% { opacity: .42; transform: scale(1); } }
+@keyframes timer-breathe { 0%, 100% { box-shadow: inset 0 0 0 3px rgba(255,255,255,.025), inset 0 0 18px var(--timer-inner-glow), 0 0 13px var(--timer-outer-glow); } 50% { box-shadow: inset 0 0 0 3px rgba(255,255,255,.04), inset 0 0 22px var(--timer-inner-glow), 0 0 27px var(--timer-outer-glow); } }
+@keyframes timer-hand { to { transform: translate(-50%, -100%) rotate(378deg); } }
+@keyframes timer-finished { 0% { filter: brightness(1); } 35% { filter: brightness(1.65); } 100% { filter: brightness(1); } }

@@ -4,13 +4,14 @@ import { fileURLToPath } from 'node:url'
 import type { MarketDomListingRef, MarketSearchReference, MarketVisitHideoutResult, SavedSearchQuerySnapshot } from '../src/types/market.js'
 import { TradeCredentialStore } from './tradeCredentialStore.js'
 import { isGameOfflineVisitError, OfficialTradeRequestError } from './officialTradeRequestError.js'
-import { createSearchQuerySnapshot, isValidSearchCode, parseOfficialSearchUrl, withSearchSnapshot } from './marketSearch.js'
+import { createSearchQuerySnapshot, diagnoseOfficialSearchUrl, isValidSearchCode, parseOfficialSearchUrl, withSearchSnapshot } from './marketSearch.js'
+import type { ClientLogger } from './clientLogger.js'
 import type { UiLanguage } from './uiLocale.js'
 import type { MarketPageTranslationPayload } from '../src/engine/marketPageTranslation.js'
 
 export type MarketRealm = 'cn' | 'global'
 export type MarketNavigationCommand = 'back' | 'forward' | 'reload' | 'stop' | 'home'
-export type MarketPageCommand = 'search' | 'clear'
+export type MarketPageCommand = 'focus-filters' | 'search' | 'clear'
 export type MarketTranslationProvider = (language: UiLanguage) => MarketPageTranslationPayload
 
 export interface MarketViewState {
@@ -123,6 +124,7 @@ export class MarketViewManager {
     private readonly credentialStore: TradeCredentialStore,
     private readonly translationProvider?: MarketTranslationProvider,
     private readonly emitEscape: () => void = () => {},
+    private readonly logger?: ClientLogger,
   ) {
     window.on('minimize', () => this.detach())
     window.on('restore', () => {
@@ -210,6 +212,11 @@ export class MarketViewManager {
     this.activeView.webContents.send('market-page:focus-listing', listingId)
   }
 
+  visitCurrentPageListing(listingId: string): void {
+    if (!this.activeView || this.activeView.webContents.isDestroyed()) return
+    this.activeView.webContents.send('market-page:visit-hideout', listingId)
+  }
+
   openSource(realm: MarketRealm, value: string): void {
     const profile = MARKET_PROFILES[realm]
     const url = parseAllowedUrl(value, profile)
@@ -231,11 +238,21 @@ export class MarketViewManager {
   }
 
   rememberGeneratedSearch(realm: MarketRealm, leagueId: string, searchCode: string, body: unknown): void {
-    const reference = parseOfficialSearchUrl(
-      `https://${realm === 'cn' ? 'poe.game.qq.com' : 'www.pathofexile.com'}/trade2/search/poe2/${encodeURIComponent(leagueId)}/${encodeURIComponent(searchCode)}`,
-      realm,
-    )
-    if (!reference) throw new Error('Official trade search returned an invalid reference')
+    const generatedUrl =
+      `https://${realm === 'cn' ? 'poe.game.qq.com' : 'www.pathofexile.com'}/trade2/search/poe2/${encodeURIComponent(leagueId)}/${encodeURIComponent(searchCode)}`
+    const diagnostic = diagnoseOfficialSearchUrl(generatedUrl, realm)
+    if (!diagnostic.ok) {
+      const context = {
+        realm,
+        leagueLength: leagueId.length,
+        searchIdLength: searchCode.length,
+        issue: diagnostic.code,
+        reason: diagnostic.reason,
+      }
+      console.error(`[Market search] generated reference rejected ${JSON.stringify(context)}`)
+      this.logger?.error('market-search', 'reference-rejected', context)
+      throw new Error(`Official trade search returned an invalid reference [${diagnostic.code}]: ${diagnostic.reason}`)
+    }
     this.generatedSearches.set(`${realm}:${leagueId}:${searchCode}`, createSearchQuerySnapshot(body, 'superpoe-query'))
     while (this.generatedSearches.size > 100) this.generatedSearches.delete(this.generatedSearches.keys().next().value as string)
   }
@@ -611,6 +628,13 @@ export class MarketViewManager {
     if (view.webContents.isDestroyed()) throw new Error('Market session is unavailable')
     await this.ensureSessionRestored(view.webContents, MARKET_PROFILES[realm])
     const retryable = isReadOnlyTradeRequest(url)
+    const action = /\/api\/trade2\/search\//.test(url)
+      ? 'search'
+      : /\/api\/trade2\/fetch\//.test(url)
+        ? 'fetch'
+        : /\/api\/trade2\/whisper/.test(url)
+          ? 'whisper'
+          : 'reference-data'
     for (let attempt = 0; attempt <= TRADE_REQUEST_MAX_RETRIES; attempt += 1) {
       try {
         const response = await view.webContents.session.fetch(url, init)
@@ -629,6 +653,7 @@ export class MarketViewManager {
             const compact = text.replace(/\s+/g, ' ').trim()
             if (compact && !/^<!doctype html/i.test(compact)) detail = compact.slice(0, 240)
           }
+          this.logger?.warn('market-api', 'response-error', { action, status: response.status, attempt: attempt + 1, ...(detail ? { detail } : {}) })
           if (retryable && attempt < TRADE_REQUEST_MAX_RETRIES && TRADE_REQUEST_RETRYABLE_STATUS.has(response.status)) {
             await new Promise((resolve) => setTimeout(resolve, retryDelayMs(attempt, response.headers.get('retry-after'))))
             continue
@@ -640,12 +665,26 @@ export class MarketViewManager {
         // body. It is still a successful HTTP response and must not be parsed as
         // JSON, otherwise a sent whisper is reported as a validation failure.
         if (!text.trim()) return null
-        return JSON.parse(text) as unknown
+        const payload = JSON.parse(text) as unknown
+        if (action === 'search') {
+          const root = payload && typeof payload === 'object' && !Array.isArray(payload) ? payload as Record<string, unknown> : {}
+          const rawId = root.id
+          this.logger?.info('market-api', 'search-response', {
+            status: response.status,
+            bytes: text.length,
+            idType: rawId == null ? String(rawId) : Array.isArray(rawId) ? 'array' : typeof rawId,
+            ...(typeof rawId === 'string' ? { idLength: rawId.length } : {}),
+            ...(typeof root.total === 'number' ? { total: root.total } : {}),
+            resultCount: Array.isArray(root.result) ? root.result.length : 0,
+          })
+        }
+        return payload
       } catch (error) {
         if (retryable && attempt < TRADE_REQUEST_MAX_RETRIES && !(error instanceof OfficialTradeRequestError)) {
           await new Promise((resolve) => setTimeout(resolve, retryDelayMs(attempt, null)))
           continue
         }
+        this.logger?.error('market-api', 'request-failed', { action, attempt: attempt + 1, error })
         throw error
       }
     }

@@ -47,7 +47,8 @@ function Test-DevCommand {
 function Get-DevProcessIds {
   param(
     [Parameter(Mandatory = $true)][object[]]$Snapshot,
-    [Parameter(Mandatory = $false)][int[]]$PortOwners = @()
+    [Parameter(Mandatory = $false)][int[]]$PortOwners = @(),
+    [Parameter(Mandatory = $true)][string]$RootPath
   )
 
   $roots = New-Object 'System.Collections.Generic.HashSet[int]'
@@ -74,6 +75,18 @@ function Get-DevProcessIds {
         break
       }
       $current = $parent
+    }
+  }
+
+  # Electron is launched separately from Vite, so it is not always reachable
+  # through the port-owner process tree. Include the dev main process directly.
+  $rootPattern = [regex]::Escape($RootPath)
+  foreach ($process in $Snapshot) {
+    $commandLine = [string]$process.CommandLine
+    $isElectron = $process.Name -match '^(electron)(\.exe)?$'
+    $isMainProcess = $commandLine -notmatch '--type='
+    if ($isElectron -and $isMainProcess -and $commandLine -match $rootPattern) {
+      [void]$roots.Add([int]$process.ProcessId)
     }
   }
 
@@ -122,7 +135,7 @@ function Stop-DevProcesses {
   $connections = @(Get-NetTCPConnection -LocalPort $ListenPort -State Listen -ErrorAction SilentlyContinue)
   $portOwners = @($connections | ForEach-Object { [int]$_.OwningProcess } | Select-Object -Unique)
   $snapshot = Get-ProcessSnapshot
-  $processIds = @(Get-DevProcessIds -Snapshot $snapshot -PortOwners $portOwners)
+  $processIds = @(Get-DevProcessIds -Snapshot $snapshot -PortOwners $portOwners -RootPath $Root)
 
   if ($processIds.Count -eq 0) {
     Write-Host "No SuperPoE2 dev process found."
@@ -165,5 +178,18 @@ if ($stillListening.Count -gt 0) {
 }
 
 Write-Step "Start npm run dev"
-npm.cmd run dev
-exit $LASTEXITCODE
+$env:ELECTRON_RENDERER_URL = "http://127.0.0.1:$Port"
+$renderer = $null
+try {
+  $renderer = Start-Process -FilePath 'npm.cmd' -ArgumentList @('run', 'dev:renderer', '--', '--port', "$Port") -WorkingDirectory $Root -NoNewWindow -PassThru
+  npm.cmd run build:electron:main
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  & (Join-Path $Root 'node_modules\.bin\wait-on.cmd') "http://127.0.0.1:$Port"
+  if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+  & (Join-Path $Root 'node_modules\.bin\electron.cmd') $Root
+  exit $LASTEXITCODE
+} finally {
+  if ($renderer -and -not $renderer.HasExited) {
+    Stop-Process -Id $renderer.Id -Force -ErrorAction SilentlyContinue
+  }
+}

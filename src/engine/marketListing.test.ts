@@ -38,6 +38,38 @@ describe('official market listing normalization', () => {
     expect(result.item.preview.modifiers[2].currentValues).toEqual([])
     expect(result.item.preview.modifiers[3].sourceTags).toEqual(['crafted'])
     expect(result.item.raw).toContain('+109 to maximum Life')
+    expect(result.item.preview.properties).toBeUndefined()
+    expect(result.item.preview.requirements).toBeUndefined()
+  })
+
+  it('keeps complete official item properties, requirements, object modifiers and new modifier groups', () => {
+    const result = normalizeMarketListing({ result: [{ id: 'listing_1234', item: {
+      rarity: 'RARE', name: 'Doom Shell', baseType: 'Expert Hexer Robe', ilvl: 81,
+      properties: [
+        { name: 'Armour', values: [['120', 0]] },
+        { name: 'Quality', values: [['+20%', 1]] },
+      ],
+      requirements: [
+        { name: 'Level', values: [['65', 0]] },
+        { name: 'Strength', values: [['90', 0]] },
+      ],
+      implicitMods: [{ description: 'Grants Skill: Level 20 Test' }],
+      utilityMods: ['Uses 10 charges'],
+      explicitMods: ['+109 to maximum Life'],
+    }, listing: { price: { amount: 1, currency: 'divine' } } }] }, {
+      realm: 'global', listingId: 'listing_1234',
+      sourceUrl: 'https://www.pathofexile.com/trade2/search/poe2/Standard/query_5678',
+    })
+
+    expect(result.item.preview.properties).toEqual([{ key: 'Armour', values: ['120'] }])
+    expect(result.item.preview.requirements).toEqual([
+      { key: 'Level', values: ['65'] },
+      { key: 'Strength', values: ['90'] },
+    ])
+    expect(result.item.preview.modifiers.map((modifier) => modifier.original.displayText)).toEqual([
+      'Grants Skill: Level 20 Test', '+109 to maximum Life', 'Uses 10 charges',
+    ])
+    expect(result.item.raw).toContain('Uses 10 charges')
   })
 
   it('keeps duplicate official candidates ambiguous instead of selecting one', () => {

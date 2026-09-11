@@ -7,6 +7,7 @@ import type {
 } from '../src/types/market.js'
 import type { MarketViewManager } from './marketView.js'
 import { OfficialTradeRequestError } from './officialTradeRequestError.js'
+import type { ClientLogger } from './clientLogger.js'
 
 export interface CatalogOption { id: string; text: string }
 export interface CatalogEntry { id: string; text: string; type?: string; option?: { options?: CatalogOption[] } }
@@ -329,6 +330,7 @@ function logTradeQuery(
   query: unknown,
   resolvedModifierCount: number,
   unresolvedModifierCount: number,
+  logger?: ClientLogger,
 ): void {
   const summary = {
     realm,
@@ -359,6 +361,7 @@ function logTradeQuery(
     query,
   }
   console.info(`[Market search] submit ${JSON.stringify(summary)}`)
+  logger?.info('market-search', 'query-submitted', summary)
 }
 
 export class OfficialTradeProvider {
@@ -370,6 +373,7 @@ export class OfficialTradeProvider {
     private readonly cache: TradeReferenceDataCache,
     private readonly embeddedCatalog?: (realm: MarketRealm) => Promise<CatalogSnapshot>,
     private readonly projectItem?: (realm: MarketRealm, item: LibraryItemSnapshot, catalog: CatalogSnapshot) => Promise<LibraryItemSnapshot> | LibraryItemSnapshot,
+    private readonly logger?: ClientLogger,
   ) {}
 
   stats(realm: MarketRealm): Promise<CatalogSnapshot> {
@@ -505,7 +509,7 @@ export class OfficialTradeProvider {
       }
       // Log the final query that produced the visible result URL. For a
       // weighted search this includes PoB2's threshold adjustment.
-      logTradeQuery(realm, leagueId, 'detailed', mode, resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
+      logTradeQuery(realm, leagueId, 'detailed', mode, resolvedItem, query, resolvedModifierCount, unresolvedModifierCount, this.logger)
     } catch (error) {
       const unknownItemName = error instanceof OfficialTradeRequestError
         && error.status === 400
@@ -514,14 +518,14 @@ export class OfficialTradeProvider {
       if (identityFallback) {
         console.warn(`[Market search] global item name was rejected; retrying without query.name league=${leagueId}`)
         query = identityFallback
-        logTradeQuery(realm, leagueId, 'identity-fallback', mode, resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
+        logTradeQuery(realm, leagueId, 'identity-fallback', mode, resolvedItem, query, resolvedModifierCount, unresolvedModifierCount, this.logger)
         response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
       } else {
         if (criteria || mode !== 'price-check' || !(error instanceof OfficialTradeRequestError) || error.status !== 400 || built.resolved === 0 || !queryItemType(resolvedItem, realm)) throw error
         query = buildTypeOnlyQuery(resolvedItem, realm)
         resolvedModifierCount = 0
         unresolvedModifierCount = resolvedItem.modifiers.length
-        logTradeQuery(realm, leagueId, 'type-only', mode, resolvedItem, query, resolvedModifierCount, unresolvedModifierCount)
+        logTradeQuery(realm, leagueId, 'type-only', mode, resolvedItem, query, resolvedModifierCount, unresolvedModifierCount, this.logger)
         response = record(await this.limited(() => this.manager.search(realm, leagueId, query))) as SearchResponse
       }
     }

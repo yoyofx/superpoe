@@ -1,17 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type ReactNode } from 'react'
 import {
-  ArrowLeft, BellOff, BellRing, Bookmark, Check, ChevronDown, ChevronRight, Eraser, ExternalLink, Eye, Folder, FolderInput, FolderPlus, Home,
+  ArrowLeft, ArrowUp, BellOff, BellRing, Bookmark, Check, ChevronDown, ChevronRight, Eraser, ExternalLink, Eye, Folder, FolderInput, FolderPlus, Home, LoaderCircle,
   ListChecks, PanelLeftClose, PanelLeftOpen, Pencil, Save, Search, Square,
   RefreshCw, Replace, Shirt, SquareCheckBig, Tags, Trash2, X,
 } from 'lucide-react'
 import type {
   EquipmentLibraryEntry, EquipmentLibraryFolder, EquipmentLibrarySidebarSnapshot, LibraryTreeScope,
-  EquipmentLibrarySourceKind, MarketFavoriteSource, MarketMonitoringSnapshot, MarketPageListingSummary, MarketRealm, MarketSearchReference, SavedMarketSearch, TradeLeague,
+  EquipmentLibrarySourceKind, MarketFavoriteSource, MarketMonitoringSnapshot, MarketPageAffixGroup, MarketPageListingRarity, MarketPageListingSummary, MarketRealm, MarketSearchReference, SavedMarketSearch, TradeLeague,
 } from '@/types/market'
 import { MAX_ACTIVE_PURCHASE_TARGETS } from '@/types/market'
 import type { Language } from '@/i18n/translationLoader'
+import { translateGameText } from '@/i18n/translationLoader'
 import { uiText, type UiMessage } from '@/i18n/uiLocale'
-import { EquipmentItemInspector, equipmentItemName } from '@/components/equipment/EquipmentItemInspector'
+import { EquipmentItemInspector, equipmentItemName, translateEquipmentItemName } from '@/components/equipment/EquipmentItemInspector'
 import { EquipmentCollectionTree, type EquipmentCollectionSelection } from '@/components/equipment/EquipmentCollectionTree'
 import { parseEquipmentXml } from '@/engine/equipment'
 import { deriveWeaponComparisonStatsFromRaw } from '@/engine/itemDisplayStats'
@@ -26,8 +27,8 @@ interface EquipmentLibraryPanelProps {
   language: Language
   currentSearch?: MarketSearchReference
   currentPageListings: MarketPageListingSummary[]
-  marketCommand: 'search' | 'clear' | null
-  onMarketCommand: (command: 'search' | 'clear') => void
+  marketCommand: 'focus-filters' | 'search' | 'clear' | null
+  onMarketCommand: (command: 'focus-filters' | 'search' | 'clear') => void
   onFocusPageListing: (listingId: string) => void
   monitoring: MarketMonitoringSnapshot | null
   activeTab: EquipmentLibraryPanelTab
@@ -68,6 +69,106 @@ function sourceLabel(kind: EquipmentLibrarySourceKind, language: Language): stri
     manual: { en: 'Manual', 'zh-rCN': '手动', 'zh-rTW': '手動', 'ko-KR': '수동' },
   }
   return labels[kind][language]
+}
+
+function marketListingKey(listing: MarketPageListingSummary): string {
+  return `${listing.realm}:${listing.listingId}`
+}
+
+function marketListingAffixGroups(listing: MarketPageListingSummary): MarketPageAffixGroup[] {
+  const excluded = new Set([listing.name, listing.baseType].filter((value): value is string => Boolean(value)))
+  const seen = new Set<string>()
+  const groups = (listing.affixGroups || []).map((group) => ({
+    ...group,
+    values: group.values.filter((value) => {
+      if (!value || excluded.has(value) || seen.has(value)) return false
+      seen.add(value)
+      return true
+    }),
+  })).filter((group) => group.values.length)
+  if (groups.length) return groups
+  const values = [...new Set(listing.affixes || [])].filter((value) => value && !excluded.has(value))
+  return values.length ? [{ kind: 'other', values }] : []
+}
+
+function marketListingAffixLabel(kind: MarketPageAffixGroup['kind'], language: Language): string {
+  const labels: Record<MarketPageAffixGroup['kind'], UiMessage> = {
+    implicit: { en: 'Implicit', 'zh-rCN': '固有', 'zh-rTW': '固有', 'ko-KR': '고정' },
+    prefix: { en: 'Prefix', 'zh-rCN': '前缀', 'zh-rTW': '前綴', 'ko-KR': '접두' },
+    suffix: { en: 'Suffix', 'zh-rCN': '后缀', 'zh-rTW': '後綴', 'ko-KR': '접미' },
+    other: { en: 'Other', 'zh-rCN': '其它', 'zh-rTW': '其它', 'ko-KR': '기타' },
+  }
+  return labels[kind][language]
+}
+
+function marketListingRarityLabel(rarity: MarketPageListingRarity, language: Language): string {
+  const labels: Record<MarketPageListingRarity, UiMessage> = {
+    normal: { en: 'Normal', 'zh-rCN': '普通', 'zh-rTW': '普通', 'ko-KR': '일반' },
+    magic: { en: 'Magic', 'zh-rCN': '魔法', 'zh-rTW': '魔法', 'ko-KR': '마법' },
+    rare: { en: 'Rare', 'zh-rCN': '稀有', 'zh-rTW': '稀有', 'ko-KR': '희귀' },
+    unique: { en: 'Unique', 'zh-rCN': '传奇', 'zh-rTW': '傳奇', 'ko-KR': '고유' },
+    other: { en: 'Other', 'zh-rCN': '其他', 'zh-rTW': '其他', 'ko-KR': '기타' },
+  }
+  return labels[rarity][language]
+}
+
+function marketListingWeaponStats(listing: MarketPageListingSummary, language: Language): Array<{ label: string; value: number }> {
+  if (!listing.weaponStats) return []
+  const labels = {
+    total: uiText(language, 'DPS', 'DPS', 'DPS', 'DPS'),
+    physical: uiText(language, 'Physical DPS', '物理DPS', '物理DPS', '물리 DPS'),
+    elemental: uiText(language, 'Elemental DPS', '元素DPS', '元素DPS', '원소 DPS'),
+    chaos: uiText(language, 'Chaos DPS', '混沌DPS', '混沌DPS', '카오스 DPS'),
+  }
+  const entries: Array<{ label: string; value: number }> = [{ label: labels.total, value: listing.weaponStats.totalDps }]
+  if (listing.weaponStats.physicalDps !== undefined) entries.push({ label: labels.physical, value: listing.weaponStats.physicalDps })
+  if (listing.weaponStats.elementalDps !== undefined) entries.push({ label: labels.elemental, value: listing.weaponStats.elementalDps })
+  if (listing.weaponStats.chaosDps !== undefined) entries.push({ label: labels.chaos, value: listing.weaponStats.chaosDps })
+  return entries
+}
+
+function marketListingDefenseStats(listing: MarketPageListingSummary, language: Language): Array<{ label: string; value: number; percent?: boolean }> {
+  if (!listing.defenseStats) return []
+  const labels = {
+    armour: uiText(language, 'Armour', '护甲', '護甲', '방어도'),
+    evasion: uiText(language, 'Evasion', '闪避', '閃避', '회피'),
+    energyShield: uiText(language, 'Energy Shield', '能量护盾', '能量護盾', '에너지 보호막'),
+    runicWard: uiText(language, 'Runic Ward', '灵能护盾', '靈能護盾', '룬 방벽'),
+    block: uiText(language, 'Block', '格挡', '格擋', '막기'),
+    spirit: uiText(language, 'Spirit', '精神', '精神', '정신'),
+  }
+  const entries: Array<{ label: string; value: number; percent?: boolean }> = []
+  if (listing.defenseStats.armour !== undefined) entries.push({ label: labels.armour, value: listing.defenseStats.armour })
+  if (listing.defenseStats.evasion !== undefined) entries.push({ label: labels.evasion, value: listing.defenseStats.evasion })
+  if (listing.defenseStats.energyShield !== undefined) entries.push({ label: labels.energyShield, value: listing.defenseStats.energyShield })
+  if (listing.defenseStats.runicWard !== undefined) entries.push({ label: labels.runicWard, value: listing.defenseStats.runicWard })
+  if (listing.defenseStats.block !== undefined) entries.push({ label: labels.block, value: listing.defenseStats.block, percent: true })
+  if (listing.defenseStats.spirit !== undefined) entries.push({ label: labels.spirit, value: listing.defenseStats.spirit })
+  return entries
+}
+
+function formatMarketNumber(value: number): string {
+  return value.toLocaleString('en-US', { maximumFractionDigits: 2 })
+}
+
+function containsCjk(value: string): boolean {
+  return /[\u3400-\u9fff\uac00-\ud7af]/u.test(value)
+}
+
+function marketListingDisplayName(listing: MarketPageListingSummary, language: Language): string {
+  const candidates = [
+    listing.item ? { value: listing.item.name, rarity: listing.item.rarity } : undefined,
+    { value: listing.name, rarity: listing.item?.rarity || 'RARE' },
+  ].filter((candidate): candidate is { value: string; rarity: string } => Boolean(candidate?.value?.trim()))
+  const translated = candidates.map((candidate) => {
+    const value = candidate.value.trim()
+    // The market preload already read the page's rendered language. Keep that
+    // authoritative text instead of translating the same item name again.
+    if (language === 'en' || containsCjk(value)) return value
+    return translateEquipmentItemName(value, candidate.rarity, language) || translateGameText(value, language)
+  })
+  const localized = translated.find((value, index) => value !== candidates[index].value.trim() || containsCjk(value))
+  return localized || translated[0] || listing.name
 }
 
 function folderPath(folder: EquipmentLibraryFolder, folders: EquipmentLibraryFolder[]): string {
@@ -306,12 +407,18 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, currentP
       setNotice(l(`“${existing.name}” is already saved`, `“${existing.name}”已经收藏`, `「${existing.name}」已收藏`, `“${existing.name}”이(가) 이미 저장되어 있습니다`))
       return
     }
+    const searchFolderId = activeTab === 'searches' ? selectedFolderId : sidebar.selectedSearchFolderId
     setSearchEditor({
       mode: 'create',
       name: activeSearch.leagueId || l('Saved search', '已保存的搜索', '已儲存的搜尋', '저장된 검색'),
       note: '',
-      folderId: selectedFolderId || '',
+      folderId: searchFolderId || '',
     })
+  }
+
+  const saveCurrentSearchFromMarket = () => {
+    onTabChange('searches')
+    void openSearchCreator()
   }
 
   const submitSearchEditor = async () => {
@@ -329,9 +436,10 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, currentP
 
   const visitHideout = async (entryId: string) => {
     const result = await bridge!.visitHideout(entryId)
-    if (!result.ok && result.reason === 'game-offline') {
-      throw new Error(l('Unable to travel to the hideout. Start the game and log in to a character, or check whether the listing is still available.', '暂时无法前往藏身处。请先启动游戏并登录角色后再试；如果已经在线，该商品可能已经失效。', '暫時無法前往藏身處。請先啟動遊戲並登入角色後再試；若已在線，該商品可能已失效。', '은신처로 이동할 수 없습니다. 게임을 실행하고 캐릭터에 로그인하거나 매물이 유효한지 확인하세요.'))
-    }
+  }
+
+  const visitPageListing = async (listingId: string) => {
+    await bridge!.visitPageListing(listingId)
   }
 
   const startDrag = (event: ReactDragEvent, payload: LibraryDragPayload) => {
@@ -600,29 +708,99 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, currentP
     }, l(`${count} items deleted`, `已删除 ${count} 件装备`, `已刪除 ${count} 件裝備`, `장비 ${count}개 삭제됨`))
   }
 
-  return <aside className="equipment-library-panel trade-helper-sidebar">
-    <header className="trade-helper-header"><Bookmark /><strong>{headerTitle || l('Equipment Library', '装备仓库', '裝備倉庫', '장비 라이브러리')}</strong><span className="trade-helper-header-actions"><button onClick={onClose} title={l('Collapse shortcuts', '收起快捷栏', '收合快捷欄', '바로 가기 접기')}><X /></button></span></header>
-    <nav className="trade-helper-tabs">
-      <button className={activeTab === 'market' ? 'active' : ''} onClick={() => onTabChange('market')}>{l('Market', '集市', '市集', '거래소')}</button>
-      <button className={activeTab === 'items' ? 'active' : ''} onClick={() => onTabChange('items')}>{l('Equipment favorites', '装备收藏', '裝備收藏', '장비 즐겨찾기')}</button>
-      <button className={activeTab === 'searches' ? 'active' : ''} onClick={() => onTabChange('searches')}>{l('Search favorites', '搜索收藏', '搜尋收藏', '검색 즐겨찾기')}</button>
-    </nav>
+  return <>
+    <aside className="equipment-library-panel trade-helper-sidebar">
+    <header className="trade-helper-header trade-helper-header-with-tabs">
+      <span className="trade-helper-header-brand"><Bookmark /><strong>{headerTitle || l('Equipment Library', '装备仓库', '裝備倉庫', '장비 라이브러리')}</strong></span>
+      <nav className="trade-helper-tabs" aria-label={l('Trade center shortcuts', '交易中心快捷栏', '交易中心快捷欄', '거래 센터 바로 가기')}>
+        <button className={activeTab === 'market' ? 'active' : ''} onClick={() => onTabChange('market')}>{l('Market', '集市', '市集', '거래소')}</button>
+        <button className={activeTab === 'items' ? 'active' : ''} onClick={() => onTabChange('items')}>{l('Equipment favorites', '装备收藏', '裝備收藏', '장비 즐겨찾기')}</button>
+        <button className={activeTab === 'searches' ? 'active' : ''} onClick={() => onTabChange('searches')}>{l('Search favorites', '搜索收藏', '搜尋收藏', '검색 즐겨찾기')}</button>
+      </nav>
+      <span className="trade-helper-header-actions"><button onClick={onClose} title={l('Collapse shortcuts', '收起快捷栏', '收合快捷欄', '바로 가기 접기')}><X /></button></span>
+    </header>
     <div className={`trade-helper-workspace${directoryCompact ? ' directory-compact' : ''}${activeTab === 'market' ? ' market-tab' : ''}`}>
       {activeTab === 'market' && <section className="trade-helper-market-pane">
         <header className="trade-helper-market-actions">
-          <div><strong>{l('Market actions', '集市操作', '市集操作', '거래소 작업')}</strong><small>{l('Control the current official search', '控制当前官方搜索', '控制目前官方搜尋', '현재 공식 검색 제어')}</small></div>
+          <div><strong>{l('Market quick actions', '集市快捷操作', '市集快捷操作', '거래소 빠른 작업')}</strong><small>{l('Quickly preview market information', '快速预览集市信息', '快速預覽市集資訊', '거래소 정보를 빠르게 미리 보기')}</small></div>
           <span>
-            <button className="primary" disabled={!bridge || marketCommand != null} onClick={() => onMarketCommand('search')} title={l('Search current conditions', '搜索当前条件', '搜尋目前條件', '현재 조건 검색')}><Search />{l('Search', '搜索', '搜尋', '검색')}</button>
-            <button disabled={!bridge || marketCommand != null} onClick={() => onMarketCommand('clear')} title={l('Clear current conditions', '清空当前条件', '清空目前條件', '현재 조건 지우기')}><Eraser />{l('Clear', '清空', '清除', '지우기')}</button>
+            <button disabled={!bridge || marketCommand != null} onClick={() => onMarketCommand('focus-filters')} title={l('Return to filter area', '返回筛选区域', '返回篩選區域', '필터 영역으로 돌아가기')}><ArrowUp />{l('Filter', '筛选', '篩選', '필터')}</button>
+            <button className="primary" disabled={!bridge || marketCommand != null} onClick={() => onMarketCommand('search')} title={l('Search the market', '集市搜索', '市集搜尋', '거래소 검색')}><Search />{l('Search', '搜索', '搜尋', '검색')}</button>
+            <button disabled={!bridge || marketCommand != null} onClick={() => onMarketCommand('clear')} title={l('Clear filter conditions', '清空条件', '清空條件', '필터 조건 지우기')}><Eraser />{l('Clear', '清空', '清空', '지우기')}</button>
+            <button disabled={!bridge || marketCommand != null} onClick={saveCurrentSearchFromMarket} title={l('Save the current search and open search favorites', '收藏当前搜索并打开搜索收藏', '儲存目前搜尋並開啟搜尋收藏', '현재 검색을 저장하고 검색 즐겨찾기 열기')}><Bookmark />{l('Save', '收藏', '收藏', '저장')}</button>
           </span>
         </header>
+        {(notice || error) && <div className={error ? 'trade-helper-message error' : 'trade-helper-message'} role={error ? 'alert' : 'status'} aria-live="polite">{error || notice}<button onClick={() => { setError(null); setNotice(null) }} title={l('Dismiss', '关闭提示', '關閉提示', '알림 닫기')} aria-label={l('Dismiss', '关闭提示', '關閉提示', '알림 닫기')}><X /></button></div>}
         <div className="trade-helper-market-list-header"><span><Eye /><strong>{l('Items on this page', '本页物品', '本頁物品', '이 페이지의 아이템')}</strong></span><small>{currentPageListings.length}</small></div>
         <div className="trade-helper-market-list">
-          {currentPageListings.map((listing) => <button className="trade-helper-market-listing" key={`${listing.realm}:${listing.listingId}`} onClick={() => onFocusPageListing(listing.listingId)} title={l('Locate this item on the official page', '定位到官方页面中的这件物品', '定位到官方頁面的這件物品', '공식 페이지에서 이 아이템 위치로 이동')}>
-            <span><strong>{listing.name}</strong>{listing.baseType && <small>{listing.baseType}</small>}{listing.seller && <em>{listing.seller}</em>}</span>
-            <b>{listing.price || l('No price', '未标价', '未標價', '가격 없음')}</b>
-            <Eye />
-          </button>)}
+          {currentPageListings.map((listing) => {
+            const key = marketListingKey(listing)
+            const affixGroups = marketListingAffixGroups(listing)
+            const itemName = marketListingDisplayName(listing, language)
+            const rarity = listing.rarity || 'other'
+            const summaryStats = listing.summaryStats || []
+            const weaponStats = marketListingWeaponStats(listing, language)
+            const defenseStats = marketListingDefenseStats(listing, language)
+            return <article
+              className={`trade-helper-market-listing rarity-${rarity}`}
+              key={key}
+            >
+              <button
+                type="button"
+                className="trade-helper-market-listing-card"
+                onClick={() => onFocusPageListing(listing.listingId)}
+                title={l('Locate this listing', '定位这条挂单', '定位這筆掛單', '이 매물 위치로 이동')}
+                aria-label={l('Locate this listing', '定位这条挂单', '定位這筆掛單', '이 매물 위치로 이동')}
+              >
+                <span className="trade-helper-market-listing-card-top">
+                  <span className={`trade-helper-market-listing-heading${listing.iconUrl ? ' has-icon' : ''}`}>
+                    {listing.iconUrl && <img className="trade-helper-market-listing-icon" src={listing.iconUrl} alt="" />}
+                    <span className="trade-helper-market-listing-name">
+                      <span className="trade-helper-market-listing-name-line">
+                        <strong>{itemName || listing.name || l('Unnamed item', '未命名物品', '未命名物品', '이름 없는 아이템')}</strong>
+                        <em>{marketListingRarityLabel(rarity, language)}</em>
+                      </span>
+                      {listing.baseType && <small>{listing.baseType}</small>}
+                      {weaponStats.length > 0 && <span className="trade-helper-market-listing-weapon-stats">
+                        {weaponStats.map((stat) => <span key={stat.label}><b>{stat.label}</b>{formatMarketNumber(stat.value)}</span>)}
+                      </span>}
+                      {defenseStats.length > 0 && <span className="trade-helper-market-listing-defense-stats">
+                        {defenseStats.map((stat) => <span key={stat.label}><b>{stat.label}</b>{formatMarketNumber(stat.value)}{stat.percent ? '%' : ''}</span>)}
+                      </span>}
+                      {summaryStats.length > 0 && <span className="trade-helper-market-listing-summary-stats">
+                        {summaryStats.map((stat) => <span key={stat}>{stat}</span>)}
+                      </span>}
+                    </span>
+                  </span>
+                  <span className="trade-helper-market-listing-offer">
+                    {listing.priceAmount && <b>{listing.priceAmount}</b>}
+                    {listing.priceIconUrl
+                      ? <img src={listing.priceIconUrl} alt={listing.priceCurrency || l('Currency', '货币', '貨幣', '통화')} title={listing.priceCurrency || undefined} />
+                      : listing.priceCurrency && <span>{listing.priceCurrency}</span>}
+                    {!listing.priceAmount && !listing.priceIconUrl && !listing.priceCurrency && <b>{listing.price || l('No price', '未标价', '未標價', '가격 없음')}</b>}
+                  </span>
+                </span>
+                {affixGroups.length > 0 && <div className="trade-helper-market-listing-affix-groups" aria-label={l('Item modifiers', '装备词条', '裝備詞綴', '아이템 속성')}>
+                  {affixGroups.map((group) => <div className={`trade-helper-market-listing-affix-group affix-group-${group.kind}`} key={group.kind}>
+                    <span className="trade-helper-market-listing-affix-label">{marketListingAffixLabel(group.kind, language)}</span>
+                    <span className="trade-helper-market-listing-affix-values">
+                      {group.values.map((affix) => <span key={affix}>{affix}</span>)}
+                    </span>
+                  </div>)}
+                </div>}
+              </button>
+              <div className="trade-helper-market-listing-actions">
+                <button
+                  type="button"
+                  disabled={busyId === `page-hideout:${key}`}
+                  onClick={(event) => { event.stopPropagation(); void run(`page-hideout:${key}`, () => visitPageListing(listing.listingId), l('Hideout travel triggered. Check the in-game trade notification.', '已触发前往藏身处，请查看游戏内交易提示。', '已觸發前往藏身處，請查看遊戲內交易提示。', '은신처 이동을 실행했습니다. 게임 내 거래 알림을 확인하세요.')) }}
+                  title={l('Travel to hideout', '前往藏身处', '前往藏身處', '은신처로 이동')}
+                  aria-label={l('Travel to hideout', '前往藏身处', '前往藏身處', '은신처로 이동')}
+                  aria-busy={busyId === `page-hideout:${key}`}
+                >{busyId === `page-hideout:${key}` ? <LoaderCircle className="trade-helper-action-loading" /> : <Home />}</button>
+              </div>
+            </article>
+          })}
           {!currentPageListings.length && <div className="trade-helper-market-empty"><Eye /><span>{l('Search results will appear here', '当前搜索结果会显示在这里', '目前搜尋結果會顯示在這裡', '현재 검색 결과가 여기에 표시됩니다')}</span></div>}
         </div>
       </section>}
@@ -764,7 +942,8 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, currentP
         </section>
       </div>}
     </div>
-  </aside>
+    </aside>
+  </>
 }
 
 function GlobeLabel({ realm, language }: { realm: MarketRealm; language: Language }) {

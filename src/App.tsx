@@ -102,6 +102,8 @@ function AuthenticatedWorkspace() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [backupBusy, setBackupBusy] = useState(false)
   const [backupNotice, setBackupNotice] = useState<string | null>(null)
+  const [diagnosticBusy, setDiagnosticBusy] = useState(false)
+  const [diagnosticNotice, setDiagnosticNotice] = useState<string | null>(null)
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false)
   const [appSettings, setAppSettings] = useState(loadAppSettings)
   const { treeData, error, loadTreeData, loadSavedBuilds } = useTreeStore()
@@ -248,8 +250,14 @@ function AuthenticatedWorkspace() {
   }, [])
 
   useEffect(() => {
-    void window.pob2Desktop?.setAppContext({ defaultRealm: appSettings.defaultRealm, language: lang, priceCheckEnabled: appSettings.priceCheckEnabled, priceCheckHotkey: appSettings.priceCheckHotkey })
-  }, [appSettings.defaultRealm, appSettings.priceCheckEnabled, appSettings.priceCheckHotkey, lang])
+    void window.pob2Desktop?.setAppContext({
+      defaultRealm: appSettings.defaultRealm,
+      language: lang,
+      priceCheckEnabled: appSettings.priceCheckEnabled,
+      priceCheckHotkey: appSettings.priceCheckHotkey,
+      gameDirectory: appSettings.gameDirectories[appSettings.defaultRealm],
+    })
+  }, [appSettings.defaultRealm, appSettings.gameDirectories, appSettings.priceCheckEnabled, appSettings.priceCheckHotkey, lang])
 
   useEffect(() => {
     const bridge = window.pob2Market
@@ -787,6 +795,44 @@ function AuthenticatedWorkspace() {
     }
   }, [l])
 
+  const handleDiagnosticExport = useCallback(async () => {
+    const bridge = window.pob2Desktop
+    if (!bridge?.exportDiagnosticLog) {
+      setDiagnosticNotice(l('Diagnostic logs require the desktop app', '诊断日志需要桌面版应用', '診斷記錄需要桌面版應用程式', '진단 로그는 데스크톱 앱에서만 지원됩니다'))
+      return
+    }
+    setDiagnosticBusy(true)
+    setDiagnosticNotice(null)
+    try {
+      const result = await bridge.exportDiagnosticLog()
+      if (!result.canceled) {
+        const fileName = result.filePath?.split(/[\\/]/).pop()
+        setDiagnosticNotice(fileName
+          ? l(`Diagnostic log exported: ${fileName}`, `诊断日志已导出：${fileName}`, `診斷記錄已匯出：${fileName}`, `진단 로그를 내보냈습니다: ${fileName}`)
+          : l('Diagnostic log exported', '诊断日志已导出', '診斷記錄已匯出', '진단 로그를 내보냈습니다'))
+      }
+    } catch (error) {
+      console.error('[Diagnostics] export failed', error)
+      setDiagnosticNotice(l('Diagnostic log export failed', '诊断日志导出失败', '診斷記錄匯出失敗', '진단 로그 내보내기 실패'))
+    } finally {
+      setDiagnosticBusy(false)
+    }
+  }, [l])
+
+  const handleDiagnosticOpenDirectory = useCallback(async () => {
+    const bridge = window.pob2Desktop
+    if (!bridge?.openDiagnosticLogDirectory) {
+      setDiagnosticNotice(l('Diagnostic logs require the desktop app', '诊断日志需要桌面版应用', '診斷記錄需要桌面版應用程式', '진단 로그는 데스크톱 앱에서만 지원됩니다'))
+      return
+    }
+    try {
+      await bridge.openDiagnosticLogDirectory()
+    } catch (error) {
+      console.error('[Diagnostics] open directory failed', error)
+      setDiagnosticNotice(l('Unable to open the diagnostic log folder', '无法打开诊断日志目录', '無法開啟診斷記錄資料夾', '진단 로그 폴더를 열 수 없습니다'))
+    }
+  }, [l])
+
   const handleSettingsChange = useCallback((settings: AppSettings) => {
     setAppSettings(settings)
     saveAppSettings(settings)
@@ -825,6 +871,18 @@ function AuthenticatedWorkspace() {
     setCommunityReturnScreen(returnScreen)
     setScreen('community')
   }, [])
+  const openTimer = useCallback(async () => {
+    if (!window.pob2Desktop?.openTimer) {
+      setSaveNotice({ type: 'error', message: l('The map timer requires the desktop app.', '地图计时器需要桌面版应用。', '地圖計時器需要桌面版應用程式。', '지도 타이머는 데스크톱 앱이 필요합니다.') })
+      return
+    }
+    try {
+      await window.pob2Desktop.openTimer()
+    } catch (error) {
+      console.error('[Timer] open failed', error)
+      setSaveNotice({ type: 'error', message: l('Unable to open the map timer. Restart the desktop app and try again.', '无法打开地图计时器，请重启桌面应用后重试。', '無法開啟地圖計時器，請重新啟動桌面應用程式後再試。', '지도 타이머를 열 수 없습니다. 데스크톱 앱을 다시 시작한 후 시도하세요.') })
+    }
+  }, [l])
   useEffect(() => {
     const openCommunityPanel = () => openCommunity(screen === 'editor' ? 'editor' : screen === 'library' ? 'library' : screen === 'trade' ? 'trade' : screen === 'utilities' ? 'utilities' : screen === 'about' ? 'about' : 'center')
     window.addEventListener('open-community-panel', openCommunityPanel)
@@ -835,7 +893,7 @@ function AuthenticatedWorkspace() {
   return (
     <div className={`superpoe-app${screen === 'library' ? ' library-screen' : ''}`}>
       {screen === 'center'
-        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onOpenFile={() => void handleOpenNativeBuildFile()} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onCheckForUpdate={(build) => void handleCheckBuildUpdate(build)} onTradeCenter={() => openTradeCenter('center')} onCommunity={() => openCommunity('center')} onLibrary={() => openLibrary('center')} onUtilities={() => setScreen('utilities')} onAbout={() => setScreen('about')} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} />
+        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onOpenFile={() => void handleOpenNativeBuildFile()} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onCheckForUpdate={(build) => void handleCheckBuildUpdate(build)} onTradeCenter={() => openTradeCenter('center')} onCommunity={() => openCommunity('center')} onLibrary={() => openLibrary('center')} onUtilities={() => setScreen('utilities')} onAbout={() => setScreen('about')} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} onTimer={openTimer} />
         : screen === 'utilities'
           ? <UtilityCenter onCenter={() => setScreen('center')} onLibrary={() => openLibrary('utilities')} onTradeCenter={() => openTradeCenter('center')} onCommunity={() => openCommunity('utilities')} onAbout={() => setScreen('about')} onCreate={() => setNewBuildOpen(true)} onImport={() => setImportOpen(true)} />
           : screen === 'about'
@@ -847,7 +905,7 @@ function AuthenticatedWorkspace() {
         : screen === 'trade'
           ? <Suspense fallback={<WorkspaceLoading language={lang} />}><MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onLibrary={() => openLibrary('trade')} onSettings={() => setSettingsOpen(true)} onCommunity={() => openCommunity('trade')} /></Suspense>
           : <>
-      <Toolbar activeView={activeView} onViewChange={handleViewChange} onTradeCenter={() => openTradeCenter('editor')} onCommunity={() => openCommunity('editor')} monitoring={monitoring} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onLibrary={() => openLibrary('editor')} onImport={() => setImportOpen(true)} onSave={handleSave} onSaveCopy={() => void handleSaveCopy()} onSettings={() => setSettingsOpen(true)} />
+      <Toolbar activeView={activeView} onViewChange={handleViewChange} onTradeCenter={() => openTradeCenter('editor')} onCommunity={() => openCommunity('editor')} monitoring={monitoring} buildName={buildName} buildSourceUrl={buildSourceUrl} onBuildNameChange={handleBuildNameChange} saveStatus={saveStatus} onHome={requestHome} onLibrary={() => openLibrary('editor')} onImport={() => setImportOpen(true)} onSave={handleSave} onSaveCopy={() => void handleSaveCopy()} onSettings={() => setSettingsOpen(true)} onTimer={openTimer} />
       <main className="workspace-view">
         {!treeData ? <WorkspaceLoading language={lang} error={error} /> : <Suspense fallback={<WorkspaceLoading language={lang} />}>
         {activeView === 'passive' && (
@@ -874,6 +932,10 @@ function AuthenticatedWorkspace() {
         backupNotice={backupNotice}
         onBackupExport={() => void handleBackupExport()}
         onBackupImport={() => void handleBackupImport()}
+        diagnosticBusy={diagnosticBusy}
+        diagnosticNotice={diagnosticNotice}
+        onDiagnosticExport={() => void handleDiagnosticExport()}
+        onDiagnosticOpenDirectory={() => void handleDiagnosticOpenDirectory()}
       />
       <UpdateDialog settings={appSettings} visible={screen === 'center'} />
       {buildUpdateTarget && <BuildUpdateDialog

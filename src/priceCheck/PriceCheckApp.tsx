@@ -55,6 +55,30 @@ function slotLabel(slotName: string | undefined, l: (en: string, zhCN: string, z
   return message ? l(...message) : slotName
 }
 
+function searchReferenceErrorCopy(
+  error: string,
+  l: (en: string, zhCN: string, zhTW: string, koKR: string) => string,
+): { title: string; message: string; detail: string } | undefined {
+  const match = error.match(/^Official trade search returned an invalid reference(?: \[([^\]]+)\])?: (.+)$/)
+  if (!match) return undefined
+  const code = match[1] || ''
+  const detail = match[2]
+  const reason = code === 'invalid-search-code'
+    ? (/too long/i.test(detail)
+      ? l('The search ID returned by the official site is too long.', '官方返回的搜索编号过长。', '官方返回的搜尋編號過長。', '공식 사이트에서 반환한 검색 ID가 너무 깁니다.')
+      : l('The search ID returned by the official site contains unsupported characters.', '官方返回的搜索编号包含不支持的字符。', '官方返回的搜尋編號包含不支援的字元。', '공식 사이트에서 반환한 검색 ID에 지원되지 않는 문자가 있습니다.'))
+    : code === 'invalid-search-code-encoding'
+      ? l('The search ID returned by the official site has invalid URL encoding.', '官方返回的搜索编号 URL 编码无效。', '官方返回的搜尋編號 URL 編碼無效。', '공식 사이트에서 반환한 검색 ID의 URL 인코딩이 잘못되었습니다.')
+      : code === 'invalid-league'
+        ? l('The selected league cannot be used to build the official result link.', '当前赛季无法用于生成官方结果链接。', '目前賽季無法用於產生官方結果連結。', '선택한 리그로 공식 결과 링크를 만들 수 없습니다.')
+        : l('The official result link failed local validation.', '官方结果链接未通过本地校验。', '官方結果連結未通過本機驗證。', '공식 결과 링크가 로컬 검증에 실패했습니다.')
+  return {
+    title: l('Search reference rejected', '搜索引用校验失败', '搜尋引用驗證失敗', '검색 참조 검증 실패'),
+    message: l('The official site returned a result, but SuperPoE could not safely create a reusable result link.', '官方集市已返回结果，但 SuperPoE 无法安全生成可复用的结果链接。', '官方市集已返回結果，但 SuperPoE 無法安全產生可重用的結果連結。', '공식 거래소는 결과를 반환했지만 SuperPoE가 안전한 결과 링크를 만들지 못했습니다.'),
+    detail: `${reason} ${l('Technical detail', '技术详情', '技術詳情', '기술 세부 정보')}: ${detail}`,
+  }
+}
+
 export function PriceCheckApp() {
   const bridge = window.superpoePriceCheck
   const [state, setState] = useState<PriceCheckContextState | null>(null)
@@ -150,6 +174,7 @@ export function PriceCheckApp() {
   const selectedCount = useMemo(() => Object.values(modifiers).filter((value) => value.selected).length, [modifiers])
   const busy = state?.phase === 'parsing' || state?.phase === 'searching' || state?.phase === 'fetching-page'
   const captureError = Boolean(state?.error && /did not copy an item|running as administrator/i.test(state.error))
+  const referenceError = state?.error ? searchReferenceErrorCopy(state.error, l) : undefined
   const [elevating, setElevating] = useState(false)
   const [elevationMessage, setElevationMessage] = useState<string | null>(null)
 
@@ -278,13 +303,17 @@ export function PriceCheckApp() {
       </div> : null}
       <section className="pc-searchbar"><button disabled={busy || !leagueId} onClick={() => void runSearch()}><Search />{busy ? l('Working...', '处理中...', '處理中...', '처리 중...') : l('Price Check', '查价', '查價', '가격 확인')}</button><button className="secondary market-search-button" disabled={busy || !leagueId} onClick={() => void searchInTradeCenter()}><Store />{l('Search Market', '搜索集市', '搜尋市集', '거래소 검색')}</button>{state.search && <button className="secondary" onClick={() => void bridge?.openTradePage?.(state.search!.url)}><ExternalLink />{l('Official page', '官网结果', '官網結果', '공식 페이지')}</button>}</section>
     </>}
-    {state?.error && <div className={`pc-error${captureError ? ' pc-guided-error' : ''}`}>
+    {state?.error && <div className={`pc-error${captureError ? ' pc-guided-error' : referenceError ? ' pc-diagnostic-error' : ''}`}>
       {captureError ? <>
         <strong>{/running as administrator/i.test(state.error) ? l('Permission mismatch', '权限不匹配', '權限不相符', '권한 불일치') : l('Item capture failed', '装备复制失败', '裝備複製失敗', '아이템 복사 실패')}</strong>
         <p>{/running as administrator/i.test(state.error)
           ? l('Path of Exile 2 is running as administrator. Restart SuperPoE with the same permission, then try again.', 'Path of Exile 2 正以管理员权限运行，请先让 SuperPoE 以相同权限重启，再重试。', 'Path of Exile 2 正以管理員權限執行，請先讓 SuperPoE 以相同權限重新啟動，再重試。', 'Path of Exile 2가 관리자 권한으로 실행 중입니다. SuperPoE를 같은 권한으로 다시 시작한 뒤 다시 시도하세요.')
           : l('Keep Path of Exile 2 focused, hover an item, and press the price-check hotkey again. If the game runs as administrator, restart SuperPoE with matching permissions.', '请保持 Path of Exile 2 在前台，将鼠标悬停在装备上并再次按查价热键。如果游戏以管理员权限运行，请让 SuperPoE 以相同权限重启。', '請保持 Path of Exile 2 在前景，將滑鼠停在裝備上並再次按查價熱鍵。如果遊戲以管理員權限執行，請讓 SuperPoE 以相同權限重新啟動。', 'Path of Exile 2를 전면에 두고 아이템 위에 마우스를 올린 뒤 가격 확인 단축키를 다시 누르세요. 게임이 관리자 권한으로 실행 중이면 SuperPoE도 같은 권한으로 다시 시작하세요.')}</p>
         <div className="pc-error-actions"><button type="button" onClick={() => void restartAsAdministrator()} disabled={elevating || !bridge?.restartAsAdministrator}><ShieldCheck />{elevating ? l('Restarting...', '重启中...', '重新啟動中...', '다시 시작 중...') : l('Restart as administrator', '以管理员身份重启', '以管理員身份重新啟動', '관리자 권한으로 다시 시작')}</button>{elevationMessage && <small>{elevationMessage}</small>}</div>
+      </> : referenceError ? <>
+        <strong>{referenceError.title}</strong>
+        <p>{referenceError.message}</p>
+        <small>{referenceError.detail}</small>
       </> : state.error}
     </div>}
     {state?.search && <section className="pc-results">

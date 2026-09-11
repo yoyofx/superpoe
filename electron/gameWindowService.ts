@@ -42,12 +42,13 @@ class Win32GameWindowAdapter {
   private readonly QueryFullProcessImageNameW = this.kernel32.func('bool __stdcall QueryFullProcessImageNameW(HANDLE, uint32_t, _Out_ char16_t *, _Inout_ uint32_t *)')
   private readonly DwmGetWindowAttribute = this.dwmapi.func('long __stdcall DwmGetWindowAttribute(HWND, uint32_t, _Out_ RECT *, uint32_t)')
 
-  find(): NativeWindowInfo | null {
+  find(realm?: MarketRealm): NativeWindowInfo | null {
     let cursor: unknown = null
     const foreground = this.GetForegroundWindow()
     const foregroundPidOut: Array<number | null> = [null]
     if (foreground) this.GetWindowThreadProcessId(foreground, foregroundPidOut)
     let firstMatch: NativeWindowInfo | null = null
+    let firstRealmMatch: NativeWindowInfo | null = null
     for (let count = 0; count < 8; count += 1) {
       cursor = this.FindWindowExW(null, cursor, 'POEWindowClass', null)
       if (!cursor) break
@@ -68,9 +69,10 @@ class Win32GameWindowAdapter {
         foreground: foregroundPidOut[0] === pid,
       }
       if (!firstMatch) firstMatch = info
-      if (info.foreground) return info
+      if (realm && classifyGameClient(info.processPath, info.title) === realm && !firstRealmMatch) firstRealmMatch = info
+      if (info.foreground && (!realm || classifyGameClient(info.processPath, info.title) === realm)) return info
     }
-    return firstMatch
+    return realm ? firstRealmMatch : firstMatch
   }
 
   focus(): boolean {
@@ -135,6 +137,13 @@ export class GameWindowService extends EventEmitter {
 
   focusGame(): boolean {
     return this.adapter?.focus() === true
+  }
+
+  getRunningGameExecutablePath(realm?: MarketRealm): string | undefined {
+    const found = this.adapter?.find(realm)
+    if (!found?.processPath) return undefined
+    if (realm && classifyGameClient(found.processPath, found.title) !== realm) return undefined
+    return found.processPath
   }
 
   private check(): void {

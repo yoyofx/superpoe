@@ -1,6 +1,6 @@
 import { ipcRenderer } from 'electron'
 import { parseLiveResult } from './marketLive.js'
-import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketPageListingSummary } from '../src/types/market.js'
+import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketListingAffixGroupKind, type MarketPageAffixGroup, type MarketPageDefenseStats, type MarketPageListingRarity, type MarketPageListingSummary, type MarketPageWeaponStats } from '../src/types/market.js'
 import { desktopText, isUiLanguage, type UiLanguage } from './uiLocale.js'
 import {
   MarketPageTranslator,
@@ -26,6 +26,7 @@ const DISABLED_MARKET_TRANSLATION: MarketPageTranslationPayload = {
 }
 let marketTranslationPayload = DISABLED_MARKET_TRANSLATION
 let marketPageTranslator = new MarketPageTranslator(DISABLED_MARKET_TRANSLATION)
+let marketTranslationConfigured = false
 const originalTextByNode = new WeakMap<Text, string>()
 const renderedTextByNode = new WeakMap<Text, string>()
 const trackedTextNodes = new Set<Text>()
@@ -761,7 +762,10 @@ function scheduleMarketTranslation(force = false): void {
   if (translationTimer) clearTimeout(translationTimer)
   translationTimer = setTimeout(() => {
     translationTimer = undefined
-    translateMarketDocument()
+    if (isMarketTranslationEnabled()) translateMarketDocument()
+    // Publish after the translation pass so the shortcut never receives an
+    // English snapshot and then immediately replaces it with Chinese.
+    scan(document)
   }, 80)
 }
 
@@ -772,6 +776,7 @@ function setMarketTranslation(value: unknown): void {
     if (payload.schemaVersion === 1 && isUiLanguage(payload.language) && typeof payload.enabled === 'boolean') {
       marketTranslationPayload = payload as MarketPageTranslationPayload
       marketPageTranslator = new MarketPageTranslator(marketTranslationPayload)
+      marketTranslationConfigured = true
       resetOfficialSuggestionCatalog()
       scheduleMarketTranslation()
       return
@@ -779,7 +784,9 @@ function setMarketTranslation(value: unknown): void {
   }
   marketTranslationPayload = DISABLED_MARKET_TRANSLATION
   marketPageTranslator = new MarketPageTranslator(DISABLED_MARKET_TRANSLATION)
+  marketTranslationConfigured = true
   resetOfficialSuggestionCatalog()
+  scheduleMarketTranslation()
 }
 
 interface MonitorConfig {
@@ -1036,52 +1043,351 @@ function sourceTextFromElement(element: Element | null): string {
   return normalizeMarketText(parts.join(' '))
 }
 
+function displayTextFromElement(element: Element | null): string {
+  if (!element) return ''
+  const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+  const parts: string[] = []
+  let node: Node | null = walker.nextNode()
+  while (node) {
+    const textNode = node as Text
+    if (!isOwnedElement(textNode.parentElement) && !isUserContent(textNode.parentElement)) {
+      parts.push(textNode.nodeValue || '')
+    }
+    node = walker.nextNode()
+  }
+  return normalizeMarketText(parts.join(' '))
+}
+
 function sourceAttributeFromElement(element: Element | null, attribute: string): string {
   if (!element) return ''
   return normalizeMarketText(originalAttributeValue(element, attribute))
 }
 
-function firstCardText(card: Element, selectors: string[]): string {
+function firstCardDisplayText(card: Element, selectors: string[]): string {
   for (const selector of selectors) {
-    const value = sourceTextFromElement(card.querySelector(selector))
+    const value = displayTextFromElement(card.querySelector(selector))
     if (value) return value
   }
   return ''
 }
 
-function currentPageListingSummary(card: Element, ref: ListingRef): MarketPageListingSummary {
-  const name = firstCardText(card, [
+function cardName(card: Element): string {
+  const name = firstCardDisplayText(card, [
+    '.item-popup__header--item .item-popup__header-line:first-of-type',
     '.item-name .name',
     '.item-name [class~="name"]',
     '.item-name',
-    '[class*="item-name"]',
+    '[data-item-name]',
+    '[data-name]',
+    '[class~="name"]',
+    '.name',
+    'h1', 'h2', 'h3',
   ])
-  const baseType = firstCardText(card, [
+  if (name && !/^Item\s+[A-Za-z0-9_-]{4,160}$/u.test(name) && !/^(?:Verified|Asking Price|Price)$/iu.test(name)) return name
+  const generic = Array.from(card.querySelectorAll('[class*="name"], [data-item-name], [data-name], h1, h2, h3'))
+    .filter((element) => !/account|seller|character|profile|username|player/u.test(element.getAttribute('class') || ''))
+    .map((element) => displayTextFromElement(element))
+    .find((value) => value && !/^(?:Verified|Asking Price|Price)$/iu.test(value))
+  return generic || ''
+}
+
+function cardRarity(card: Element): MarketPageListingRarity {
+  const classes = Array.from(card.querySelectorAll('.item-popup, [class*="item-popup"]'))
+    .flatMap((element) => Array.from(element.classList))
+  if (classes.includes('item-popup--unique')) return 'unique'
+  if (classes.includes('item-popup--rare')) return 'rare'
+  if (classes.includes('item-popup--magic')) return 'magic'
+  if (classes.includes('item-popup--normal')) return 'normal'
+  return 'other'
+}
+
+function cardIconUrl(card: Element): string | undefined {
+  const image = card.querySelector<HTMLImageElement>([
+    'img[src*="/gen/image/"]',
+    '.item-popup__header--item img',
+    '.item-popup__icon img',
+    '.item-popup img.item-icon',
+    '.item-popup img[src*="/image/"]',
+  ].join(', '))
+  const source = image?.currentSrc || image?.getAttribute('src') || ''
+  return /^https?:\/\//iu.test(source) ? source.slice(0, 4_096) : undefined
+}
+
+function cardPropertyTexts(card: Element): string[] {
+  const selectors = [
+    '.item-popup__property',
+    '.item-popup__properties > *',
+    '.item-popup .properties .property',
+    '.item-popup .properties > div',
+    '.item-popup [class~="property"]',
+  ]
+  const lines: string[] = []
+  const seen = new Set<string>()
+  for (const selector of selectors) {
+    for (const element of Array.from(card.querySelectorAll(selector))) {
+      const value = displayTextFromElement(element)
+      if (!value || seen.has(value)) continue
+      seen.add(value)
+      lines.push(value)
+    }
+  }
+  return lines
+}
+
+function averageDamageFromProperty(value: string, label: RegExp): number | undefined {
+  if (!label.test(value)) return undefined
+  const ranges = Array.from(value.matchAll(/(-?\d+(?:[.,]\d+)?)\s*(?:-|–|—|到|至)\s*(-?\d+(?:[.,]\d+)?)/gu))
+    .map((match) => [Number(match[1].replace(',', '.')), Number(match[2].replace(',', '.'))])
+    .filter(([min, max]) => Number.isFinite(min) && Number.isFinite(max))
+  if (!ranges.length) return undefined
+  return ranges.reduce((total, [min, max]) => total + (min + max) / 2, 0)
+}
+
+function roundedDps(value: number): number {
+  return Math.round(value * 100) / 100
+}
+
+function cardWeaponStats(card: Element): MarketPageWeaponStats | undefined {
+  const properties = cardPropertyTexts(card)
+  const attackProperty = properties.find((value) => /(?:attacks?\s*per\s*second|攻击(?:速度|每秒)|每秒攻击)/iu.test(value))
+  const attackSpeed = attackProperty
+    ? Array.from(attackProperty.matchAll(/(\d+(?:[.,]\d+)?)/gu))
+      .map((match) => Number(match[1].replace(',', '.')))
+      .find((value) => Number.isFinite(value) && value > 0)
+    : undefined
+  if (!attackSpeed) return undefined
+
+  const totalAverageFor = (label: RegExp): number | undefined => {
+    let total = 0
+    let found = false
+    for (const value of properties) {
+      const average = averageDamageFromProperty(value, label)
+      if (average === undefined) continue
+      total += average
+      found = true
+    }
+    return found ? total : undefined
+  }
+  const physicalAverage = totalAverageFor(/(?:physical\s+damage|物理伤害)/iu)
+  const elementalAverage = totalAverageFor(/(?:elemental\s+damage|元素伤害)/iu)
+  const chaosAverage = totalAverageFor(/(?:chaos\s+damage|混沌伤害)/iu)
+  const physicalDps = physicalAverage === undefined ? undefined : roundedDps(physicalAverage * attackSpeed)
+  const elementalDps = elementalAverage === undefined ? undefined : roundedDps(elementalAverage * attackSpeed)
+  const chaosDps = chaosAverage === undefined ? undefined : roundedDps(chaosAverage * attackSpeed)
+  const roundedTotalDps = roundedDps(((physicalAverage || 0) + (elementalAverage || 0) + (chaosAverage || 0)) * attackSpeed)
+  if (!roundedTotalDps) return undefined
+  return {
+    totalDps: roundedTotalDps,
+    ...(physicalDps !== undefined ? { physicalDps } : {}),
+    ...(elementalDps !== undefined ? { elementalDps } : {}),
+    ...(chaosDps !== undefined ? { chaosDps } : {}),
+  }
+}
+
+function firstNumberAfterLabel(value: string, label: RegExp): number | undefined {
+  const match = value.match(label)
+  if (!match || match.index === undefined) return undefined
+  const number = value.slice(match.index + match[0].length).match(/\d+(?:[.,]\d+)?/u)?.[0]
+  if (!number) return undefined
+  const parsed = Number(number.replace(',', '.'))
+  return Number.isFinite(parsed) ? parsed : undefined
+}
+
+function cardDefenseStats(card: Element): MarketPageDefenseStats | undefined {
+  const properties = cardPropertyTexts(card)
+  const findValue = (label: RegExp): number | undefined => {
+    for (const property of properties) {
+      const value = firstNumberAfterLabel(property, label)
+      if (value !== undefined) return value
+    }
+    return undefined
+  }
+  const armour = findValue(/(?:armou?r(?:\s+rating)?|护甲(?:值)?)/iu)
+  const evasion = findValue(/(?:evasion(?:\s+rating)?|闪避(?:值)?)/iu)
+  const energyShield = findValue(/(?:energy\s+shield|能量护盾)/iu)
+  const runicWard = findValue(/(?:runic\s+ward|灵能护盾|符文护盾)/iu)
+  const block = findValue(/(?:block(?:\s+chance)?|格挡(?:率|几率)?)/iu)
+  const spirit = findValue(/(?:spirit|精神)/iu)
+  if ([armour, evasion, energyShield, runicWard, block, spirit].every((value) => value === undefined)) return undefined
+  return {
+    ...(armour !== undefined ? { armour } : {}),
+    ...(evasion !== undefined ? { evasion } : {}),
+    ...(energyShield !== undefined ? { energyShield } : {}),
+    ...(runicWard !== undefined ? { runicWard } : {}),
+    ...(block !== undefined ? { block } : {}),
+    ...(spirit !== undefined ? { spirit } : {}),
+  }
+}
+
+interface CardPrice {
+  text: string
+  amount?: string
+  currency?: string
+  iconUrl?: string
+}
+
+function cardPrice(card: Element): CardPrice {
+  const priceElement = card.querySelector('.right .price [data-field="price"], .price [data-field="price"]')
+  if (priceElement) {
+    const currencyElement = priceElement.querySelector('.currency-image')
+    const currency = displayTextFromElement(currencyElement)
+    const localizedCurrency = currency ? marketPageTranslator.translate(currency, true) : ''
+    const amount = Array.from(priceElement.children)
+      .map((child) => displayTextFromElement(child))
+      .find((value) => /^\d[\d,.]*$/u.test(value))
+    const icon = currencyElement?.querySelector('img')?.getAttribute('src') || undefined
+    const text = [amount, localizedCurrency || currency].filter(Boolean).join(' × ')
+    if (text) return {
+      text,
+      ...(amount ? { amount } : {}),
+      ...((localizedCurrency || currency) ? { currency: localizedCurrency || currency } : {}),
+      ...(icon ? { iconUrl: icon.slice(0, 4_096) } : {}),
+    }
+  }
+  const priceContainer = card.querySelector('.right .price, .price')
+  if (priceContainer) {
+    const value = displayTextFromElement(priceContainer)
+      .replace(/^(?:Asking Price|要价)\s*[:：]?\s*/iu, '')
+      .replace(/\s+(?:Fee|费用)\s*[:：]?.*$/iu, '')
+      .trim()
+    if (value && /\d/u.test(value)) return { text: value }
+  }
+  const text = displayTextFromElement(card)
+  const buyout = text.match(/~\s*b\s*\/\s*o\s+.+?(?=\s+Asking\s+Price\b|$)/iu)?.[0]?.trim()
+  if (buyout) return { text: buyout }
+  for (const selector of [
+    '.price .value', '.price .amount', '[class*="price"] .value', '[class*="price"] .amount',
+  ]) {
+    const value = displayTextFromElement(card.querySelector(selector))
+    if (value && !/asking|price|fee/iu.test(value) && /\d/u.test(value)) return { text: value }
+  }
+  return { text: '' }
+}
+
+function cardAffixGroupKind(candidate: Element): MarketListingAffixGroupKind {
+  const classes = candidate.classList
+  if (classes.contains('item-mod--implicit')) return 'implicit'
+  const tier = candidate.querySelector('.pr, .su')
+  if (tier?.classList.contains('pr')) return 'prefix'
+  if (tier?.classList.contains('su')) return 'suffix'
+  return 'other'
+}
+
+function cardAffixGroups(card: Element): { affixes: string[]; groups: MarketPageAffixGroup[] } {
+  const candidates = Array.from(card.querySelectorAll('.item-mod, [class*="item-mod"]'))
+  const valuesByKind = new Map<MarketListingAffixGroupKind, string[]>()
+  const seen = new Set<string>()
+  const affixes: string[] = []
+  for (const candidate of candidates) {
+    if (candidate.classList.contains('item-mod--pseudo')) continue
+    const value = displayTextFromElement(
+      candidate.querySelector('[data-field^="stat."], .s.lc') || candidate,
+    )
+    if (!value || seen.has(value)) continue
+    seen.add(value)
+    affixes.push(value)
+    const kind = cardAffixGroupKind(candidate)
+    const values = valuesByKind.get(kind) || []
+    values.push(value)
+    valuesByKind.set(kind, values)
+  }
+  const order: MarketListingAffixGroupKind[] = ['implicit', 'prefix', 'suffix', 'other']
+  const groups = order
+    .map((kind) => ({ kind, values: valuesByKind.get(kind) || [] }))
+    .filter((group) => group.values.length)
+  return { affixes: affixes.slice(0, 32), groups }
+}
+
+function cardDetailLines(card: Element, baseType: string, affixes: string[]): string[] {
+  const lines: string[] = []
+  const seen = new Set<string>()
+  const add = (value: string): void => {
+    if (!value || seen.has(value)) return
+    seen.add(value)
+    lines.push(value)
+  }
+  add(baseType)
+  const selectors = [
+    '.itemLevel', '.item-level', '[class*="itemLevel"]', '[class*="item-level"]',
+    '.requirements', '[class*="requirement"]',
+    '.item-property', '.item-popup__property',
+    '.properties .property', '.properties > div', '[class~="property"]',
+  ]
+  for (const selector of selectors) {
+    for (const element of Array.from(card.querySelectorAll(selector))) add(displayTextFromElement(element))
+  }
+  affixes.forEach(add)
+  return lines.slice(0, 64)
+}
+
+function cardSummaryStats(card: Element, baseType: string, affixes: string[], weaponStats: MarketPageWeaponStats | undefined): string[] {
+  const excluded = new Set([baseType, ...affixes].filter(Boolean))
+  const metadataPattern = /(?:item\s*level|requires?|quality|sockets?|corrupted|unidentified|identified|物品等级|要求|品质|插槽|损坏|未鉴定|已鉴定)/iu
+  const lines: string[] = []
+  const seen = new Set<string>()
+  const add = (value: string): void => {
+    if (!value || excluded.has(value) || metadataPattern.test(value) || seen.has(value)) return
+    if (weaponStats && /(?:physical\s+damage|elemental\s+damage|chaos\s+damage|attacks?\s*per\s*second|物理伤害|元素伤害|混沌伤害|攻击(?:速度|每秒)|每秒攻击)/iu.test(value)) return
+    seen.add(value)
+    lines.push(value)
+  }
+  const selectors = [
+    '.item-popup__property',
+    '.item-popup__properties > *',
+    '.item-popup .properties .property',
+    '.item-popup .properties > div',
+    '.item-popup [class~="property"]',
+  ]
+  for (const selector of selectors) {
+    for (const element of Array.from(card.querySelectorAll(selector))) add(displayTextFromElement(element))
+  }
+  return lines.slice(0, 8)
+}
+
+function currentPageListingSummary(card: Element, ref: ListingRef): MarketPageListingSummary {
+  const name = cardName(card)
+  const baseType = firstCardDisplayText(card, [
+    '.item-popup__header--item .item-popup__header-line:nth-of-type(2)',
     '.item-name .typeLine',
     '.item-name .type-line',
     '.typeLine',
     '.type-line',
     '[class*="typeLine"]',
   ])
-  const price = firstCardText(card, [
-    '.price',
-    '[class*="price"]',
-  ])
-  const seller = firstCardText(card, [
+  const price = cardPrice(card)
+  const seller = firstCardDisplayText(card, [
     '.account-name',
     '.account',
     '.seller',
     '[class*="account"]',
     '[class*="seller"]',
+    'a[href*="/account/view-profile/"]',
   ])
+  const { affixes, groups: affixGroups } = cardAffixGroups(card)
+  const iconUrl = cardIconUrl(card)
+  const weaponStats = cardWeaponStats(card)
+  const defenseStats = cardDefenseStats(card)
+  const summaryStats = cardSummaryStats(card, baseType, affixes, weaponStats)
+  const detailLines = cardDetailLines(card, baseType, affixes)
   return {
     realm: ref.realm,
     listingId: ref.listingId,
     ...(ref.queryId ? { queryId: ref.queryId } : {}),
     name: name || `Item ${ref.listingId}`,
     ...(baseType && baseType !== name ? { baseType } : {}),
-    ...(price ? { price } : {}),
+    rarity: cardRarity(card),
+    ...(iconUrl ? { iconUrl } : {}),
+    ...(weaponStats ? { weaponStats } : {}),
+    ...(defenseStats ? { defenseStats } : {}),
+    ...(price.text ? { price: price.text } : {}),
+    ...(price.amount ? { priceAmount: price.amount } : {}),
+    ...(price.currency ? { priceCurrency: price.currency } : {}),
+    ...(price.iconUrl ? { priceIconUrl: price.iconUrl } : {}),
     ...(seller ? { seller } : {}),
+    ...(affixes.length ? { affixes } : {}),
+    ...(affixGroups.length ? { affixGroups } : {}),
+    ...(summaryStats.length ? { summaryStats } : {}),
+    ...(detailLines.length ? { detailLines } : {}),
   }
 }
 
@@ -1097,6 +1403,7 @@ function currentPageCards(): Element[] {
 }
 
 function publishCurrentPageListings(): void {
+  if (!marketTranslationConfigured || (isMarketTranslationEnabled() && translationTimer)) return
   const listings = currentPageCards()
     .map((card) => {
       const ref = extractRef(card)
@@ -1125,6 +1432,52 @@ function focusPageListing(listingId: string): void {
   })
 }
 
+function findOfficialHideoutControl(root: ParentNode, visibleOnly: boolean): HTMLElement | undefined {
+  const hideoutWords = [
+    'travel to hideout', 'visit hideout', 'go to hideout',
+    '前往藏身处', '前往藏身處', '进入藏身处', '進入藏身處', '은신처로 이동',
+  ]
+  return Array.from(root.querySelectorAll('button, [role="button"], a'))
+    .filter((element) => !isOwnedElement(element) && (!visibleOnly || isVisibleOfficialControl(element)))
+    .map((element) => ({ element, label: officialControlLabel(element) }))
+    .filter(({ label }) => hideoutWords.some((word) => label.includes(word)))
+    .sort((left, right) => {
+      const leftScore = left.element.tagName === 'BUTTON' ? 2 : 0
+      const rightScore = right.element.tagName === 'BUTTON' ? 2 : 0
+      return rightScore - leftScore
+    })
+    .map(({ element }) => element as HTMLElement)[0]
+}
+
+function clickOfficialHideout(listingId: string): void {
+  const card = findPageCard(listingId)
+  if (!card) return
+  focusPageListing(listingId)
+  const click = (): boolean => {
+    const target = findOfficialHideoutControl(card, true) || findOfficialHideoutControl(card, false)
+    if (!(target instanceof HTMLElement)) return false
+    target.click()
+    return true
+  }
+  if (click()) return
+  card.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  const hoverTarget = card.querySelector('.item-popup, .item, .item-container') || card
+  if (typeof PointerEvent !== 'undefined') {
+    hoverTarget.dispatchEvent(new PointerEvent('pointerover', { bubbles: true, composed: true, pointerType: 'mouse' }))
+    hoverTarget.dispatchEvent(new PointerEvent('pointermove', { bubbles: true, composed: true, pointerType: 'mouse' }))
+  }
+  hoverTarget.dispatchEvent(new MouseEvent('mouseover', { bubbles: true, composed: true }))
+  hoverTarget.dispatchEvent(new MouseEvent('mousemove', { bubbles: true, composed: true }))
+  hoverTarget.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true, composed: true }))
+  let attempts = 0
+  const retry = (): void => {
+    if (click() || attempts >= 8) return
+    attempts += 1
+    window.setTimeout(retry, 120)
+  }
+  window.setTimeout(retry, 80)
+}
+
 function officialControlLabel(element: Element): string {
   const text = sourceTextFromElement(element)
   const attributes = ['aria-label', 'title', 'data-label', 'value']
@@ -1133,27 +1486,80 @@ function officialControlLabel(element: Element): string {
   return normalizeMarketText([text, ...attributes].join(' ')).toLocaleLowerCase()
 }
 
+function isVisibleOfficialControl(element: Element): boolean {
+  if (element instanceof HTMLButtonElement && element.disabled) return false
+  if (element instanceof HTMLInputElement && element.disabled) return false
+  const html = element as HTMLElement
+  if (html.hidden || html.getAttribute('aria-hidden') === 'true') return false
+  const style = window.getComputedStyle(html)
+  return style.display !== 'none' && style.visibility !== 'hidden' && html.getClientRects().length > 0
+}
+
 function clickOfficialPageCommand(command: 'search' | 'clear'): void {
+  const commandWords = command === 'search'
+    ? new Set(['search', '搜索', '搜尋', '검색'])
+    : new Set(['clear', 'reset', 'clear all', '清空', '清除', '重置'])
   const candidates = Array.from(document.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"]'))
-    .filter((element) => !isOwnedElement(element))
+    .filter((element) => !isOwnedElement(element) && isVisibleOfficialControl(element))
     .map((element) => {
       const label = officialControlLabel(element)
-      const className = (element.getAttribute('class') || '').toLocaleLowerCase()
-      const inSearchContext = Boolean(element.closest('form, .search, [class*="search"], [class*="filter"]'))
-      const searchMatch = /(?:^|\s)(search|搜索)(?:\s|$)/u.test(label) || /search|submit/u.test(className)
-      const clearMatch = /(?:^|\s)(clear|reset|clear all|清空|重置)(?:\s|$)/u.test(label) || /clear|reset/u.test(className)
-      const matched = command === 'search' ? searchMatch : clearMatch
+      const tokens = label.split(/\s+/u).filter(Boolean)
+      const exactLabel = tokens.length === 1
+        ? commandWords.has(tokens[0])
+        : commandWords.has(label)
+      const inSearchContext = Boolean(element.closest('form, .search, [class*="search"], [class*="filter"], [class*="query"]'))
+      const matched = exactLabel
       if (!matched) return undefined
       const score = (inSearchContext ? 10 : 0)
         + (element instanceof HTMLButtonElement && element.type === (command === 'search' ? 'submit' : 'button') ? 3 : 0)
-        + (command === 'search' ? (label.includes('search') || label.includes('搜索') ? 5 : 0) : (label.includes('clear') || label.includes('清空') ? 5 : 0))
+        + (element.tagName === 'BUTTON' ? 2 : 0)
       return { element, score }
     })
     .filter((candidate): candidate is { element: Element; score: number } => Boolean(candidate))
     .sort((left, right) => right.score - left.score)
   const target = candidates[0]?.element
-  if (target instanceof HTMLElement) target.click()
-  else if (target instanceof HTMLInputElement) target.click()
+  if (target instanceof HTMLElement) {
+    target.click()
+    return
+  }
+  const form = Array.from(document.forms).find((candidate) => {
+    const controls = Array.from(candidate.querySelectorAll('button, [role="button"], input[type="submit"], input[type="button"]'))
+    return controls.some((control) => !isOwnedElement(control) && isVisibleOfficialControl(control) && commandWords.has(officialControlLabel(control)))
+  })
+  if (command === 'search' && form) form.requestSubmit()
+}
+
+function focusOfficialFilterArea(): void {
+  const filterWords = [
+    'type filters', 'equipment filters', 'stat filters', 'item category',
+    '类型筛选', '装备筛选', '属性筛选', '物品类别',
+    '類型篩選', '裝備篩選', '屬性篩選', '物品類別',
+  ]
+  const isFilterText = (value: string): boolean => {
+    const normalized = value.toLocaleLowerCase()
+    return filterWords.some((word) => normalized.includes(word))
+  }
+  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
+  let node: Node | null = walker.nextNode()
+  while (node) {
+    const textNode = node as Text
+    const parent = textNode.parentElement
+    if (parent && !isOwnedElement(parent) && !isUserContent(parent) && isVisibleOfficialControl(parent) && isFilterText(originalText(textNode))) {
+      parent.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      return
+    }
+    node = walker.nextNode()
+  }
+
+  const showFilters = Array.from(document.querySelectorAll('button, [role="button"]'))
+    .filter((element) => !isOwnedElement(element) && isVisibleOfficialControl(element))
+    .find((element) => /(?:show\s+filters|显示筛选|顯示篩選|展开筛选|展開篩選)/iu.test(officialControlLabel(element)))
+  if (showFilters instanceof HTMLElement) showFilters.click()
+
+  const fallback = Array.from(document.querySelectorAll('form, [class*="search"], [class*="filter"]'))
+    .filter((element) => !isOwnedElement(element) && isVisibleOfficialControl(element))
+    .sort((left, right) => left.getBoundingClientRect().top - right.getBoundingClientRect().top)[0]
+  fallback?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 function applyButtonState(button: HTMLButtonElement, state: FavoriteVisualState): void {
@@ -1543,6 +1949,10 @@ ipcRenderer.on('market-enhancement:copy-pob-result', (_event, payload: unknown) 
 })
 
 ipcRenderer.on('market-page:command', (_event, value: unknown) => {
+  if (value === 'focus-filters') {
+    focusOfficialFilterArea()
+    return
+  }
   if (value !== 'search' && value !== 'clear') return
   clickOfficialPageCommand(value)
 })
@@ -1550,6 +1960,11 @@ ipcRenderer.on('market-page:command', (_event, value: unknown) => {
 ipcRenderer.on('market-page:focus-listing', (_event, value: unknown) => {
   if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) return
   focusPageListing(value)
+})
+
+ipcRenderer.on('market-page:visit-hideout', (_event, value: unknown) => {
+  if (typeof value !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(value)) return
+  clickOfficialHideout(value)
 })
 
 ipcRenderer.on('market-enhancement:set-language', (_event, value: unknown) => {

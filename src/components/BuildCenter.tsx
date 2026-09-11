@@ -29,6 +29,7 @@ interface BuildCenterProps {
   onAbout: () => void
   monitoring?: MarketMonitoringSnapshot | null
   onSettings: () => void
+  onTimer: () => void
 }
 
 export type BuildCenterNavPage = 'center' | 'library' | 'utilities' | 'about' | 'community'
@@ -105,7 +106,7 @@ function canRefreshBuild(build: SavedBuild): boolean {
   return Boolean(build.sourceUrl && (build.source === 'wegame' || build.source === 'poe-ninja'))
 }
 
-export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckForUpdate, onTradeCenter, onCommunity, onLibrary, onUtilities, onAbout, monitoring, onSettings }: BuildCenterProps) {
+export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckForUpdate, onTradeCenter, onCommunity, onLibrary, onUtilities, onAbout, monitoring, onSettings, onTimer }: BuildCenterProps) {
   const { lang } = useTranslation()
   const treeData = useTreeStore((state) => state.treeData)
   const savedBuilds = useTreeStore((state) => state.savedBuilds)
@@ -231,6 +232,7 @@ export function BuildCenter({ onCreate, onOpenFile, onImport, onOpen, onCheckFor
       <header className="center-app-bar">
         <div className="center-actions">
           <GameRuntimeIndicator />
+          <button type="button" className="icon-command" onClick={onTimer} title={l('Open map timer', '打开地图计时器', '開啟地圖計時器', '지도 타이머 열기')} aria-label={l('Open map timer', '打开地图计时器', '開啟地圖計時器', '지도 타이머 열기')}><Clock3 /></button>
           <button type="button" className="icon-command toolbar-community-button" onClick={onCommunity} title={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')} aria-label={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')}><Headphones /></button>
           <button type="button" className="icon-command" onClick={onSettings} title={l('Global settings', '全局设置', '全域設定', '전역 설정')} aria-label={l('Global settings', '全局设置', '全域設定', '전역 설정')}><Settings /></button>
           <button type="button" className="icon-command" onClick={onAbout} title={l('Help and about', '帮助与关于', '說明與關於', '도움말 및 정보')} aria-label={l('Help and about', '帮助与关于', '說明與關於', '도움말 및 정보')}><CircleHelp /></button>

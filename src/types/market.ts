@@ -23,14 +23,52 @@ export interface MarketViewState {
   error?: string
 }
 
+export type MarketListingAffixGroupKind = 'implicit' | 'prefix' | 'suffix' | 'other'
+
+export type MarketPageListingRarity = 'normal' | 'magic' | 'rare' | 'unique' | 'other'
+
+export interface MarketPageAffixGroup {
+  kind: MarketListingAffixGroupKind
+  values: string[]
+}
+
+export interface MarketPageWeaponStats {
+  totalDps: number
+  physicalDps?: number
+  elementalDps?: number
+  chaosDps?: number
+}
+
+export interface MarketPageDefenseStats {
+  armour?: number
+  evasion?: number
+  energyShield?: number
+  runicWard?: number
+  block?: number
+  spirit?: number
+}
+
 export interface MarketPageListingSummary {
   realm: MarketRealm
   listingId: string
   queryId?: string
   name: string
   baseType?: string
+  rarity?: MarketPageListingRarity
+  iconUrl?: string
+  weaponStats?: MarketPageWeaponStats
+  defenseStats?: MarketPageDefenseStats
   price?: string
+  priceAmount?: string
+  priceCurrency?: string
+  priceIconUrl?: string
   seller?: string
+  affixes?: string[]
+  affixGroups?: MarketPageAffixGroup[]
+  summaryStats?: string[]
+  detailLines?: string[]
+  /** Structured item snapshot from the official listing API when available. */
+  item?: CanonicalItemView
 }
 
 export type SavedSearchCaptureSource = 'official-page' | 'superpoe-query' | 'code-only'

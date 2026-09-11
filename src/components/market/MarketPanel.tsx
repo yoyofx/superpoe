@@ -60,7 +60,7 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
   const [libraryTab, setLibraryTab] = useState<MarketShortcutTab>('market')
   const [monitoring, setMonitoring] = useState<MarketMonitoringSnapshot | null>(null)
   const [pageListings, setPageListings] = useState<MarketPageListingSummary[]>([])
-  const [marketCommand, setMarketCommand] = useState<'search' | 'clear' | null>(null)
+  const [marketCommand, setMarketCommand] = useState<'focus-filters' | 'search' | 'clear' | null>(null)
   const importedBuildCode = useTreeStore((store) => store.importedBuildCode)
   const pobBuildRevision = useTreeStore((store) => store.pobBuildRevision)
   const activeWeaponSet = useTreeStore((store) => store.activeWeaponSet)
@@ -155,7 +155,13 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
     const sync = async () => {
       try {
         const saved = loadAppSettings()
-        await window.pob2Desktop?.setAppContext({ defaultRealm: realm, language: lang, priceCheckEnabled: saved.priceCheckEnabled, priceCheckHotkey: saved.priceCheckHotkey })
+        await window.pob2Desktop?.setAppContext({
+          defaultRealm: realm,
+          language: lang,
+          priceCheckEnabled: saved.priceCheckEnabled,
+          priceCheckHotkey: saved.priceCheckHotkey,
+          gameDirectory: saved.gameDirectories[realm],
+        })
         if (active && !viewSuspended) await applyBounds(true)
       } catch (error: unknown) {
         if (active) setBridgeError(error instanceof Error ? error.message : String(error))
@@ -193,7 +199,7 @@ export function MarketPanel({ realm, suspended = false }: MarketPanelProps) {
     })
   }, [bridge])
 
-  const runMarketCommand = useCallback(async (command: 'search' | 'clear') => {
+  const runMarketCommand = useCallback(async (command: 'focus-filters' | 'search' | 'clear') => {
     if (!bridge || marketCommand) return
     setMarketCommand(command)
     try {

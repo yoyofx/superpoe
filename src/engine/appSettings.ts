@@ -12,6 +12,7 @@ const APP_SETTINGS_STORAGE_KEY = 'superpoe-global-settings'
 
 export interface AppSettings {
   defaultRealm: BuildRealm
+  gameDirectories: Record<BuildRealm, string>
   confirmUnsavedExit: boolean
   uiScalePercent: number
   updateChannel: UpdateChannel
@@ -28,6 +29,7 @@ export interface AppSettings {
 function getDefaultAppSettings(): AppSettings {
   return {
     defaultRealm: mapSystemRealm(),
+    gameDirectories: { cn: '', global: '' },
     confirmUnsavedExit: true,
     uiScalePercent: 120,
     updateChannel: 'release',
@@ -57,6 +59,10 @@ export function loadAppSettings(storage: SettingsStorage | undefined = typeof lo
     const defaults = getDefaultAppSettings()
     return {
       defaultRealm: parsed.defaultRealm === 'cn' || parsed.defaultRealm === 'global' ? parsed.defaultRealm : defaults.defaultRealm,
+      gameDirectories: {
+        cn: typeof parsed.gameDirectories?.cn === 'string' ? parsed.gameDirectories.cn.trim().slice(0, 4_096) : defaults.gameDirectories.cn,
+        global: typeof parsed.gameDirectories?.global === 'string' ? parsed.gameDirectories.global.trim().slice(0, 4_096) : defaults.gameDirectories.global,
+      },
       confirmUnsavedExit: parsed.confirmUnsavedExit !== false,
       uiScalePercent: parsed.uiScalePercent === undefined ? defaults.uiScalePercent : normalizeUiScalePercent(parsed.uiScalePercent),
       updateChannel: parsed.updateChannel === 'dev' ? 'dev' : parsed.updateChannel === 'release' ? 'release' : defaults.updateChannel,

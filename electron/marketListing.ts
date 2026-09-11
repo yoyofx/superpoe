@@ -4,6 +4,7 @@ import type {
   LibraryModifierGroup,
   LibraryModifierSource,
   LibraryModifierTag,
+  CanonicalItemDisplayStat,
   MarketDomListingRef,
   MarketFavoriteSource,
   MarketPriceSnapshot,
@@ -19,12 +20,14 @@ interface NormalizedMarketListing {
       rarity: string
       name: string
       baseType: string
-      itemLevel?: number
-      quality?: number
-      sockets?: string
-      corrupted: boolean
-      identified: boolean
-      modifiers: LibraryModifier[]
+    itemLevel?: number
+    quality?: number
+    sockets?: string
+    corrupted: boolean
+    identified: boolean
+    properties?: CanonicalItemDisplayStat[]
+    requirements?: CanonicalItemDisplayStat[]
+    modifiers: LibraryModifier[]
     }
   }
   source: MarketFavoriteSource
@@ -65,6 +68,32 @@ function numberValue(value: unknown): number | undefined {
   if (typeof value === 'number' && Number.isFinite(value)) return value
   if (typeof value === 'string' && value.trim() && Number.isFinite(Number(value))) return Number(value)
   return undefined
+}
+
+function displayStatValues(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((entry) => {
+    const raw = Array.isArray(entry) ? entry[0] : entry
+    if (typeof raw === 'string') return [cleanText(raw)]
+    if (typeof raw === 'number' && Number.isFinite(raw)) return [String(raw)]
+    return []
+  }).filter(Boolean)
+}
+
+function displayStats(value: unknown, realm: MarketDomListingRef['realm']): CanonicalItemDisplayStat[] {
+  if (!Array.isArray(value)) return []
+  return value.flatMap((raw) => {
+    const property = record(raw)
+    const name = localizedText(property.name, realm)
+    const values = displayStatValues(property.values)
+    return name && values.length ? [{ key: name, values }] : []
+  })
+}
+
+function modifierDisplayText(value: unknown): string {
+  if (typeof value === 'string') return cleanText(value)
+  const modifier = record(value)
+  return cleanText(modifier.description || modifier.text || modifier.displayText)
 }
 
 function sourceForGroup(group: string): LibraryModifierSource {
@@ -146,8 +175,8 @@ function modifierDetails(raw: unknown, realm: MarketDomListingRef['realm'], tran
     return { line, englishLine: realm === 'cn' ? (translateCnStat?.(line) || (/[\u3400-\u9fff]/.test(english) ? '' : english)) : english, tierRanges: [] }
   }
   const value = record(raw)
-  const line = localizedText(value.description || value.text, realm)
-  const directEnglishLine = englishText(value.description || value.text)
+  const line = localizedText(modifierDisplayText(raw), realm)
+  const directEnglishLine = englishText(modifierDisplayText(raw))
   const englishLine = realm === 'cn' ? (translateCnStat?.(line) || (/[\u3400-\u9fff]/.test(directEnglishLine) ? '' : directEnglishLine)) : directEnglishLine
   if (!line) return null
   const hash = cleanText(value.hash).replace(/^stat\.(?=(?:explicit|implicit|enchant|rune|fractured|crafted|desecrated)\.)/, '')
@@ -191,7 +220,15 @@ function normalizeModifiers(
   const hashGroups = record(extended.hashes)
   const modGroups = record(extended.mods)
   const payloadHash = createHash('sha256').update(JSON.stringify(hashGroups)).digest('hex')
-  const groupNames = ['enchant', 'rune', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated']
+  const standardGroups = ['enchant', 'rune', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated']
+  // Keep the official payload lossless. Newer trade API variants can add a
+  // modifier array without requiring a client release; unknown groups still
+  // render as explicit while retaining their original display text.
+  const extraGroups = Object.keys(item)
+    .filter((key) => key.endsWith('Mods') && Array.isArray(item[key]))
+    .map((key) => key.slice(0, -4))
+    .filter((group) => !standardGroups.includes(group))
+  const groupNames = [...standardGroups, ...extraGroups]
   const modifiers: Array<LibraryModifier & { englishLine: string }> = []
   let displayOrder = 0
 
@@ -329,13 +366,16 @@ export function normalizeMarketListing(
   const englishName = ref.realm === 'cn' ? (translateCnItem?.(name) || verifiedEnglishText(item.name)) : name
   if (!englishBaseType) throw new Error('Official trade listing base type could not be mapped to PoB English')
   const modifiers = normalizeModifiers(item, ref.realm, capturedAt, translateCnStat, resolveStatText)
+  const rawProperties = displayStats(item.properties, ref.realm)
+  const quality = propertyNumber(item, /quality|品质|品質/i)
+  const properties = rawProperties.filter((property) => !/^(?:quality|品质|品質|item level|物品等级|物品等級|requirements?|需求|sockets?|插槽|孔位)$/iu.test(property.key))
+  const requirements = displayStats(item.requirements, ref.realm)
   const implicit = modifiers.filter((modifier) => ['rune', 'enchant', 'implicit'].includes(modifier.group))
   const explicit = modifiers.filter((modifier) => !implicit.includes(modifier))
   const rawLines = [`Rarity: ${rarity}`]
   if (englishName && englishName !== englishBaseType && ['RARE', 'UNIQUE'].includes(rarity.toUpperCase())) rawLines.push(englishName)
   rawLines.push(englishBaseType)
   const itemLevel = numberValue(item.ilvl)
-  const quality = propertyNumber(item, /quality|品质|品質/i)
   const radius = propertyText(item, /^(?:radius|范围|範圍)$/i, ref.realm)
   const limitedTo = numberValue(item.limit) ?? numberValue(item.limitedTo)
   const sockets = socketText(item)
@@ -365,6 +405,8 @@ export function normalizeMarketListing(
         ...(sockets ? { sockets } : {}),
         corrupted: item.corrupted === true,
         identified: item.identified !== false,
+        ...(properties.length ? { properties } : {}),
+        ...(requirements.length ? { requirements } : {}),
         modifiers,
       },
     },

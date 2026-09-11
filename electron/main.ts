@@ -22,13 +22,16 @@ import { normalizeMarketListing, type MarketStatTextResolution } from './marketL
 import type {
   EquipmentCollectionRoot, EquipmentLibraryEntry, EquipmentLibraryFilter, EquipmentLibraryFolderInput, EquipmentLibraryFolderPatch, EquipmentLibraryItemInput,
   EquipmentLibraryMetadataPatch, EquipmentLibraryMoveInput, EquipmentLibrarySource, EquipmentTradeSearchRequest, LibraryTreeScope, MarketDomListingRef, MarketMonitorSettings, MonitorTaskPriority,
-  MarketPageListingSummary, MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch, TradePriceCheckCriteria, TradePriceCheckPrepareRequest,
+  MarketPageAffixGroup, MarketListingAffixGroupKind, MarketPageDefenseStats, MarketPageListingRarity, MarketPageListingSummary, MarketPageWeaponStats, MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch, TradePriceCheckCriteria, TradePriceCheckPrepareRequest,
   TradePriceCheckSearchRequest,
-  PriceCheckOpenRequest, LibraryModifierGroup, LibraryItemSnapshot, TradeStatResolutionSnapshot, FindBetterSearchOptions,
+  PriceCheckOpenRequest, LibraryModifierGroup,
+  LibraryItemSnapshot, TradeStatResolutionSnapshot, FindBetterSearchOptions,
   PriceCheckListingView,
 } from '../src/types/market.js'
 import { OfficialTradeProvider, TradeReferenceDataCache, type CatalogSnapshot } from './tradeService.js'
+import { ClientLogger } from './clientLogger.js'
 import { GameWindowService } from './gameWindowService.js'
+import { GameLogTimerController } from './gameLogTimer.js'
 import { MarketMonitoringCoordinator } from './marketMonitoring.js'
 import { OpportunityOverlayController } from './opportunityOverlay.js'
 import { CurrencyMarketService } from './currencyMarket/currencyMarketService.js'
@@ -37,6 +40,8 @@ import { PriceCheckCoordinator } from './priceCheck/PriceCheckCoordinator.js'
 import { PriceCheckWindowManager } from './priceCheck/PriceCheckWindowManager.js'
 import { FindBetterWindowManager } from './findBetterWindow.js'
 import { EquipmentTryOnWindowManager } from './equipmentTryOnWindow.js'
+import { TimerWindowManager } from './timerWindow.js'
+import { detectGameDirectory, inspectGameDirectory } from './gameDirectoryService.js'
 import { GameClipboardService, processIsElevated } from './priceCheck/GameClipboardService.js'
 import { applyXiletradeParseEvidence, parseXiletradeItemText, type CanonicalStatContext, type CanonicalStatMatch, type XiletradeItemParseResult } from './xiletradeItemParser.js'
 import { XiletradeDataCatalog, XiletradeModifierMatcher } from './xiletradeDataCatalog.js'
@@ -50,6 +55,7 @@ const preloadPath = path.join(currentDir, 'preload.js')
 const equipmentTryOnPreloadPath = path.join(currentDir, 'equipmentTryOnPreload.cjs')
 const priceCheckPreloadPath = path.join(currentDir, 'priceCheckPreload.cjs')
 const findBetterPreloadPath = path.join(currentDir, 'findBetterPreload.cjs')
+const timerPreloadPath = path.join(currentDir, 'timerPreload.cjs')
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
 const packageMetadata = JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')) as {
   name?: string
@@ -254,6 +260,12 @@ const userDataPath = rendererUrl && process.env.SUPERPOE_USER_DATA
 app.setPath('userData', userDataPath)
 app.setName(productName)
 const authStoragePath = path.join(userDataPath, 'auth', 'session.bin')
+const clientLogger = new ClientLogger(path.join(userDataPath, 'logs'))
+clientLogger.info('app', 'process-started', {
+  rendererMode: rendererUrl ? 'development' : 'packaged',
+  platform: process.platform,
+  arch: process.arch,
+})
 if (process.platform === 'win32') app.setAppUserModelId(appUserModelId)
 
 // Register before app ready so absolute paths like `/data/...` resolve under the
@@ -365,6 +377,8 @@ let priceCheckCoordinator: PriceCheckCoordinator | null = null
 let priceCheckWindowManager: PriceCheckWindowManager | null = null
 let findBetterWindowManager: FindBetterWindowManager | null = null
 let equipmentTryOnWindowManager: EquipmentTryOnWindowManager | null = null
+let timerWindowManager: TimerWindowManager | null = null
+let gameLogTimerController: GameLogTimerController | null = null
 let priceCheckHotkey = ''
 let defaultRealm: MarketRealm = 'global'
 let uiLanguage: UiLanguage = 'en'
@@ -819,12 +833,18 @@ function createWindow(): BrowserWindow {
   })
   window.webContents.once('did-finish-load', flushPendingNativeBuildFiles)
   mainWindow = window
+  window.on('closed', () => {
+    timerWindowManager?.dispose()
+    gameLogTimerController?.dispose()
+    gameLogTimerController = null
+    if (mainWindow === window) mainWindow = null
+  })
   marketViewManager?.dispose()
   marketViewManager = new MarketViewManager(window, (state) => {
     if (!window.isDestroyed()) window.webContents.send('market:state-changed', state)
   }, tradeCredentialStore, (language) => getMarketPageTranslation(language), () => {
     if (!window.isDestroyed()) window.webContents.send('market:escape')
-  })
+  }, clientLogger)
   communityViewManager?.dispose()
   communityViewManager = new CommunityViewManager(window, (state) => {
     if (!window.isDestroyed()) window.webContents.send('community:state-changed', state)
@@ -841,6 +861,7 @@ function createWindow(): BrowserWindow {
     new TradeReferenceDataCache(path.join(userDataPath, 'trade', 'reference')),
     async (realm) => (await createMarketStatCatalog(realm)).display,
     projectTradeItemForRealm,
+    clientLogger,
   )
   priceCheckWindowManager = new PriceCheckWindowManager(
     priceCheckPreloadPath,
@@ -854,6 +875,18 @@ function createWindow(): BrowserWindow {
   findBetterWindowManager = new FindBetterWindowManager(findBetterPreloadPath, rendererUrl, getAppIconPath())
   equipmentTryOnWindowManager?.dispose()
   equipmentTryOnWindowManager = new EquipmentTryOnWindowManager(equipmentTryOnPreloadPath, rendererUrl, getAppIconPath())
+  timerWindowManager?.dispose()
+  timerWindowManager = new TimerWindowManager(
+    timerPreloadPath,
+    rendererUrl,
+    getAppIconPath(),
+    path.join(userDataPath, 'timer', 'window-bounds.json'),
+  )
+  gameLogTimerController?.dispose()
+  gameLogTimerController = new GameLogTimerController((event) => {
+    if (event.type === 'map-start') timerWindowManager?.beginAutomaticMap(event.areaId)
+    else timerWindowManager?.finishAutomaticMap(event.areaId)
+  })
   priceCheckCoordinator = new PriceCheckCoordinator({
     context: () => ({ realm: defaultRealm, language: uiLanguage }),
     prepare: async (realm, source) => {
@@ -1057,8 +1090,14 @@ function createWindow(): BrowserWindow {
     },
   )
   gameWindowService = new GameWindowService()
-  gameWindowService.on('changed', (state) => marketMonitoring?.setGameState(state))
+  gameWindowService.on('changed', (state) => {
+    marketMonitoring?.setGameState(state)
+    timerWindowManager?.setGameRunning(state.status === 'foreground' || state.status === 'background')
+    gameLogTimerController?.setRunningExecutablePath(gameWindowService?.getRunningGameExecutablePath(defaultRealm))
+  })
   marketMonitoring.setGameState(gameWindowService.getState())
+  const initialGameState = gameWindowService.getState()
+  timerWindowManager?.setGameRunning(initialGameState.status === 'foreground' || initialGameState.status === 'background')
   marketMonitoring.start()
   gameWindowService.start()
   marketViewManager.setRealm(defaultRealm)
@@ -1648,8 +1687,18 @@ async function createMarketListingPreviewEntry(ref: MarketDomListingRef): Promis
     resolveStatText,
   )
   const normalized = await pobItemBridge.normalize(imported.item.raw)
-  normalized.view.iconUrl = imported.item.iconUrl
-  normalized.view.localized = imported.item.localized
+  normalized.view = {
+    ...normalized.view,
+    iconUrl: imported.item.iconUrl,
+    localized: imported.item.localized,
+    itemLevel: imported.item.preview.itemLevel ?? normalized.view.itemLevel,
+    quality: imported.item.preview.quality ?? normalized.view.quality,
+    sockets: imported.item.preview.sockets ?? normalized.view.sockets,
+    identified: imported.item.preview.identified,
+    corrupted: imported.item.preview.corrupted,
+    ...(imported.item.preview.properties ? { properties: imported.item.preview.properties } : {}),
+    ...(imported.item.preview.requirements ? { requirements: imported.item.preview.requirements } : {}),
+  }
   normalized.item.modifierSnapshots = structuredClone(normalized.view.modifiers)
   if (imported.source.display?.locale && imported.source.display.locale !== 'en') {
     imported.source.display.modifiers?.forEach((displayText, index) => {
@@ -1690,8 +1739,18 @@ async function savePriceCheckListing(ref: MarketDomListingRef & { candidateRaw?:
   // PoB interpretation of the same official item.
   const canonicalRaw = ref.candidateRaw || imported.item.raw
   const normalized = await pobItemBridge.normalize(canonicalRaw)
-  normalized.view.iconUrl = imported.item.iconUrl
-  normalized.view.localized = imported.item.localized
+  normalized.view = {
+    ...normalized.view,
+    iconUrl: imported.item.iconUrl,
+    localized: imported.item.localized,
+    itemLevel: imported.item.preview.itemLevel ?? normalized.view.itemLevel,
+    quality: imported.item.preview.quality ?? normalized.view.quality,
+    sockets: imported.item.preview.sockets ?? normalized.view.sockets,
+    identified: imported.item.preview.identified,
+    corrupted: imported.item.preview.corrupted,
+    ...(imported.item.preview.properties ? { properties: imported.item.preview.properties } : {}),
+    ...(imported.item.preview.requirements ? { requirements: imported.item.preview.requirements } : {}),
+  }
   const officialByGroup = new Map<LibraryModifierGroup, typeof imported.item.preview.modifiers>()
   for (const modifier of imported.item.preview.modifiers) {
     const list = officialByGroup.get(modifier.group) || []
@@ -1728,6 +1787,7 @@ async function savePriceCheckListing(ref: MarketDomListingRef & { candidateRaw?:
 }
 
 if (hasSingleInstanceLock) void app.whenReady().then(async () => {
+  clientLogger.info('app', 'ready', { version: app.getVersion(), language: uiLanguage, realm: defaultRealm })
   Menu.setApplicationMenu(null)
   ipcMain.on('pob2:get-system-locale', (event) => {
     const applicationLocale = app.getLocale()
@@ -1801,6 +1861,51 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     })
     if (result.canceled || !result.filePaths[0]) return { canceled: true }
     return readNativeBuildFile(result.filePaths[0])
+  })
+  ipcMain.handle('pob2:open-timer', (event) => {
+    requireMainWindowSender(event)
+    timerWindowManager?.show()
+  })
+  ipcMain.handle('timer:get-state', (event) => {
+    if (!timerWindowManager) throw new Error('Timer is unavailable')
+    return timerWindowManager.getState(event.sender.id)
+  })
+  ipcMain.handle('timer:start', (event) => {
+    timerWindowManager?.start(event.sender.id)
+  })
+  ipcMain.handle('timer:pause', (event) => {
+    timerWindowManager?.pause(event.sender.id)
+  })
+  ipcMain.handle('timer:finish', (event) => {
+    timerWindowManager?.finish(event.sender.id)
+  })
+  ipcMain.handle('timer:reset', (event) => {
+    timerWindowManager?.reset(event.sender.id)
+  })
+  ipcMain.handle('timer:resize', (event, value: unknown) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid timer size')
+    const size = value as { width?: unknown; height?: unknown }
+    const width = typeof size.width === 'number' && Number.isFinite(size.width) ? size.width : 0
+    const height = typeof size.height === 'number' && Number.isFinite(size.height) ? size.height : 0
+    if (width <= 0 || height <= 0 || width > 2_000 || height > 2_000) throw new Error('Invalid timer size')
+    timerWindowManager?.resize(event.sender.id, { width, height })
+  })
+  ipcMain.handle('timer:close', (event) => {
+    timerWindowManager?.close(event.sender.id)
+  })
+  ipcMain.handle('timer:minimize', (event) => {
+    timerWindowManager?.minimize(event.sender.id)
+  })
+  ipcMain.handle('timer:open-settings', (event) => {
+    timerWindowManager?.openSettings(event.sender.id)
+  })
+  ipcMain.handle('timer:close-settings', (event) => {
+    if (!timerWindowManager?.ownsSettings(event.sender.id)) throw new Error('Unauthorized timer settings request')
+    timerWindowManager.close(event.sender.id)
+  })
+  ipcMain.handle('timer:set-skin', (event, value: unknown) => {
+    if (value !== 'obsidian' && value !== 'ember' && value !== 'frost' && value !== 'strip') throw new Error('Invalid timer skin')
+    timerWindowManager?.setSkin(event.sender.id, value)
   })
   ipcMain.handle('pob2:save-build-file-copy', async (event, value: unknown) => {
     const window = requireMainWindowSender(event)
@@ -1898,6 +2003,33 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     writeFileSync(filePath, payload.content, 'utf8')
     return { canceled: false, filePath }
   })
+  ipcMain.handle('pob2:export-diagnostic-log', async (event) => {
+    const window = requireMainWindowSender(event)
+    const stamp = new Date().toISOString().replace(/[.:]/g, '-').replace(/Z$/, '')
+    const result = await dialog.showSaveDialog(window, {
+      title: desktopText(uiLanguage, 'Export SuperPoE Diagnostic Log', '导出 SuperPoE 诊断日志', '匯出 SuperPoE 診斷記錄', 'SuperPoE 진단 로그 내보내기'),
+      defaultPath: path.join(app.getPath('documents'), `SuperPoE-diagnostics-${stamp}.json`),
+      filters: [{ name: 'JSON Diagnostic Log', extensions: ['json'] }],
+      properties: ['createDirectory', 'showOverwriteConfirmation'],
+    })
+    if (result.canceled || !result.filePath) return { canceled: true }
+    const filePath = result.filePath.toLowerCase().endsWith('.json') ? result.filePath : `${result.filePath}.json`
+    clientLogger.exportDiagnosticLog(filePath, {
+      appVersion: app.getVersion(),
+      platform: process.platform,
+      arch: process.arch,
+      rendererMode: rendererUrl ? 'development' : 'packaged',
+      language: uiLanguage,
+      realm: defaultRealm,
+    })
+    clientLogger.info('diagnostics', 'exported', { eventCount: 'included-in-export' })
+    return { canceled: false, filePath }
+  })
+  ipcMain.handle('pob2:open-diagnostic-log-directory', async (event) => {
+    requireMainWindowSender(event)
+    const error = await shell.openPath(clientLogger.directory)
+    if (error) throw new Error(error)
+  })
   ipcMain.handle('pob2:collect-backup-data', (event): SuperPoeBackupMainData => {
     requireMainWindowSender(event)
     return {
@@ -1991,15 +2123,56 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       return { status: 'cancelled' as const }
     }
   })
+  ipcMain.handle('pob2:detect-game-directory', async (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (value !== 'cn' && value !== 'global') throw new Error('Invalid game directory realm')
+    const result = await detectGameDirectory(value, gameWindowService?.getRunningGameExecutablePath(value))
+    clientLogger.info('settings', 'game-directory-detected', {
+      realm: value,
+      status: result.status,
+      source: result.source || 'none',
+    })
+    return result
+  })
+  ipcMain.handle('pob2:choose-game-directory', async (event, value: unknown) => {
+    const window = requireMainWindowSender(event)
+    const input = value && typeof value === 'object' ? value as { realm?: unknown; currentDirectory?: unknown } : { realm: value }
+    const realm = input.realm
+    if (realm !== 'cn' && realm !== 'global') throw new Error('Invalid game directory realm')
+    const currentDirectory = typeof input.currentDirectory === 'string' && existsSync(input.currentDirectory)
+      ? input.currentDirectory
+      : undefined
+    const result = await dialog.showOpenDialog(window, {
+      title: desktopText(uiLanguage, 'Select the game directory', '选择游戏目录', '選擇遊戲目錄', '게임 폴더 선택'),
+      ...(currentDirectory ? { defaultPath: currentDirectory } : {}),
+      properties: ['openDirectory'],
+    })
+    if (result.canceled || !result.filePaths[0]) return { realm, status: 'not-found', canceled: true, checkedAt: new Date().toISOString() }
+    const inspected = inspectGameDirectory(realm, result.filePaths[0])
+    clientLogger.info('settings', 'game-directory-selected', {
+      realm,
+      status: inspected.status,
+      source: inspected.source || 'none',
+    })
+    return inspected
+  })
   ipcMain.handle('pob2:set-app-context', (event, value: unknown) => {
     requireMainWindowSender(event)
     if (!value || typeof value !== 'object') throw new Error('Invalid application context')
-    const context = value as { defaultRealm?: unknown; language?: unknown; priceCheckEnabled?: unknown; priceCheckHotkey?: unknown }
+    const context = value as { defaultRealm?: unknown; language?: unknown; priceCheckEnabled?: unknown; priceCheckHotkey?: unknown; gameDirectory?: unknown }
     const realm = context.defaultRealm
     if (realm !== 'cn' && realm !== 'global') throw new Error('Invalid default realm')
     if (!isUiLanguage(context.language)) throw new Error('Invalid UI language')
     defaultRealm = realm
     uiLanguage = context.language
+    const gameDirectory = typeof context.gameDirectory === 'string' && context.gameDirectory.trim()
+      ? context.gameDirectory.trim().slice(0, 4_096)
+      : undefined
+    gameLogTimerController?.setContext(
+      realm,
+      gameDirectory,
+      gameWindowService?.getRunningGameExecutablePath(realm),
+    )
     marketViewManager?.setRealm(realm)
     marketViewManager?.setLanguage(uiLanguage)
     opportunityOverlay?.setLanguage(uiLanguage)
@@ -2200,7 +2373,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   })
   ipcMain.handle('market:page-command', (event, value: unknown) => {
     requireMainWindowSender(event)
-    if (value !== 'search' && value !== 'clear') throw new Error('Invalid market page command')
+    if (value !== 'focus-filters' && value !== 'search' && value !== 'clear') throw new Error('Invalid market page command')
     marketViewManager?.sendPageCommand(value as MarketPageCommand)
   })
   ipcMain.handle('market:focus-listing', (event, value: unknown) => {
@@ -2208,6 +2381,13 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const listingId = validateShortString(value, 'listing ID', 128)
     if (!/^[A-Za-z0-9_-]+$/.test(listingId)) throw new Error('Invalid listing ID')
     marketViewManager?.focusPageListing(listingId)
+  })
+  ipcMain.handle('market:visit-page-listing', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    const listingId = validateShortString(value, 'listing ID', 128)
+    if (!/^[A-Za-z0-9_-]+$/.test(listingId)) throw new Error('Invalid listing ID')
+    if (!marketViewManager) throw new Error('Market browser is unavailable')
+    marketViewManager.visitCurrentPageListing(listingId)
   })
   ipcMain.handle('market:get-state', (event) => {
     requireMainWindowSender(event)
@@ -2281,14 +2461,114 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       }
       const name = text(candidate.name, 180) || `Item ${listingId}`
       const queryId = typeof candidate.queryId === 'string' && isValidSearchCode(candidate.queryId) ? candidate.queryId : undefined
+      const rarity = typeof candidate.rarity === 'string' && ['normal', 'magic', 'rare', 'unique', 'other'].includes(candidate.rarity)
+        ? candidate.rarity as MarketPageListingRarity
+        : undefined
+      const iconUrl = typeof candidate.iconUrl === 'string'
+        && /^https?:\/\//iu.test(candidate.iconUrl)
+        ? candidate.iconUrl.slice(0, 4_096)
+        : undefined
+      const rawWeaponStats = candidate.weaponStats && typeof candidate.weaponStats === 'object' && !Array.isArray(candidate.weaponStats)
+        ? candidate.weaponStats as Record<string, unknown>
+        : undefined
+      const readDps = (value: unknown): number | undefined => {
+        const number = typeof value === 'number' ? value : Number(value)
+        return Number.isFinite(number) && number >= 0 && number < 1_000_000_000 ? Math.round(number * 100) / 100 : undefined
+      }
+      const totalDps = readDps(rawWeaponStats?.totalDps)
+      const physicalDps = readDps(rawWeaponStats?.physicalDps)
+      const elementalDps = readDps(rawWeaponStats?.elementalDps)
+      const chaosDps = readDps(rawWeaponStats?.chaosDps)
+      const weaponStats: MarketPageWeaponStats | undefined = totalDps === undefined ? undefined : {
+        totalDps,
+        ...(physicalDps !== undefined ? { physicalDps } : {}),
+        ...(elementalDps !== undefined ? { elementalDps } : {}),
+        ...(chaosDps !== undefined ? { chaosDps } : {}),
+      }
+      const rawDefenseStats = candidate.defenseStats && typeof candidate.defenseStats === 'object' && !Array.isArray(candidate.defenseStats)
+        ? candidate.defenseStats as Record<string, unknown>
+        : undefined
+      const armour = readDps(rawDefenseStats?.armour)
+      const evasion = readDps(rawDefenseStats?.evasion)
+      const energyShield = readDps(rawDefenseStats?.energyShield)
+      const runicWard = readDps(rawDefenseStats?.runicWard)
+      const block = readDps(rawDefenseStats?.block)
+      const spirit = readDps(rawDefenseStats?.spirit)
+      const defenseStats: MarketPageDefenseStats | undefined = [armour, evasion, energyShield, runicWard, block, spirit].every((value) => value === undefined)
+        ? undefined
+        : {
+          ...(armour !== undefined ? { armour } : {}),
+          ...(evasion !== undefined ? { evasion } : {}),
+          ...(energyShield !== undefined ? { energyShield } : {}),
+          ...(runicWard !== undefined ? { runicWard } : {}),
+          ...(block !== undefined ? { block } : {}),
+          ...(spirit !== undefined ? { spirit } : {}),
+        }
+      const affixes = Array.isArray(candidate.affixes)
+        ? candidate.affixes
+          .filter((affix): affix is string => typeof affix === 'string')
+          .map((affix) => text(affix, 500))
+          .filter((affix): affix is string => Boolean(affix))
+          .slice(0, 32)
+        : []
+      const affixGroupKinds: MarketListingAffixGroupKind[] = ['implicit', 'prefix', 'suffix', 'other']
+      const affixGroups: MarketPageAffixGroup[] = Array.isArray(candidate.affixGroups)
+        ? candidate.affixGroups.flatMap((rawGroup): MarketPageAffixGroup[] => {
+          if (!rawGroup || typeof rawGroup !== 'object' || Array.isArray(rawGroup)) return []
+          const group = rawGroup as Record<string, unknown>
+          const kind = typeof group.kind === 'string' && affixGroupKinds.includes(group.kind as MarketListingAffixGroupKind)
+            ? group.kind as MarketListingAffixGroupKind
+            : undefined
+          if (!kind || !Array.isArray(group.values)) return []
+          const values = group.values
+            .filter((value): value is string => typeof value === 'string')
+            .map((value) => text(value, 500))
+            .filter((value): value is string => Boolean(value))
+            .slice(0, 32)
+          return values.length ? [{ kind, values }] : []
+        }).slice(0, affixGroupKinds.length)
+        : []
+      const detailLines = Array.isArray(candidate.detailLines)
+        ? candidate.detailLines
+          .filter((line): line is string => typeof line === 'string')
+          .map((line) => text(line, 500))
+          .filter((line): line is string => Boolean(line))
+          .slice(0, 64)
+        : []
+      const summaryStats = Array.isArray(candidate.summaryStats)
+        ? candidate.summaryStats
+          .filter((stat): stat is string => typeof stat === 'string')
+          .map((stat) => text(stat, 500))
+          .filter((stat): stat is string => Boolean(stat))
+          .slice(0, 8)
+        : []
+      const priceAmount = text(candidate.priceAmount, 32)
+      const priceCurrency = text(candidate.priceCurrency, 120)
+      const priceIconUrl = typeof candidate.priceIconUrl === 'string'
+        && /^https?:\/\//iu.test(candidate.priceIconUrl)
+        ? candidate.priceIconUrl.slice(0, 4_096)
+        : undefined
       listings.push({
         realm,
         listingId,
         ...(queryId ? { queryId } : {}),
+        // The preload snapshot is taken from the page's rendered DOM, so its
+        // names, prices, and affixes already use the selected page language.
         name,
         ...(text(candidate.baseType, 120) ? { baseType: text(candidate.baseType, 120) } : {}),
+        ...(rarity ? { rarity } : {}),
+        ...(iconUrl ? { iconUrl } : {}),
+        ...(weaponStats ? { weaponStats } : {}),
+        ...(defenseStats ? { defenseStats } : {}),
         ...(text(candidate.price, 120) ? { price: text(candidate.price, 120) } : {}),
+        ...(priceAmount ? { priceAmount } : {}),
+        ...(priceCurrency ? { priceCurrency } : {}),
+        ...(priceIconUrl ? { priceIconUrl } : {}),
         ...(text(candidate.seller, 120) ? { seller: text(candidate.seller, 120) } : {}),
+        ...(affixes.length ? { affixes } : {}),
+        ...(affixGroups.length ? { affixGroups } : {}),
+        ...(summaryStats.length ? { summaryStats } : {}),
+        ...(detailLines.length ? { detailLines } : {}),
       })
     }
     mainWindow.webContents.send('market:page-listings', { realm, listings })
@@ -2511,8 +2791,18 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
           resolveStatText,
         )
         const normalized = await pobItemBridge.normalize(imported.item.raw)
-        normalized.view.iconUrl = imported.item.iconUrl
-        normalized.view.localized = imported.item.localized
+        normalized.view = {
+          ...normalized.view,
+          iconUrl: imported.item.iconUrl,
+          localized: imported.item.localized,
+          itemLevel: imported.item.preview.itemLevel ?? normalized.view.itemLevel,
+          quality: imported.item.preview.quality ?? normalized.view.quality,
+          sockets: imported.item.preview.sockets ?? normalized.view.sockets,
+          identified: imported.item.preview.identified,
+          corrupted: imported.item.preview.corrupted,
+          ...(imported.item.preview.properties ? { properties: imported.item.preview.properties } : {}),
+          ...(imported.item.preview.requirements ? { requirements: imported.item.preview.requirements } : {}),
+        }
         if (imported.source.display?.locale && imported.source.display.locale !== 'en') {
           imported.source.display.modifiers?.forEach((text, index) => {
             if (normalized.view.modifiers[index]) normalized.view.modifiers[index].localized = { [imported.source.display!.locale]: text }
@@ -3106,6 +3396,8 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => globalShortcut.unregisterAll())
 
 app.on('before-quit', () => {
+  timerWindowManager?.dispose()
+  gameLogTimerController?.dispose()
   communityViewManager?.dispose()
   marketViewManager?.dispose()
   pobLuaService.dispose()

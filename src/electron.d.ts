@@ -73,6 +73,9 @@ declare global {
       copyAnalysisImage?(dataUrl: string): Promise<{ copied: boolean }>
       openBackupFile(): Promise<{ canceled: boolean; filePath?: string; content?: string }>
       saveBackupFile(payload: { content: string; fileName: string }): Promise<{ canceled: boolean; filePath?: string }>
+      exportDiagnosticLog(): Promise<{ canceled: boolean; filePath?: string }>
+      openDiagnosticLogDirectory(): Promise<void>
+      openTimer(): Promise<void>
       collectBackupData(): Promise<import('@/engine/superPoeBackup').SuperPoeBackupMainData>
       restoreBackupData(main: import('@/engine/superPoeBackup').SuperPoeBackupMainData): Promise<void>
       registerBuildFileAssociation(): Promise<{ registered: boolean; isDefault: boolean; settingsOpened: boolean; reason?: 'unsupported-platform' }>
@@ -81,7 +84,9 @@ declare global {
       installGameBuild(payload: { content: string; fileName: string }): Promise<{ canceled: false; filePath: string }>
       setUiScale(factor: number): Promise<number>
       restartAsAdministrator(): Promise<{ status: 'started' | 'already-elevated' | 'cancelled' | 'unsupported' }>
-      setAppContext(context: { defaultRealm: import('@/types/tree').BuildRealm; language: import('@/i18n/translationLoader').Language; priceCheckEnabled: boolean; priceCheckHotkey: string }): Promise<void>
+      detectGameDirectory(realm: import('@/types/gameDirectory').GameDirectoryRealm): Promise<import('@/types/gameDirectory').GameDirectoryDetectionResult>
+      chooseGameDirectory(realm: import('@/types/gameDirectory').GameDirectoryRealm, currentDirectory?: string): Promise<import('@/types/gameDirectory').GameDirectoryDetectionResult>
+      setAppContext(context: { defaultRealm: import('@/types/tree').BuildRealm; language: import('@/i18n/translationLoader').Language; priceCheckEnabled: boolean; priceCheckHotkey: string; gameDirectory?: string }): Promise<void>
       initPobLua(): Promise<{
         available: boolean
         backend: 'luajit' | 'wasmoon'
@@ -93,6 +98,21 @@ declare global {
       rankPobLuaSkills(payload: import('@/types/calc').RankSkillsInput): Promise<import('@/types/calc').SkillDpsRankResponse>
       comparePobLuaEquipment(payload: import('@/equipmentDifference/types').EquipmentDifferenceRequest & { contextKey: string }): Promise<import('@/equipmentDifference/types').EquipmentDifferenceResult>
       openEquipmentTryOn(payload: import('@/types/tryOn').EquipmentTryOnOpenRequest): Promise<void>
+    }
+    pob2Timer?: {
+      getState(): Promise<{ state: 'idle' | 'running' | 'paused' | 'finished'; elapsed: number; gameRunning: boolean }>
+      start(): Promise<void>
+      pause(): Promise<void>
+      finish(): Promise<void>
+      reset(): Promise<void>
+      resize(size: { width: number; height: number }): Promise<void>
+      close(): Promise<void>
+      minimize(): Promise<void>
+      openSettings(): Promise<void>
+      closeSettings(): Promise<void>
+      setSkin(skin: 'obsidian' | 'ember' | 'frost' | 'strip'): Promise<void>
+      onSkinChanged(callback: (skin: string) => void): () => void
+      onStateChanged(callback: (state: { state: 'idle' | 'running' | 'paused' | 'finished'; elapsed: number; gameRunning: boolean }) => void): () => void
     }
     pob2TryOn?: {
       close(): Promise<void>
@@ -106,8 +126,9 @@ declare global {
       navigate(command: import('@/types/market').MarketNavigationCommand): Promise<void>
       login(): Promise<void>
       openExternal(): Promise<void>
-      marketPageCommand(command: 'search' | 'clear'): Promise<void>
+      marketPageCommand(command: 'focus-filters' | 'search' | 'clear'): Promise<void>
       focusPageListing(listingId: string): Promise<void>
+      visitPageListing(listingId: string): Promise<void>
       getState(): Promise<import('@/types/market').MarketViewState>
       listLibrary(filter?: import('@/types/market').EquipmentLibraryFilter): Promise<import('@/types/market').EquipmentLibraryEntry[]>
       getSidebar(): Promise<import('@/types/market').EquipmentLibrarySidebarSnapshot>

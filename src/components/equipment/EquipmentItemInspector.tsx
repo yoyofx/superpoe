@@ -90,6 +90,8 @@ function displayStatLabel(key: string, language: Language): string {
     CharmSlots: ['Charm Slots', '咒符栏位', '咒符欄位', '부적 슬롯'],
     PhysicalDamage: ['Physical Damage', '物理伤害', '物理傷害', '물리 피해'],
     'Physical Damage': ['Physical Damage', '物理伤害', '物理傷害', '물리 피해'],
+    ElementalDamage: ['Elemental Damage', '元素伤害', '元素傷害', '원소 피해'],
+    'Elemental Damage': ['Elemental Damage', '元素伤害', '元素傷害', '원소 피해'],
     FireDamage: ['Fire Damage', '火焰伤害', '火焰傷害', '화염 피해'],
     'Fire Damage': ['Fire Damage', '火焰伤害', '火焰傷害', '화염 피해'],
     ColdDamage: ['Cold Damage', '冰霜伤害', '冰霜傷害', '냉기 피해'],
@@ -100,8 +102,16 @@ function displayStatLabel(key: string, language: Language): string {
     'Chaos Damage': ['Chaos Damage', '混沌伤害', '混沌傷害', '카오스 피해'],
     CriticalChance: ['Critical Chance', '暴击率', '暴擊率', '치명타 확률'],
     'Critical Strike Chance': ['Critical Chance', '暴击率', '暴擊率', '치명타 확률'],
+    'Critical Hit Chance': ['Critical Chance', '暴击率', '暴擊率', '치명타 확률'],
+    'Crit Chance': ['Critical Chance', '暴击率', '暴擊率', '치명타 확률'],
     AttackRate: ['Attacks per Second', '每秒攻击次数', '每秒攻擊次數', '초당 공격 횟수'],
     'Attacks per Second': ['Attacks per Second', '每秒攻击次数', '每秒攻擊次數', '초당 공격 횟수'],
+    ReloadTime: ['Reload Time', '装填时间', '裝填時間', '재장전 시간'],
+    'Reload Time': ['Reload Time', '装填时间', '裝填時間', '재장전 시간'],
+    AttackSpeed: ['Attack Speed', '攻击速度', '攻擊速度', '공격 속도'],
+    'Attack Speed': ['Attack Speed', '攻击速度', '攻擊速度', '공격 속도'],
+    CastTime: ['Cast Time', '施法时间', '施法時間', '시전 시간'],
+    'Cast Time': ['Cast Time', '施法时间', '施法時間', '시전 시간'],
     WeaponRange: ['Weapon Range', '武器范围', '武器範圍', '무기 범위'],
     Level: ['Level', '等级', '等級', '레벨'],
     Strength: ['Strength', '力量', '力量', '힘'],
@@ -114,7 +124,33 @@ function displayStatLabel(key: string, language: Language): string {
 
 function DisplayStatList({ stats, language, className }: { stats: CanonicalItemDisplayStat[] | undefined; language: Language; className: string }) {
   if (!stats?.length) return null
-  return <div className={className}>{stats.map((stat) => <span key={`${stat.key}-${stat.values.join('|')}`}><label>{displayStatLabel(stat.key, language)}</label><strong>{stat.values.join(' - ')}</strong></span>)}</div>
+  return <div className={className}>{stats.map((stat) => <span className={displayStatTone(stat.key)} key={`${stat.key}-${stat.values.join('|')}`}><label>{displayStatLabel(stat.key, language)}</label><strong>{stat.values.join(' - ')}</strong></span>)}</div>
+}
+
+function displayStatTone(key: string): string {
+  if (/physical|物理|物理/u.test(key)) return 'stat-physical'
+  if (/fire|火焰/u.test(key)) return 'stat-fire'
+  if (/cold|冰霜/u.test(key)) return 'stat-cold'
+  if (/lightning|闪电|閃電/u.test(key)) return 'stat-lightning'
+  if (/chaos|混沌/u.test(key)) return 'stat-chaos'
+  if (/critical|crit|暴击|暴擊/u.test(key)) return 'stat-critical'
+  if (/attack|cast|reload|施法|攻击|攻擊|装填|裝填/u.test(key)) return 'stat-speed'
+  return ''
+}
+
+function itemClassLabel(value: string | undefined, language: Language): string | undefined {
+  if (!value) return undefined
+  const normalized = value.trim().toLowerCase()
+  const labels: Record<string, [string, string, string, string]> = {
+    weapon: ['Weapon', '武器', '武器', '무기'],
+    armour: ['Armour', '护甲', '護甲', '방어구'],
+    armor: ['Armour', '护甲', '護甲', '방어구'],
+    accessory: ['Accessory', '饰品', '飾品', '장신구'],
+    flask: ['Flask', '药剂', '藥劑', '플라스크'],
+    jewel: ['Jewel', '珠宝', '珠寶', '주얼'],
+  }
+  const label = labels[normalized]
+  return label ? uiText(language, ...label) : value
 }
 
 export function EquipmentItemInspector({ view, language, sourceLabels = [], price, tags = [], note, weaponStats, footer, headerAction, headerProps, showQuickNavigation = false }: EquipmentItemInspectorProps) {
@@ -126,6 +162,7 @@ export function EquipmentItemInspector({ view, language, sourceLabels = [], pric
   const differenceRef = useRef<HTMLDivElement>(null)
   const hasFooter = footer !== undefined && footer !== null && footer !== false
   const rarityKey = view.rarity.toLowerCase()
+  const propertyType = itemClassLabel(view.itemClass, language)
   const modifierGroups = (['implicit', 'enchant', 'rune', 'explicit'] as const)
     .map((group) => ({ group, entries: view.modifiers.filter((modifier) => modifier.group === group) }))
     .filter(({ entries }) => entries.length)
@@ -144,11 +181,11 @@ export function EquipmentItemInspector({ view, language, sourceLabels = [], pric
     <div className="inspector-scroll" ref={scrollRef}>
       {showQuickNavigation && <EquipmentDetailQuickNav containerRef={scrollRef} sections={quickNavigationSections} language={language} />}
       <div ref={propertiesRef} className="equipment-detail-section equipment-detail-properties">
-        <div className="item-property-type">{equipmentItemBaseType(view, language)}</div>
+        {propertyType && <div className="item-property-type">{propertyType}</div>}
         {sourceLabels.length > 0 && <div className="library-item-inspector-sources">{sourceLabels.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}</div>}
         {price && <div className="library-item-inspector-price">{price}</div>}
         <div className="item-metadata">
-          <span>{l('Rarity', '稀有度', '稀有度', '희귀도')} <strong>{view.rarity}</strong></span>
+          <span>{l('Rarity', '稀有度', '稀有度', '희귀도')} <strong>{equipmentRarityLabel(view.rarity, language)}</strong></span>
           {view.itemLevel != null && <span>{l('Item level', '物品等级', '物品等級', '아이템 레벨')} <strong>{view.itemLevel}</strong></span>}
           {view.quality != null && <span>{l('Quality', '品质', '品質', '퀄리티')} <strong>{view.quality}%</strong></span>}
           {view.sockets && <span>{l('Sockets', '孔位', '插槽', '홈')} <strong>{view.sockets}</strong></span>}

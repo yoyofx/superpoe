@@ -33,27 +33,71 @@ function decodeSegment(value: string): string | null {
   }
 }
 
-export function parseOfficialSearchUrl(value: string, realm: MarketRealm): MarketSearchReference | null {
+export type OfficialSearchUrlIssueCode =
+  | 'invalid-url'
+  | 'invalid-protocol'
+  | 'invalid-host'
+  | 'invalid-path'
+  | 'invalid-league-encoding'
+  | 'invalid-league'
+  | 'invalid-search-code-encoding'
+  | 'invalid-search-code'
+
+export type OfficialSearchUrlDiagnostic =
+  | { ok: true; reference: MarketSearchReference }
+  | { ok: false; code: OfficialSearchUrlIssueCode; reason: string }
+
+function invalidReference(code: OfficialSearchUrlIssueCode, reason: string): OfficialSearchUrlDiagnostic {
+  return { ok: false, code, reason }
+}
+
+function invalidCharacterCodes(value: string): string {
+  return [...new Set(Array.from(value).filter((character) => !/[A-Za-z0-9_-]/.test(character)))]
+    .slice(0, 4)
+    .map((character) => `U+${character.codePointAt(0)!.toString(16).toUpperCase().padStart(4, '0')}`)
+    .join(', ')
+}
+
+export function diagnoseOfficialSearchUrl(value: string, realm: MarketRealm): OfficialSearchUrlDiagnostic {
   let url: URL
   try {
     url = new URL(value)
   } catch {
-    return null
+    return invalidReference('invalid-url', 'the URL could not be parsed')
   }
-  if (url.protocol !== 'https:' || !isRealmHost(url, realm)) return null
+  if (url.protocol !== 'https:') return invalidReference('invalid-protocol', 'the URL must use HTTPS')
+  if (!isRealmHost(url, realm)) return invalidReference('invalid-host', `the host does not match the ${realm} realm`)
   const match = url.pathname.match(/^\/trade2\/search\/poe2\/([^/]+)\/([^/]+)\/?$/)
-  if (!match) return null
+  if (!match) return invalidReference('invalid-path', 'the path is not a PoE2 trade search URL')
   const leagueId = decodeSegment(match[1])
   const searchCode = decodeSegment(match[2])
-  if (!leagueId || leagueId.length > MAX_LEAGUE_LENGTH || /[\u0000-\u001f/?#\\]/.test(leagueId)) return null
-  if (!searchCode || !SEARCH_CODE_PATTERN.test(searchCode)) return null
-  return {
-    realm,
-    leagueId,
-    searchCode,
-    canonicalUrl: `https://${canonicalHost(realm)}/trade2/search/poe2/${encodeURIComponent(leagueId)}/${encodeURIComponent(searchCode)}`,
-    captureSource: 'code-only',
+  if (!leagueId) return invalidReference('invalid-league-encoding', 'the league segment contains invalid URL encoding')
+  if (!leagueId || leagueId.length > MAX_LEAGUE_LENGTH || /[\u0000-\u001f/?#\\]/.test(leagueId)) {
+    return invalidReference('invalid-league', `the league is empty, too long, or contains unsafe characters (length=${leagueId.length})`)
   }
+  if (!searchCode) return invalidReference('invalid-search-code-encoding', 'the search ID contains invalid URL encoding')
+  if (!SEARCH_CODE_PATTERN.test(searchCode)) {
+    if (searchCode.length > MAX_SEARCH_CODE_LENGTH) {
+      return invalidReference('invalid-search-code', `the search ID is too long (length=${searchCode.length}, max=${MAX_SEARCH_CODE_LENGTH})`)
+    }
+    const codes = invalidCharacterCodes(searchCode)
+    return invalidReference('invalid-search-code', `the search ID contains unsupported characters${codes ? ` (${codes})` : ''}; allowed characters are A-Z, a-z, 0-9, _ and -`)
+  }
+  return {
+    ok: true,
+    reference: {
+      realm,
+      leagueId,
+      searchCode,
+      canonicalUrl: `https://${canonicalHost(realm)}/trade2/search/poe2/${encodeURIComponent(leagueId)}/${encodeURIComponent(searchCode)}`,
+      captureSource: 'code-only',
+    },
+  }
+}
+
+export function parseOfficialSearchUrl(value: string, realm: MarketRealm): MarketSearchReference | null {
+  const diagnostic = diagnoseOfficialSearchUrl(value, realm)
+  return diagnostic.ok ? diagnostic.reference : null
 }
 
 export function isValidSearchCode(value: string): boolean {
