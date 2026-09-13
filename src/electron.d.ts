@@ -187,6 +187,19 @@ declare global {
       onStateChanged(callback: (state: import('@/types/community').CommunityViewState) => void): () => void
       onEscape(callback: () => void): () => void
     }
+    pob2Reference?: {
+      activate(bounds: import('@/types/market').MarketBounds, site: import('@/types/reference').ReferenceSiteConfig): Promise<import('@/types/reference').ReferenceViewState>
+      deactivate(): Promise<void>
+      setBounds(bounds: import('@/types/market').MarketBounds): Promise<void>
+      setVisible(visible: boolean): Promise<void>
+      setSite(site: import('@/types/reference').ReferenceSiteConfig): Promise<void>
+      navigate(command: import('@/types/reference').ReferenceNavigationCommand): Promise<void>
+      openExternal(): Promise<void>
+      getState(): Promise<import('@/types/reference').ReferenceViewState>
+      onStateChanged(callback: (state: import('@/types/reference').ReferenceViewState) => void): () => void
+      onPoeNinjaImport(callback: (event: import('@/types/reference').ReferencePoeNinjaImportEvent) => void): () => void
+      onEscape(callback: () => void): () => void
+    }
     pob2CurrencyMarket?: {
       get(forceRefresh?: boolean): Promise<import('@/types/currencyMarket').CurrencyMarketState>
       onChanged(callback: (state: import('@/types/currencyMarket').CurrencyMarketState) => void): () => void

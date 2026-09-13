@@ -1,4 +1,4 @@
-import { FileInput, Headphones, Plus, Store, Wrench } from 'lucide-react'
+import { BookOpen, ExternalLink, Headphones } from 'lucide-react'
 import { BuildCenterNav } from '@/components/BuildCenter'
 import { SUPERPOE_NAME, SUPERPOE_VERSION_LABEL } from '@/engine/appVersion'
 import { useTranslation } from '@/i18n/useTranslation'
@@ -11,37 +11,35 @@ interface UtilityCenterProps {
   onTradeCenter: () => void
   onCommunity: () => void
   onAbout: () => void
-  onCreate: () => void
-  onImport: () => void
+  onNinja: () => void
+  onPoe2db: () => void
 }
 
-export function UtilityCenter({ onCenter, onLibrary, onTradeCenter, onCommunity, onAbout, onCreate, onImport }: UtilityCenterProps) {
+export function UtilityCenter({ onCenter, onLibrary, onTradeCenter, onCommunity, onAbout, onNinja, onPoe2db }: UtilityCenterProps) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   return (
     <div className="build-center utility-center">
-      <BuildCenterNav active="utilities" onCenter={onCenter} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onCommunity={onCommunity} onUtilities={() => {}} onAbout={onAbout} />
+      <BuildCenterNav active="reference" onCenter={onCenter} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onCommunity={onCommunity} onReference={() => {}} onAbout={onAbout} />
       <header className="center-app-bar utility-center-header">
         <div className="center-actions utility-center-actions"><button type="button" className="icon-command toolbar-community-button" onClick={onCommunity} title={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')} aria-label={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')}><Headphones /></button><AccountStatus /></div>
         <div className="build-center-page-heading">
-          <Wrench aria-hidden="true" />
-          <div><span>{l('WORKSPACE', '工作区', '工作區', '작업 공간')}</span><h1>{l('Utilities', '实用工具', '實用工具', '유틸리티')}</h1></div>
+          <BookOpen aria-hidden="true" />
+          <div><span>{l('REFERENCE', '资料参考', '資料參考', '참고 자료')}</span><h1>{l('Reference', '资料参考', '資料參考', '참고 자료')}</h1></div>
         </div>
       </header>
       <main className="build-center-content utility-center-content">
-        <p className="utility-center-intro">{l('Common build actions and workspace entry points.', '常用构筑操作和工作区入口。', '常用構築操作與工作區入口。', '자주 사용하는 빌드 작업과 작업 공간을 엽니다.')}</p>
-        <section className="utility-command-list" aria-label={l('Utilities', '实用工具', '實用工具', '유틸리티')}>
-          <button className="utility-command" onClick={onCreate}>
-            <span className="utility-command-icon"><Plus /></span>
-            <span><strong>{l('New build', '新建构筑', '新增構築', '새 빌드')}</strong><small>{l('Start editing from a blank build', '从空白构筑开始编辑', '從空白構築開始編輯', '빈 빌드에서 편집을 시작합니다')}</small></span>
+        <p className="utility-center-intro">{l('External resources for build planning and game data.', '用于构筑规划和游戏资料查询的外部资源。', '用於構築規劃與遊戲資料查詢的外部資源。', '빌드 계획과 게임 정보를 위한 외부 리소스입니다.')}</p>
+        <section className="utility-command-list" aria-label={l('Reference websites', '资料参考网站', '資料參考網站', '참고 웹사이트')}>
+          <button className="utility-command reference-command" onClick={onNinja}>
+            <span className="utility-command-icon"><BookOpen /></span>
+            <span><strong>{l('Ninja builds', '忍者网', '忍者網', '닌자 빌드')}</strong><small>{l('Global PoE2 build reference', '全球 PoE2 构筑参考', '全球 PoE2 構築參考', '전 세계 PoE2 빌드 참고')}</small></span>
+            <ExternalLink className="utility-command-arrow" aria-hidden="true" />
           </button>
-          <button className="utility-command" onClick={onImport}>
-            <span className="utility-command-icon"><FileInput /></span>
-            <span><strong>{l('Import build', '导入构筑', '匯入構築', '빌드 가져오기')}</strong><small>{l('Import PoB Code or a WeGame share link', '导入 PoB Code 或 WeGame 分享链接', '匯入 PoB Code 或 WeGame 分享連結', 'PoB Code 또는 WeGame 공유 링크를 가져옵니다')}</small></span>
-          </button>
-          <button className="utility-command" onClick={onTradeCenter}>
-            <span className="utility-command-icon"><Store /></span>
-            <span><strong>{l('Trade center', '交易中心', '交易中心', '거래 센터')}</strong><small>{l('Open market, stash, and live monitoring', '打开集市、仓库和实时监控', '開啟市集、倉庫與即時監控', '거래소, 보관함 및 실시간 모니터링을 엽니다')}</small></span>
+          <button className="utility-command reference-command" onClick={onPoe2db}>
+            <span className="utility-command-icon"><BookOpen /></span>
+            <span><strong>{l('PoE2DB', '编年史', '編年史', 'PoE2DB')}</strong><small>{l('PoE2 game encyclopedia', 'PoE2 游戏百科资料', 'PoE2 遊戲百科資料', 'PoE2 게임 백과사전')}</small></span>
+            <ExternalLink className="utility-command-arrow" aria-hidden="true" />
           </button>
         </section>
         <footer className="utility-center-footer">{SUPERPOE_NAME} · {SUPERPOE_VERSION_LABEL}</footer>

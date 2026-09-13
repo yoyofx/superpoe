@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { ChevronDown, ChevronLeft, ChevronRight, ExternalLink, Home, List, Search, ShieldCheck, Store, X } from 'lucide-react'
-import type { PriceCheckContextState, TradeListedStatus, TradePriceCheckCriteria, TradePriceCheckDraft } from '@/types/market'
+import type { PriceCheckContextState, TradeFilterBoolean, TradeFilterRarity, TradeListedStatus, TradePriceCheckCriteria, TradePriceCheckDraft, TradeXiletradeFilters } from '@/types/market'
 import { uiText } from '@/i18n/uiLocale'
 import { loadTranslations, normalizeDisplayTags, translateGameText } from '@/i18n/translationLoader'
 import { loadAppSettings } from '@/engine/appSettings'
@@ -33,6 +33,93 @@ function modifierSourceLabel(
 function numeric(value: string): number | undefined {
   const parsed = Number(value)
   return value.trim() && Number.isFinite(parsed) ? parsed : undefined
+}
+
+type XiletradeRangeKey = 'itemLevel' | 'quality' | 'requiredLevel' | 'armour' | 'energyShield' | 'evasion' | 'runicWard' | 'attacksPerSecond' | 'damagePerSecond' | 'criticalChance' | 'elementalDps' | 'physicalDps' | 'block' | 'damage' | 'spirit' | 'runeSockets'
+type XiletradeMiscKey = keyof NonNullable<TradeXiletradeFilters['misc']>
+
+interface XiletradeFilterDraft {
+  rarity: '' | TradeFilterRarity
+  ranges: Record<XiletradeRangeKey, { min: string; max: string }>
+  misc: Record<XiletradeMiscKey, '' | TradeFilterBoolean>
+  priceMin: string
+  priceMax: string
+  priceCurrency: string
+  indexed: '' | '1day' | '3days' | '1week' | '2weeks'
+  saleType: '' | 'priced' | 'unpriced'
+}
+
+const xiletradeRangeKeys: XiletradeRangeKey[] = [
+  'itemLevel', 'quality', 'requiredLevel', 'armour', 'energyShield', 'evasion', 'runicWard',
+  'attacksPerSecond', 'damagePerSecond', 'criticalChance', 'elementalDps', 'physicalDps',
+  'block', 'damage', 'spirit', 'runeSockets',
+]
+
+const xiletradeMiscKeys: XiletradeMiscKey[] = [
+  'mirrored', 'corrupted', 'twiceCorrupted', 'identified', 'fractured', 'alternateArt',
+  'crafted', 'mutated', 'desecrated', 'veiled', 'sanctified',
+]
+
+function createXiletradeFilterDraft(): XiletradeFilterDraft {
+  return {
+    rarity: '',
+    ranges: Object.fromEntries(xiletradeRangeKeys.map((key) => [key, { min: '', max: '' }])) as XiletradeFilterDraft['ranges'],
+    misc: Object.fromEntries(xiletradeMiscKeys.map((key) => [key, ''])) as XiletradeFilterDraft['misc'],
+    priceMin: '', priceMax: '', priceCurrency: '', indexed: '', saleType: '',
+  }
+}
+
+function toXiletradeFilters(draft: XiletradeFilterDraft): TradeXiletradeFilters | undefined {
+  const range = (key: XiletradeRangeKey) => {
+    const value = draft.ranges[key]
+    const min = numeric(value.min)
+    const max = numeric(value.max)
+    return min == null && max == null ? undefined : { ...(min == null ? {} : { min }), ...(max == null ? {} : { max }) }
+  }
+  const itemLevel = range('itemLevel')
+  const quality = range('quality')
+  const requiredLevel = range('requiredLevel')
+  const equipment = Object.fromEntries(xiletradeRangeKeys.slice(3).flatMap((key) => {
+    const value = range(key)
+    return value ? [[key, value]] : []
+  })) as NonNullable<TradeXiletradeFilters['equipment']>
+  const misc = Object.fromEntries(xiletradeMiscKeys.flatMap((key) => draft.misc[key] ? [[key, draft.misc[key]]] : [])) as NonNullable<TradeXiletradeFilters['misc']>
+  const priceMin = numeric(draft.priceMin)
+  const priceMax = numeric(draft.priceMax)
+  const priceCurrency = draft.priceCurrency.trim()
+  const trade = priceMin == null && priceMax == null && !priceCurrency && !draft.indexed && !draft.saleType
+    ? undefined
+    : {
+      ...((priceMin != null || priceMax != null || priceCurrency) ? { price: { ...(priceMin == null ? {} : { min: priceMin }), ...(priceMax == null ? {} : { max: priceMax }), ...(priceCurrency ? { currency: priceCurrency } : {}) } } : {}),
+      ...(draft.indexed ? { indexed: draft.indexed } : {}),
+      ...(draft.saleType ? { saleType: draft.saleType } : {}),
+    }
+  const result: TradeXiletradeFilters = {
+    ...(draft.rarity ? { rarity: draft.rarity } : {}),
+    ...(itemLevel ? { itemLevel } : {}),
+    ...(quality ? { quality } : {}),
+    ...(requiredLevel ? { requiredLevel } : {}),
+    ...(Object.keys(equipment).length ? { equipment } : {}),
+    ...(Object.keys(misc).length ? { misc } : {}),
+    ...(trade ? { trade } : {}),
+  }
+  return Object.keys(result).length ? result : undefined
+}
+
+function xiletradeRangeLabel(key: XiletradeRangeKey, l: (en: string, zhCN: string, zhTW: string, koKR: string) => string): string {
+  const labels: Record<XiletradeRangeKey, [string, string, string, string]> = {
+    itemLevel: ['Item level', '物品等级', '物品等級', '아이템 레벨'], quality: ['Quality', '品质', '品質', '품질'], requiredLevel: ['Required level', '需求等级', '需求等級', '요구 레벨'],
+    armour: ['Armour', '护甲', '護甲', '방어도'], energyShield: ['Energy shield', '能量护盾', '能量護盾', '에너지 보호막'], evasion: ['Evasion', '闪避', '閃避', '회피'], runicWard: ['Runic ward', '符文结界', '符文結界', '룬 결계'],
+    attacksPerSecond: ['Attacks / sec', '每秒攻击', '每秒攻擊', '초당 공격'], damagePerSecond: ['DPS', 'DPS', 'DPS', 'DPS'], criticalChance: ['Critical chance', '暴击率', '暴擊率', '치명타 확률'], elementalDps: ['Elemental DPS', '元素 DPS', '元素 DPS', '원소 DPS'], physicalDps: ['Physical DPS', '物理 DPS', '物理 DPS', '물리 DPS'], block: ['Block', '格挡', '格擋', '막기'], damage: ['Damage', '伤害', '傷害', '피해'], spirit: ['Spirit', '精魂', '精魂', '정신력'], runeSockets: ['Rune sockets', '符文孔', '符文孔', '룬 홈'],
+  }
+  return l(...labels[key])
+}
+
+function xiletradeMiscLabel(key: XiletradeMiscKey, l: (en: string, zhCN: string, zhTW: string, koKR: string) => string): string {
+  const labels: Record<XiletradeMiscKey, [string, string, string, string]> = {
+    mirrored: ['Mirrored', '镜像', '鏡像', '복제'], corrupted: ['Corrupted', '腐化', '腐化', '타락'], twiceCorrupted: ['Twice corrupted', '双重腐化', '雙重腐化', '이중 타락'], identified: ['Identified', '已鉴定', '已鑑定', '감정됨'], fractured: ['Fractured', '分裂', '分裂', '분열'], alternateArt: ['Alternate art', '异画', '異畫', '대체 외형'], crafted: ['Crafted', '打造', '製作', '제작'], mutated: ['Mutated', '变异', '變異', '변이'], desecrated: ['Desecrated', '亵渎', '褻瀆', '모독'], veiled: ['Unrevealed', '未揭示', '未揭示', '미공개'], sanctified: ['Sanctified', '圣化', '聖化', '성화'],
+  }
+  return l(...labels[key])
 }
 
 function slotLabel(slotName: string | undefined, l: (en: string, zhCN: string, zhTW: string, koKR: string) => string): string | undefined {
@@ -85,9 +172,8 @@ export function PriceCheckApp() {
   const [leagueId, setLeagueId] = useState('')
   const [listedStatus, setListedStatus] = useState<TradeListedStatus>('securable')
   const [useBaseType, setUseBaseType] = useState(false)
-  const [itemLevelMin, setItemLevelMin] = useState('')
-  const [itemLevelMax, setItemLevelMax] = useState('')
   const [modifiers, setModifiers] = useState<Record<string, ModifierInput>>({})
+  const [xiletradeFilters, setXiletradeFilters] = useState<XiletradeFilterDraft>(() => createXiletradeFilterDraft())
   const [filtersOpen, setFiltersOpen] = useState(true)
   const [selectedListingId, setSelectedListingId] = useState<string | null>(null)
   const [hideoutBusyId, setHideoutBusyId] = useState<string | null>(null)
@@ -150,8 +236,9 @@ export function PriceCheckApp() {
   useEffect(() => {
     if (!state?.draft) return
     setLeagueId(state.leagues.some((league) => league.id === state.initialLeagueId) ? state.initialLeagueId! : state.leagues[0]?.id || '')
-    setListedStatus('securable')
+    setListedStatus(state.realm === 'cn' ? 'securable' : 'online')
     setUseBaseType(state.draft.unique)
+    setXiletradeFilters(createXiletradeFilterDraft())
     setModifiers(Object.fromEntries(state.draft.modifiers.map((modifier) => [modifier.id, {
       selected: modifier.searchable && modifier.group !== 'rune',
       min: modifier.currentValue == null ? '' : String(modifier.currentValue), max: '',
@@ -224,13 +311,14 @@ export function PriceCheckApp() {
   const runSearch = async (): Promise<PriceCheckContextState | undefined> => {
     if (!bridge?.search || !state?.draft || !leagueId) return undefined
     setSearchActionError(null)
+    const xiletrade = toXiletradeFilters(xiletradeFilters)
     const criteria: TradePriceCheckCriteria = {
       listedStatus, useBaseType: state.draft.unique || useBaseType,
-      itemLevelMin: numeric(itemLevelMin), itemLevelMax: numeric(itemLevelMax),
       modifiers: state.draft.modifiers.flatMap((modifier) => {
         const input = modifiers[modifier.id]
         return modifier.searchable && input?.selected ? [{ id: modifier.id, min: numeric(input.min), max: numeric(input.max) }] : []
       }),
+      ...(xiletrade ? { xiletrade } : {}),
     }
     try {
       return await bridge.search(leagueId, criteria)
@@ -249,6 +337,17 @@ export function PriceCheckApp() {
     } catch (error) {
       setSearchActionError(error instanceof Error ? error.message : String(error))
     }
+  }
+
+  const updateXiletradeRange = (key: XiletradeRangeKey, side: 'min' | 'max', value: string) => {
+    setXiletradeFilters((current) => ({
+      ...current,
+      ranges: { ...current.ranges, [key]: { ...current.ranges[key], [side]: value } },
+    }))
+  }
+
+  const updateXiletradeMisc = (key: XiletradeMiscKey, value: '' | TradeFilterBoolean) => {
+    setXiletradeFilters((current) => ({ ...current, misc: { ...current.misc, [key]: value } }))
   }
 
   const restartAsAdministrator = async () => {
@@ -282,11 +381,33 @@ export function PriceCheckApp() {
       </section>}
       <section className="pc-controls">
         <label><span>{l('League', '赛季', '賽季', '리그')}</span><select value={leagueId} onChange={(event) => setLeagueId(event.target.value)}>{state.leagues.map((league) => <option key={league.id} value={league.id}>{translateGameText(league.text, language)}</option>)}</select></label>
-        <label><span>{l('Listed', '上架', '上架', '등록')}</span><select value={listedStatus} onChange={(event) => setListedStatus(event.target.value as TradeListedStatus)} aria-label={l('Listed status', '上架状态', '上架狀態', '등록 상태')}><option value="securable">{l('Instant', '一口价', '直購', '즉시 구매')}</option></select></label>
+        <label><span>{l('Listed', '上架', '上架', '등록')}</span><select value={listedStatus} onChange={(event) => setListedStatus(event.target.value as TradeListedStatus)} aria-label={l('Listed status', '上架状态', '上架狀態', '등록 상태')}><option value="securable">{l('Instant', '一口价', '直購', '즉시 구매')}</option><option value="available">{l('Any available', '可交易', '可交易', '거래 가능')}</option><option value="onlineleague">{l('Online in league', '赛季在线', '賽季在線', '리그 온라인')}</option><option value="online">{l('Online', '在线', '在線', '온라인')}</option><option value="any">{l('Any', '全部', '全部', '모두')}</option></select></label>
       </section>
       <button className="pc-filter-summary" onClick={() => setFiltersOpen((value) => !value)}><span>{l(`${selectedCount} modifiers selected`, `已选 ${selectedCount} 条词缀`, `已選 ${selectedCount} 條詞綴`, `${selectedCount}개 속성 선택`)}</span><ChevronDown className={filtersOpen ? 'open' : ''} /></button>
       {filtersOpen && <section className="pc-filters">
-        {!state.draft.unique && <div className="pc-properties"><label><input type="checkbox" checked={useBaseType} onChange={(event) => setUseBaseType(event.target.checked)} />{l('Match base type', '匹配底材', '匹配基底', '베이스 유형 일치')}</label><div><input placeholder={l('Min ilvl', '最低物等', '最低物等', '최소 레벨')} value={itemLevelMin} onChange={(event) => setItemLevelMin(event.target.value)} /><input placeholder={l('Max ilvl', '最高物等', '最高物等', '최대 레벨')} value={itemLevelMax} onChange={(event) => setItemLevelMax(event.target.value)} /></div></div>}
+        <div className="pc-properties"><label><input type="checkbox" checked={useBaseType} onChange={(event) => setUseBaseType(event.target.checked)} />{l('Match base type', '匹配底材', '匹配基底', '베이스 유형 일치')}</label></div>
+        <section className="pc-xiletrade-panel">
+          <header><strong>{l('Xiletrade filters', 'Xiletrade 筛选', 'Xiletrade 篩選', 'Xiletrade 필터')}</strong><span>{l('Use only the fields you need', '按需填写筛选条件', '按需填寫篩選條件', '필요한 조건만 입력')}</span></header>
+          <div className="pc-xiletrade-basic">
+            <label><span>{l('Rarity', '稀有度', '稀有度', '희귀도')}</span><select value={xiletradeFilters.rarity} onChange={(event) => setXiletradeFilters((current) => ({ ...current, rarity: event.target.value as XiletradeFilterDraft['rarity'] }))}><option value="">{l('Any', '全部', '全部', '모두')}</option><option value="normal">{l('Normal', '普通', '普通', '일반')}</option><option value="magic">{l('Magic', '魔法', '魔法', '마법')}</option><option value="rare">{l('Rare', '稀有', '稀有', '희귀')}</option><option value="unique">{l('Unique', '传奇', '傳奇', '고유')}</option><option value="nonunique">{l('Any non-unique', '任意非传奇', '任意非傳奇', '고유 제외')}</option></select></label>
+            {(['quality', 'requiredLevel'] as XiletradeRangeKey[]).map((key) => <label className="pc-xiletrade-range" key={key}><span>{xiletradeRangeLabel(key, l)}</span><input placeholder={l('Min', '最小', '最小', '최소')} value={xiletradeFilters.ranges[key].min} onChange={(event) => updateXiletradeRange(key, 'min', event.target.value)} /><input placeholder={l('Max', '最大', '最大', '최대')} value={xiletradeFilters.ranges[key].max} onChange={(event) => updateXiletradeRange(key, 'max', event.target.value)} /></label>)}
+          </div>
+          <div className="pc-xiletrade-section-title">{l('Equipment values', '装备数值', '裝備數值', '장비 수치')}</div>
+          <div className="pc-xiletrade-grid">
+            {(['armour', 'energyShield', 'evasion', 'runicWard', 'attacksPerSecond', 'damagePerSecond', 'criticalChance', 'elementalDps', 'physicalDps', 'block', 'damage', 'spirit', 'runeSockets'] as XiletradeRangeKey[]).map((key) => <label className="pc-xiletrade-range" key={key}><span>{xiletradeRangeLabel(key, l)}</span><input aria-label={`${xiletradeRangeLabel(key, l)} ${l('minimum', '最小值', '最小值', '최솟값')}`} placeholder={l('Min', '最小', '最小', '최소')} value={xiletradeFilters.ranges[key].min} onChange={(event) => updateXiletradeRange(key, 'min', event.target.value)} /><input aria-label={`${xiletradeRangeLabel(key, l)} ${l('maximum', '最大值', '最大值', '최댓값')}`} placeholder={l('Max', '最大', '最大', '최대')} value={xiletradeFilters.ranges[key].max} onChange={(event) => updateXiletradeRange(key, 'max', event.target.value)} /></label>)}
+          </div>
+          <div className="pc-xiletrade-section-title">{l('Item state', '装备状态', '裝備狀態', '아이템 상태')}</div>
+          <div className="pc-xiletrade-state-grid">
+            {xiletradeMiscKeys.map((key) => <label key={key}><span>{xiletradeMiscLabel(key, l)}</span><select value={xiletradeFilters.misc[key]} onChange={(event) => updateXiletradeMisc(key, event.target.value as '' | TradeFilterBoolean)}><option value="">{l('Any', '全部', '全部', '모두')}</option><option value="true">{l('Yes', '是', '是', '예')}</option><option value="false">{l('No', '否', '否', '아니오')}</option></select></label>)}
+          </div>
+          <div className="pc-xiletrade-section-title">{l('Trade filters', '交易筛选', '交易篩選', '거래 필터')}</div>
+          <div className="pc-xiletrade-trade-grid">
+            <label className="pc-xiletrade-range"><span>{l('Price', '价格', '價格', '가격')}</span><input placeholder={l('Min', '最小', '最小', '최소')} value={xiletradeFilters.priceMin} onChange={(event) => setXiletradeFilters((current) => ({ ...current, priceMin: event.target.value }))} /><input placeholder={l('Max', '最大', '最大', '최대')} value={xiletradeFilters.priceMax} onChange={(event) => setXiletradeFilters((current) => ({ ...current, priceMax: event.target.value }))} /></label>
+            <label><span>{l('Currency', '货币', '貨幣', '통화')}</span><input placeholder="chaos" value={xiletradeFilters.priceCurrency} onChange={(event) => setXiletradeFilters((current) => ({ ...current, priceCurrency: event.target.value }))} /></label>
+            <label><span>{l('Indexed', '上架时间', '上架時間', '등록 기간')}</span><select value={xiletradeFilters.indexed} onChange={(event) => setXiletradeFilters((current) => ({ ...current, indexed: event.target.value as XiletradeFilterDraft['indexed'] }))}><option value="">{l('Any time', '不限', '不限', '제한 없음')}</option><option value="1day">{l('Last day', '最近 1 天', '最近 1 天', '최근 1일')}</option><option value="3days">{l('Last 3 days', '最近 3 天', '最近 3 天', '최근 3일')}</option><option value="1week">{l('Last week', '最近 1 周', '最近 1 週', '최근 1주')}</option><option value="2weeks">{l('Last 2 weeks', '最近 2 周', '最近 2 週', '최근 2주')}</option></select></label>
+            <label><span>{l('Sale type', '出售类型', '出售類型', '판매 유형')}</span><select value={xiletradeFilters.saleType} onChange={(event) => setXiletradeFilters((current) => ({ ...current, saleType: event.target.value as XiletradeFilterDraft['saleType'] }))}><option value="">{l('Any', '全部', '全部', '모두')}</option><option value="priced">{l('Priced', '有价格', '有價格', '가격 있음')}</option><option value="unpriced">{l('Unpriced', '未定价', '未定價', '가격 없음')}</option></select></label>
+          </div>
+        </section>
         <div className="pc-modifiers">{state.draft.modifiers.map((modifier) => {
           const input = modifiers[modifier.id] || { selected: false, min: '', max: '' }
           const lines = language === 'zh-rCN' && modifier.localizedLines?.length

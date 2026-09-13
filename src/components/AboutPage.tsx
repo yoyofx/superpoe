@@ -10,15 +10,15 @@ interface AboutPageProps {
   onLibrary: () => void
   onTradeCenter: () => void
   onCommunity: () => void
-  onUtilities: () => void
+  onReference: () => void
 }
 
-export function AboutPage({ onCenter, onLibrary, onTradeCenter, onCommunity, onUtilities }: AboutPageProps) {
+export function AboutPage({ onCenter, onLibrary, onTradeCenter, onCommunity, onReference }: AboutPageProps) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   return (
     <div className="build-center about-page">
-      <BuildCenterNav active="about" onCenter={onCenter} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onCommunity={onCommunity} onUtilities={onUtilities} onAbout={() => {}} />
+      <BuildCenterNav active="about" onCenter={onCenter} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onCommunity={onCommunity} onReference={onReference} onAbout={() => {}} />
       <header className="center-app-bar about-page-header">
         <div className="center-actions about-page-actions"><button type="button" className="icon-command toolbar-community-button" onClick={onCommunity} title={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')} aria-label={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')}><Headphones /></button><AccountStatus /></div>
         <div className="build-center-page-heading">

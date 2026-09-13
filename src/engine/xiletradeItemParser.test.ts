@@ -30,6 +30,11 @@ describe('Xiletrade-compatible game item parser', () => {
     expect(result.evidence.modifiers.find((modifier) => modifier.original.displayText.includes('攻击速度'))?.queryStatId)
       .toBe('explicit.stat_210067635')
     expect(result.evidence.modifiers.every((modifier) => modifier.status === 'resolved')).toBe(true)
+    expect(result.view).toMatchObject({
+      rarity: 'RARE',
+      baseType: 'Translated',
+      modifiers: expect.arrayContaining([expect.objectContaining({ tradeStatIds: ['explicit.stat_210067635'] })]),
+    })
   })
 
   it('normalizes bracket tags and reduced stats using Xiletrade matching rules', () => {

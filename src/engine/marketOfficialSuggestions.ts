@@ -8,6 +8,7 @@ export interface OfficialMarketSuggestionCatalog {
 }
 
 type LocalizeOfficialText = (source: string) => string
+type ResolveOfficialSource = (localized: string) => string | undefined
 
 function asRecord(value: unknown): Record<string, unknown> | undefined {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -30,13 +31,18 @@ function addPair(
   source: unknown,
   localize: LocalizeOfficialText,
   seen: Set<string>,
+  resolveSource?: ResolveOfficialSource,
 ): void {
-  const sourceText = stringValue(source)
+  const displayedText = stringValue(source)
+  if (!displayedText) return
+  const sourceText = /[A-Za-z]/u.test(displayedText)
+    ? displayedText
+    : resolveSource?.(displayedText)
   if (!sourceText) return
   const sourceKey = normalizeMarketText(sourceText).toLocaleLowerCase()
   if (seen.has(sourceKey)) return
   seen.add(sourceKey)
-  const targetText = localize(sourceText) || sourceText
+  const targetText = /[A-Za-z]/u.test(displayedText) ? localize(sourceText) || sourceText : displayedText
   if (!targetText) return
   target.push([sourceText, targetText])
 }
@@ -44,12 +50,13 @@ function addPair(
 function optionPairs(
   option: unknown,
   localize: LocalizeOfficialText,
+  resolveSource?: ResolveOfficialSource,
 ): MarketTranslationPair[] {
   const optionRecord = asRecord(option)
   const options = Array.isArray(optionRecord?.options) ? optionRecord.options : []
   const pairs: MarketTranslationPair[] = []
   const seen = new Set<string>()
-  for (const entry of options) addPair(pairs, asRecord(entry)?.text, localize, seen)
+  for (const entry of options) addPair(pairs, asRecord(entry)?.text, localize, seen, resolveSource)
   return pairs
 }
 
@@ -58,6 +65,7 @@ export function buildOfficialMarketSuggestionCatalog(
   filtersData: unknown,
   statsData: unknown,
   localize: LocalizeOfficialText,
+  resolveSource?: ResolveOfficialSource,
 ): OfficialMarketSuggestionCatalog {
   const itemPairs: MarketTranslationPair[] = []
   const seenItems = new Set<string>()
@@ -65,9 +73,9 @@ export function buildOfficialMarketSuggestionCatalog(
     const entries = Array.isArray(group.entries) ? group.entries : []
     for (const entry of entries) {
       const item = asRecord(entry)
-      addPair(itemPairs, item?.type, localize, seenItems)
-      addPair(itemPairs, item?.text, localize, seenItems)
-      addPair(itemPairs, item?.name, localize, seenItems)
+      addPair(itemPairs, item?.type, localize, seenItems, resolveSource)
+      addPair(itemPairs, item?.text, localize, seenItems, resolveSource)
+      addPair(itemPairs, item?.name, localize, seenItems, resolveSource)
     }
   }
 
@@ -81,7 +89,7 @@ export function buildOfficialMarketSuggestionCatalog(
       if (!id) continue
       const label = stringValue(filterRecord?.text || filterRecord?.label)
       if (label) filterLabelsById.set(id, label)
-      const pairs = optionPairs(filterRecord?.option, localize)
+      const pairs = optionPairs(filterRecord?.option, localize, resolveSource)
       if (!pairs.length) continue
       filterPairsById.set(id, pairs)
     }
@@ -91,7 +99,7 @@ export function buildOfficialMarketSuggestionCatalog(
   const seenStats = new Set<string>()
   for (const group of resultGroups(statsData)) {
     const entries = Array.isArray(group.entries) ? group.entries : []
-    for (const entry of entries) addPair(statPairs, asRecord(entry)?.text, localize, seenStats)
+    for (const entry of entries) addPair(statPairs, asRecord(entry)?.text, localize, seenStats, resolveSource)
   }
 
   return { itemPairs, filterPairsById, filterLabelsById, statPairs }
@@ -111,6 +119,7 @@ export async function buildOfficialMarketSuggestionCatalogAsync(
   statsData: unknown,
   localize: LocalizeOfficialText,
   batchSize = 200,
+  resolveSource?: ResolveOfficialSource,
 ): Promise<OfficialMarketSuggestionCatalog> {
   const itemPairs: MarketTranslationPair[] = []
   const seenItems = new Set<string>()
@@ -124,9 +133,9 @@ export async function buildOfficialMarketSuggestionCatalogAsync(
     const entries = Array.isArray(group.entries) ? group.entries : []
     for (const entry of entries) {
       const item = asRecord(entry)
-      addPair(itemPairs, item?.type, localize, seenItems)
-      addPair(itemPairs, item?.text, localize, seenItems)
-      addPair(itemPairs, item?.name, localize, seenItems)
+      addPair(itemPairs, item?.type, localize, seenItems, resolveSource)
+      addPair(itemPairs, item?.text, localize, seenItems, resolveSource)
+      addPair(itemPairs, item?.name, localize, seenItems, resolveSource)
       await checkpoint()
     }
   }
@@ -141,7 +150,7 @@ export async function buildOfficialMarketSuggestionCatalogAsync(
       if (!id) continue
       const label = stringValue(filterRecord?.text || filterRecord?.label)
       if (label) filterLabelsById.set(id, label)
-      const pairs = optionPairs(filterRecord?.option, localize)
+      const pairs = optionPairs(filterRecord?.option, localize, resolveSource)
       if (pairs.length) filterPairsById.set(id, pairs)
       await checkpoint()
     }
@@ -152,7 +161,7 @@ export async function buildOfficialMarketSuggestionCatalogAsync(
   for (const group of resultGroups(statsData)) {
     const entries = Array.isArray(group.entries) ? group.entries : []
     for (const entry of entries) {
-      addPair(statPairs, asRecord(entry)?.text, localize, seenStats)
+      addPair(statPairs, asRecord(entry)?.text, localize, seenStats, resolveSource)
       await checkpoint()
     }
   }

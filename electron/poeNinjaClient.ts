@@ -1,4 +1,4 @@
-const POE_NINJA_ORIGINS = new Set(['https://poe.ninja', 'https://www.poe.ninja'])
+const POE_NINJA_ORIGINS = new Set(['https://poe.ninja', 'https://www.poe.ninja', 'https://ninja.710421059.xyz'])
 const POE_NINJA_API_ORIGIN = 'https://poe.ninja'
 const FETCH_TIMEOUT_MS = 20_000
 

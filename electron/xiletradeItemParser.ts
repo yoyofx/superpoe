@@ -48,6 +48,8 @@ export interface XiletradeItemParseResult {
   unresolved: string[]
   evidence: ItemParseEvidence
   localized: { name: string; baseType: string }
+  /** Direct trade snapshot; ordinary price checks do not need PoB Lua. */
+  view: CanonicalItemView
 }
 
 interface ParsedModifier {
@@ -396,9 +398,46 @@ export function parseXiletradeItemText(value: string, options: XiletradeItemPars
   if (allLines.some((line) => /^(?:Twice Corrupted|双重腐化|雙重腐化|이중 타락)$/iu.test(line))) raw.push('Twice Corrupted')
   else if (allLines.some((line) => /^(?:Corrupted|已腐化|已污染|被腐化|타락)$/iu.test(line))) raw.push('Corrupted')
 
+  const itemLevelValue = itemLevel ? Number(itemLevel) : undefined
+  const qualityValue = quality ? Number(quality) : undefined
+  const corrupted = allLines.some((line) => /^(?:Twice Corrupted|雙重腐化|双重腐化|Corrupted|已腐化|已污染|被腐化|타락|이중 타락)$/iu.test(line))
+  const propertyLabels = new Set(['Armour', 'Evasion', 'Energy Shield', 'Ward', 'Spirit', 'Charm Slots'])
+  const properties = metadata.flatMap((line) => {
+    const match = line.match(/^([^:]+):\s*(.+)$/u)
+    return match && propertyLabels.has(match[1]) ? [{ key: match[1], values: [match[2]] }] : []
+  })
+  const requirements = metadata.flatMap((line) => {
+    const match = line.match(/^LevelReq:\s*(.+)$/u)
+    return match ? [{ key: 'Level', values: [match[1]] }] : []
+  })
+  const view: CanonicalItemView = {
+    rarity,
+    name,
+    baseType,
+    ...(itemLevelValue == null ? {} : { itemLevel: itemLevelValue }),
+    ...(qualityValue == null ? {} : { quality: qualityValue }),
+    ...(sockets ? { sockets } : {}),
+    ...(corrupted ? { corrupted: true } : {}),
+    identified: true,
+    itemClass: itemClass || undefined,
+    ...(properties.length ? { properties } : {}),
+    ...(requirements.length ? { requirements } : {}),
+    modifiers: projected.map((modifier) => ({
+      id: `xiletrade-${modifier.evidence.displayOrder}`,
+      displayOrder: modifier.evidence.displayOrder,
+      group: modifier.evidence.group,
+      sourceTags: modifier.evidence.sourceTags,
+      text: modifier.canonicalText,
+      localized: { [modifier.evidence.original.locale]: modifier.evidence.original.displayText },
+      tradeStatIds: unique(modifier.evidence.queryStatId ? [modifier.evidence.queryStatId] : modifier.evidence.candidateStatIds),
+      ...(modifier.evidence.currentValues[0] == null ? {} : { tradeValue: modifier.evidence.currentValues[0] }),
+    })),
+  }
+
   return {
     raw: raw.join('\n'), unresolved: uniqueUnresolved,
     localized: { name: localizedName, baseType: localizedBaseType },
+    view,
     evidence: {
       parser: 'xiletrade-compatible', schemaVersion: 1, upstreamCommit: options.upstreamCommit || XILETRADE_UPSTREAM_COMMIT,
       parsedAt: options.now?.() || new Date().toISOString(), locale: options.language.locale,

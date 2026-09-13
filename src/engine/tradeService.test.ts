@@ -83,6 +83,45 @@ describe('trade query builder', () => {
     expect((built.query as { query: Record<string, unknown> }).query).not.toHaveProperty('type')
   })
 
+  it('maps Xiletrade item, equipment, state, and trade filters to Trade2 sections', () => {
+    const source = item(['+109 to maximum Life'])
+    source.tradeCategory = 'armour.chest'
+    const resolved = withResolution(source, 0, 'explicit.stat_3299347043')
+    const built = buildTradeQuery(resolved, 'global', {
+      listedStatus: 'online',
+      useBaseType: false,
+      modifiers: [{ id: 'explicit-0' }],
+      xiletrade: {
+        rarity: 'rare',
+        itemLevel: { min: 80, max: 86 },
+        quality: { min: 20 },
+        requiredLevel: { max: 70 },
+        equipment: {
+          armour: { min: 500 },
+          energyShield: { min: 100, max: 300 },
+          damagePerSecond: { min: 250 },
+          runeSockets: { min: 2 },
+        },
+        misc: { corrupted: 'false', fractured: 'true' },
+        trade: { price: { max: 10, currency: 'exalted' }, indexed: '3days', saleType: 'priced' },
+      },
+    })
+    expect(built.query).toMatchObject({ query: {
+      filters: {
+        type_filters: { filters: {
+          category: { option: 'armour.chest' },
+          rarity: { option: 'rare' },
+          ilvl: { min: 80, max: 86 },
+          quality: { min: 20 },
+        } },
+        req_filters: { filters: { lvl: { max: 70 } } },
+        equipment_filters: { filters: { ar: { min: 500 }, es: { min: 100, max: 300 }, dps: { min: 250 }, rune_sockets: { min: 2 } } },
+        misc_filters: { filters: { corrupted: { option: 'false' }, fractured_item: { option: 'true' } } },
+        trade_filters: { disabled: false, filters: { price: { max: 10, option: 'exalted' }, indexed: { option: '3days' }, sale_type: { option: 'priced' } } },
+      },
+    } })
+  })
+
   it('retains canonical item text for checker-side weapon metrics', () => {
     const source = item(['+109 to maximum Life'])
     source.rawText = ['Rarity: RARE', 'Doom Shell', 'Expert Hexer Robe', '+109 to maximum Life'].join('\n')
@@ -157,6 +196,23 @@ describe('trade query builder', () => {
       filters: { type_filters: { filters: { category: { option: 'armour.helmet' } } } },
       stats: [{ type: 'weight' }],
     })
+  })
+
+  it('combines legacy item-level input with Xiletrade item-state filters', () => {
+    const source = item(['+109 to maximum Life'])
+    const resolved = withResolution(source, 0, 'explicit.stat_3299347043')
+    const built = buildTradeQuery(resolved, 'global', {
+      listedStatus: 'online',
+      useBaseType: false,
+      itemLevelMin: 80,
+      modifiers: [{ id: 'explicit-0' }],
+      xiletrade: { misc: { corrupted: 'false' } },
+    })
+    expect(built.query).toMatchObject({ query: {
+      filters: {
+        misc_filters: { filters: { ilvl: { min: 80 }, corrupted: { option: 'false' } } },
+      },
+    } })
   })
 
   it('strips identity fields from a weighted query override before submission', async () => {

@@ -5,6 +5,7 @@ export const MAX_SUPERPOE_BACKUP_FILE_SIZE = 100_000_000
 
 export const BACKUP_STORAGE_KEYS = [
   'superpoe-global-settings',
+  'superpoe-reference-sites',
   'pob2-language',
   'pob2-saved-builds',
   'pob2-imported-build',

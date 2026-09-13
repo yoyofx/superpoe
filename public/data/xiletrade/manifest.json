@@ -1,15 +1,15 @@
 {
   "schemaVersion": 2,
-  "upstreamCommit": "a5ebb9f91dc865178cc9a880f39d8a5315cd2445",
+  "upstreamCommit": "7daa877cc6f51cf4bf486bcc8ffdde4af3050a79",
   "languages": {
     "en-US": {
       "files": {
         "FiltersTwo.json": "ee9c20c32261f957e725279b6eeb6f521c7b00d9675fbce37511cfcb9fd1a77f",
         "ItemsTwo.json": "87ada88a7ee4c64dde02c98b6e25ebbfcb3028e6fbf7d213edf4893f83962475",
         "CurrencyTwo.json": "0f12417dd9f18ee1a21e88ff7c6ea6df7c56e111b3041ba39b5f4c31c6622855",
-        "BasesTwo.json": "bb376235e4d23b343e0472706e0daeeb9745de66c671ce4bc87fa98665487d67",
-        "ModsTwo.json": "7e439e053569871159a8f32d7ce1fbc3b6ee77886ad1ddc9a670bf279f871dd5",
-        "WordsTwo.json": "6046198dcc4cd9febef517d65b29ec2cd7c768d31c7d8f526adba3bc151c4aff",
+        "BasesTwo.json": "0710643d38c01137b4c0c6899f115afedcdd182b71849a06c0911f6e2e55836a",
+        "ModsTwo.json": "e9b1ea2889f2fcfa9025514bc2351a3bbfefd8ca067b1ca27ffc818aec4642e5",
+        "WordsTwo.json": "e04c169763a8698c68756097997c681c8f140a7ac4a78490945017563ee957ab",
         "ParsingRules.json": "2b59dd7b67c9316232111b7114ebdc199382a6aafc173651473adffef6af46c4"
       }
     },
@@ -29,9 +29,9 @@
         "FiltersTwo.json": "8853858e228b911d086ca01e116e6c1f3ed4b5867a8230a5e9f993eff364bf7c",
         "ItemsTwo.json": "988416878243204b63eb9b4201805903dcc9067c1ad83b3c8fbe6ea1dc62f0ff",
         "CurrencyTwo.json": "34c666431df8b0165d1ffc0b46fee1237ceaae055fde5aad2c84ee48d23c52c8",
-        "BasesTwo.json": "6d85c38ef7a6bf195803e1e1fcaa7a355013be93a764f4faeb2266bbcb253392",
-        "ModsTwo.json": "ca4ba7ad4e2e5d765ad57755099413fb36b0bfdb868fab558d28a13a1af030a7",
-        "WordsTwo.json": "65bc388f2c9bdc85705aa28da475edfe991c53f46876ffd2096c7e389e8cf642",
+        "BasesTwo.json": "616d9ddf700b12c78c0850a894dd485f8e2c8288d185e3707d155026768af82c",
+        "ModsTwo.json": "6df769193a7bc1a758389e573e3a6d5619b0d4e39af9bef5d0f54a54d1520c30",
+        "WordsTwo.json": "48f65c35c153e92ed726f8931e36bc40eccaf660c1ddfe714c62c744f3c10ac0",
         "ParsingRules.json": "768aa38cff80dd4665d954a53eb8d21940ad885fdff9ebe7162a41d53d2bef36"
       }
     },
@@ -40,9 +40,9 @@
         "FiltersTwo.json": "8fe2b4f3f3d98bbdc7b5afdbc8cc5da9354bd0cc2a0bf59a0535158d0388694f",
         "ItemsTwo.json": "b98f5b68e783ec05b3db994ef79a02a62dd1559643f1c0ce1063ba7ad57b8d3f",
         "CurrencyTwo.json": "0ea7ca8886e2e2753a17508fd61a3800cdb94ab8b1859e9a99758748acd84924",
-        "BasesTwo.json": "af7f16c1821c0fbe0b9e7102928e6b0e1923f9251e4524686b926c5d1d2d4d20",
-        "ModsTwo.json": "cb60b9be328a0df42ef3696dbb8962aa1c7a3c04ed2037fbb2954395b3027db5",
-        "WordsTwo.json": "ec934ac93e2e620c2885df1e0136c4aa7891c3527c95acb861606c95527270cc",
+        "BasesTwo.json": "7046fb083c17c81b2c9ee347d100bf12cda2d15a5b45de6d44956a0f23103ced",
+        "ModsTwo.json": "aa2c87066e0aff066ddc275f68abd3a5755adc965fa446a9da32e84cb7817778",
+        "WordsTwo.json": "e3bf3727184467dc77bf0faaeccd7aa50e7663e585464ef5ec37ba3bcb86294b",
         "ParsingRules.json": "8e1d0d3dff02782edcf30898886b34330530b6d0e033ead36295222baa9152f5"
       }
     }

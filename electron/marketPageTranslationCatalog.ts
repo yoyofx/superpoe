@@ -77,6 +77,7 @@ const STATIC_UI_PAIRS: ReadonlyArray<readonly [source: string, zhCN: string, zhT
   ['Results', '结果', '結果'],
   ['Online', '在线', '在線'],
   ['Offline', '离线', '離線'],
+  ['Instant Buyout', '立即购买', '立即購買'],
   ['Any', '全部', '全部'],
   ['Any Item', '任意物品', '任意物品'],
   ['Any Weapon', '任意武器', '任意武器'],

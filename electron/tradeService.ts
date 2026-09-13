@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import type {
   LibraryItemSnapshot, LibraryModifier, MarketRealm, TradeLeague, TradePriceCheckCriteria,
-  PriceCheckMode, TradePriceCheckDraft, TradeSearchResult, TradeStatResolutionSnapshot,
+  PriceCheckMode, TradePriceCheckDraft, TradeSearchResult, TradeStatResolutionSnapshot, TradeXiletradeFilters,
 } from '../src/types/market.js'
 import type { MarketViewManager } from './marketView.js'
 import { OfficialTradeRequestError } from './officialTradeRequestError.js'
@@ -216,6 +216,75 @@ function selectedRange(
   return range.min == null && range.max == null ? undefined : range
 }
 
+function rangeObject(range: { min?: number; max?: number } | undefined): Record<string, number> | undefined {
+  if (!range || (range.min == null && range.max == null)) return undefined
+  return {
+    ...(range.min == null ? {} : { min: range.min }),
+    ...(range.max == null ? {} : { max: range.max }),
+  }
+}
+
+function optionObject(value: string | undefined): { option: string } | undefined {
+  return value ? { option: value } : undefined
+}
+
+function buildXiletradeFilterPayload(filters: TradeXiletradeFilters | undefined): Record<string, unknown> {
+  if (!filters) return {}
+  const type: Record<string, unknown> = {}
+  if (filters.rarity) type.rarity = optionObject(filters.rarity)
+  const itemLevel = rangeObject(filters.itemLevel)
+  if (itemLevel) type.ilvl = itemLevel
+  const quality = rangeObject(filters.quality)
+  if (quality) type.quality = quality
+
+  const requirement: Record<string, unknown> = {}
+  const requiredLevel = rangeObject(filters.requiredLevel)
+  if (requiredLevel) requirement.lvl = requiredLevel
+
+  const equipment: Record<string, unknown> = {}
+  const equipmentMap: Array<[keyof NonNullable<TradeXiletradeFilters['equipment']>, string]> = [
+    ['armour', 'ar'], ['energyShield', 'es'], ['evasion', 'ev'], ['runicWard', 'ward'],
+    ['attacksPerSecond', 'aps'], ['damagePerSecond', 'dps'], ['criticalChance', 'crit'],
+    ['elementalDps', 'edps'], ['physicalDps', 'pdps'], ['block', 'block'], ['damage', 'damage'],
+    ['spirit', 'spirit'], ['runeSockets', 'rune_sockets'],
+  ]
+  for (const [sourceKey, apiKey] of equipmentMap) {
+    const value = rangeObject(filters.equipment?.[sourceKey])
+    if (value) equipment[apiKey] = value
+  }
+
+  const misc: Record<string, unknown> = {}
+  const miscMap: Array<[keyof NonNullable<TradeXiletradeFilters['misc']>, string]> = [
+    ['mirrored', 'mirrored'], ['corrupted', 'corrupted'], ['twiceCorrupted', 'twice_corrupted'],
+    ['identified', 'identified'], ['fractured', 'fractured_item'], ['alternateArt', 'alternate_art'],
+    ['crafted', 'crafted'], ['mutated', 'mutated'], ['desecrated', 'desecrated'],
+    ['veiled', 'veiled'], ['sanctified', 'sanctified'],
+  ]
+  for (const [sourceKey, apiKey] of miscMap) {
+    const value = filters.misc?.[sourceKey]
+    if (value) misc[apiKey] = optionObject(value)
+  }
+
+  const trade: Record<string, unknown> = {}
+  const price = rangeObject(filters.trade?.price)
+  if (price || filters.trade?.price?.currency) {
+    trade.price = {
+      ...(price || {}),
+      ...(filters.trade?.price?.currency ? { option: filters.trade.price.currency } : {}),
+    }
+  }
+  if (filters.trade?.indexed) trade.indexed = optionObject(filters.trade.indexed)
+  if (filters.trade?.saleType) trade.sale_type = optionObject(filters.trade.saleType)
+
+  return {
+    ...(Object.keys(type).length ? { type_filters: { disabled: false, filters: type } } : {}),
+    ...(Object.keys(requirement).length ? { req_filters: { disabled: false, filters: requirement } } : {}),
+    ...(Object.keys(equipment).length ? { equipment_filters: { disabled: false, filters: equipment } } : {}),
+    ...(Object.keys(misc).length ? { misc_filters: { disabled: false, filters: misc } } : {}),
+    ...(Object.keys(trade).length ? { trade_filters: { disabled: false, filters: trade } } : {}),
+  }
+}
+
 export function createPriceCheckDraft(item: LibraryItemSnapshot, realm: MarketRealm): TradePriceCheckDraft {
   const localized = item.localized?.['zh-CN']
   return {
@@ -270,12 +339,24 @@ export function buildTradeQuery(item: LibraryItemSnapshot, realm: MarketRealm, c
     : (statFilters.length ? [{ type: 'and', filters: statFilters }] : [])
   const unique = isUniqueItem(item)
   const type = queryItemType(item, realm)
-  const miscFilters = criteria && (criteria.itemLevelMin != null || criteria.itemLevelMax != null)
+  const legacyMiscFilters = criteria && (criteria.itemLevelMin != null || criteria.itemLevelMax != null)
     ? { filters: { ilvl: { min: finiteValue(criteria.itemLevelMin), max: finiteValue(criteria.itemLevelMax) } } }
     : undefined
+  const xiletradeFilters = buildXiletradeFilterPayload(criteria?.xiletrade)
+  const xiletradeTypeFilters = xiletradeFilters.type_filters as { filters?: Record<string, unknown> } | undefined
+  const xiletradeMiscFilters = xiletradeFilters.misc_filters as { filters?: Record<string, unknown> } | undefined
+  const miscFilterValues = {
+    ...(legacyMiscFilters?.filters || {}),
+    ...(xiletradeMiscFilters?.filters || {}),
+  }
   const queryFilters = {
-    ...(miscFilters ? { misc_filters: miscFilters } : {}),
-    ...((weighted || !unique) && item.tradeCategory ? { type_filters: { filters: { category: { option: item.tradeCategory } } } } : {}),
+    ...(Object.keys(miscFilterValues).length ? { misc_filters: { disabled: false, filters: miscFilterValues } } : {}),
+    ...((weighted || !unique) && item.tradeCategory
+      ? { type_filters: { ...(xiletradeTypeFilters || {}), filters: { ...(xiletradeTypeFilters?.filters || {}), category: { option: item.tradeCategory } } } }
+      : (xiletradeTypeFilters ? { type_filters: xiletradeTypeFilters } : {})),
+    ...(xiletradeFilters.req_filters ? { req_filters: xiletradeFilters.req_filters } : {}),
+    ...(xiletradeFilters.equipment_filters ? { equipment_filters: xiletradeFilters.equipment_filters } : {}),
+    ...(xiletradeFilters.trade_filters ? { trade_filters: xiletradeFilters.trade_filters } : {}),
   }
   const requestedCount = selected?.size ?? item.modifiers.length
   // PoB2 weighted searches use the slot category and nonunique rarity filter
@@ -489,6 +570,30 @@ export class OfficialTradeProvider {
           const misc = (filters.misc_filters && typeof filters.misc_filters === 'object' ? filters.misc_filters : {}) as Record<string, unknown>
           misc.filters = { ilvl: { ...(min == null ? {} : { min }), ...(max == null ? {} : { max }) } }
           filters.misc_filters = misc
+          root.filters = filters
+        }
+        // PoB2 supplies a complete weighted query for Find Better. Preserve
+        // the user's Xiletrade filters when merging that query so the same
+        // filter model is used by both ordinary and build-aware searches.
+        const extraFilters = buildXiletradeFilterPayload(criteria?.xiletrade)
+        if (Object.keys(extraFilters).length) {
+          const filters = (root.filters && typeof root.filters === 'object' ? root.filters : {}) as Record<string, unknown>
+          for (const [section, value] of Object.entries(extraFilters)) {
+            const current = filters[section]
+            if (section === 'type_filters' && current && typeof current === 'object' && value && typeof value === 'object') {
+              const currentFilters = (current as { filters?: unknown }).filters
+              const nextFilters = (value as { filters?: unknown }).filters
+              filters[section] = {
+                ...(current as Record<string, unknown>),
+                filters: {
+                  ...(currentFilters && typeof currentFilters === 'object' ? currentFilters : {}),
+                  ...(nextFilters && typeof nextFilters === 'object' ? nextFilters : {}),
+                },
+              }
+            } else {
+              filters[section] = value
+            }
+          }
           root.filters = filters
         }
       }

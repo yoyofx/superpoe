@@ -188,19 +188,28 @@ function addReversePairs(
   }
 }
 
-function matchReverseTemplate(
-  value: string,
-  pairs: readonly MarketTranslationPair[],
-): MarketTranslationPair | undefined {
-  const normalized = normalizeMarketText(value)
-  const key = normalized.toLocaleLowerCase()
-  const candidates = pairs
+interface ReverseTemplateCandidate {
+  source: string
+  target: string
+  compiled: CompiledTemplate
+}
+
+function buildReverseTemplates(pairs: readonly MarketTranslationPair[]): ReverseTemplateCandidate[] {
+  return pairs
     .map(([source, target]) => {
       const compiled = compileTemplate(target, source)
       return compiled ? { source, target, compiled } : undefined
     })
-    .filter((candidate): candidate is { source: string; target: string; compiled: CompiledTemplate } => Boolean(candidate))
+    .filter((candidate): candidate is ReverseTemplateCandidate => Boolean(candidate))
     .sort((left, right) => right.compiled.literalLength - left.compiled.literalLength)
+}
+
+function matchReverseTemplate(
+  value: string,
+  candidates: readonly ReverseTemplateCandidate[],
+): MarketTranslationPair | undefined {
+  const normalized = normalizeMarketText(value)
+  const key = normalized.toLocaleLowerCase()
   for (const candidate of candidates) {
     const match = key.match(candidate.compiled.pattern)
     if (!match) continue
@@ -317,6 +326,8 @@ export class MarketPageTranslator {
   private readonly gameTemplates = new Map<string, CompiledTemplate[]>()
   private readonly uiReverse = new Map<string, MarketTranslationPair[]>()
   private readonly gameReverse = new Map<string, MarketTranslationPair[]>()
+  private readonly uiReverseTemplates: ReverseTemplateCandidate[]
+  private readonly gameReverseTemplates: ReverseTemplateCandidate[]
   private readonly allUiPairs: MarketTranslationPair[]
   private readonly allGamePairs: MarketTranslationPair[]
   private readonly allItemPairs: MarketTranslationPair[]
@@ -339,6 +350,8 @@ export class MarketPageTranslator {
     addPairs(this.gameExact, this.gameTemplates, payload.gamePairs)
     addReversePairs(this.uiReverse, this.allUiPairs)
     addReversePairs(this.gameReverse, this.allGamePairs)
+    this.uiReverseTemplates = buildReverseTemplates(this.allUiPairs)
+    this.gameReverseTemplates = buildReverseTemplates(this.allGamePairs)
   }
 
   translate(value: string, includeGame = false): string {
@@ -382,8 +395,11 @@ export class MarketPageTranslator {
     const exact = this.uiReverse.get(normalized)?.[0]
       || (includeGame ? this.gameReverse.get(normalized)?.[0] : undefined)
     if (exact) return exact[0]
-    const template = matchReverseTemplate(value, this.allUiPairs)
-      || (includeGame ? matchReverseTemplate(value, this.allGamePairs) : undefined)
+    // Item and filter labels are exact values. Avoid scanning every
+    // parameterized stat template when a localized label did not resolve.
+    if (!/[#\d{}]/u.test(value)) return undefined
+    const template = matchReverseTemplate(value, this.uiReverseTemplates)
+      || (includeGame ? matchReverseTemplate(value, this.gameReverseTemplates) : undefined)
     return template?.[0]
   }
 
@@ -420,12 +436,17 @@ export class MarketPageTranslator {
     return findLocalizedMatches(value, pairs, limit)
   }
 
+  getSuggestionPairs(scope: 'items' | 'filters'): MarketTranslationPair[] {
+    return [...(scope === 'items' ? this.allItemPairs : this.allFilterPairs)]
+  }
+
   findPairByTarget(value: string, includeGame = false): MarketTranslationPair | undefined {
     if (!value) return undefined
     const normalized = normalizeMarketText(value).toLocaleLowerCase()
-    return this.uiReverse.get(normalized)?.[0]
+    const exact = this.uiReverse.get(normalized)?.[0]
       || (includeGame ? this.gameReverse.get(normalized)?.[0] : undefined)
-      || matchReverseTemplate(value, this.allUiPairs)
-      || (includeGame ? matchReverseTemplate(value, this.allGamePairs) : undefined)
+    if (exact || !/[#\d{}]/u.test(value)) return exact
+    return matchReverseTemplate(value, this.uiReverseTemplates)
+      || (includeGame ? matchReverseTemplate(value, this.gameReverseTemplates) : undefined)
   }
 }

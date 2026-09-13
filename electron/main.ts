@@ -16,6 +16,7 @@ import { ItemIconIndex } from './itemIconIndex.js'
 import { MarketViewManager, type MarketNavigationCommand, type MarketPageCommand, type MarketRealm } from './marketView.js'
 import { isValidSearchCode, MAX_SEARCH_CODE_LENGTH } from './marketSearch.js'
 import { CommunityViewManager, type CommunityNavigationCommand } from './communityView.js'
+import { ReferenceViewManager, type ReferenceNavigationCommand, validateReferenceSite } from './referenceView.js'
 import { TradeCredentialStore } from './tradeCredentialStore.js'
 import { EquipmentLibraryRepository, equipmentSourceKey, fingerprintLibraryItem, pobSourceKey } from './equipmentLibraryRepository.js'
 import { normalizeMarketListing, type MarketStatTextResolution } from './marketListing.js'
@@ -25,7 +26,7 @@ import type {
   MarketPageAffixGroup, MarketListingAffixGroupKind, MarketPageDefenseStats, MarketPageListingRarity, MarketPageListingSummary, MarketPageWeaponStats, MonitorTaskStatus, SavedMarketSearchInput, SavedMarketSearchPatch, TradePriceCheckCriteria, TradePriceCheckPrepareRequest,
   TradePriceCheckSearchRequest,
   PriceCheckOpenRequest, LibraryModifierGroup,
-  LibraryItemSnapshot, TradeStatResolutionSnapshot, FindBetterSearchOptions,
+  LibraryItemSnapshot, TradeStatResolutionSnapshot, FindBetterSearchOptions, TradeXiletradeFilters,
   PriceCheckListingView,
 } from '../src/types/market.js'
 import { OfficialTradeProvider, TradeReferenceDataCache, type CatalogSnapshot } from './tradeService.js'
@@ -57,6 +58,8 @@ const priceCheckPreloadPath = path.join(currentDir, 'priceCheckPreload.cjs')
 const findBetterPreloadPath = path.join(currentDir, 'findBetterPreload.cjs')
 const timerPreloadPath = path.join(currentDir, 'timerPreload.cjs')
 const rendererUrl = process.env.ELECTRON_RENDERER_URL
+const debugPort = process.env.SUPERPOE_DEBUG_PORT
+if (debugPort && /^\d+$/.test(debugPort)) app.commandLine.appendSwitch('remote-debugging-port', debugPort)
 const packageMetadata = JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')) as {
   name?: string
   build?: { productName?: string; appId?: string }
@@ -289,9 +292,17 @@ function getRendererRoot(): string {
 
 function getAppIconPath(): string {
   const iconName = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
-  return rendererUrl
-    ? path.join(app.getAppPath(), 'build', iconName)
-    : path.join(process.resourcesPath, iconName)
+  const packagedPath = path.join(process.resourcesPath, iconName)
+  if (!rendererUrl) return packagedPath
+
+  // Electron's dev executable can reject an ICO while still falling back to
+  // its atom icon. The PNG is the same source artwork and is reliably
+  // accepted by BrowserWindow.setIcon on Windows.
+  const devPngPath = path.join(app.getAppPath(), 'build', 'icon.png')
+  const devIcoPath = path.join(app.getAppPath(), 'build', iconName)
+  if (existsSync(devPngPath)) return devPngPath
+  if (existsSync(devIcoPath)) return devIcoPath
+  return packagedPath
 }
 
 /**
@@ -368,6 +379,7 @@ function registerBaiduTongjiRequestHeaders(): void {
 let mainWindow: BrowserWindow | null = null
 let marketViewManager: MarketViewManager | null = null
 let communityViewManager: CommunityViewManager | null = null
+let referenceViewManager: ReferenceViewManager | null = null
 let tradeProvider: OfficialTradeProvider | null = null
 let gameWindowService: GameWindowService | null = null
 let marketMonitoring: MarketMonitoringCoordinator | null = null
@@ -507,6 +519,88 @@ function validateOptionalNumber(value: unknown, name: string): number | undefine
   return value
 }
 
+function validateTradeFilterRange(value: unknown, name: string): { min?: number; max?: number } | undefined {
+  if (value == null) return undefined
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error(`Invalid ${name}`)
+  const input = value as { min?: unknown; max?: unknown }
+  const min = validateOptionalNumber(input.min, `${name} minimum`)
+  const max = validateOptionalNumber(input.max, `${name} maximum`)
+  if (min == null && max == null) return undefined
+  if (min != null && max != null && min > max) throw new Error(`${name} minimum cannot exceed maximum`)
+  return { ...(min == null ? {} : { min }), ...(max == null ? {} : { max }) }
+}
+
+function validateTradeXiletradeFilters(value: unknown): TradeXiletradeFilters | undefined {
+  if (value == null) return undefined
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid Xiletrade filters')
+  const input = value as Partial<TradeXiletradeFilters>
+  const rarity = input.rarity
+  if (rarity != null && !['normal', 'magic', 'rare', 'unique', 'nonunique'].includes(rarity)) throw new Error('Invalid Xiletrade rarity')
+  const result: TradeXiletradeFilters = {}
+  if (rarity) result.rarity = rarity
+  const itemLevel = validateTradeFilterRange(input.itemLevel, 'item level')
+  const quality = validateTradeFilterRange(input.quality, 'quality')
+  const requiredLevel = validateTradeFilterRange(input.requiredLevel, 'required level')
+  if (itemLevel) result.itemLevel = itemLevel
+  if (quality) result.quality = quality
+  if (requiredLevel) result.requiredLevel = requiredLevel
+
+  const equipmentInput = input.equipment
+  if (equipmentInput != null && (!equipmentInput || typeof equipmentInput !== 'object' || Array.isArray(equipmentInput))) throw new Error('Invalid Xiletrade equipment filters')
+  if (equipmentInput) {
+    const equipment: NonNullable<TradeXiletradeFilters['equipment']> = {}
+    const keys: Array<keyof NonNullable<TradeXiletradeFilters['equipment']>> = [
+      'armour', 'energyShield', 'evasion', 'runicWard', 'attacksPerSecond', 'damagePerSecond',
+      'criticalChance', 'elementalDps', 'physicalDps', 'block', 'damage', 'spirit', 'runeSockets',
+    ]
+    for (const key of keys) {
+      const range = validateTradeFilterRange(equipmentInput[key], `equipment ${String(key)}`)
+      if (range) equipment[key] = range
+    }
+    if (Object.keys(equipment).length) result.equipment = equipment
+  }
+
+  const miscInput = input.misc
+  if (miscInput != null && (!miscInput || typeof miscInput !== 'object' || Array.isArray(miscInput))) throw new Error('Invalid Xiletrade item state filters')
+  if (miscInput) {
+    const misc: NonNullable<TradeXiletradeFilters['misc']> = {}
+    const keys: Array<keyof NonNullable<TradeXiletradeFilters['misc']>> = [
+      'mirrored', 'corrupted', 'twiceCorrupted', 'identified', 'fractured', 'alternateArt',
+      'crafted', 'mutated', 'desecrated', 'veiled', 'sanctified',
+    ]
+    for (const key of keys) {
+      const option = miscInput[key]
+      if (option == null) continue
+      if (option !== 'true' && option !== 'false') throw new Error(`Invalid Xiletrade ${String(key)} filter`)
+      misc[key] = option
+    }
+    if (Object.keys(misc).length) result.misc = misc
+  }
+
+  const tradeInput = input.trade
+  if (tradeInput != null && (!tradeInput || typeof tradeInput !== 'object' || Array.isArray(tradeInput))) throw new Error('Invalid Xiletrade trade filters')
+  if (tradeInput) {
+    const trade: NonNullable<TradeXiletradeFilters['trade']> = {}
+    const priceInput = tradeInput.price
+    if (priceInput != null && (!priceInput || typeof priceInput !== 'object' || Array.isArray(priceInput))) throw new Error('Invalid Xiletrade price filter')
+    if (priceInput) {
+      const priceRange = validateTradeFilterRange(priceInput, 'price')
+      const currency = priceInput.currency == null ? undefined : validateShortString(priceInput.currency, 'price currency', 64)
+      if (priceRange || currency) trade.price = { ...(priceRange || {}), ...(currency ? { currency } : {}) }
+    }
+    if (tradeInput.indexed != null) {
+      if (!['1day', '3days', '1week', '2weeks'].includes(tradeInput.indexed)) throw new Error('Invalid Xiletrade indexed filter')
+      trade.indexed = tradeInput.indexed
+    }
+    if (tradeInput.saleType != null) {
+      if (tradeInput.saleType !== 'priced' && tradeInput.saleType !== 'unpriced') throw new Error('Invalid Xiletrade sale type filter')
+      trade.saleType = tradeInput.saleType
+    }
+    if (Object.keys(trade).length) result.trade = trade
+  }
+  return Object.keys(result).length ? result : undefined
+}
+
 function validateFindBetterOptions(value: unknown): FindBetterSearchOptions {
   if (!value || typeof value !== 'object') throw new Error('Invalid find-better options')
   const input = value as Partial<FindBetterSearchOptions>
@@ -642,12 +736,14 @@ function validatePriceCheckCriteria(value: unknown): TradePriceCheckCriteria {
   const itemLevelMax = validateOptionalNumber(input.itemLevelMax, 'item level maximum')
   if (itemLevelMin != null && itemLevelMax != null && itemLevelMin > itemLevelMax) throw new Error('Item level minimum cannot exceed maximum')
   const findBetter = input.findBetter == null ? undefined : validateFindBetterOptions(input.findBetter)
+  const xiletrade = validateTradeXiletradeFilters(input.xiletrade)
   return {
     listedStatus: input.listedStatus!,
     useBaseType: input.useBaseType,
     ...(itemLevelMin == null ? {} : { itemLevelMin }),
     ...(itemLevelMax == null ? {} : { itemLevelMax }),
     modifiers,
+    ...(xiletrade ? { xiletrade } : {}),
     ...(findBetter ? { findBetter } : {}),
   }
 }
@@ -798,15 +894,26 @@ function getMainWindowSize(): { width: number; height: number; minWidth: number;
 
 function createWindow(): BrowserWindow {
   const windowSize = getMainWindowSize()
+  const iconPath = getAppIconPath()
+  // Pass a decoded NativeImage to Windows. Some Electron dev builds accept
+  // the path for the window frame but leave WM_GETICON empty, which removes
+  // the taskbar icon. Keep the path as a fallback for platforms/builds that
+  // cannot decode the resource.
+  const windowIcon = nativeImage.createFromPath(iconPath)
+  const iconOption = windowIcon.isEmpty() ? iconPath : windowIcon
+  const taskbarIconPath = process.platform === 'win32' && rendererUrl
+    ? path.join(app.getAppPath(), 'build', 'icon.ico')
+    : iconPath
   const window = new BrowserWindow({
     title: productName,
-    icon: getAppIconPath(),
+    icon: iconOption,
     autoHideMenuBar: true,
     width: windowSize.width,
     height: windowSize.height,
     minWidth: windowSize.minWidth,
     minHeight: windowSize.minHeight,
     center: true,
+    show: false,
     backgroundColor: '#090b0c',
     webPreferences: {
       preload: preloadPath,
@@ -815,6 +922,27 @@ function createWindow(): BrowserWindow {
       sandbox: false,
     },
   })
+  const applyWindowIcon = () => {
+    if (process.platform === 'win32' && !window.isDestroyed() && !windowIcon.isEmpty()) {
+      window.setIcon(windowIcon)
+    }
+  }
+  applyWindowIcon()
+  window.webContents.once('did-finish-load', applyWindowIcon)
+  if (process.platform === 'win32' && !windowIcon.isEmpty()) {
+    // Windows taskbar buttons use the AppUserModelID's relaunch metadata in
+    // development, where the host executable is electron.exe. Register the
+    // same artwork explicitly so the taskbar does not fall back to Electron's
+    // atom icon.
+    window.setAppDetails({
+      appId: appUserModelId,
+      appIconPath: taskbarIconPath,
+      appIconIndex: 0,
+    })
+  }
+  // Create the taskbar button only after its AppUserModelID and ICO metadata
+  // are set; otherwise Windows keeps Electron's default Atom icon.
+  window.show()
 
   window.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url)
@@ -851,10 +979,27 @@ function createWindow(): BrowserWindow {
   }, () => {
     if (!window.isDestroyed()) window.webContents.send('community:escape')
   })
+  referenceViewManager?.dispose()
+  referenceViewManager = new ReferenceViewManager(window, (state) => {
+    if (!window.isDestroyed()) window.webContents.send('reference:state-changed', state)
+  }, () => {
+    if (!window.isDestroyed()) window.webContents.send('reference:escape')
+  }, (sourceUrl) => {
+    if (window.isDestroyed()) return
+    window.webContents.send('reference:poe-ninja-import', { status: 'loading', sourceUrl } satisfies import('../src/types/reference.js').ReferencePoeNinjaImportEvent)
+    void requestPoeNinjaBuild(sourceUrl).then((result) => {
+      referenceViewManager?.resetPoeNinjaImportButton()
+      if (!window.isDestroyed()) window.webContents.send('reference:poe-ninja-import', { status: 'success', result } satisfies import('../src/types/reference.js').ReferencePoeNinjaImportEvent)
+    }).catch((error: unknown) => {
+      const message = error instanceof Error ? error.message : String(error)
+      referenceViewManager?.resetPoeNinjaImportButton()
+      if (!window.isDestroyed()) window.webContents.send('reference:poe-ninja-import', { status: 'error', sourceUrl, error: message } satisfies import('../src/types/reference.js').ReferencePoeNinjaImportEvent)
+    })
+  })
   window.webContents.on('before-input-event', (event, input) => {
     if (input.type !== 'keyDown' || input.isAutoRepeat || (input.key !== 'Escape' && input.code !== 'Escape')) return
     if (input.alt || input.control || input.meta || input.shift) return
-    if (communityViewManager?.handleEscape() || marketViewManager?.handleEscape()) event.preventDefault()
+    if (communityViewManager?.handleEscape() || referenceViewManager?.handleEscape() || marketViewManager?.handleEscape()) event.preventDefault()
   })
   tradeProvider = new OfficialTradeProvider(
     marketViewManager,
@@ -1652,6 +1797,31 @@ async function priceCheckSnapshot(request: TradePriceCheckPrepareRequest) {
   const parsedRaw = looksLikeGameClipboardItem(target.raw)
     ? parseGameClipboardItem(target.raw, { canonicalizeStat })
     : translatePobRawForPriceCheck(target.raw, canonicalizeStat)
+  if (looksLikeGameClipboardItem(target.raw)) {
+    const parsed = parsedRaw as XiletradeItemParseResult
+    const context = getXiletradeDataCatalog().resolveItemContext('en', {
+      itemClass: parsed.view.itemClass,
+      rarity: parsed.view.rarity,
+      name: parsed.view.name,
+      baseType: parsed.view.baseType,
+    })
+    const view = {
+      ...parsed.view,
+      itemClass: context.itemClass || parsed.view.itemClass,
+      tradeCategory: context.tradeCategory,
+    }
+    return canonicalToLegacySnapshot({
+      item: {
+        format: 'pob2-item',
+        raw: parsed.raw,
+        parseEvidence: parsed.evidence,
+        itemClass: view.itemClass,
+        tradeCategory: view.tradeCategory,
+        tradeDataVersion: `xiletrade:${getXiletradeDataCatalog().get('en-US').upstreamCommit}`,
+      },
+      view,
+    }, view, request.realm)
+  }
   const normalized = await pobItemBridge.normalize(parsedRaw.raw)
   if (parsedRaw.evidence) normalized.item.parseEvidence = parsedRaw.evidence
   applyXiletradeParseEvidence(normalized.view, parsedRaw.evidence)
@@ -2426,6 +2596,46 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     requireMainWindowSender(event)
     if (!communityViewManager) throw new Error('Community browser is unavailable')
     return communityViewManager.getState()
+  })
+  ipcMain.handle('reference:activate', async (event, value: unknown) => {
+    const payload = value as { bounds?: unknown; site?: unknown }
+    const bounds = validateMarketBounds(event, payload?.bounds)
+    const site = validateReferenceSite(payload?.site)
+    if (!referenceViewManager) throw new Error('Reference browser is unavailable')
+    return referenceViewManager.activate(bounds, site)
+  })
+  ipcMain.handle('reference:deactivate', (event) => {
+    requireMainWindowSender(event)
+    referenceViewManager?.deactivate()
+  })
+  ipcMain.handle('reference:set-bounds', (event, value: unknown) => {
+    const bounds = validateMarketBounds(event, value)
+    referenceViewManager?.setBounds(bounds)
+  })
+  ipcMain.handle('reference:set-visible', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (typeof value !== 'boolean') throw new Error('Invalid reference visibility')
+    referenceViewManager?.setVisible(value)
+  })
+  ipcMain.handle('reference:set-site', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    referenceViewManager?.setSite(validateReferenceSite(value))
+  })
+  ipcMain.handle('reference:navigate', (event, value: unknown) => {
+    requireMainWindowSender(event)
+    if (!['home', 'back', 'forward', 'reload', 'stop'].includes(String(value))) {
+      throw new Error('Invalid reference navigation command')
+    }
+    referenceViewManager?.navigate(value as ReferenceNavigationCommand)
+  })
+  ipcMain.handle('reference:open-external', (event) => {
+    requireMainWindowSender(event)
+    referenceViewManager?.openExternal()
+  })
+  ipcMain.handle('reference:get-state', (event) => {
+    requireMainWindowSender(event)
+    if (!referenceViewManager) throw new Error('Reference browser is unavailable')
+    return referenceViewManager.getState()
   })
   ipcMain.handle('currency-market:get', (event, value: unknown) => {
     requireMainWindowSender(event)
@@ -3399,6 +3609,7 @@ app.on('before-quit', () => {
   timerWindowManager?.dispose()
   gameLogTimerController?.dispose()
   communityViewManager?.dispose()
+  referenceViewManager?.dispose()
   marketViewManager?.dispose()
   pobLuaService.dispose()
 })

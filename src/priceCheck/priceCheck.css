@@ -28,6 +28,28 @@ html:has(.pc-shell), body:has(.pc-shell), #root:has(.pc-shell) { width: 100%; he
 .pc-range-field input { min-width: 0; width: 100%; height: 27px; padding-left: 7px; padding-right: 5px; font-size: 11px; }
 .pc-range-field input::placeholder { color: #827a6c; opacity: 1; }
 
+.pc-xiletrade-panel { margin: 8px; border: 1px solid #3c382f; background: rgba(17, 19, 15, .72); }
+.pc-xiletrade-panel > header { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; padding: 7px 9px; border-bottom: 1px solid #39352d; }
+.pc-xiletrade-panel > header strong { color: #d1b676; font-size: 11px; }
+.pc-xiletrade-panel > header span { color: #777168; font-size: 10px; }
+.pc-xiletrade-basic { display: grid; grid-template-columns: minmax(150px, 1.2fr) repeat(2, minmax(145px, 1fr)); gap: 6px; padding: 7px 9px; border-bottom: 1px solid #292924; }
+.pc-xiletrade-basic > label, .pc-xiletrade-trade-grid > label { min-width: 0; display: grid; grid-template-columns: 66px minmax(0, 1fr); align-items: center; gap: 4px; color: #8f887b; font-size: 10px; }
+.pc-xiletrade-basic .pc-xiletrade-range, .pc-xiletrade-trade-grid .pc-xiletrade-range { grid-template-columns: 66px minmax(0, 1fr) minmax(0, 1fr); }
+.pc-xiletrade-panel select, .pc-xiletrade-panel input { width: 100%; height: 26px; }
+.pc-xiletrade-range input { min-width: 0; }
+.pc-xiletrade-section-title { padding: 6px 9px 4px; color: #a79263; font-size: 10px; text-transform: uppercase; letter-spacing: .02em; }
+.pc-xiletrade-grid { display: grid; grid-template-columns: repeat(3, minmax(180px, 1fr)); gap: 5px 8px; padding: 0 9px 8px; }
+.pc-xiletrade-grid .pc-xiletrade-range, .pc-xiletrade-trade-grid .pc-xiletrade-range { min-width: 0; display: grid; grid-template-columns: minmax(72px, 1fr) minmax(0, 70px) minmax(0, 70px); align-items: center; gap: 4px; color: #8f887b; font-size: 10px; }
+.pc-xiletrade-state-grid { display: grid; grid-template-columns: repeat(4, minmax(125px, 1fr)); gap: 5px 8px; padding: 0 9px 8px; }
+.pc-xiletrade-state-grid label { min-width: 0; display: grid; grid-template-columns: minmax(0, 1fr) 58px; align-items: center; gap: 4px; color: #8f887b; font-size: 10px; }
+.pc-xiletrade-trade-grid { display: grid; grid-template-columns: minmax(210px, 1.4fr) minmax(110px, .7fr) minmax(145px, 1fr) minmax(145px, 1fr); gap: 6px 8px; padding: 0 9px 9px; }
+
+@media (max-width: 760px) {
+  .pc-xiletrade-basic, .pc-xiletrade-trade-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .pc-xiletrade-grid { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
+  .pc-xiletrade-state-grid { grid-template-columns: repeat(2, minmax(125px, 1fr)); }
+}
+
 /* Keep the selected item's details stable on the left while the listing
    stream remains independently scrollable on the right. */
 .pc-results { display: grid; grid-template-columns: minmax(250px, 42%) minmax(300px, 58%); overflow: hidden; }

@@ -32,6 +32,7 @@ export type AnalyticsEvent =
   | 'view_equipment_library'
   | 'view_trade_center'
   | 'view_market_monitoring'
+  | 'view_reference'
   | 'view_voice_community'
 
 type TongjiQueue = Array<unknown[]>

@@ -65,7 +65,7 @@ const SUGGESTION_CONTAINER_SELECTOR = [
   '[class*="select-menu"]', '[class*="options"]', '[class*="choices"]',
 ].join(',')
 const SUGGESTION_OPTION_SELECTOR = [
-  '[role="option"]', '.multiselect__option', '.select2-results__option',
+  'option', '[role="option"]', '.multiselect__option', '.select2-results__option',
   'li[class*="option"]', 'li[class*="choice"]', 'button[class*="option"]',
 ].join(',')
 const BILINGUAL_SOURCE_CLASS = 'superpoe-market-source-label'
@@ -85,6 +85,7 @@ let suggestionDecorationTimer: ReturnType<typeof setTimeout> | undefined
 const LOCALIZED_SUGGESTION_CLASS = 'superpoe-market-localized-suggestions'
 const LOCALIZED_SUGGESTION_ROW_CLASS = 'superpoe-market-localized-suggestion'
 const LOCALIZED_FILTER_INPUT_ACTIVE_CLASS = 'superpoe-market-localized-input-active'
+const OFFICIAL_SELECTION_COMMITTING_CLASS = 'superpoe-market-official-selection-committing'
 let localizedSuggestionPanel: HTMLDivElement | undefined
 let localizedSuggestionList: HTMLUListElement | undefined
 let localizedSuggestionInput: HTMLInputElement | undefined
@@ -101,12 +102,14 @@ const originalFilterInputValues = new WeakMap<HTMLInputElement, string>()
 const renderedFilterInputValues = new WeakMap<HTMLInputElement, string>()
 const trackedFilterInputs = new Set<HTMLInputElement>()
 
-function isGlobalMarketHost(): boolean {
-  return window.location.hostname === 'www.pathofexile.com' || window.location.hostname === 'pathofexile.com'
+function isSupportedMarketHost(): boolean {
+  return window.location.hostname === 'www.pathofexile.com'
+    || window.location.hostname === 'pathofexile.com'
+    || window.location.hostname === 'poe.game.qq.com'
 }
 
 function isMarketTranslationEnabled(): boolean {
-  return isGlobalMarketHost() && marketTranslationPayload.enabled
+  return isSupportedMarketHost() && marketTranslationPayload.enabled
 }
 
 function isOwnedElement(element: Element | null): boolean {
@@ -216,6 +219,8 @@ async function loadOfficialSuggestionCatalog(
     kind === 'filters' ? data : undefined,
     kind === 'stats' ? data : undefined,
     localizeOfficialSuggestion,
+    200,
+    (localized) => marketPageTranslator.findSource(localized, true),
   )
 }
 
@@ -254,12 +259,41 @@ function officialOptionSource(option: Element): string {
   let node: Node | null = walker.nextNode()
   while (node) {
     const textNode = node as Text
-    if (!isOwnedElement(textNode.parentElement) && !isUserContent(textNode.parentElement)) {
+    // Stat options render their category (for example "综合") in a
+    // separate .mutate-type element. It is presentation-only and is not part
+    // of the value exposed by vue-multiselect.
+    if (!textNode.parentElement?.closest('.mutate-type')
+      && !isOwnedElement(textNode.parentElement) && !isUserContent(textNode.parentElement)) {
       parts.push(originalText(textNode))
     }
     node = walker.nextNode()
   }
   return normalizeMarketText(parts.join(' '))
+}
+
+interface OfficialVueMultiselect {
+  filteredOptions?: unknown[]
+  select?: (option: unknown, event?: KeyboardEvent) => void
+}
+
+function officialVueMultiselect(container: Element | null): OfficialVueMultiselect | undefined {
+  if (!container) return undefined
+  return (container as Element & { __vue__?: OfficialVueMultiselect }).__vue__
+}
+
+function officialOptionData(container: Element | null, option: Element, expected: string[]): unknown {
+  const component = officialVueMultiselect(container)
+  if (!component?.select || !Array.isArray(component.filteredOptions)) return undefined
+  const optionText = normalizeMarketText(officialOptionSource(option)).toLocaleLowerCase()
+  return component.filteredOptions.find((candidate) => {
+    if (!candidate || typeof candidate !== 'object') return false
+    const record = candidate as Record<string, unknown>
+    if (record.$isLabel || record.$isDisabled) return false
+    const text = typeof record.text === 'string'
+      ? normalizeMarketText(record.text).toLocaleLowerCase()
+      : ''
+    return Boolean(text) && (expected.includes(text) || text === optionText)
+  })
 }
 
 function officialPairsFromContainer(container: Element): MarketTranslationPair[] {
@@ -291,15 +325,24 @@ function officialSuggestionPairsForInput(
   if (!multiselect) return []
   if (multiselect.classList.contains('filter-group-select')) return officialPairsFromContainer(multiselect)
   if (!catalog) return []
-  if (multiselect.classList.contains('search-select')) return catalog.itemPairs
-  if (multiselect.classList.contains('filter-select-mutate')) return catalog.statPairs
+  if (multiselect.classList.contains('search-select')) {
+    return catalog.itemPairs.length ? catalog.itemPairs : marketPageTranslator.getSuggestionPairs('items')
+  }
+  if (multiselect.classList.contains('filter-select-mutate')) {
+    return catalog.statPairs.length ? catalog.statPairs : marketPageTranslator.getSuggestionPairs('filters')
+  }
 
   const label = officialFilterLabel(input)
-  if (!label) return []
+  const descriptor = localizedFilterInputDescriptor(input, multiselect)
   for (const [id, officialLabel] of catalog.filterLabelsById) {
     if (normalizeMarketText(officialLabel).toLocaleLowerCase() !== label.toLocaleLowerCase()) continue
     return catalog.filterPairsById.get(id) || []
   }
+  // The CN status filter has no label in /data/filters. Its option list is
+  // still keyed by `status`, so use the field descriptor when the title is
+  // absent or differs from the data endpoint's localized wording.
+  const statusPairs = catalog.filterPairsById.get('status')
+  if (statusPairs && (!label || /status|listed|状态|上架|可交易/u.test(`${label} ${descriptor}`))) return statusPairs
   return []
 }
 
@@ -332,6 +375,7 @@ function removeLocalizedSuggestionPanel(): void {
   if (localizedSuggestionSelectionTimer) clearTimeout(localizedSuggestionSelectionTimer)
   localizedSuggestionSelectionTimer = undefined
   officialSelectionInput = undefined
+  document.documentElement?.classList.remove(OFFICIAL_SELECTION_COMMITTING_CLASS)
   localizedSuggestionPendingInput = undefined
   localizedSuggestionInput?.classList.remove(LOCALIZED_FILTER_INPUT_ACTIVE_CLASS)
   localizedSuggestionPanel?.remove()
@@ -404,36 +448,99 @@ function selectLocalizedSuggestion(index: number): void {
   const pair = localizedSuggestionCandidates[index]
   if (!input || !pair) return
   const officialContainer = input.closest('.multiselect')
+  const expected = [pair[0], pair[1]]
+    .map((value) => normalizeMarketText(value).toLocaleLowerCase())
+    .filter(Boolean)
+  const findOfficialOption = (): Element | undefined => {
+    if (!input.isConnected || (officialContainer && !officialContainer.isConnected)) return undefined
+    const scopedOptions = officialContainer
+      ? Array.from(officialContainer.querySelectorAll(SUGGESTION_OPTION_SELECTOR))
+      : []
+    const allOptions = queryMarketElements(SUGGESTION_OPTION_SELECTOR)
+    const options = [...new Set([...scopedOptions, ...allOptions])]
+      .filter((candidate) => !isOwnedElement(candidate) && isFilterSuggestion(candidate))
+    const matchingOptions = options.filter((candidate) => {
+      const normalized = normalizeMarketText(officialOptionSource(candidate)).toLocaleLowerCase()
+      return expected.includes(normalized)
+    })
+    return matchingOptions.find(isVisibleOfficialControl) || matchingOptions[0]
+  }
+  const commitOfficialOption = (option: Element): void => {
+    officialSelectionInput = input
+    document.documentElement?.classList.add(OFFICIAL_SELECTION_COMMITTING_CLASS)
+    try {
+      if (option instanceof HTMLOptionElement && option.parentElement instanceof HTMLSelectElement) {
+        const select = option.parentElement
+        select.value = option.value
+        select.dispatchEvent(new Event('change', { bubbles: true }))
+      } else if (officialContainer?.classList.contains('filter-select-mutate')) {
+        // The stat selector handles its custom rendered options through the
+        // Vue component. Dispatching a DOM click only changes the highlight;
+        // select() emits the value that creates the filter row.
+        const optionData = officialOptionData(officialContainer, option, expected)
+        const component = officialVueMultiselect(officialContainer)
+        if (optionData && component?.select) component.select(optionData)
+        else {
+          const click = new MouseEvent('click', {
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            view: window,
+          })
+          option.dispatchEvent(click)
+        }
+      } else {
+        // vue-multiselect commits through the option's click handler. A
+        // mousedown is used by the component to prevent focus changes and
+        // does not select the option by itself.
+        const click = new MouseEvent('click', {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          view: window,
+        })
+        option.dispatchEvent(click)
+      }
+    } finally {
+      officialSelectionInput = undefined
+      document.documentElement?.classList.remove(OFFICIAL_SELECTION_COMMITTING_CLASS)
+    }
+    scheduleMarketTranslation(true)
+  }
+
+  // Use an already-rendered official option directly. This keeps the native
+  // control from opening a second, intermediate suggestion state.
+  const existingOption = findOfficialOption()
+  if (existingOption) {
+    removeLocalizedSuggestionPanel()
+    commitOfficialOption(existingOption)
+    return
+  }
+
   removeLocalizedSuggestionPanel()
   officialSelectionInput = input
-  setNativeInputValue(input, pair[0])
-  input.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: pair[0] }))
+  document.documentElement?.classList.add(OFFICIAL_SELECTION_COMMITTING_CLASS)
+  const officialValue = window.location.hostname === 'poe.game.qq.com' ? pair[1] : pair[0]
+  setNativeInputValue(input, officialValue)
+  input.dispatchEvent(new InputEvent('input', { bubbles: true, composed: true, inputType: 'insertText', data: officialValue }))
 
-  // Official trade controls render their option list asynchronously. Once the
-  // canonical English query has populated it, click the matching option so a
-  // localized selection has exactly the same effect as an English one.
+  // Some fuzzy candidates are not in the official list for the partial query.
+  // In that case, let the official control render the canonical option and
+  // select it as soon as it becomes available.
   let attempts = 0
   const selectOfficialOption = () => {
     attempts += 1
-    if (!input.isConnected || !officialContainer?.isConnected || officialSelectionInput !== input) return
-    const expected = normalizeMarketText(pair[0]).toLocaleLowerCase()
-    // The official menu belongs to this multiselect. Searching the document
-    // here can select an identical option from a different filter field.
-    const options = Array.from(officialContainer.querySelectorAll(SUGGESTION_OPTION_SELECTOR))
-    const option = options.find((candidate) => {
-      if (isOwnedElement(candidate) || !isFilterSuggestion(candidate)) return false
-      const source = officialOptionSource(candidate)
-      const normalized = normalizeMarketText(source).toLocaleLowerCase()
-      return normalized === expected
-    })
+    if (officialSelectionInput !== input) return
+    const option = findOfficialOption()
     if (option) {
-      ;(option as HTMLElement).click()
-      officialSelectionInput = undefined
-      scheduleMarketTranslation(true)
+      commitOfficialOption(option)
       return
     }
     if (attempts < 30) localizedSuggestionSelectionTimer = setTimeout(selectOfficialOption, 50)
-    else officialSelectionInput = undefined
+    else {
+      officialSelectionInput = undefined
+      document.documentElement?.classList.remove(OFFICIAL_SELECTION_COMMITTING_CLASS)
+    }
   }
   localizedSuggestionSelectionTimer = setTimeout(selectOfficialOption, 50)
 }
@@ -533,6 +640,13 @@ function handleLocalizedFilterInput(event: Event): void {
   if (!isLocalizedFilterInput(input)) return
   if (event instanceof InputEvent && event.isComposing) return
   const value = input.value
+  // A localized candidate selection writes the official value back into the
+  // same input and dispatches an input event. Do not replace its pending
+  // official-option selection with a new localized suggestion request.
+  if (officialSelectionInput === input) {
+    scheduleMarketTranslation()
+    return
+  }
   if (!/[\u0080-\uFFFF]/u.test(value)) {
     if (officialSelectionInput !== input) removeLocalizedSuggestionPanel()
     scheduleMarketTranslation()
@@ -1846,6 +1960,12 @@ function installStyle(): void {
       background: linear-gradient(90deg, rgba(86, 64, 31, .7), rgba(18, 17, 13, .98) 58%, rgba(5, 6, 6, .98)) !important;
       color: #ffe0a1 !important;
       box-shadow: inset 3px 0 #d0a85d, inset 0 1px rgba(255, 227, 163, .1), 0 0 12px rgba(201, 163, 89, .14) !important;
+    }
+    html.${OFFICIAL_SELECTION_COMMITTING_CLASS} .multiselect__content-wrapper:not(.${LOCALIZED_SUGGESTION_CLASS}),
+    html.${OFFICIAL_SELECTION_COMMITTING_CLASS} [role="listbox"]:not(.${LOCALIZED_SUGGESTION_CLASS}),
+    html.${OFFICIAL_SELECTION_COMMITTING_CLASS} .select2-results {
+      visibility: hidden !important;
+      pointer-events: none !important;
     }
     .superpoe-market-localized-source {
       margin-left: 6px !important;

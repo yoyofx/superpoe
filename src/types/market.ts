@@ -648,6 +648,59 @@ export interface TradePriceCheckModifierCriteria {
   max?: number
 }
 
+export type TradeFilterBoolean = 'true' | 'false'
+export type TradeFilterRarity = 'normal' | 'magic' | 'rare' | 'unique' | 'nonunique'
+
+export interface TradeFilterRange {
+  min?: number
+  max?: number
+}
+
+/**
+ * Xiletrade's regular item filters. The shape mirrors PoE Trade2's
+ * `type_filters`, `req_filters`, `equipment_filters`, `misc_filters`, and
+ * `trade_filters` objects so the renderer does not need to know API details.
+ */
+export interface TradeXiletradeFilters {
+  rarity?: TradeFilterRarity
+  itemLevel?: TradeFilterRange
+  quality?: TradeFilterRange
+  requiredLevel?: TradeFilterRange
+  equipment?: {
+    armour?: TradeFilterRange
+    energyShield?: TradeFilterRange
+    evasion?: TradeFilterRange
+    runicWard?: TradeFilterRange
+    attacksPerSecond?: TradeFilterRange
+    damagePerSecond?: TradeFilterRange
+    criticalChance?: TradeFilterRange
+    elementalDps?: TradeFilterRange
+    physicalDps?: TradeFilterRange
+    block?: TradeFilterRange
+    damage?: TradeFilterRange
+    spirit?: TradeFilterRange
+    runeSockets?: TradeFilterRange
+  }
+  misc?: {
+    mirrored?: TradeFilterBoolean
+    corrupted?: TradeFilterBoolean
+    twiceCorrupted?: TradeFilterBoolean
+    identified?: TradeFilterBoolean
+    fractured?: TradeFilterBoolean
+    alternateArt?: TradeFilterBoolean
+    crafted?: TradeFilterBoolean
+    mutated?: TradeFilterBoolean
+    desecrated?: TradeFilterBoolean
+    veiled?: TradeFilterBoolean
+    sanctified?: TradeFilterBoolean
+  }
+  trade?: {
+    price?: TradeFilterRange & { currency?: string }
+    indexed?: '1day' | '3days' | '1week' | '2weeks'
+    saleType?: 'priced' | 'unpriced'
+  }
+}
+
 export type FindBetterSortMode = 'stat-value' | 'stat-value-price' | 'price' | 'weight'
 export type FindBetterAugmentBehavior = 'copy-current' | 'keep' | 'remove'
 
@@ -682,6 +735,8 @@ export interface TradePriceCheckCriteria {
   itemLevelMin?: number
   itemLevelMax?: number
   modifiers: TradePriceCheckModifierCriteria[]
+  /** Optional Xiletrade-compatible filters beyond the source item's mods. */
+  xiletrade?: TradeXiletradeFilters
   findBetter?: FindBetterSearchOptions
 }
 

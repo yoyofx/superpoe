@@ -20,6 +20,14 @@ describe('poe.ninja build import', () => {
     })
   })
 
+  it('accepts the configured Ninja mirror character link', () => {
+    expect(parsePoeNinjaCharacterUrl('https://ninja.710421059.xyz/poe2/profile/account/league/character/character')).toMatchObject({
+      account: 'account',
+      league: 'league',
+      character: 'character',
+    })
+  })
+
   it('rejects non-character or non-poe.ninja links', () => {
     expect(() => parsePoeNinjaCharacterUrl('https://poe.ninja/poe2/builds')).toThrow('PoE2 character links')
     expect(() => parsePoeNinjaCharacterUrl('https://example.com/poe2/profile/a/b/character/c')).toThrow('HTTPS poe.ninja links')

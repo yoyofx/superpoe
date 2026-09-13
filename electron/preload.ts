@@ -176,6 +176,32 @@ contextBridge.exposeInMainWorld('pob2Community', {
   },
 })
 
+contextBridge.exposeInMainWorld('pob2Reference', {
+  activate: (bounds: import('../src/types/market.js').MarketBounds, site: import('../src/types/reference.js').ReferenceSiteConfig) => ipcRenderer.invoke('reference:activate', { bounds, site }) as Promise<import('../src/types/reference.js').ReferenceViewState>,
+  deactivate: () => ipcRenderer.invoke('reference:deactivate') as Promise<void>,
+  setBounds: (bounds: import('../src/types/market.js').MarketBounds) => ipcRenderer.invoke('reference:set-bounds', bounds) as Promise<void>,
+  setVisible: (visible: boolean) => ipcRenderer.invoke('reference:set-visible', visible) as Promise<void>,
+  setSite: (site: import('../src/types/reference.js').ReferenceSiteConfig) => ipcRenderer.invoke('reference:set-site', site) as Promise<void>,
+  navigate: (command: import('../src/types/reference.js').ReferenceNavigationCommand) => ipcRenderer.invoke('reference:navigate', command) as Promise<void>,
+  openExternal: () => ipcRenderer.invoke('reference:open-external') as Promise<void>,
+  getState: () => ipcRenderer.invoke('reference:get-state') as Promise<import('../src/types/reference.js').ReferenceViewState>,
+  onStateChanged: (callback: (state: import('../src/types/reference.js').ReferenceViewState) => void) => {
+    const handler = (_event: unknown, state: import('../src/types/reference.js').ReferenceViewState) => callback(state)
+    ipcRenderer.on('reference:state-changed', handler)
+    return () => { ipcRenderer.removeListener('reference:state-changed', handler) }
+  },
+  onPoeNinjaImport: (callback: (event: import('../src/types/reference.js').ReferencePoeNinjaImportEvent) => void) => {
+    const handler = (_event: unknown, value: import('../src/types/reference.js').ReferencePoeNinjaImportEvent) => callback(value)
+    ipcRenderer.on('reference:poe-ninja-import', handler)
+    return () => { ipcRenderer.removeListener('reference:poe-ninja-import', handler) }
+  },
+  onEscape: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('reference:escape', handler)
+    return () => { ipcRenderer.removeListener('reference:escape', handler) }
+  },
+})
+
 contextBridge.exposeInMainWorld('pob2CurrencyMarket', {
   get: (forceRefresh = false) => ipcRenderer.invoke('currency-market:get', forceRefresh) as Promise<import('../src/types/currencyMarket.js').CurrencyMarketState>,
   onChanged: (callback: (state: import('../src/types/currencyMarket.js').CurrencyMarketState) => void) => {
