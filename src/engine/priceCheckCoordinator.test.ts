@@ -47,6 +47,24 @@ describe('PriceCheckCoordinator', () => {
     expect(coordinator.snapshot().listings.map((listing) => listing.id)).toEqual(['listing-10', 'listing-11'])
   })
 
+  it('normalizes official seller online states without treating boolean online as offline', async () => {
+    const states: unknown[] = [true, 'online', { league: 'Standard' }, { status: 'afk' }, false]
+    const fetch = vi.fn(async () => ({ result: states.map((online, index) => ({
+      id: `listing-${index}`,
+      item: { name: 'Item', baseType: 'Quarterstaff', explicitMods: ['+10 to Strength'] },
+      listing: { price: { amount: 1, currency: 'divine' }, account: { name: 'Seller', online } },
+    })) }))
+    const coordinator = new PriceCheckCoordinator({
+      context: () => ({ realm: 'global', language: 'en' }), prepare: async () => prepared(),
+      leagues: async () => [{ id: 'league', text: 'League' }], fetch, visitHideout: vi.fn(), changed: vi.fn(),
+      search: async () => ({ searchId: 'search', url: 'https://www.pathofexile.com/trade2/search/poe2/league/search', total: states.length, resolvedModifierCount: 1, unresolvedModifierCount: 0, listingIds: states.map((_, index) => `listing-${index}`) }),
+    })
+    await coordinator.open({ source: { kind: 'raw', raw: 'item' } })
+    await coordinator.search('league', { listedStatus: 'securable', useBaseType: true, modifiers: [] })
+
+    expect(coordinator.snapshot().listings.map((listing) => listing.seller.status)).toEqual(['online', 'online', 'online', 'afk', 'offline'])
+  })
+
   it('delegates PoB2 stat-value modes to local candidate ranking', async () => {
     const rankListings = vi.fn(async (listings: PriceCheckListingView[]) => listings
       .map((listing, index) => ({ ...listing, tradeScore: listings.length - index }))

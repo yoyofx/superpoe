@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { applyXiletradeParseEvidence, applyXiletradeParsingRules, parseXiletradeItemText } from '../../electron/xiletradeItemParser'
+import { applyXiletradeParseEvidence, applyXiletradeParsingRules, parseXiletradeItemText, XILETRADE_UPSTREAM_COMMIT } from '../../electron/xiletradeItemParser'
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import { ItemTranslationIndex } from '../../electron/itemTranslationIndex'
-import { XiletradeDataCatalog, XiletradeModifierMatcher } from '../../electron/xiletradeDataCatalog'
+import { resolveXiletradeItemQueryRouting, XiletradeDataCatalog, XiletradeModifierMatcher } from '../../electron/xiletradeDataCatalog'
 
 const language = {
   locale: 'zh-CN' as const,
@@ -95,6 +95,118 @@ describe('Xiletrade-compatible game item parser', () => {
     expect(catalog.resolveItemContext('en', {
       rarity: 'RARE', name: 'Hate Power', baseType: 'Runemastered Armoured Cap',
     })).toMatchObject({ tradeCategory: 'armour.helmet', flags: { weapon: false, armourPiece: true } })
+  })
+
+  it('follows Xiletrade class resources for CN-only and empty-category classes', () => {
+    const catalog = new XiletradeDataCatalog(path.join(process.cwd(), 'public', 'data', 'xiletrade'))
+
+    expect(catalog.resolveItemContext('zh-CN', { itemClass: '短杖', rarity: 'RARE' })).toMatchObject({
+      tradeCategory: 'weapon.sceptre', flags: { weapon: true, skillWeapon: true, byBase: true },
+    })
+    expect(catalog.resolveItemContext('zh-CN', { itemClass: '灵柩', rarity: 'RARE' })).toMatchObject({
+      tradeCategory: 'corpse', flags: { byBase: false, area: false },
+    })
+    expect(catalog.resolveItemContext('zh-CN', { itemClass: '禁域研究', rarity: 'RARE' })).toMatchObject({
+      tradeCategory: 'sanctum.research', flags: { area: true },
+    })
+    expect(catalog.resolveItemContext('zh-CN', { itemClass: '异界地图', rarity: 'RARE' })).toMatchObject({
+      tradeCategory: 'map.waystone', flags: { waystone: true },
+    })
+    expect(catalog.resolveItemContext('zh-CN', { itemClass: '咒符', rarity: 'RARE', tradeCategory: 'armour.helmet' })).toMatchObject({
+      tradeCategory: '', flags: { byBase: true },
+    })
+  })
+
+  it('uses ItemClassTwo origins and ItemFlag type checks for edge classes', () => {
+    const catalog = new XiletradeDataCatalog(path.join(process.cwd(), 'public', 'data', 'xiletrade'))
+
+    expect(catalog.resolveItemContext('en', { itemClass: 'Abyss Jewels', rarity: 'RARE' })).toMatchObject({
+      itemClassOrigin: 'AbyssJewel', tradeCategory: 'jewel', flags: { jewel: true, byType: false, byBase: false },
+    })
+    expect(catalog.resolveItemContext('en', { itemClass: 'Jewels', rarity: 'RARE', baseType: 'Large Cluster Jewel' })).toMatchObject({
+      itemClassOrigin: 'Jewel', tradeCategory: 'jewel.cluster', flags: { jewel: true },
+    })
+    expect(catalog.resolveItemContext('en', { itemClass: 'Expedition Logbook', rarity: 'NORMAL' })).toMatchObject({
+      itemClassOrigin: 'Expedition2Logbooks', tradeCategory: '', flags: { logbook: true, area: true, byBase: true },
+    })
+    expect(resolveXiletradeItemQueryRouting({ itemClass: 'Critical Utility Flasks', rarity: 'RARE' })).toMatchObject({
+      tradeCategory: 'flask', flask: true, byBase: true,
+    })
+
+    expect(catalog.resolveItemContext('en', { itemClass: 'Trial Coins', rarity: 'NORMAL' })).toMatchObject({
+      itemClassOrigin: 'ItemisedSanctum', tradeCategory: 'map.barya', flags: { area: true },
+    })
+    expect(catalog.resolveItemContext('en', { itemClass: 'Tablet', rarity: 'NORMAL' })).toMatchObject({
+      itemClassOrigin: 'TowerAugmentation', tradeCategory: 'map.tablet', flags: { tablet: true },
+    })
+    expect(catalog.resolveItemContext('en', { itemClass: 'Wombgifts', rarity: 'NORMAL' })).toMatchObject({
+      itemClassOrigin: 'BrequelFruit', tradeCategory: 'wombgift', flags: { wombgift: true },
+    })
+  })
+
+  it('ignores a stale category when an Xiletrade item class is available', () => {
+    expect(resolveXiletradeItemQueryRouting({
+      itemClass: 'Crossbows', tradeCategory: 'armour.helmet', rarity: 'RARE', baseType: 'Expert Crossbow',
+    })).toMatchObject({ tradeCategory: 'weapon.crossbow', weapon: true, byBase: false })
+    expect(resolveXiletradeItemQueryRouting({
+      itemClass: 'Belts', tradeCategory: 'armour.helmet', rarity: 'RARE', baseType: 'Stygian Vise',
+    })).toMatchObject({ tradeCategory: 'accessory.belt', specialBase: true, byBase: true })
+  })
+
+  it('keeps Xiletrade chart and empty-category classes out of legacy routing', () => {
+    expect(resolveXiletradeItemQueryRouting({ itemClass: 'Chart', tradeCategory: 'map' })).toMatchObject({
+      tradeCategory: 'chart', byBase: true,
+    })
+    for (const itemClass of ['Chronicle', 'Filled Coffin', 'Facetor Lens', 'Rune', 'Charged Compass', 'Incubators', 'Breachstones', 'Sanctified Relics']) {
+      expect(resolveXiletradeItemQueryRouting({ itemClass, tradeCategory: 'armour.helmet' })).toMatchObject({
+        tradeCategory: '', byBase: false,
+      })
+    }
+    const catalog = new XiletradeDataCatalog(path.join(process.cwd(), 'public', 'data', 'xiletrade'))
+    expect(catalog.resolveItemContext('en', {
+      itemClass: 'Future Item Class', tradeCategory: 'armour.helmet', baseType: 'Expert Helmet', rarity: 'RARE',
+    })).toMatchObject({ tradeCategory: '' })
+  })
+
+  it('does not treat invitations as exchange currency', () => {
+    expect(resolveXiletradeItemQueryRouting({
+      itemClass: 'Currency', name: "Maven's Invitation", exchangeCurrency: true,
+    })).toMatchObject({ invitation: true, exchangeCurrency: false })
+  })
+
+  it('keeps Xiletrade currency state for currency-piece classes', () => {
+    expect(resolveXiletradeItemQueryRouting({ itemClass: 'Pieces', tradeCategory: 'armour.helmet' })).toMatchObject({
+      tradeCategory: 'currency.piece', exchangeCurrency: true,
+    })
+    expect(resolveXiletradeItemQueryRouting({ itemClass: 'Delve Stackable Socketable Currency' })).toMatchObject({
+      tradeCategory: '', exchangeCurrency: true,
+    })
+  })
+
+  it('maps generic weapon adds pseudo stats to the Xiletrade attack variant', () => {
+    const entries = [
+      { id: 'pseudo.pseudo_adds_fire_damage', text: 'Adds # to # Fire Damage', type: 'pseudo' },
+      { id: 'pseudo.pseudo_adds_fire_damage_to_attacks', text: 'Adds # to # Fire Damage with Attacks', type: 'pseudo' },
+    ]
+    const matcher = new XiletradeModifierMatcher({
+      display: { locale: 'en-US', upstreamCommit: 'test', rules: [], entries },
+      canonical: { locale: 'en-US', upstreamCommit: 'test', rules: [], entries },
+    })
+
+    expect(matcher.match('Adds 10 to 20 Fire Damage', 'explicit', { itemClass: 'Crossbows' })).toMatchObject({
+      queryStatId: 'pseudo.pseudo_adds_fire_damage_to_attacks',
+    })
+    expect(matcher.match('Adds 10 to 20 Fire Damage', 'explicit', { itemClass: 'Rings' })).toMatchObject({
+      queryStatId: 'pseudo.pseudo_adds_fire_damage',
+    })
+  })
+
+  it('uses canonical base identity when checking Xiletrade special bases', () => {
+    expect(resolveXiletradeItemQueryRouting({
+      itemClass: 'Belts', rarity: 'RARE', baseType: 'Stygian Vise',
+    })).toMatchObject({
+      specialBase: true, byBase: true,
+    })
   })
 
   it('resolves Traditional Chinese base names from the Xiletrade base catalog', () => {
@@ -327,7 +439,7 @@ describe('Xiletrade-compatible game item parser', () => {
     expect(result.raw).toContain('Ward: 76')
     expect(result.evidence).toMatchObject({
       parser: 'xiletrade-compatible',
-      upstreamCommit: 'c16c145f30aced5aa667456dd5f6897a2af3af3b',
+      upstreamCommit: XILETRADE_UPSTREAM_COMMIT,
       locale: 'zh-CN',
     })
     expect(result.evidence.modifiers).toMatchObject([
@@ -429,5 +541,17 @@ describe('Xiletrade-compatible game item parser', () => {
     expect(result.raw).toContain('Implicits: 0')
     expect(result.unresolved).toEqual(['全新未知词缀 12%'])
     expect(result.evidence.modifiers[0]).toMatchObject({ status: 'unresolved', currentValues: [12] })
+  })
+
+  it('resolves CN waystones through CurrencyTwo stable IDs', () => {
+    const catalog = new XiletradeDataCatalog(path.join(process.cwd(), 'public', 'data', 'xiletrade'))
+    expect(catalog.resolveBaseType('zh-CN', '引路石（ 16 阶）')).toBe('Waystone (Tier 16)')
+    expect(catalog.resolveItemContext('zh-CN', {
+      itemClass: '引路石', baseType: '引路石（ 16 阶）', rarity: 'RARE',
+    })).toMatchObject({
+      canonicalBaseType: 'Waystone (Tier 16)',
+      tradeCategory: 'map.waystone',
+      flags: { waystone: true },
+    })
   })
 })

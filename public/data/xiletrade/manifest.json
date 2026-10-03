@@ -10,7 +10,8 @@
         "BasesTwo.json": "0710643d38c01137b4c0c6899f115afedcdd182b71849a06c0911f6e2e55836a",
         "ModsTwo.json": "e9b1ea2889f2fcfa9025514bc2351a3bbfefd8ca067b1ca27ffc818aec4642e5",
         "WordsTwo.json": "e04c169763a8698c68756097997c681c8f140a7ac4a78490945017563ee957ab",
-        "ParsingRules.json": "2b59dd7b67c9316232111b7114ebdc199382a6aafc173651473adffef6af46c4"
+        "ParsingRules.json": "2b59dd7b67c9316232111b7114ebdc199382a6aafc173651473adffef6af46c4",
+        "ItemClassTwo.json": "71561c5350dc154031114d1a21ee7ae3ac4bcc81f19c0de643f0604a832c24c7"
       }
     },
     "zh-CN": {
@@ -32,7 +33,8 @@
         "BasesTwo.json": "616d9ddf700b12c78c0850a894dd485f8e2c8288d185e3707d155026768af82c",
         "ModsTwo.json": "6df769193a7bc1a758389e573e3a6d5619b0d4e39af9bef5d0f54a54d1520c30",
         "WordsTwo.json": "48f65c35c153e92ed726f8931e36bc40eccaf660c1ddfe714c62c744f3c10ac0",
-        "ParsingRules.json": "768aa38cff80dd4665d954a53eb8d21940ad885fdff9ebe7162a41d53d2bef36"
+        "ParsingRules.json": "768aa38cff80dd4665d954a53eb8d21940ad885fdff9ebe7162a41d53d2bef36",
+        "ItemClassTwo.json": "5ddb0764405ab00d24586e2d218b902c49de3ca6e01a4c597b04ecc9768707a3"
       }
     },
     "ko-KR": {
@@ -43,7 +45,8 @@
         "BasesTwo.json": "7046fb083c17c81b2c9ee347d100bf12cda2d15a5b45de6d44956a0f23103ced",
         "ModsTwo.json": "aa2c87066e0aff066ddc275f68abd3a5755adc965fa446a9da32e84cb7817778",
         "WordsTwo.json": "e3bf3727184467dc77bf0faaeccd7aa50e7663e585464ef5ec37ba3bcb86294b",
-        "ParsingRules.json": "8e1d0d3dff02782edcf30898886b34330530b6d0e033ead36295222baa9152f5"
+        "ParsingRules.json": "8e1d0d3dff02782edcf30898886b34330530b6d0e033ead36295222baa9152f5",
+        "ItemClassTwo.json": "f32a780ec695b4a94e8fa2ff8693a99e0f2407cbeb6b0dbd1a2c093b8945f404"
       }
     }
   }

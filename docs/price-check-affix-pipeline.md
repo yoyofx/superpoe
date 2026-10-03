@@ -298,4 +298,4 @@ Poe2PriceGui/Xiletrade 的词缀来源分组、数字模板化、local stat 消�
 
 游戏快捷键查价、游戏文本添加自定义装备和装备仓库查价共享这条解析链。仓库持久化 `parseEvidence` 和 Lua `modifierSnapshots`，因此重启后直接从已保存 snapshot 生成 Trade Projection，不再重新翻译 Raw 或重新调用 Lua。无法投影到 PoB 的本地化行仍以 `unsupported` 原文保留；多个同文 statId 保留为候选，不能静默选择第一个。
 
-当前验证基线为 Xiletrade commit `c16c145f30aced5aa667456dd5f6897a2af3af3b`。`scripts/build_xiletrade_parser_catalog.mjs` 从 Library 的真实运行数据生成 `public/data/xiletrade/`，并在 manifest 记录实际 Git commit 与每个输入文件 SHA-256。官方接口只负责联赛、Search 和 Fetch，不再承担剪贴板词缀识别。
+当前验证基线为 Xiletrade commit `7daa877cc6f51cf4bf486bcc8ffdde4af3050a79`。`scripts/build_xiletrade_parser_catalog.mjs` 从 Library 的真实运行数据生成 `public/data/xiletrade/`，并在 manifest 记录实际 Git commit 与每个输入文件 SHA-256。官方接口只负责联赛、Search 和 Fetch，不再承担剪贴板词缀识别。

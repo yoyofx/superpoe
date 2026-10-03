@@ -46,6 +46,7 @@ import { detectGameDirectory, inspectGameDirectory } from './gameDirectoryServic
 import { GameClipboardService, processIsElevated } from './priceCheck/GameClipboardService.js'
 import { applyXiletradeParseEvidence, parseXiletradeItemText, type CanonicalStatContext, type CanonicalStatMatch, type XiletradeItemParseResult } from './xiletradeItemParser.js'
 import { XiletradeDataCatalog, XiletradeModifierMatcher } from './xiletradeDataCatalog.js'
+import { XILETRADE_DEFAULT_LISTED_STATUS } from '../src/types/market.js'
 import { buildMarketPageTranslation } from './marketPageTranslationCatalog.js'
 import { MAX_SUPERPOE_BACKUP_FILE_SIZE, SUPERPOE_BACKUP_EXTENSION, type SuperPoeBackupMainData } from '../src/engine/superPoeBackup.js'
 import type { EquipmentTryOnOpenRequest } from '../src/types/tryOn.js'
@@ -535,7 +536,7 @@ function validateTradeXiletradeFilters(value: unknown): TradeXiletradeFilters | 
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid Xiletrade filters')
   const input = value as Partial<TradeXiletradeFilters>
   const rarity = input.rarity
-  if (rarity != null && !['normal', 'magic', 'rare', 'unique', 'nonunique'].includes(rarity)) throw new Error('Invalid Xiletrade rarity')
+  if (rarity != null && !['any', 'normal', 'magic', 'rare', 'unique', 'uniquefoil', 'nonunique'].includes(rarity)) throw new Error('Invalid Xiletrade rarity')
   const result: TradeXiletradeFilters = {}
   if (rarity) result.rarity = rarity
   const itemLevel = validateTradeFilterRange(input.itemLevel, 'item level')
@@ -545,13 +546,28 @@ function validateTradeXiletradeFilters(value: unknown): TradeXiletradeFilters | 
   if (quality) result.quality = quality
   if (requiredLevel) result.requiredLevel = requiredLevel
 
+  const mapInput = input.map
+  if (mapInput != null && (!mapInput || typeof mapInput !== 'object' || Array.isArray(mapInput))) throw new Error('Invalid Xiletrade map filters')
+  if (mapInput) {
+    const map: NonNullable<TradeXiletradeFilters['map']> = {}
+    const keys: Array<keyof NonNullable<TradeXiletradeFilters['map']>> = [
+      'itemRarity', 'packSize', 'rareMonsters', 'magicMonsters',
+      'bonus', 'revives',
+    ]
+    for (const key of keys) {
+      const range = validateTradeFilterRange(mapInput[key], `map ${String(key)}`)
+      if (range) map[key] = range
+    }
+    if (Object.keys(map).length) result.map = map
+  }
+
   const equipmentInput = input.equipment
   if (equipmentInput != null && (!equipmentInput || typeof equipmentInput !== 'object' || Array.isArray(equipmentInput))) throw new Error('Invalid Xiletrade equipment filters')
   if (equipmentInput) {
     const equipment: NonNullable<TradeXiletradeFilters['equipment']> = {}
     const keys: Array<keyof NonNullable<TradeXiletradeFilters['equipment']>> = [
-      'armour', 'energyShield', 'evasion', 'runicWard', 'attacksPerSecond', 'damagePerSecond',
-      'criticalChance', 'elementalDps', 'physicalDps', 'block', 'damage', 'spirit', 'runeSockets',
+      'armour', 'energyShield', 'evasion', 'runicWard', 'damagePerSecond',
+      'elementalDps', 'physicalDps', 'runeSockets',
     ]
     for (const key of keys) {
       const range = validateTradeFilterRange(equipmentInput[key], `equipment ${String(key)}`)
@@ -564,15 +580,22 @@ function validateTradeXiletradeFilters(value: unknown): TradeXiletradeFilters | 
   if (miscInput != null && (!miscInput || typeof miscInput !== 'object' || Array.isArray(miscInput))) throw new Error('Invalid Xiletrade item state filters')
   if (miscInput) {
     const misc: NonNullable<TradeXiletradeFilters['misc']> = {}
-    const keys: Array<keyof NonNullable<TradeXiletradeFilters['misc']>> = [
-      'mirrored', 'corrupted', 'twiceCorrupted', 'identified', 'fractured', 'alternateArt',
+    const booleanKeys: Array<keyof NonNullable<TradeXiletradeFilters['misc']>> = [
+      'mirrored', 'corrupted', 'twiceCorrupted', 'identified', 'fractured',
       'crafted', 'mutated', 'desecrated', 'veiled', 'sanctified',
     ]
-    for (const key of keys) {
+    for (const key of booleanKeys) {
       const option = miscInput[key]
       if (option == null) continue
       if (option !== 'true' && option !== 'false') throw new Error(`Invalid Xiletrade ${String(key)} filter`)
       misc[key] = option
+    }
+    const rangeKeys: Array<keyof NonNullable<TradeXiletradeFilters['misc']>> = [
+      'gemLevel', 'gemSockets', 'areaLevel',
+    ]
+    for (const key of rangeKeys) {
+      const range = validateTradeFilterRange(miscInput[key], `misc ${String(key)}`)
+      if (range) (misc as Record<string, unknown>)[key] = range
     }
     if (Object.keys(misc).length) result.misc = misc
   }
@@ -590,11 +613,7 @@ function validateTradeXiletradeFilters(value: unknown): TradeXiletradeFilters | 
     }
     if (tradeInput.indexed != null) {
       if (!['1day', '3days', '1week', '2weeks'].includes(tradeInput.indexed)) throw new Error('Invalid Xiletrade indexed filter')
-      trade.indexed = tradeInput.indexed
-    }
-    if (tradeInput.saleType != null) {
-      if (tradeInput.saleType !== 'priced' && tradeInput.saleType !== 'unpriced') throw new Error('Invalid Xiletrade sale type filter')
-      trade.saleType = tradeInput.saleType
+      trade.indexed = tradeInput.indexed as NonNullable<NonNullable<TradeXiletradeFilters['trade']>['indexed']>
     }
     if (Object.keys(trade).length) result.trade = trade
   }
@@ -719,7 +738,8 @@ async function priceToExalted(realm: MarketRealm): Promise<(currency: string, am
 function validatePriceCheckCriteria(value: unknown): TradePriceCheckCriteria {
   if (!value || typeof value !== 'object') throw new Error('Invalid price check criteria')
   const input = value as Partial<TradePriceCheckCriteria>
-  if (!['securable', 'available', 'onlineleague', 'online', 'any'].includes(String(input.listedStatus))) throw new Error('Invalid listed status')
+  const listedStatus = input.listedStatus || XILETRADE_DEFAULT_LISTED_STATUS
+  if (!['securable', 'available', 'online', 'any'].includes(String(listedStatus))) throw new Error('Invalid listed status')
   if (typeof input.useBaseType !== 'boolean' || !Array.isArray(input.modifiers) || input.modifiers.length > 128) {
     throw new Error('Invalid price check criteria')
   }
@@ -738,7 +758,7 @@ function validatePriceCheckCriteria(value: unknown): TradePriceCheckCriteria {
   const findBetter = input.findBetter == null ? undefined : validateFindBetterOptions(input.findBetter)
   const xiletrade = validateTradeXiletradeFilters(input.xiletrade)
   return {
-    listedStatus: input.listedStatus!,
+    listedStatus,
     useBaseType: input.useBaseType,
     ...(itemLevelMin == null ? {} : { itemLevelMin }),
     ...(itemLevelMax == null ? {} : { itemLevelMax }),
@@ -1440,6 +1460,7 @@ function globalTradeIdentity(item: LibraryItemSnapshot): { name?: string; baseTy
   }
   const name = resolve(item.name, 'name')
   const baseType = resolve(item.baseType, 'baseType')
+    || getXiletradeDataCatalog().resolveBaseType('en', item.baseType)
   return {
     ...(name ? { name } : {}),
     ...(baseType ? { baseType } : {}),
@@ -1455,16 +1476,22 @@ function projectTradeItemForRealm(realm: MarketRealm, item: LibraryItemSnapshot,
     ...(identity.name ? { name: identity.name } : {}),
     ...(identity.baseType ? { baseType: identity.baseType } : {}),
   })
+  const canonicalName = realm === 'global' ? canonicalEnglishItemText(context.canonicalName) : undefined
+  const canonicalBaseType = realm === 'global' ? canonicalEnglishItemText(context.canonicalBaseType) : undefined
   const matcher = new XiletradeModifierMatcher(source.bundle(locale))
   const catalogHas = (id: string) => {
-    const [baseId] = id.split('|')
-    return catalog.entries.some((entry) => entry.id === id || entry.id === baseId)
+    const [baseId, optionId] = id.split('|')
+    const entry = catalog.entries.find((candidate) => candidate.id === baseId)
+    if (!entry) return false
+    if (!optionId) return true
+    return Boolean(entry.option?.options?.some((option) => String(option.id) === optionId))
   }
   return {
     ...structuredClone(item),
-    ...(realm === 'global' && identity.name ? { name: identity.name } : {}),
-    ...(realm === 'global' && identity.baseType ? { baseType: identity.baseType } : {}),
+    ...(canonicalName ? { name: canonicalName } : {}),
+    ...(canonicalBaseType ? { baseType: canonicalBaseType } : {}),
     itemClass: context.itemClass,
+    ...(context.itemClassOrigin ? { itemClassOrigin: context.itemClassOrigin } : {}),
     tradeCategory: context.tradeCategory,
     modifiers: item.modifiers.map((modifier) => {
       const prior = modifier.tradeResolutions.find((candidate) => candidate.realm === realm)
@@ -1778,7 +1805,15 @@ async function priceCheckSnapshot(request: TradePriceCheckPrepareRequest) {
     let entry = equipmentLibrary.get(entryId)
     if (!entry) throw new Error('Equipment library entry not found')
     if (!Array.isArray(entry.item.modifierSnapshots)) {
-      const migrated = await pobItemBridge.normalize(entry.item.raw)
+      const migrated = await pobItemBridge.normalize(entry.item.raw, {
+        itemClass: entry.item.itemClass,
+        itemClassOrigin: entry.item.itemClassOrigin,
+        tradeCategory: entry.item.tradeCategory,
+        rarity: entry.view.rarity,
+        name: entry.view.name,
+        baseType: entry.view.baseType,
+        identified: entry.view.identified,
+      })
       migrated.view.iconUrl = entry.view.iconUrl
       migrated.view.localized = entry.view.localized
       migrated.view.modifiers.forEach((modifier, index) => {
@@ -1799,15 +1834,17 @@ async function priceCheckSnapshot(request: TradePriceCheckPrepareRequest) {
     : translatePobRawForPriceCheck(target.raw, canonicalizeStat)
   if (looksLikeGameClipboardItem(target.raw)) {
     const parsed = parsedRaw as XiletradeItemParseResult
-    const context = getXiletradeDataCatalog().resolveItemContext('en', {
-      itemClass: parsed.view.itemClass,
-      rarity: parsed.view.rarity,
-      name: parsed.view.name,
-      baseType: parsed.view.baseType,
+    const context = getXiletradeDataCatalog().resolveItemContext(parsed.evidence.locale, {
+        itemClass: parsed.view.itemClass,
+        itemClassOrigin: parsed.view.itemClassOrigin,
+        rarity: parsed.view.rarity,
+        name: parsed.view.name,
+        baseType: parsed.view.baseType,
     })
     const view = {
       ...parsed.view,
-      itemClass: context.itemClass || parsed.view.itemClass,
+      itemClass: context.itemClass ?? parsed.view.itemClass,
+      ...(context.itemClassOrigin ? { itemClassOrigin: context.itemClassOrigin } : {}),
       tradeCategory: context.tradeCategory,
     }
     return canonicalToLegacySnapshot({
@@ -1816,6 +1853,7 @@ async function priceCheckSnapshot(request: TradePriceCheckPrepareRequest) {
         raw: parsed.raw,
         parseEvidence: parsed.evidence,
         itemClass: view.itemClass,
+        ...(view.itemClassOrigin ? { itemClassOrigin: view.itemClassOrigin } : {}),
         tradeCategory: view.tradeCategory,
         tradeDataVersion: `xiletrade:${getXiletradeDataCatalog().get('en-US').upstreamCommit}`,
       },
@@ -3283,10 +3321,16 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const parsedInput: GameClipboardParseResult = looksLikeGameClipboardItem(input.raw)
       ? parseGameClipboardItem(input.raw, { canonicalizeStat })
       : translatePobRawForPriceCheck(input.raw, canonicalizeStat)
-    const normalized = await pobItemBridge.normalize(parsedInput.raw)
+    const normalized = await pobItemBridge.normalize(
+      parsedInput.raw,
+      parsedInput.evidence?.itemClass
+        ? { itemClass: parsedInput.evidence.itemClass }
+        : {},
+    )
     if (parsedInput.evidence) normalized.item.parseEvidence = parsedInput.evidence
     applyXiletradeParseEvidence(normalized.view, parsedInput.evidence)
     normalized.item.itemClass = normalized.view.itemClass
+    normalized.item.itemClassOrigin = normalized.view.itemClassOrigin
     normalized.item.tradeCategory = normalized.view.tradeCategory
     normalized.view.iconUrl = input.iconUrl || itemIcons.resolve(normalized.view.rarity, normalized.view.name, normalized.view.baseType)
     let localized = input.localized
@@ -3363,7 +3407,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       const criteria = input.criteria == null ? undefined : validatePriceCheckCriteria(input.criteria)
       const result = await tradeProvider.search(input.realm, leagueId, canonicalToLegacySnapshot(normalized, normalized.view, input.realm), criteria)
       marketViewManager.openSource(input.realm, result.url)
-      const { resolvedItem: _resolvedItem, listingIds: _listingIds, ...response } = result
+      const { resolvedItem: _resolvedItem, listingIds: _listingIds, listingReferences: _listingReferences, ...response } = result
       return response
     } catch (error) {
       console.error(`[Market search] equipment failed realm=${input.realm} league=${leagueId}`, error)
@@ -3389,7 +3433,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       const criteria = (input as { criteria?: unknown }).criteria == null ? undefined : validatePriceCheckCriteria((input as { criteria?: unknown }).criteria)
       const result = await tradeProvider.search(realm, leagueId, legacyItem, criteria)
       marketViewManager.openSource(realm, result.url)
-      const { resolvedItem: _resolvedItem, listingIds: _listingIds, ...response } = result
+      const { resolvedItem: _resolvedItem, listingIds: _listingIds, listingReferences: _listingReferences, ...response } = result
       return response
     } catch (error) {
       console.error(`[Market search] library failed realm=${realm} league=${leagueId} entry=${entry.id}`, error)
@@ -3416,7 +3460,7 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     const item = await priceCheckSnapshot(input as TradePriceCheckSearchRequest)
     const result = await tradeProvider.search(input.realm, leagueId, item, criteria)
     marketViewManager.openSource(input.realm, result.url)
-    const { resolvedItem: _resolvedItem, listingIds: _listingIds, ...response } = result
+    const { resolvedItem: _resolvedItem, listingIds: _listingIds, listingReferences: _listingReferences, ...response } = result
     return response
   })
   ipcMain.handle('market:list-leagues', async (event, value: unknown) => {

@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { execFileSync } from 'node:child_process'
 import path from 'node:path'
@@ -14,6 +14,7 @@ const files = [
   'FiltersTwo.json', 'ItemsTwo.json', 'CurrencyTwo.json', 'BasesTwo.json',
   'ModsTwo.json', 'WordsTwo.json', 'ParsingRules.json',
 ]
+const optionalFiles = ['ItemClassTwo.json']
 
 const sha256 = (source) => createHash('sha256').update(source).digest('hex')
 const parseJson = (source, file) => {
@@ -34,6 +35,14 @@ for (const language of languages) {
   const hashes = {}
   for (const name of files) {
     const sourceFile = path.join(dataRoot, 'Lang', language, name)
+    const source = readFileSync(sourceFile)
+    parseJson(source, sourceFile)
+    hashes[name] = sha256(source)
+    cpSync(sourceFile, path.join(languageOutput, name))
+  }
+  for (const name of optionalFiles) {
+    const sourceFile = path.join(dataRoot, 'Lang', language, name)
+    if (!existsSync(sourceFile)) continue
     const source = readFileSync(sourceFile)
     parseJson(source, sourceFile)
     hashes[name] = sha256(source)

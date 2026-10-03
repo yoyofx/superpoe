@@ -263,6 +263,7 @@ function deriveItemView(item: CanonicalEquipmentItem): CanonicalItemView {
     identified: true,
     ...(item.tradeCategory ? { tradeCategory: item.tradeCategory } : {}),
     ...(item.itemClass ? { itemClass: item.itemClass } : {}),
+    ...(item.itemClassOrigin ? { itemClassOrigin: item.itemClassOrigin } : {}),
     modifiers,
   }
 }
@@ -775,7 +776,15 @@ export class EquipmentLibraryRepository {
         continue
       }
       try {
-        const normalized = await bridge.normalize(candidate.item.rawText)
+        const normalized = await bridge.normalize(candidate.item.rawText, {
+          itemClass: candidate.item.itemClass,
+          itemClassOrigin: candidate.item.itemClassOrigin,
+          tradeCategory: candidate.item.tradeCategory,
+          rarity: candidate.item.rarity,
+          name: candidate.item.name,
+          baseType: candidate.item.baseType,
+          identified: candidate.item.identified,
+        })
         this.entries.push({
           ...candidate,
           schemaVersion: 3,
@@ -809,7 +818,15 @@ export class EquipmentLibraryRepository {
       const entry = this.entries[index]
       if (entry.item.tradeDataVersion === targetVersion) continue
       try {
-        const normalized = await bridge.normalize(entry.item.raw)
+        const normalized = await bridge.normalize(entry.item.raw, {
+          itemClass: entry.item.itemClass,
+          itemClassOrigin: entry.item.itemClassOrigin,
+          tradeCategory: entry.item.tradeCategory,
+          rarity: entry.view.rarity,
+          name: entry.view.name,
+          baseType: entry.view.baseType,
+          identified: entry.view.identified,
+        })
         normalized.view.iconUrl = entry.view.iconUrl
         normalized.view.localized = entry.view.localized
         normalized.view.modifiers.forEach((modifier, modifierIndex) => {
@@ -846,7 +863,15 @@ export class EquipmentLibraryRepository {
       if (!translatedName || /[\u3400-\u9fff?\ufffd]/.test(translatedName)) continue
       lines[1] = translatedName
       try {
-        const normalized = await bridge.normalize(lines.join('\n'))
+        const normalized = await bridge.normalize(lines.join('\n'), {
+          itemClass: entry.item.itemClass,
+          itemClassOrigin: entry.item.itemClassOrigin,
+          tradeCategory: entry.item.tradeCategory,
+          rarity: entry.view.rarity,
+          name: entry.view.name,
+          baseType: entry.view.baseType,
+          identified: entry.view.identified,
+        })
         const persisted = {
           ...entry,
           item: normalized.item,

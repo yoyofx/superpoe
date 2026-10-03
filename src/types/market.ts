@@ -159,6 +159,8 @@ export interface LibraryItemSnapshot {
   tradeCategory?: string
   /** Canonical PoE item class used for context-sensitive trade stat resolution. */
   itemClass?: string
+  /** Stable Xiletrade ItemClassTwo id_origin used across localized item text. */
+  itemClassOrigin?: string
   properties?: CanonicalItemDisplayStat[]
   requirements?: CanonicalItemDisplayStat[]
   modifiers: LibraryModifier[]
@@ -177,6 +179,8 @@ export interface CanonicalEquipmentItem {
   tradeCategory?: string
   /** Canonical PoE item class captured by the source adapter. */
   itemClass?: string
+  /** Stable Xiletrade ItemClassTwo id_origin captured by the source adapter. */
+  itemClassOrigin?: string
   pobVersion?: string
   gameDataVersion?: string
   /** Versioned authority used to resolve persisted trade stat IDs. */
@@ -246,6 +250,8 @@ export interface CanonicalItemView {
   tradeCategory?: string
   /** Canonical PoE item class used by the Xiletrade-compatible matcher. */
   itemClass?: string
+  /** Stable Xiletrade ItemClassTwo id_origin used across localized item text. */
+  itemClassOrigin?: string
   properties?: CanonicalItemDisplayStat[]
   requirements?: CanonicalItemDisplayStat[]
   /** False/undefined for legacy entries that predate support snapshots. */
@@ -603,7 +609,10 @@ export interface EquipmentTradeSearchRequest {
   criteria?: TradePriceCheckCriteria
 }
 
-export type TradeListedStatus = 'securable' | 'available' | 'onlineleague' | 'online' | 'any'
+export type TradeListedStatus = 'securable' | 'available' | 'online' | 'any'
+
+/** Xiletrade's first listed-status option: instant buyout. */
+export const XILETRADE_DEFAULT_LISTED_STATUS: TradeListedStatus = 'securable'
 
 export type TradePriceCheckTarget =
   | { kind: 'library'; entryId: string }
@@ -633,6 +642,11 @@ export interface TradePriceCheckDraft {
   rarity: string
   name: string
   baseType: string
+  /** Initial rarity selection produced by the Xiletrade item-state rules. */
+  xiletradeDefaultRarity?: TradeFilterRarity
+  /** Canonical Xiletrade item identity used to select its default filters. */
+  tradeCategory?: string
+  itemClass?: string
   /** Canonical PoB text used to derive local weapon metrics in the checker. */
   rawText?: string
   localizedName?: string
@@ -649,11 +663,22 @@ export interface TradePriceCheckModifierCriteria {
 }
 
 export type TradeFilterBoolean = 'true' | 'false'
-export type TradeFilterRarity = 'normal' | 'magic' | 'rare' | 'unique' | 'nonunique'
+export type TradeFilterRarity = 'any' | 'normal' | 'magic' | 'rare' | 'unique' | 'uniquefoil' | 'nonunique'
+export type TradeIndexedOption = '1day' | '3days' | '1week' | '2weeks'
 
 export interface TradeFilterRange {
   min?: number
   max?: number
+}
+
+/** Xiletrade's map-specific filters. They are only emitted for Waystones. */
+export interface TradeMapFilters {
+  itemRarity?: TradeFilterRange
+  packSize?: TradeFilterRange
+  rareMonsters?: TradeFilterRange
+  magicMonsters?: TradeFilterRange
+  bonus?: TradeFilterRange
+  revives?: TradeFilterRange
 }
 
 /**
@@ -666,19 +691,15 @@ export interface TradeXiletradeFilters {
   itemLevel?: TradeFilterRange
   quality?: TradeFilterRange
   requiredLevel?: TradeFilterRange
+  map?: TradeMapFilters
   equipment?: {
     armour?: TradeFilterRange
     energyShield?: TradeFilterRange
     evasion?: TradeFilterRange
     runicWard?: TradeFilterRange
-    attacksPerSecond?: TradeFilterRange
     damagePerSecond?: TradeFilterRange
-    criticalChance?: TradeFilterRange
     elementalDps?: TradeFilterRange
     physicalDps?: TradeFilterRange
-    block?: TradeFilterRange
-    damage?: TradeFilterRange
-    spirit?: TradeFilterRange
     runeSockets?: TradeFilterRange
   }
   misc?: {
@@ -687,17 +708,18 @@ export interface TradeXiletradeFilters {
     twiceCorrupted?: TradeFilterBoolean
     identified?: TradeFilterBoolean
     fractured?: TradeFilterBoolean
-    alternateArt?: TradeFilterBoolean
     crafted?: TradeFilterBoolean
     mutated?: TradeFilterBoolean
     desecrated?: TradeFilterBoolean
     veiled?: TradeFilterBoolean
     sanctified?: TradeFilterBoolean
+    gemLevel?: TradeFilterRange
+    gemSockets?: TradeFilterRange
+    areaLevel?: TradeFilterRange
   }
   trade?: {
     price?: TradeFilterRange & { currency?: string }
-    indexed?: '1day' | '3days' | '1week' | '2weeks'
-    saleType?: 'priced' | 'unpriced'
+    indexed?: TradeIndexedOption
   }
 }
 

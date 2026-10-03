@@ -3,7 +3,7 @@ import type {
   ParsedItemModifierEvidence,
 } from '../src/types/market.js'
 
-export const XILETRADE_UPSTREAM_COMMIT = 'c16c145f30aced5aa667456dd5f6897a2af3af3b'
+export const XILETRADE_UPSTREAM_COMMIT = '7daa877cc6f51cf4bf486bcc8ffdde4af3050a79'
 
 export interface CanonicalStatMatch {
   canonicalText: string

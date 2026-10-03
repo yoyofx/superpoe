@@ -12,8 +12,18 @@ function createStorage(initial?: string) {
 
 describe('global app settings', () => {
   it('loads defaults for empty or invalid storage', () => {
-    expect(loadAppSettings(createStorage())).toMatchObject({ confirmUnsavedExit: true, uiScalePercent: 120, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [], priceCheckEnabled: true, analyticsEnabled: true })
-    expect(loadAppSettings(createStorage('{invalid'))).toMatchObject({ confirmUnsavedExit: true, uiScalePercent: 120, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [], priceCheckEnabled: true, analyticsEnabled: true })
+    expect(loadAppSettings(createStorage())).toMatchObject({ confirmUnsavedExit: true, uiScalePercent: 100, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [], priceCheckEnabled: true, analyticsEnabled: true })
+    expect(loadAppSettings(createStorage('{invalid'))).toMatchObject({ confirmUnsavedExit: true, uiScalePercent: 100, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [], priceCheckEnabled: true, analyticsEnabled: true })
+  })
+
+  it('migrates the previous hard-coded 120% default to 100%', () => {
+    expect(loadAppSettings(createStorage(JSON.stringify({ uiScalePercent: 120 })))).toMatchObject({ uiScalePercent: 100 })
+  })
+
+  it('preserves a 120% scale selected after the migration', () => {
+    const storage = createStorage()
+    saveAppSettings({ defaultRealm: 'global', gameDirectories: { cn: '', global: '' }, confirmUnsavedExit: true, uiScalePercent: 120, updateChannel: 'release', updateCheckIntervalMinutes: 60, proxyDomains: [], priceCheckEnabled: true, priceCheckHotkey: 'Ctrl+D', analyticsEnabled: true }, storage)
+    expect(loadAppSettings(storage).uiScalePercent).toBe(120)
   })
 
   it('persists supported settings', () => {

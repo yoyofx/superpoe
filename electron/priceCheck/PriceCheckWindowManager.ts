@@ -6,7 +6,7 @@ import type { PriceCheckContextState } from '../../src/types/market.js'
 function clampBounds(saved?: Partial<Rectangle>): Rectangle {
   const display = screen.getDisplayMatching({ x: saved?.x || 0, y: saved?.y || 0, width: saved?.width || 540, height: saved?.height || 820 })
   const area = display.workArea
-  const preferredHeight = Math.max(520, Math.round(area.height * .7))
+  const preferredHeight = Math.max(520, Math.round(area.height * .95))
   // The previous overlay implementation persisted the full work area. Treat
   // those values as stale so the compact checker is restored at its normal
   // size instead of reopening as a full-screen panel.
@@ -29,7 +29,6 @@ function clampBounds(saved?: Partial<Rectangle>): Rectangle {
 export class PriceCheckWindowManager {
   private window?: BrowserWindow
   private detailWindow?: BrowserWindow
-  private maskWindow?: BrowserWindow
   private state?: PriceCheckContextState
   private selectedListingId?: string
 
@@ -49,8 +48,6 @@ export class PriceCheckWindowManager {
   show(): void {
     const window = this.ensure()
     this.hideDetail()
-    this.positionMask(window)
-    this.maskWindow?.showInactive()
     window.show()
     window.focus()
     window.setAlwaysOnTop(this.alwaysOnTop, 'screen-saver')
@@ -59,7 +56,6 @@ export class PriceCheckWindowManager {
 
   hide(restoreFocus = true): void {
     this.hideDetail()
-    this.maskWindow?.hide()
     this.window?.hide()
     if (restoreFocus && this.restoreGameFocus) setTimeout(() => this.restoreGameFocus?.(), 80)
   }
@@ -98,7 +94,6 @@ export class PriceCheckWindowManager {
     this.alwaysOnTop = value
     this.window?.setAlwaysOnTop(value, 'screen-saver')
     this.detailWindow?.setAlwaysOnTop(value, 'screen-saver')
-    this.maskWindow?.setAlwaysOnTop(value, 'screen-saver')
   }
 
   getDetailState(): { state?: PriceCheckContextState; listingId?: string } {
@@ -106,8 +101,6 @@ export class PriceCheckWindowManager {
   }
 
   dispose(): void {
-    this.maskWindow?.destroy()
-    this.maskWindow = undefined
     this.detailWindow?.destroy()
     this.detailWindow = undefined
     this.window?.destroy()
@@ -120,8 +113,8 @@ export class PriceCheckWindowManager {
     try { saved = JSON.parse(readFileSync(this.boundsFile, 'utf8')) as Partial<Rectangle> } catch { /* first launch */ }
     const window = new BrowserWindow({
       ...clampBounds(saved), minWidth: 460, minHeight: 520, frame: false, resizable: true, movable: true,
-      fullscreenable: false, hasShadow: true, transparent: false,
-      show: false, skipTaskbar: true, alwaysOnTop: this.alwaysOnTop, backgroundColor: '#0b0d0c', icon: this.icon,
+      fullscreenable: false, hasShadow: true, transparent: true,
+      show: false, skipTaskbar: true, alwaysOnTop: this.alwaysOnTop, backgroundColor: '#00000000', icon: this.icon,
       webPreferences: { preload: this.preload, contextIsolation: true, nodeIntegration: false, sandbox: true },
     })
     window.setAlwaysOnTop(this.alwaysOnTop, 'screen-saver')
@@ -133,7 +126,6 @@ export class PriceCheckWindowManager {
     }
     window.on('resize', save)
     window.on('move', save)
-    window.on('move', () => this.positionMask(window))
     window.on('close', (event) => {
       if (!BrowserWindow.getAllWindows().every((candidate) => candidate.isDestroyed())) {
         event.preventDefault()
@@ -146,35 +138,6 @@ export class PriceCheckWindowManager {
     else void window.loadURL('app://localhost/index.html?surface=price-check')
     this.window = window
     return window
-  }
-
-  private ensureMask(): BrowserWindow {
-    if (this.maskWindow && !this.maskWindow.isDestroyed()) return this.maskWindow
-    const window = new BrowserWindow({
-      x: 0, y: 0, width: 800, height: 600,
-      frame: false, resizable: false, movable: false, focusable: false,
-      fullscreenable: false, hasShadow: false, transparent: false,
-      show: false, skipTaskbar: true, alwaysOnTop: this.alwaysOnTop, backgroundColor: '#000000',
-      webPreferences: { preload: this.preload, contextIsolation: true, nodeIntegration: false, sandbox: true },
-    })
-    window.setAlwaysOnTop(this.alwaysOnTop, 'screen-saver')
-    window.setOpacity(.58)
-    window.on('closed', () => { this.maskWindow = undefined })
-    if (this.rendererUrl) void window.loadURL(`${this.rendererUrl}?surface=price-check-mask`)
-    else void window.loadURL('app://localhost/index.html?surface=price-check-mask')
-    this.maskWindow = window
-    return window
-  }
-
-  private positionMask(main: BrowserWindow): void {
-    if (main.isDestroyed()) return
-    const display = screen.getDisplayMatching(main.getBounds())
-    const mask = this.ensureMask()
-    // Cover the complete monitor, including the taskbar area. The panels are
-    // positioned independently above this full-screen mask.
-    mask.setBounds(display.bounds, false)
-    mask.setAlwaysOnTop(this.alwaysOnTop, 'screen-saver')
-    mask.moveTop()
   }
 
   private ensureDetail(): BrowserWindow {

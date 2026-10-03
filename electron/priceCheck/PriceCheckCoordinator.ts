@@ -4,8 +4,9 @@ import type {
   TradePriceCheckCriteria, TradePriceCheckDraft, TradeSearchResult, LibraryItemSnapshot,
 } from '../../src/types/market.js'
 import type { MarketStatTextResolution } from '../marketListing.js'
+import type { TradeSearchListingReference } from '../tradeService.js'
 
-type SearchOutput = TradeSearchResult & { listingIds: string[] }
+type SearchOutput = TradeSearchResult & { listingIds: string[]; listingReferences?: TradeSearchListingReference[] }
 
 interface CoordinatorServices {
   context: () => { realm: MarketRealm; language: PriceCheckContextState['language'] }
@@ -32,6 +33,7 @@ interface SearchContext {
   realm: MarketRealm
   search: TradeSearchResult
   ids: string[]
+  references: TradeSearchListingReference[]
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -41,6 +43,24 @@ function record(value: unknown): Record<string, unknown> {
 function text(value: unknown): string | undefined {
   const result = typeof value === 'string' ? value.replace(/<<[^>]+>>/g, '').trim() : ''
   return result || undefined
+}
+
+function sellerStatus(value: unknown): PriceCheckListingView['seller']['status'] {
+  if (value === true) return 'online'
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'afk') return 'afk'
+    if (normalized === 'online' || normalized === 'true') return 'online'
+    return 'offline'
+  }
+  if (value && typeof value === 'object' && !Array.isArray(value)) {
+    const status = text(record(value).status)?.toLowerCase()
+    if (status === 'afk') return 'afk'
+    if (status === 'offline' || status === 'false') return 'offline'
+    // The official API uses an object containing only `league` for online sellers.
+    return 'online'
+  }
+  return 'offline'
 }
 
 function displayStats(value: unknown): CanonicalItemDisplayStat[] | undefined {
@@ -130,8 +150,6 @@ async function listingView(
   const amount = typeof price.amount === 'number' && Number.isFinite(price.amount) ? price.amount : undefined
   const currency = text(price.currency)
   const account = record(listing.account)
-  const online = record(account.online)
-  const statusText = text(online.status)?.toLowerCase()
   const groups = ['enchant', 'rune', 'implicit', 'explicit', 'fractured', 'crafted', 'desecrated']
   let displayOrder = 0
   const modifiers = groups.flatMap((group) => {
@@ -234,7 +252,7 @@ async function listingView(
     ...(amount != null && currency ? { price: { amount, currency, display: `${amount} ${currency}` } } : {}),
     seller: {
       accountName: text(account.name) || text(account.lastCharacterName),
-      status: statusText === 'afk' ? 'afk' : Object.keys(online).length ? 'online' : 'offline',
+      status: sellerStatus(account.online),
     },
     item: {
       rarity: text(item.rarity) || 'UNKNOWN',
@@ -325,8 +343,11 @@ export class PriceCheckCoordinator {
     try {
       const result = await this.services.search(realm, this.preparedItem, leagueId, criteria, this.state.mode, this.buildContext)
       if (generation !== this.generation) return this.snapshot()
-      const { listingIds, ...search } = result
-      this.searchContext = { id: randomUUID(), generation, realm, search, ids: listingIds }
+      const { listingIds, listingReferences, ...search } = result
+      const references = listingReferences?.length
+        ? listingReferences
+        : listingIds.map((listingId) => ({ listingId, queryId: search.searchId }))
+      this.searchContext = { id: randomUUID(), generation, realm, search, ids: references.map((reference) => reference.listingId), references }
       return this.fetchPage(1)
     } catch (error) {
       if (generation === this.generation) this.fail(error)
@@ -337,23 +358,31 @@ export class PriceCheckCoordinator {
   async fetchPage(page: number): Promise<PriceCheckContextState> {
     const context = this.searchContext
     if (!context || context.generation !== this.generation) throw new Error('Price check search has expired')
-    const pageCount = Math.max(1, Math.ceil(context.ids.length / 10))
+    const pageCount = Math.max(1, Math.ceil(context.references.length / 10))
     const safePage = Math.max(1, Math.min(Math.trunc(page), pageCount))
-    const ids = context.ids.slice((safePage - 1) * 10, safePage * 10)
+    const pageReferences = context.references.slice((safePage - 1) * 10, safePage * 10)
     this.set({ ...this.state, phase: 'fetching-page', error: undefined })
     try {
       const findBetter = this.criteria?.findBetter
       // PoB2 evaluates and sorts the complete bounded candidate batch, then
       // displays a page. Fetching only the visible page would make page two
       // independently sorted and could put a better candidate behind it.
-      const fetchIds = findBetter ? context.ids : ids
+      const fetchReferences = findBetter ? context.references : pageReferences
       const fetchedResults: unknown[] = []
-      for (let offset = 0; offset < fetchIds.length; offset += 10) {
-        const batch = fetchIds.slice(offset, offset + 10)
-        if (!batch.length) continue
-        const payload = await this.services.fetch(context.realm, batch, context.search.searchId)
-        const batchResults = Array.isArray(record(payload).result) ? record(payload).result as unknown[] : []
-        fetchedResults.push(...batchResults)
+      const groupedReferences = new Map<string, string[]>()
+      for (const reference of fetchReferences) {
+        const ids = groupedReferences.get(reference.queryId) || []
+        if (!ids.includes(reference.listingId)) ids.push(reference.listingId)
+        groupedReferences.set(reference.queryId, ids)
+      }
+      for (const [queryId, queryIds] of groupedReferences) {
+        for (let offset = 0; offset < queryIds.length; offset += 10) {
+          const batch = queryIds.slice(offset, offset + 10)
+          if (!batch.length) continue
+          const payload = await this.services.fetch(context.realm, batch, queryId)
+          const batchResults = Array.isArray(record(payload).result) ? record(payload).result as unknown[] : []
+          fetchedResults.push(...batchResults)
+        }
       }
       if (context.generation !== this.generation) return this.snapshot()
       const results = fetchedResults
@@ -422,7 +451,9 @@ export class PriceCheckCoordinator {
     if (!context || context.generation !== this.generation || !context.ids.includes(listingId)) {
       throw new Error('Price check listing has expired')
     }
-    return this.services.visitHideout(context.realm, listingId, context.search.searchId, context.search.url)
+    const reference = context.references.find((candidate) => candidate.listingId === listingId)
+    if (!reference) throw new Error('Price check listing has expired')
+    return this.services.visitHideout(context.realm, listingId, reference.queryId, context.search.url)
   }
 
   listingReference(listingId: string): PriceCheckListingReference {
@@ -434,7 +465,7 @@ export class PriceCheckCoordinator {
     return {
       realm: context.realm,
       listingId,
-      queryId: context.search.searchId,
+      queryId: context.references.find((reference) => reference.listingId === listingId)?.queryId || context.search.searchId,
       sourceUrl: context.search.url,
       ...(this.state.slotName ? { slotName: this.state.slotName } : {}),
       ...(this.state.findBetterComparison ? this.state.findBetterComparison : {}),

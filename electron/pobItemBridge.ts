@@ -1,6 +1,6 @@
 import type { CanonicalEquipmentItem, CanonicalItemView, LibraryItemSnapshot, MarketRealm } from '../src/types/market.js'
 import type { PobLuaService } from './pobLuaService.js'
-import { XiletradeDataCatalog, XiletradeModifierMatcher } from './xiletradeDataCatalog.js'
+import { XiletradeDataCatalog, XiletradeModifierMatcher, type XiletradeItemContextInput } from './xiletradeDataCatalog.js'
 
 export interface NormalizedPobItem {
   item: CanonicalEquipmentItem
@@ -14,7 +14,7 @@ export class PobItemBridge {
     return this.xiletrade ? `xiletrade:${this.xiletrade.get('en-US').upstreamCommit}` : undefined
   }
 
-  async normalize(raw: string): Promise<NormalizedPobItem> {
+  async normalize(raw: string, contextInput: XiletradeItemContextInput = {}): Promise<NormalizedPobItem> {
     if (typeof raw !== 'string' || !raw.trim() || raw.length > 100_000) {
       throw new Error('Invalid PoB item raw')
     }
@@ -26,14 +26,18 @@ export class PobItemBridge {
     const view = { ...result.view, normalizationKnown: Array.isArray(result.item.modifierSupport) }
     if (this.xiletrade) {
       const context = this.xiletrade.resolveItemContext('en', {
-        itemClass: view.itemClass || result.item.itemClass,
-        tradeCategory: view.tradeCategory || result.item.tradeCategory,
-        rarity: view.rarity,
-        name: view.name,
-        baseType: view.baseType,
+        ...contextInput,
+        itemClass: contextInput.itemClass ?? view.itemClass ?? result.item.itemClass,
+        itemClassOrigin: contextInput.itemClassOrigin ?? view.itemClassOrigin ?? result.item.itemClassOrigin,
+        tradeCategory: contextInput.tradeCategory ?? view.tradeCategory ?? result.item.tradeCategory,
+        rarity: contextInput.rarity ?? view.rarity,
+        name: contextInput.name ?? view.name,
+        baseType: contextInput.baseType ?? view.baseType,
+        identified: contextInput.identified ?? view.identified,
       })
       const matcher = new XiletradeModifierMatcher(this.xiletrade.bundle('en'))
       view.itemClass = context.itemClass
+      view.itemClassOrigin = context.itemClassOrigin
       view.tradeCategory = context.tradeCategory
       view.modifiers = view.modifiers.map((modifier) => {
         const match = matcher.match(modifier.text, modifier.group, context)
@@ -53,6 +57,7 @@ export class PobItemBridge {
     const item = {
       ...result.item,
       itemClass: view.itemClass,
+      itemClassOrigin: view.itemClassOrigin,
       tradeCategory: view.tradeCategory,
       modifierSnapshots: structuredClone(view.modifiers),
       ...(this.tradeDataVersion ? { tradeDataVersion: this.tradeDataVersion } : {}),
@@ -100,6 +105,7 @@ export function canonicalToLegacySnapshot(normalized: NormalizedPobItem, view: C
     localized: view.localized,
     tradeCategory: view.tradeCategory,
     itemClass: view.itemClass,
+    itemClassOrigin: view.itemClassOrigin,
     properties: view.properties,
     requirements: view.requirements,
     rawText: normalized.item.raw,

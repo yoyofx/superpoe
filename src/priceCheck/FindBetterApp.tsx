@@ -7,6 +7,7 @@ import type {
   FindBetterAugmentBehavior, FindBetterSearchOptions, FindBetterSortMode, FindBetterStatWeight,
   PriceCheckContextState, PriceCheckListingView, TradeListedStatus, TradePriceCheckCriteria,
 } from '@/types/market'
+import { XILETRADE_DEFAULT_LISTED_STATUS } from '@/types/market'
 import { formatUiNumber, uiText } from '@/i18n/uiLocale'
 import { localizedPrice, PRICE_CURRENCY_OPTIONS } from './priceFormatting'
 import { loadTranslations, translateGameText } from '@/i18n/translationLoader'
@@ -149,11 +150,16 @@ function behaviorLabel(value: FindBetterAugmentBehavior, l: (en: string, zh: str
   return l('Copy Current', '复制当前', '複製目前', '현재 복사')
 }
 
+function defaultListedStatus(realm: PriceCheckContextState['realm'] | undefined): TradeListedStatus {
+  void realm
+  return XILETRADE_DEFAULT_LISTED_STATUS
+}
+
 function LegacyFindBetterApp() {
   const bridge = window.superpoePriceCheck
   const [state, setState] = useState<PriceCheckContextState | null>(null)
   const [leagueId, setLeagueId] = useState('')
-  const [listedStatus, setListedStatus] = useState<TradeListedStatus>('securable')
+  const [listedStatus, setListedStatus] = useState<TradeListedStatus>(XILETRADE_DEFAULT_LISTED_STATUS)
   const [useBaseType, setUseBaseType] = useState(false)
   const [sortBy, setSortBy] = useState<FindBetterSortMode>('stat-value')
   const [weights, setWeights] = useState<FindBetterStatWeight[]>(() => DEFAULT_WEIGHTS.map((entry) => ({ ...entry })))
@@ -217,6 +223,7 @@ function LegacyFindBetterApp() {
   useEffect(() => {
     if (!state?.draft) return
     setLeagueId(state.leagues.some((league) => league.id === state.initialLeagueId) ? state.initialLeagueId! : state.leagues[0]?.id || '')
+    setListedStatus(defaultListedStatus(state.realm))
     setUseBaseType(false)
   }, [draftKey, state?.initialLeagueId, state?.realm])
 
@@ -312,7 +319,7 @@ function LegacyFindBetterApp() {
       <section className="fb-context-bar">
         <div><span>{l('Active build', '当前构筑', '目前構築', '현재 빌드')}</span><b>{l('PoB2 weighted search', 'PoB2 加权搜索', 'PoB2 加權搜尋', 'PoB2 가중 검색')}</b></div>
         <div><span>{l('League', '当前赛季', '目前賽季', '현재 리그')}</span><select value={leagueId} onChange={(event) => setLeagueId(event.target.value)}>{state.leagues.map((league) => <option key={league.id} value={league.id}>{translateGameText(league.text, language)}</option>)}</select></div>
-        <div><span>{l('Listed', '上架', '上架', '등록')}</span><select value={listedStatus} onChange={(event) => setListedStatus(event.target.value as TradeListedStatus)}><option value="securable">{l('Instant buyout', '一口价', '直購', '즉시 구매')}</option><option value="available">{l('Instant + in person', '一口价或当面', '直購或當面', '즉시 또는 직접 거래')}</option><option value="onlineleague">{l('Online in league', '赛季在线', '賽季在線', '리그 온라인')}</option><option value="online">{l('Online', '在线', '在線', '온라인')}</option><option value="any">{l('Any', '全部', '全部', '모두')}</option></select></div>
+        <div><span>{l('Listed', '上架', '上架', '등록')}</span><select value={listedStatus} onChange={(event) => setListedStatus(event.target.value as TradeListedStatus)}><option value="securable">{l('Instant buyout', '一口价', '直購', '즉시 구매')}</option><option value="available">{l('Instant + in person', '一口价或当面', '直購或當面', '즉시 또는 직접 거래')}</option><option value="online">{l('Online', '在线', '在線', '온라인')}</option><option value="any">{l('Any', '全部', '全部', '모두')}</option></select></div>
       </section>
       <section className="fb-workbench">
         <div className="fb-panel fb-options-panel">
@@ -341,7 +348,6 @@ function LegacyFindBetterApp() {
         </div>
       </section>
       <section className="fb-search-row"><label><ArrowUpDown /><span>{l('Sort by', '排序方式', '排序方式', '정렬 기준')}</span><select value={sortBy} onChange={(event) => setSortBy(event.target.value as FindBetterSortMode)}>{SORT_MODES.map((mode) => <option key={mode.id} value={mode.id}>{language === 'zh-rCN' ? mode.zh : mode.en}</option>)}</select></label><span className="fb-sort-tip">{SORT_MODES.find((mode) => mode.id === sortBy)?.tip}</span><button className="fb-primary" disabled={busy || !leagueId || weights.length === 0} onClick={() => void runSearch()}><Search />{busy ? l('Calculating weights...', '正在计算权重...', '正在計算權重...', '가중치 계산 중...') : l('Find a better item', '寻找更好的装备', '尋找更好的裝備', '더 나은 장비 찾기')}</button>{state.search && <button className="fb-secondary" onClick={() => void searchInTradeCenter()}><ExternalLink />{l('Open in Market', '在集市打开', '在市集開啟', '거래소에서 열기')}</button>}</section>
-      {state.captureWarnings?.length ? <div className="fb-warning"><Info /><span>{state.captureWarnings.join(' | ')}</span></div> : null}
     </>}
     {visibleError ? <div className="fb-error">{visibleError}</div> : null}
     {state?.search && <section className="fb-results">
@@ -358,7 +364,7 @@ export function FindBetterApp() {
   const bridge = window.superpoeFindBetter
   const [state, setState] = useState<PriceCheckContextState | null>(null)
   const [leagueId, setLeagueId] = useState('')
-  const [listedStatus, setListedStatus] = useState<TradeListedStatus>('securable')
+  const [listedStatus, setListedStatus] = useState<TradeListedStatus>(XILETRADE_DEFAULT_LISTED_STATUS)
   const [useBaseType, setUseBaseType] = useState(false)
   const [sortBy, setSortBy] = useState<FindBetterSortMode>('stat-value')
   const [weights, setWeights] = useState<FindBetterStatWeight[]>(() => DEFAULT_WEIGHTS.map((entry) => ({ ...entry })))
@@ -446,6 +452,7 @@ export function FindBetterApp() {
   useEffect(() => {
     if (!state?.draft) return
     setLeagueId(state.leagues.some((league) => league.id === state.initialLeagueId) ? state.initialLeagueId! : state.leagues[0]?.id || '')
+    setListedStatus(defaultListedStatus(state.realm))
     setUseBaseType(false)
   }, [draftKey, state?.initialLeagueId, state?.realm])
 
@@ -568,7 +575,7 @@ export function FindBetterApp() {
           <div className="fb-settings-section">
             <header><div><Search /><strong>{l('Search conditions', '查询条件', '查詢條件', '검색 조건')}</strong></div><div className="fb-settings-header-actions"><span>{l('Infrequent settings', '低频设置', '低頻設定', '낮은 빈도의 설정')}</span><button className="fb-weight-launch" onClick={() => setWeightsOpen(true)}><SlidersHorizontal />{l('Adjust weights', '调整权重', '調整權重', '가중치 조정')}<small>{weights.length}</small></button></div></header>
             {!state?.draft ? <div className="fb-empty compact">{l('Waiting for the equipped item context.', '等待已装备装备的上下文。', '等待已裝備裝備的上下文。', '장착한 아이템 정보를 기다리는 중입니다.')}</div> : <>
-              <div className="fb-context-grid"><label><span>{l('League', '当前赛季', '目前賽季', '현재 리그')}</span><select value={leagueId} onChange={(event) => setLeagueId(event.target.value)}>{state.leagues.map((league) => <option key={league.id} value={league.id}>{translateGameText(league.text, language)}</option>)}</select></label><label><span>{l('Listed', '上架', '上架', '등록')}</span><select value={listedStatus} onChange={(event) => setListedStatus(event.target.value as TradeListedStatus)}><option value="securable">{l('Instant buyout', '一口价', '直購', '즉시 구매')}</option><option value="available">{l('Instant + in person', '一口价或当面', '直購或當面', '즉시 또는 직접 거래')}</option><option value="onlineleague">{l('Online in league', '赛季在线', '賽季在線', '리그 온라인')}</option><option value="online">{l('Online', '在线', '在線', '온라인')}</option><option value="any">{l('Any', '全部', '全部', '모두')}</option></select></label></div>
+              <div className="fb-context-grid"><label><span>{l('League', '当前赛季', '目前賽季', '현재 리그')}</span><select value={leagueId} onChange={(event) => setLeagueId(event.target.value)}>{state.leagues.map((league) => <option key={league.id} value={league.id}>{translateGameText(league.text, language)}</option>)}</select></label><label><span>{l('Listed', '上架', '上架', '등록')}</span><select value={listedStatus} onChange={(event) => setListedStatus(event.target.value as TradeListedStatus)}><option value="securable">{l('Instant buyout', '一口价', '直購', '즉시 구매')}</option><option value="available">{l('Instant + in person', '一口价或当面', '直購或當面', '즉시 또는 직접 거래')}</option><option value="online">{l('Online', '在线', '在線', '온라인')}</option><option value="any">{l('Any', '全部', '全部', '모두')}</option></select></label></div>
               <div className="fb-option-grid">
                 {augmentableSlot && <label><span>{l('Rune behavior', '符文处理', '符文處理', '룬 처리')}</span><select value={runeBehavior} onChange={(event) => setRuneBehavior(event.target.value as FindBetterAugmentBehavior)}>{(['copy-current', 'keep', 'remove'] as FindBetterAugmentBehavior[]).map((value) => <option key={value} value={value}>{behaviorLabel(value, l)}</option>)}</select></label>}
                 {anointableSlot && <label><span>{l('Anoint behavior', '附魔处理', '附魔處理', '인챈트 처리')}</span><select value={anointBehavior} onChange={(event) => setAnointBehavior(event.target.value as FindBetterAugmentBehavior)}>{(['copy-current', 'keep', 'remove'] as FindBetterAugmentBehavior[]).map((value) => <option key={value} value={value}>{behaviorLabel(value, l)}</option>)}</select></label>}
@@ -587,7 +594,6 @@ export function FindBetterApp() {
           </div>
         </section>}
         {visibleError ? <div className="fb-error">{visibleError}</div> : null}
-        {state?.captureWarnings?.length ? <div className="fb-warning"><Info /><span>{state.captureWarnings.join(' | ')}</span></div> : null}
         <div className="fb-browser-grid">
           <section className="fb-results-pane">
             <header className="fb-results-header"><div><strong>{l('Candidate items', '候选装备', '候選裝備', '후보 아이템')}</strong><span>{state?.search ? l(`Fetched ${fetchedResultCount(state.search)} / ${state.search.total} results`, `已抓取 ${fetchedResultCount(state.search)} / ${state.search.total} 条结果`, `已抓取 ${fetchedResultCount(state.search)} / ${state.search.total} 筆結果`, `${fetchedResultCount(state.search)} / ${state.search.total}개 결과 가져옴`) : l('Run a search to compare items', '执行查询后比较装备', '執行查詢後比較裝備', '검색을 실행하면 장비를 비교합니다')}</span></div><small>{l('Select an item to inspect its full stats and difference.', '选择装备查看完整属性和差异。', '選擇裝備查看完整屬性和差異。', '아이템을 선택하면 전체 속성과 차이를 확인합니다.')}</small></header>

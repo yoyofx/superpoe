@@ -113,8 +113,14 @@ function sourceTagsFor(group: string): LibraryModifierTag[] {
   return source === 'unknown' ? [] : [source]
 }
 
+function withoutTierRanges(value: string): string {
+  return value
+    .replace(/\s*[\(（]\s*[-+]?\d+(?:\.\d+)?\s*[-–—]\s*[-+]?\d+(?:\.\d+)?\s*[\)）]/gu, '')
+    .replace(/\s*[\(（]\s*[-+]?\d+(?:\.\d+)?\s*[\)）]/gu, '')
+}
+
 function numericValues(text: string): number[] {
-  return [...text.matchAll(/[-+]?\d+(?:\.\d+)?/g)]
+  return [...withoutTierRanges(text).matchAll(/[-+]?\d+(?:\.\d+)?/g)]
     .map((match) => Number(match[0]))
     .filter(Number.isFinite)
 }

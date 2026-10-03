@@ -42,6 +42,23 @@ describe('official market listing normalization', () => {
     expect(result.item.preview.requirements).toBeUndefined()
   })
 
+  it('keeps the current modifier value separate from its embedded tier range', () => {
+    const result = normalizeMarketListing({ result: [{
+      id: 'listing_1234',
+      item: {
+        rarity: 'RARE', name: 'Doom Shell', baseType: 'Expert Hexer Robe',
+        explicitMods: ['39 (30-40)% increased Attack Speed'],
+        extended: { hashes: { explicit: [['explicit.stat_attack_speed', [0]]] } },
+      },
+      listing: { price: { amount: 1, currency: 'chaos' } },
+    }] }, {
+      realm: 'global', listingId: 'listing_1234',
+      sourceUrl: 'https://www.pathofexile.com/trade2/search/poe2/Standard/query_5678',
+    })
+
+    expect(result.item.preview.modifiers[0].currentValues).toEqual([39])
+  })
+
   it('keeps complete official item properties, requirements, object modifiers and new modifier groups', () => {
     const result = normalizeMarketListing({ result: [{ id: 'listing_1234', item: {
       rarity: 'RARE', name: 'Doom Shell', baseType: 'Expert Hexer Robe', ilvl: 81,

@@ -9,6 +9,7 @@ export const DEFAULT_UI_SCALE_PERCENT = 100
 export const UI_SCALE_STEP_PERCENT = 5
 
 const APP_SETTINGS_STORAGE_KEY = 'superpoe-global-settings'
+const UI_SCALE_PREFERENCE_VERSION = 1
 
 export interface AppSettings {
   defaultRealm: BuildRealm
@@ -31,7 +32,7 @@ function getDefaultAppSettings(): AppSettings {
     defaultRealm: mapSystemRealm(),
     gameDirectories: { cn: '', global: '' },
     confirmUnsavedExit: true,
-    uiScalePercent: 120,
+    uiScalePercent: DEFAULT_UI_SCALE_PERCENT,
     updateChannel: 'release',
     updateCheckIntervalMinutes: 60,
     proxyDomains: [],
@@ -46,6 +47,10 @@ interface SettingsStorage {
   setItem: (key: string, value: string) => void
 }
 
+interface StoredAppSettings extends Partial<AppSettings> {
+  uiScalePreferenceVersion?: number
+}
+
 export function normalizeUiScalePercent(value: unknown): number {
   if (typeof value !== 'number' || !Number.isFinite(value)) return DEFAULT_UI_SCALE_PERCENT
   const stepped = Math.round(value / UI_SCALE_STEP_PERCENT) * UI_SCALE_STEP_PERCENT
@@ -55,8 +60,12 @@ export function normalizeUiScalePercent(value: unknown): number {
 export function loadAppSettings(storage: SettingsStorage | undefined = typeof localStorage === 'undefined' ? undefined : localStorage): AppSettings {
   if (!storage) return getDefaultAppSettings()
   try {
-    const parsed = JSON.parse(storage.getItem(APP_SETTINGS_STORAGE_KEY) || '{}') as Partial<AppSettings>
+    const parsed = JSON.parse(storage.getItem(APP_SETTINGS_STORAGE_KEY) || '{}') as StoredAppSettings
     const defaults = getDefaultAppSettings()
+    // 120% was previously shipped as the hard-coded default. Treat that old
+    // unversioned value as the legacy default, while preserving values saved
+    // after the user has explicitly chosen a scale.
+    const hasLegacyDefaultScale = parsed.uiScalePreferenceVersion !== UI_SCALE_PREFERENCE_VERSION && parsed.uiScalePercent === 120
     return {
       defaultRealm: parsed.defaultRealm === 'cn' || parsed.defaultRealm === 'global' ? parsed.defaultRealm : defaults.defaultRealm,
       gameDirectories: {
@@ -64,7 +73,7 @@ export function loadAppSettings(storage: SettingsStorage | undefined = typeof lo
         global: typeof parsed.gameDirectories?.global === 'string' ? parsed.gameDirectories.global.trim().slice(0, 4_096) : defaults.gameDirectories.global,
       },
       confirmUnsavedExit: parsed.confirmUnsavedExit !== false,
-      uiScalePercent: parsed.uiScalePercent === undefined ? defaults.uiScalePercent : normalizeUiScalePercent(parsed.uiScalePercent),
+      uiScalePercent: parsed.uiScalePercent === undefined || hasLegacyDefaultScale ? defaults.uiScalePercent : normalizeUiScalePercent(parsed.uiScalePercent),
       updateChannel: parsed.updateChannel === 'dev' ? 'dev' : parsed.updateChannel === 'release' ? 'release' : defaults.updateChannel,
       updateCheckIntervalMinutes: typeof parsed.updateCheckIntervalMinutes === 'number' && parsed.updateCheckIntervalMinutes >= 10 ? parsed.updateCheckIntervalMinutes : defaults.updateCheckIntervalMinutes,
       proxyDomains: Array.isArray(parsed.proxyDomains)
@@ -82,7 +91,7 @@ export function loadAppSettings(storage: SettingsStorage | undefined = typeof lo
 export function saveAppSettings(settings: AppSettings, storage: SettingsStorage | undefined = typeof localStorage === 'undefined' ? undefined : localStorage): void {
   if (!storage) return
   try {
-    storage.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify(settings))
+    storage.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify({ ...settings, uiScalePreferenceVersion: UI_SCALE_PREFERENCE_VERSION }))
   } catch {
     // Keep the in-memory settings usable when persistent storage is unavailable.
   }
