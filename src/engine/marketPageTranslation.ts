@@ -251,7 +251,7 @@ interface LocalizedMatchScore {
   gap: number
 }
 
-function scoreLocalizedMatch(query: string, target: string): LocalizedMatchScore | undefined {
+export function scoreLocalizedMatch(query: string, target: string): LocalizedMatchScore | undefined {
   const normalizedQuery = normalizeMarketText(query).toLocaleLowerCase()
   const normalizedTarget = normalizeMarketText(target).toLocaleLowerCase()
   const compactQuery = compactLocalizedText(query)

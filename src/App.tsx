@@ -11,6 +11,7 @@ import { BuildUpdateDialog } from '@/components/BuildUpdateDialog'
 import { AboutPage } from '@/components/AboutPage'
 import { CommunityPage } from '@/components/CommunityPage'
 import { ReferencePage } from '@/components/ReferencePage'
+import { StoryGuidePage } from '@/components/story/StoryGuidePage'
 import { EquipmentLibraryPage } from '@/components/EquipmentLibraryPage'
 import { NewBuildDialog, type NewBuildInput } from '@/components/NewBuildDialog'
 import { UnifiedImportDialog, type ImportConfirmation } from '@/components/UnifiedImportDialog'
@@ -47,6 +48,7 @@ import type { MarketMonitoringSnapshot } from '@/types/market'
 import type { Language } from '@/i18n/translationLoader'
 import { uiText } from '@/i18n/uiLocale'
 import { AuthGate, useAuth } from '@/components/AuthGate'
+import { AUTH_ENABLED } from '@/engine/authConfig'
 import { configureAnalytics, trackAnalytics } from '@/engine/analytics'
 
 const TreePixiCanvas = lazy(() => import('@/components/TreePixiCanvas').then((module) => ({ default: module.TreePixiCanvas })))
@@ -71,7 +73,7 @@ function AuthenticatedWorkspace() {
   const { session, requestLogin } = useAuth()
   const hashLoadedRef = useRef(false)
   const cleanSignatureRef = useRef('')
-  type AppScreen = 'center' | 'reference' | 'about' | 'library' | 'editor' | 'trade' | 'community'
+  type AppScreen = 'center' | 'reference' | 'about' | 'library' | 'editor' | 'trade' | 'community' | 'story'
   type LibraryReturnScreen = Exclude<AppScreen, 'library'>
   type ReferenceReturnScreen = Exclude<AppScreen, 'reference'>
   const [screen, setScreen] = useState<AppScreen>('center')
@@ -322,8 +324,10 @@ function AuthenticatedWorkspace() {
     return () => window.removeEventListener('open-equipment-panel', openEquipment)
   }, [])
 
+  useEffect(() => window.pob2StoryGuide?.onOpenRequested(() => setScreen('story')), [])
+
   useEffect(() => {
-    if (session) return
+    if (!AUTH_ENABLED || session) return
     if (screen === 'library' || screen === 'trade') setScreen('center')
     if (activeView === 'analysis') setActiveView('equipment')
   }, [activeView, screen, session])
@@ -924,15 +928,17 @@ function AuthenticatedWorkspace() {
   return (
     <div className={`superpoe-app${screen === 'library' ? ' library-screen' : ''}`}>
       {screen === 'center'
-        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onOpenFile={() => void handleOpenNativeBuildFile()} onImportFromNinja={() => openReference('ninja', 'center')} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onCheckForUpdate={(build) => void handleCheckBuildUpdate(build)} onTradeCenter={() => openTradeCenter('center')} onCommunity={() => openCommunity('center')} onLibrary={() => openLibrary('center')} onReference={() => openReference('ninja', 'center')} onAbout={() => setScreen('about')} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} onTimer={openTimer} />
+        ? <BuildCenter onCreate={() => setNewBuildOpen(true)} onOpenFile={() => void handleOpenNativeBuildFile()} onImportFromNinja={() => openReference('ninja', 'center')} onImport={() => setImportOpen(true)} onOpen={(build) => void handleOpenBuild(build)} onCheckForUpdate={(build) => void handleCheckBuildUpdate(build)} onTradeCenter={() => openTradeCenter('center')} onStoryGuide={() => setScreen('story')} onCommunity={() => openCommunity('center')} onLibrary={() => openLibrary('center')} onReference={() => openReference('ninja', 'center')} onAbout={() => setScreen('about')} monitoring={monitoring} onSettings={() => setSettingsOpen(true)} onTimer={openTimer} />
+        : screen === 'story'
+          ? <StoryGuidePage realm={appSettings.defaultRealm === 'cn' ? 'chinese' : 'international'} onCenter={() => setScreen('center')} onLibrary={() => openLibrary('story')} onTradeCenter={() => openTradeCenter('center')} onStoryGuide={() => {}} onCommunity={() => openCommunity('story')} onReference={() => openReference('ninja', 'story')} onAbout={() => setScreen('about')} />
         : screen === 'reference'
-            ? <ReferencePage initialSite={referenceSite} onCenter={() => setScreen('center')} onLibrary={() => openLibrary('reference')} onTradeCenter={() => openTradeCenter('center')} onCommunity={() => openCommunity('reference')} onReference={() => {}} onAbout={() => setScreen('about')} onBack={() => setScreen(referenceReturnScreen)} onPoeNinjaImport={handleReferencePoeNinjaImport} />
+            ? <ReferencePage initialSite={referenceSite} onCenter={() => setScreen('center')} onLibrary={() => openLibrary('reference')} onTradeCenter={() => openTradeCenter('center')} onStoryGuide={() => setScreen('story')} onCommunity={() => openCommunity('reference')} onReference={() => {}} onAbout={() => setScreen('about')} onBack={() => setScreen(referenceReturnScreen)} onPoeNinjaImport={handleReferencePoeNinjaImport} />
           : screen === 'about'
-            ? <AboutPage onCenter={() => setScreen('center')} onLibrary={() => openLibrary('about')} onTradeCenter={() => openTradeCenter('center')} onCommunity={() => openCommunity('about')} onReference={() => openReference('ninja', 'about')} />
+            ? <AboutPage onCenter={() => setScreen('center')} onLibrary={() => openLibrary('about')} onTradeCenter={() => openTradeCenter('center')} onStoryGuide={() => setScreen('story')} onCommunity={() => openCommunity('about')} onReference={() => openReference('ninja', 'about')} />
             : screen === 'library'
               ? <EquipmentLibraryPage realm={appSettings.defaultRealm} onBack={() => setScreen(libraryReturnScreen)} onSettings={() => setSettingsOpen(true)} onCommunity={() => openCommunity('library')} />
         : screen === 'community'
-          ? <CommunityPage onCenter={() => setScreen('center')} onLibrary={() => openLibrary('community')} onTradeCenter={() => openTradeCenter('center')} onCommunity={() => {}} onReference={() => openReference('ninja', 'community')} onAbout={() => setScreen('about')} onBack={() => setScreen(communityReturnScreen)} />
+          ? <CommunityPage onCenter={() => setScreen('center')} onLibrary={() => openLibrary('community')} onTradeCenter={() => openTradeCenter('center')} onStoryGuide={() => setScreen('story')} onCommunity={() => {}} onReference={() => openReference('ninja', 'community')} onAbout={() => setScreen('about')} onBack={() => setScreen(communityReturnScreen)} />
         : screen === 'trade'
           ? <Suspense fallback={<WorkspaceLoading language={lang} />}><MarketShell realm={appSettings.defaultRealm} suspended={tradeSuspended} view={marketWorkspace} onViewChange={setMarketWorkspace} monitoring={monitoring} backTarget={tradeReturnScreen} buildName={buildName} onBack={() => setScreen(tradeReturnScreen)} onLibrary={() => openLibrary('trade')} onSettings={() => setSettingsOpen(true)} onCommunity={() => openCommunity('trade')} /></Suspense>
           : <>

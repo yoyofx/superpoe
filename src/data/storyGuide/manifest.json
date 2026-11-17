@@ -1,0 +1,10 @@
+{
+  "contentVersion": "0.5.0",
+  "chapters": [
+    { "id": "act1", "title": "第一章", "file": "/content/chapters/act1.json" },
+    { "id": "act2", "title": "第二章", "file": "/content/chapters/act2.json" },
+    { "id": "act3", "title": "第三章", "file": "/content/chapters/act3.json" },
+    { "id": "act4", "title": "第四章", "file": "/content/chapters/act4.json" },
+    { "id": "act5", "title": "间章", "file": "/content/chapters/act5.json" }
+  ]
+}

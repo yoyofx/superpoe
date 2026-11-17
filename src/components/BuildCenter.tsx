@@ -24,6 +24,7 @@ interface BuildCenterProps {
   onOpen: (build: SavedBuild) => void
   onCheckForUpdate: (build: SavedBuild) => void
   onTradeCenter: () => void
+  onStoryGuide: () => void
   onCommunity: () => void
   onLibrary: () => void
   onReference: () => void
@@ -33,13 +34,14 @@ interface BuildCenterProps {
   onTimer: () => void
 }
 
-export type BuildCenterNavPage = 'center' | 'library' | 'reference' | 'about' | 'community'
+export type BuildCenterNavPage = 'center' | 'library' | 'reference' | 'about' | 'community' | 'story'
 
 interface BuildCenterNavProps {
   active: BuildCenterNavPage
   onCenter: () => void
   onLibrary: () => void
   onTradeCenter: () => void
+  onStoryGuide: () => void
   onCommunity: () => void
   onReference: () => void
   onAbout: () => void
@@ -56,7 +58,7 @@ interface RowMenuState {
   top: number
 }
 
-export function BuildCenterNav({ active, onCenter, onLibrary, onTradeCenter, onCommunity, onReference, onAbout }: BuildCenterNavProps) {
+export function BuildCenterNav({ active, onCenter, onLibrary, onTradeCenter, onStoryGuide, onCommunity, onReference, onAbout }: BuildCenterNavProps) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   return (
@@ -74,6 +76,9 @@ export function BuildCenterNav({ active, onCenter, onLibrary, onTradeCenter, onC
         </button>
         <button onClick={onTradeCenter}>
           <span className="build-center-nav-main"><Store aria-hidden="true" /><span>{l('Trade center', '交易中心', '交易中心', '거래 센터')}</span><span className="build-center-nav-tooltip" role="tooltip">{l('Search equipment, save market results, and view live prices.', '搜索装备、收藏市场结果并查看实时行情', '搜尋裝備、收藏市集結果並查看即時行情', '장비를 검색하고 거래소 결과를 저장하며 실시간 시세를 확인합니다.')}</span></span>
+        </button>
+        <button className={active === 'story' ? 'active' : ''} aria-current={active === 'story' ? 'page' : undefined} onClick={onStoryGuide}>
+          <span className="build-center-nav-main"><BookOpen aria-hidden="true" /><span>{l('Campaign racing', '剧情竞速', '劇情競速', '캠페인 레이싱')}</span></span>
         </button>
         <button className={[active === 'community' ? 'active' : '', 'community-nav-entry'].filter(Boolean).join(' ')} aria-current={active === 'community' ? 'page' : undefined} onClick={onCommunity}>
           <span className="build-center-nav-main"><Headphones aria-hidden="true" /><span>{l('Voice community', '语音社区', '語音社群', '음성 커뮤니티')}</span><span className="build-center-nav-tooltip" role="tooltip">{l('Join the KOOK voice community without leaving SuperPoE.', '在不离开 SuperPoE 的情况下加入 KOOK 语音社区', '不離開 SuperPoE 即可加入 KOOK 語音社群', 'SuperPoE를 떠나지 않고 KOOK 음성 커뮤니티에 참여합니다.')}</span></span>
@@ -107,7 +112,7 @@ function canRefreshBuild(build: SavedBuild): boolean {
   return Boolean(build.sourceUrl && (build.source === 'wegame' || build.source === 'poe-ninja'))
 }
 
-export function BuildCenter({ onCreate, onOpenFile, onImportFromNinja, onImport, onOpen, onCheckForUpdate, onTradeCenter, onCommunity, onLibrary, onReference, onAbout, monitoring, onSettings, onTimer }: BuildCenterProps) {
+export function BuildCenter({ onCreate, onOpenFile, onImportFromNinja, onImport, onOpen, onCheckForUpdate, onTradeCenter, onStoryGuide, onCommunity, onLibrary, onReference, onAbout, monitoring, onSettings, onTimer }: BuildCenterProps) {
   const { lang } = useTranslation()
   const treeData = useTreeStore((state) => state.treeData)
   const savedBuilds = useTreeStore((state) => state.savedBuilds)
@@ -229,7 +234,7 @@ export function BuildCenter({ onCreate, onOpenFile, onImportFromNinja, onImport,
 
   return (
     <div className="build-center">
-      <BuildCenterNav active="center" onCenter={() => {}} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onCommunity={onCommunity} onReference={onReference} onAbout={onAbout} />
+      <BuildCenterNav active="center" onCenter={() => {}} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onStoryGuide={onStoryGuide} onCommunity={onCommunity} onReference={onReference} onAbout={onAbout} />
       <header className="center-app-bar">
         <div className="center-actions">
           <GameRuntimeIndicator />

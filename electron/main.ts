@@ -42,12 +42,15 @@ import { PriceCheckWindowManager } from './priceCheck/PriceCheckWindowManager.js
 import { FindBetterWindowManager } from './findBetterWindow.js'
 import { EquipmentTryOnWindowManager } from './equipmentTryOnWindow.js'
 import { TimerWindowManager } from './timerWindow.js'
+import { campaignSegmentForAreaId } from './campaignAreaRules.js'
 import { detectGameDirectory, inspectGameDirectory } from './gameDirectoryService.js'
 import { GameClipboardService, processIsElevated } from './priceCheck/GameClipboardService.js'
 import { applyXiletradeParseEvidence, parseXiletradeItemText, type CanonicalStatContext, type CanonicalStatMatch, type XiletradeItemParseResult } from './xiletradeItemParser.js'
 import { XiletradeDataCatalog, XiletradeModifierMatcher } from './xiletradeDataCatalog.js'
 import { XILETRADE_DEFAULT_LISTED_STATUS } from '../src/types/market.js'
 import { buildMarketPageTranslation } from './marketPageTranslationCatalog.js'
+import { buildOfficialItemCategoryPairs } from '../src/engine/marketOfficialSuggestions.js'
+import { MarketStatPickerCatalog } from './marketStatPickerCatalog.js'
 import { MAX_SUPERPOE_BACKUP_FILE_SIZE, SUPERPOE_BACKUP_EXTENSION, type SuperPoeBackupMainData } from '../src/engine/superPoeBackup.js'
 import type { EquipmentTryOnOpenRequest } from '../src/types/tryOn.js'
 import type { EquipmentDiffStat, EquipmentDifferenceResult } from '../src/equipmentDifference/types.js'
@@ -64,16 +67,21 @@ if (debugPort && /^\d+$/.test(debugPort)) app.commandLine.appendSwitch('remote-d
 const packageMetadata = JSON.parse(readFileSync(path.join(app.getAppPath(), 'package.json'), 'utf8')) as {
   name?: string
   build?: { productName?: string; appId?: string }
+  superpoe?: { releaseStage?: string; previewTarget?: string }
 }
 const productName = packageMetadata.build?.productName || packageMetadata.name
+if (!productName) throw new Error('package.json must define build.productName or name')
+const releaseStage = packageMetadata.superpoe?.releaseStage
+const previewTarget = packageMetadata.superpoe?.previewTarget
+const windowTitle = releaseStage === 'preview' && previewTarget
+  ? `${productName} · ${previewTarget} Preview`
+  : productName
 const appUserModelId = packageMetadata.build?.appId || 'com.yoyofx.superpoe'
 const SUPERPOE_BUILD_EXTENSION = '.spoe'
 const SUPERPOE_BUILD_FILE_CLASS = 'SuperPoE Build'
 const MAX_SUPERPOE_BUILD_FILE_SIZE = 10_000_000
 const BAIDU_TONGJI_SITE_ID = '725c4f84e1ae27957234928bcb47a47d'
 const execFileAsync = promisify(execFile)
-
-if (!productName) throw new Error('package.json must define build.productName or name')
 
 interface GameBuildFilePayload {
   content: string
@@ -392,6 +400,7 @@ let findBetterWindowManager: FindBetterWindowManager | null = null
 let equipmentTryOnWindowManager: EquipmentTryOnWindowManager | null = null
 let timerWindowManager: TimerWindowManager | null = null
 let gameLogTimerController: GameLogTimerController | null = null
+let storyGuideArea: { areaId: string; enteredAt: number } | null = null
 let priceCheckHotkey = ''
 let defaultRealm: MarketRealm = 'global'
 let uiLanguage: UiLanguage = 'en'
@@ -404,6 +413,14 @@ const equipmentLibrary = new EquipmentLibraryRepository(
 const favoriteOperations = new Map<string, Promise<void>>()
 const tryOnOperations = new Map<string, Promise<void>>()
 const copyPobOperations = new Map<string, Promise<void>>()
+
+function disposeTimerServices(): void {
+  gameLogTimerController?.dispose()
+  gameLogTimerController = null
+  const timer = timerWindowManager
+  timerWindowManager = null
+  timer?.dispose()
+}
 
 function registerPriceCheckHotkey(enabled: boolean, requestedHotkey: string): { registered: boolean; error?: string } {
   if (priceCheckHotkey) globalShortcut.unregister(priceCheckHotkey)
@@ -925,7 +942,7 @@ function createWindow(): BrowserWindow {
     ? path.join(app.getAppPath(), 'build', 'icon.ico')
     : iconPath
   const window = new BrowserWindow({
-    title: productName,
+    title: windowTitle,
     icon: iconOption,
     autoHideMenuBar: true,
     width: windowSize.width,
@@ -968,6 +985,10 @@ function createWindow(): BrowserWindow {
     void shell.openExternal(url)
     return { action: 'deny' }
   })
+  window.webContents.on('page-title-updated', (event) => {
+    event.preventDefault()
+    if (!window.isDestroyed()) window.setTitle(windowTitle)
+  })
 
   if (rendererUrl) {
     // Dev: Vite serves absolute `/data` paths correctly over http://
@@ -982,9 +1003,7 @@ function createWindow(): BrowserWindow {
   window.webContents.once('did-finish-load', flushPendingNativeBuildFiles)
   mainWindow = window
   window.on('closed', () => {
-    timerWindowManager?.dispose()
-    gameLogTimerController?.dispose()
-    gameLogTimerController = null
+    disposeTimerServices()
     if (mainWindow === window) mainWindow = null
   })
   marketViewManager?.dispose()
@@ -1040,16 +1059,25 @@ function createWindow(): BrowserWindow {
   findBetterWindowManager = new FindBetterWindowManager(findBetterPreloadPath, rendererUrl, getAppIconPath())
   equipmentTryOnWindowManager?.dispose()
   equipmentTryOnWindowManager = new EquipmentTryOnWindowManager(equipmentTryOnPreloadPath, rendererUrl, getAppIconPath())
-  timerWindowManager?.dispose()
+  disposeTimerServices()
   timerWindowManager = new TimerWindowManager(
     timerPreloadPath,
     rendererUrl,
     getAppIconPath(),
     path.join(userDataPath, 'timer', 'window-bounds.json'),
+    path.join(userDataPath, 'timer', 'campaign.sqlite'),
+    (visible) => {
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('timer:visibility-changed', visible)
+    },
   )
-  gameLogTimerController?.dispose()
   gameLogTimerController = new GameLogTimerController((event) => {
-    if (event.type === 'map-start') timerWindowManager?.beginAutomaticMap(event.areaId)
+    if (event.type === 'area-entered') {
+      storyGuideArea = { areaId: event.areaId, enteredAt: Date.now() }
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('story-guide:area-changed', storyGuideArea)
+      const segment = campaignSegmentForAreaId(event.areaId)
+      if (segment) timerWindowManager?.setStoryArea(event.areaId, segment)
+    }
+    else if (event.type === 'map-start') timerWindowManager?.beginAutomaticMap(event.areaId)
     else timerWindowManager?.finishAutomaticMap(event.areaId)
   })
   priceCheckCoordinator = new PriceCheckCoordinator({
@@ -1345,6 +1373,18 @@ function getXiletradeDataCatalog(): XiletradeDataCatalog {
     xiletradeDataCatalog = new XiletradeDataCatalog(root)
   }
   return xiletradeDataCatalog
+}
+
+let marketItemCategoryPairs: Array<[string, string]> | undefined
+let marketStatPickerCatalog: MarketStatPickerCatalog | undefined
+function getMarketItemCategoryPairs(): Array<[string, string]> {
+  if (marketItemCategoryPairs) return marketItemCategoryPairs
+  const file = path.join(app.getAppPath(), app.isPackaged ? 'dist' : 'public', 'data', 'item-bases.json')
+  const data = JSON.parse(readFileSync(file, 'utf8'))
+  const languages: ItemRawLanguage[] = ['zh-rCN', 'zh-rTW', 'ko-KR']
+  marketItemCategoryPairs = buildOfficialItemCategoryPairs(data.bases || {},
+    languages.map((language) => (name: string) => getItemTranslationIndex(language).toChinese(name) || name))
+  return marketItemCategoryPairs
 }
 
 const pobItemBridge = new PobItemBridge(pobLuaService, getXiletradeDataCatalog())
@@ -2070,13 +2110,53 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
     if (result.canceled || !result.filePaths[0]) return { canceled: true }
     return readNativeBuildFile(result.filePaths[0])
   })
+  ipcMain.handle('story-guide:current-area', (event) => {
+    requireMainWindowSender(event)
+    return storyGuideArea
+  })
+  ipcMain.handle('story-guide:campaign-statistics', (event, page: unknown) => {
+    requireMainWindowSender(event)
+    if (typeof page !== 'number' || !Number.isSafeInteger(page) || page < 0) throw new Error('Invalid statistics page')
+    if (!timerWindowManager) throw new Error('Timer is unavailable')
+    return timerWindowManager.getCampaignStatistics(page)
+  })
   ipcMain.handle('pob2:open-timer', (event) => {
     requireMainWindowSender(event)
     timerWindowManager?.show()
   })
+  ipcMain.handle('pob2:get-timer-visibility', (event) => {
+    requireMainWindowSender(event)
+    return timerWindowManager?.isVisible() ?? false
+  })
+  ipcMain.handle('pob2:set-timer-visibility', (event, visible: unknown, mode: unknown) => {
+    requireMainWindowSender(event)
+    if (typeof visible !== 'boolean') throw new Error('Invalid timer visibility')
+    if (mode !== undefined && mode !== 'map' && mode !== 'campaign' && mode !== 'system') throw new Error('Invalid timer mode')
+    if (!timerWindowManager) throw new Error('Timer is unavailable')
+    timerWindowManager.setVisible(visible, mode)
+    return timerWindowManager.isVisible()
+  })
+  ipcMain.handle('timer:open-story-guide', (event) => {
+    if (!timerWindowManager) throw new Error('Timer is unavailable')
+    timerWindowManager.enterCampaign(event.sender.id)
+    if (!mainWindow || mainWindow.isDestroyed()) throw new Error('Main window is unavailable')
+    if (mainWindow.isMinimized()) mainWindow.restore()
+    mainWindow.show()
+    mainWindow.focus()
+    mainWindow.moveTop()
+    mainWindow.webContents.send('story-guide:open-requested')
+  })
   ipcMain.handle('timer:get-state', (event) => {
     if (!timerWindowManager) throw new Error('Timer is unavailable')
     return timerWindowManager.getState(event.sender.id)
+  })
+  ipcMain.handle('timer:set-mode', (event, value: unknown) => {
+    if (value !== 'map' && value !== 'campaign' && value !== 'system') throw new Error('Invalid timer mode')
+    timerWindowManager?.setMode(event.sender.id, value)
+  })
+  ipcMain.handle('timer:set-opacity', (event, value: unknown) => {
+    if (typeof value !== 'number' || !Number.isFinite(value)) throw new Error('Invalid timer opacity')
+    timerWindowManager?.setOpacity(event.sender.id, value)
   })
   ipcMain.handle('timer:start', (event) => {
     timerWindowManager?.start(event.sender.id)
@@ -2101,14 +2181,23 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
   ipcMain.handle('timer:close', (event) => {
     timerWindowManager?.close(event.sender.id)
   })
+  ipcMain.handle('timer:move-by', (event, value: unknown) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid timer movement')
+    const { x, y } = value as { x?: unknown; y?: unknown }
+    if (typeof x !== 'number' || !Number.isFinite(x) || typeof y !== 'number' || !Number.isFinite(y)) throw new Error('Invalid timer movement')
+    timerWindowManager?.moveBy(event.sender.id, { x: Math.round(x), y: Math.round(y) })
+  })
   ipcMain.handle('timer:minimize', (event) => {
     timerWindowManager?.minimize(event.sender.id)
   })
   ipcMain.handle('timer:open-settings', (event) => {
     timerWindowManager?.openSettings(event.sender.id)
   })
+  ipcMain.handle('timer:open-campaign', (event) => {
+    timerWindowManager?.openCampaign(event.sender.id)
+  })
   ipcMain.handle('timer:close-settings', (event) => {
-    if (!timerWindowManager?.ownsSettings(event.sender.id)) throw new Error('Unauthorized timer settings request')
+    if (!timerWindowManager?.ownsSettings(event.sender.id) && !timerWindowManager?.ownsCampaign(event.sender.id)) throw new Error('Unauthorized timer settings request')
     timerWindowManager.close(event.sender.id)
   })
   ipcMain.handle('timer:set-skin', (event, value: unknown) => {
@@ -2820,6 +2909,17 @@ if (hasSingleInstanceLock) void app.whenReady().then(async () => {
       })
     }
     mainWindow.webContents.send('market:page-listings', { realm, listings })
+  })
+  ipcMain.handle('market-filter-picker:item-categories', (event) => {
+    if (!marketViewManager?.getRealmForSender(event.sender)) throw new Error('Invalid market sender')
+    return getMarketItemCategoryPairs()
+  })
+  ipcMain.handle('market-filter-picker:stats', (event, language: unknown) => {
+    if (!marketViewManager?.getRealmForSender(event.sender) || !isUiLanguage(language)) throw new Error('Invalid market sender or language')
+    marketStatPickerCatalog ??= new MarketStatPickerCatalog(getXiletradeDataCatalog(),
+      path.join(app.isPackaged ? process.resourcesPath : path.join(app.getAppPath(), 'public'), 'pob-lua', 'Data'),
+      (['zh-rCN', 'zh-rTW', 'ko-KR'] as const).map((locale) => (name: string) => getItemTranslationIndex(locale).toChinese(name) || name))
+    return marketStatPickerCatalog.getWithScopes(language)
   })
   ipcMain.on('market-monitor:state', (event, value: unknown) => {
     const realm = marketViewManager?.getRealmForSender(event.sender)
@@ -3650,8 +3750,7 @@ app.on('window-all-closed', () => {
 app.on('will-quit', () => globalShortcut.unregisterAll())
 
 app.on('before-quit', () => {
-  timerWindowManager?.dispose()
-  gameLogTimerController?.dispose()
+  disposeTimerServices()
   communityViewManager?.dispose()
   referenceViewManager?.dispose()
   marketViewManager?.dispose()

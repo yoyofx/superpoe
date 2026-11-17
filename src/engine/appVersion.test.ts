@@ -3,6 +3,8 @@ import packageMetadata from '../../package.json'
 import {
   SUPERPOE_GAME_VERSION,
   SUPERPOE_PACKAGE_VERSION,
+  SUPERPOE_PREVIEW_TARGET,
+  SUPERPOE_RELEASE_STAGE,
   SUPERPOE_REVISION,
   SUPERPOE_VERSION,
   SUPERPOE_VERSION_LABEL,
@@ -13,7 +15,9 @@ describe('SuperPoE2 display version', () => {
     expect(SUPERPOE_PACKAGE_VERSION).toBe(packageMetadata.version)
     expect(SUPERPOE_GAME_VERSION).toBe(packageMetadata.superpoe.gameVersion)
     expect(SUPERPOE_REVISION).toBe(packageMetadata.superpoe.revision)
+    expect(SUPERPOE_RELEASE_STAGE).toBe('preview')
+    expect(SUPERPOE_PREVIEW_TARGET).toBe('1.0')
     expect(SUPERPOE_VERSION).toBe('0.5.5.4')
-    expect(SUPERPOE_VERSION_LABEL).toBe('v 0.5.5.4')
+    expect(SUPERPOE_VERSION_LABEL).toBe('v 1.0 Preview')
   })
 })

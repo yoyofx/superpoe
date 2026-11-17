@@ -14,6 +14,7 @@ interface ReferencePageProps {
   onCenter: () => void
   onLibrary: () => void
   onTradeCenter: () => void
+  onStoryGuide: () => void
   onCommunity: () => void
   onReference: () => void
   onAbout: () => void
@@ -77,7 +78,7 @@ function displayOrigin(url: string): string {
   }
 }
 
-export function ReferencePage({ initialSite, onCenter, onLibrary, onTradeCenter, onCommunity, onReference, onAbout, onBack, onPoeNinjaImport }: ReferencePageProps) {
+export function ReferencePage({ initialSite, onCenter, onLibrary, onTradeCenter, onStoryGuide, onCommunity, onReference, onAbout, onBack, onPoeNinjaImport }: ReferencePageProps) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const hostRef = useRef<HTMLDivElement>(null)
@@ -316,7 +317,7 @@ export function ReferencePage({ initialSite, onCenter, onLibrary, onTradeCenter,
 
   return <div className="build-center embedded-browser-page reference-page">
     <header className="embedded-browser-toolbar reference-toolbar">
-      <EmbeddedBrowserNavigation active="reference" showModuleLinks={false} onBack={() => leaveReference(onBack)} onCenter={() => leaveReference(onCenter)} onLibrary={() => leaveReference(onLibrary)} onTradeCenter={() => leaveReference(onTradeCenter)} onCommunity={() => leaveReference(onCommunity)} onReference={onReference} onAbout={() => leaveReference(onAbout)} />
+      <EmbeddedBrowserNavigation active="reference" showModuleLinks={false} onBack={() => leaveReference(onBack)} onCenter={() => leaveReference(onCenter)} onLibrary={() => leaveReference(onLibrary)} onTradeCenter={() => leaveReference(onTradeCenter)} onStoryGuide={() => leaveReference(onStoryGuide)} onCommunity={() => leaveReference(onCommunity)} onReference={onReference} onAbout={() => leaveReference(onAbout)} />
       <span className="reference-toolbar-divider" aria-hidden="true" />
       <div className="reference-navigation" aria-label={l('Web navigation', '网页导航', '網頁導覽', '웹 탐색')}>
         <button className="icon-command compact" disabled={!bridge || !state.canGoBack} onClick={() => navigate('back')} title={l('Back', '后退', '上一頁', '뒤로')} aria-label={l('Back', '后退', '上一頁', '뒤로')}><ChevronLeft /></button>

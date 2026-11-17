@@ -10,28 +10,38 @@ body:has(.timer-app) #root {
 .timer-app.is-settings { display: block; clip-path: none; }
 .timer-app.is-collapsed { display: grid; place-items: center; }
 .timer-app button { font: inherit; }
-.timer-face-container { position: relative; width: min(calc(100% - 44px), calc(100vh - 44px)); height: min(calc(100% - 44px), calc(100vw - 44px)); flex: 0 0 auto; aspect-ratio: 1; }
+.timer-face-container { position: relative; container-type: inline-size; width: min(calc(100% - 64px), calc(100vh - 44px)); height: min(calc(100% - 44px), calc(100vw - 64px)); flex: 0 0 auto; aspect-ratio: 1; }
 .timer-face-collapsed, .timer-face-expanded { position: relative; display: grid; place-items: center; overflow: hidden; border: 0; color: var(--timer-accent); background: var(--timer-dial); box-shadow: inset 0 0 0 3px rgba(255,255,255,.025), inset 0 0 18px var(--timer-inner-glow), 0 0 16px var(--timer-outer-glow); animation: timer-breathe 4s ease-in-out infinite; cursor: pointer; }
-.timer-face-collapsed { width: 100%; height: 100%; border-radius: 50%; cursor: move; -webkit-app-region: drag; }
+.timer-face-collapsed { width: 100%; height: 100%; border-radius: 50%; cursor: pointer; -webkit-app-region: no-drag; }
 .timer-face-open-button { position: absolute; inset: 32% 25%; z-index: 3; border: 0; border-radius: 50%; background: transparent; color: transparent; cursor: pointer; -webkit-app-region: no-drag; }
 .timer-face-open-button:hover:not(:disabled), .timer-face-open-button:focus-visible { border-color: transparent; background: transparent; color: transparent; box-shadow: none; }
-.timer-hover-actions { position: absolute; z-index: 5; top: 50%; right: -22px; display: flex; flex-direction: column; gap: 2px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; opacity: 0; pointer-events: none; transform: translate(3px, -50%); transition: opacity .16s ease, transform .16s ease; -webkit-app-region: no-drag; }
-.timer-face-container:hover .timer-hover-actions, .timer-face-container:focus-within .timer-hover-actions { opacity: 1; pointer-events: auto; transform: translate(0, -50%); }
-.timer-action-button { width: 18px; height: 18px; display: grid; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 2px; background: transparent; color: var(--timer-muted); cursor: pointer; filter: drop-shadow(0 0 4px var(--timer-outer-glow)); }
-.timer-action-button:hover, .timer-action-button:focus-visible { border-color: var(--timer-edge); background: rgba(5,6,5,.42); color: var(--timer-accent); outline: 0; }
-.timer-action-button svg { width: 11px; height: 11px; }
-.timer-move-handle { cursor: grab; -webkit-app-region: drag; }
+.timer-hover-actions { position: absolute; z-index: 5; top: 50%; right: -27px; display: flex; flex-direction: column; gap: 4px; padding: 0 0 0 5px; border: 0; border-radius: 0; background: rgba(0,0,0,.01); box-shadow: none; transform: translateY(-50%); -webkit-app-region: no-drag; }
+/* Nonzero alpha keeps the gap hit-testable in a transparent native window.
+   Padding joins the controls to the dial without adding a visible outer panel. */
+.timer-guide-actions { padding: 0 5px 0 0; }
+.timer-guide-actions { right: auto; left: -27px; }
+.timer-hover-actions > button { opacity: 0; pointer-events: none; transition: opacity .16s ease; }
+.timer-face-container:hover .timer-hover-actions > button, .timer-face-container:focus-within .timer-hover-actions > button { opacity: 1; pointer-events: auto; }
+.timer-action-button { width: 22px; height: 22px; display: grid; place-items: center; padding: 0; border: 1px solid rgba(255,255,255,.14); border-radius: 4px; background: rgba(25,25,22,.92); color: #d2c093; cursor: pointer; filter: drop-shadow(0 0 4px rgba(0,0,0,.75)); }
+.timer-action-button:hover, .timer-action-button:focus-visible { border-color: var(--timer-edge); background: rgba(63,51,29,.96); color: var(--timer-accent); outline: 0; box-shadow: 0 0 8px var(--timer-outer-glow); }
+.timer-action-button svg { width: 13px; height: 13px; }
+.timer-move-handle { cursor: grab; -webkit-app-region: no-drag; }
 .timer-move-handle:hover, .timer-move-handle:focus-visible { cursor: grab; }
 .timer-move-handle:active { cursor: grabbing; }
-.timer-app.is-resizing .timer-hover-actions { opacity: 1; pointer-events: auto; transform: translate(0, -50%); }
+.timer-app.is-resizing .timer-hover-actions > button, .timer-app.is-moving .timer-hover-actions > button { opacity: 1; pointer-events: auto; }
 .timer-face-collapsed::before, .timer-face-expanded::before { content: ''; position: absolute; inset: 7%; border: 1px solid var(--timer-ring); border-top-color: var(--timer-accent); border-right-color: transparent; border-radius: 50%; opacity: .75; animation: timer-ring-spin 12s linear infinite; }
 .timer-face-collapsed::after, .timer-face-expanded::after { content: ''; position: absolute; inset: 13%; border: 1px dashed var(--timer-ring); border-radius: 50%; opacity: .32; animation: timer-ring-pulse 3.5s ease-in-out infinite; }
 .timer-face-expanded { width: 164px; height: 164px; flex: 0 0 164px; border-radius: 50%; }
 .timer-face-ornament { position: absolute; inset: 19%; border: 1px dashed var(--timer-ring); border-radius: 50%; opacity: .36; animation: timer-orbit 18s linear infinite; }
-.timer-face-caption { position: absolute; top: 27%; color: var(--timer-muted); font-size: 7px; letter-spacing: 2px; }
-.timer-face-collapsed strong, .timer-face-expanded strong { position: relative; z-index: 1; margin-top: 2px; color: var(--timer-number); font: 500 19px ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 0; text-shadow: 0 0 12px var(--timer-number-glow); }
-.timer-face-expanded strong { font-size: 25px; }
-.timer-face-state { position: absolute; bottom: 27%; color: var(--timer-muted); font-size: 7px; letter-spacing: 1px; }
+.timer-face-caption { position: absolute; top: 27%; color: var(--timer-muted); font-size: clamp(10px, 8cqw, 15px); letter-spacing: 1.2px; }
+.timer-face-collapsed strong, .timer-face-expanded strong { position: relative; z-index: 1; margin-top: 2px; color: var(--timer-number); font: 500 clamp(13px, 18cqw, 30px) ui-monospace, SFMono-Regular, Consolas, monospace; letter-spacing: 0; text-shadow: 0 0 12px var(--timer-number-glow); }
+.timer-face-expanded strong { font-size: clamp(15px, 18cqw, 34px); }
+.timer-face-state { position: absolute; bottom: 27%; color: var(--timer-muted); font-size: clamp(9px, 7cqw, 13px); letter-spacing: .8px; }
+.timer-face-quick-actions { position: absolute; z-index: 4; left: 50%; bottom: 7%; display: flex; align-items: center; gap: 3px; transform: translateX(-50%); }
+.timer-face-quick-button { width: 20px; height: 20px; display: grid; place-items: center; padding: 0; border: 1px solid rgba(201,169,94,.6); border-radius: 4px; background: rgba(9,10,9,.88); color: #d2c093; cursor: pointer; filter: drop-shadow(0 0 4px rgba(0,0,0,.7)); }
+.timer-face-quick-button:hover:not(:disabled), .timer-face-quick-button:focus-visible { border-color: var(--timer-edge); background: rgba(63,51,29,.96); color: var(--timer-accent); box-shadow: 0 0 8px var(--timer-outer-glow); outline: 0; }
+.timer-face-quick-button:disabled { opacity: .38; cursor: default; }
+.timer-face-quick-button svg { width: 11px; height: 11px; }
 .timer-face-expanded .timer-face-caption { top: 39px; }
 .timer-face-expanded .timer-face-state { bottom: 38px; }
 .timer-hand { position: absolute; left: 50%; top: 50%; width: 1px; height: 34%; transform-origin: 50% 100%; transform: translate(-50%, -100%) rotate(18deg); background: var(--timer-hand); box-shadow: 0 0 7px var(--timer-number-glow); animation: timer-hand 60s linear infinite; }
@@ -45,7 +55,7 @@ body:has(.timer-app) #root {
 .timer-settings-heading { min-width: 0; display: grid; gap: 1px; }
 .timer-settings-heading strong { overflow: hidden; color: var(--timer-text); font: 500 12px Georgia, "Microsoft YaHei", serif; text-overflow: ellipsis; white-space: nowrap; }
 .timer-settings-heading small { color: var(--timer-muted); font-size: 8px; letter-spacing: 1.1px; text-transform: uppercase; }
-.timer-settings-body { min-height: 0; overflow: hidden; padding: 8px 13px 6px; }
+.timer-settings-body { min-height: 0; overflow: auto; padding: 8px 13px 6px; }
 .timer-settings-section-title { height: 20px; display: flex; align-items: center; gap: 6px; color: var(--timer-muted); }
 .timer-settings-section-title svg { width: 13px; height: 13px; color: var(--timer-accent); }
 .timer-settings-section-title strong { color: var(--timer-accent); font-size: 11px; font-weight: 500; }
@@ -70,6 +80,7 @@ body:has(.timer-app) #root {
 .timer-settings-status { min-width: 0; display: grid; gap: 1px; margin-right: auto; }
 .timer-settings-status span { overflow: hidden; color: var(--timer-muted); font-size: 8px; letter-spacing: .9px; text-overflow: ellipsis; text-transform: uppercase; white-space: nowrap; }
 .timer-settings-status strong { color: var(--timer-number); font: 500 14px ui-monospace, SFMono-Regular, Consolas, monospace; text-shadow: 0 0 8px var(--timer-number-glow); }
+.timer-skin-current { color: var(--timer-muted); font-size: 12px; }
 .timer-shell-header { height: 30px; display: flex; align-items: center; gap: 7px; padding: 0 7px 0 10px; background: transparent; cursor: move; }
 .timer-drag-region { -webkit-app-region: drag; }
 .no-drag { -webkit-app-region: no-drag; }
@@ -97,6 +108,48 @@ body:has(.timer-app) #root {
 .timer-control-main:hover, .timer-control:hover:not(:disabled) { box-shadow: 0 0 12px var(--timer-outer-glow); }
 .timer-control:disabled { opacity: .35; cursor: default; }
 .timer-control-main svg, .timer-control svg { width: 13px; height: 13px; }
+.timer-mode-menu { position: fixed; z-index: 20; left: 12px; top: 12px; min-width: 132px; padding: 5px; border: 1px solid var(--timer-edge); background: rgba(11, 12, 10, .96); box-shadow: 0 0 18px var(--timer-outer-glow), inset 0 0 16px rgba(183,143,65,.06); }
+.timer-mode-menu-title { padding: 3px 7px 5px; color: var(--timer-muted); font-size: 10px; letter-spacing: 1px; text-transform: uppercase; }
+.timer-mode-menu button { width: 100%; height: 27px; display: flex; align-items: center; gap: 6px; padding: 0 7px; border: 1px solid transparent; background: transparent; color: var(--timer-text); font-size: 13px; line-height: 1.1; text-align: left; cursor: pointer; }
+.timer-mode-menu button span { width: 10px; color: var(--timer-accent); }
+.timer-mode-menu button:hover, .timer-mode-menu button.active { border-color: var(--timer-edge); background: rgba(183,143,65,.13); color: var(--timer-accent); }
+/* The compact rail is only 84px tall. Keep its context menu inside the
+   transparent BrowserWindow so every mode remains reachable. */
+.skin-strip .timer-mode-menu { left: 3px; top: 3px; min-width: 130px; padding: 2px; }
+.skin-strip .timer-mode-menu-title { padding: 1px 5px 2px; font-size: 9px; }
+.skin-strip .timer-mode-menu button { height: 20px; gap: 4px; padding: 0 5px; font-size: 12px; line-height: 1.1; }
+.skin-strip .timer-mode-menu button span { width: 8px; }
+.timer-mode-summary, .timer-system-display { display: grid; gap: 4px; margin-bottom: 9px; padding: 9px 10px; border-left: 2px solid var(--timer-accent); background: rgba(255,255,255,.025); }
+.timer-mode-summary span, .timer-system-display span { color: var(--timer-muted); font-size: 8px; letter-spacing: 1px; text-transform: uppercase; }
+.timer-mode-summary strong { overflow: hidden; color: var(--timer-text); font: 500 13px ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.timer-system-display strong { color: var(--timer-number); font: 500 28px ui-monospace, SFMono-Regular, Consolas, monospace; text-shadow: 0 0 10px var(--timer-number-glow); }
+.timer-campaign-panel { display: grid; gap: 8px; }
+.timer-campaign-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.timer-campaign-summary > div { display: grid; gap: 4px; min-width: 0; padding: 8px 10px; border-left: 2px solid var(--timer-accent); background: rgba(255,255,255,.025); }
+.timer-campaign-summary span { color: var(--timer-muted); font-size: 8px; letter-spacing: 1px; text-transform: uppercase; }
+.timer-campaign-summary strong { overflow: hidden; color: var(--timer-number); font: 500 19px ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; text-shadow: 0 0 9px var(--timer-number-glow); }
+.timer-campaign-summary > div + div strong { color: var(--timer-text); font-size: 13px; }
+.timer-campaign-segments { display: grid; gap: 4px; }
+.timer-campaign-segment { min-height: 27px; display: grid; grid-template-columns: 18px minmax(0, 1fr) auto; align-items: center; gap: 5px; padding: 0 9px; border: 1px solid transparent; background: rgba(255,255,255,.018); color: var(--timer-muted); }
+.timer-campaign-segment strong { color: var(--timer-text); font-size: 10px; font-weight: 500; }
+.timer-campaign-segment > span:last-child { color: var(--timer-muted); font: 500 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+.timer-campaign-segment-mark { color: var(--timer-muted); font-size: 11px; text-align: center; }
+.timer-campaign-segment.completed { color: var(--timer-text); }
+.timer-campaign-segment.completed .timer-campaign-segment-mark { color: var(--timer-accent); }
+.timer-campaign-segment.current { border-color: var(--timer-edge); background: rgba(183,143,65,.11); box-shadow: 0 0 10px var(--timer-outer-glow); }
+.timer-campaign-segment.current strong, .timer-campaign-segment.current > span:last-child, .timer-campaign-segment.current .timer-campaign-segment-mark { color: var(--timer-accent); }
+.timer-campaign-segment.pending { opacity: .62; }
+.timer-opacity-control { flex: 0 0 auto; display: flex; align-items: center; gap: 9px; margin-left: auto; padding: 0 10px; border-right: 1px solid var(--timer-divider); cursor: default; }
+.timer-opacity-control > span { color: var(--timer-text); font-size: 12px; font-weight: 500; white-space: nowrap; }
+.timer-opacity-control output { min-width: 38px; color: var(--timer-accent); font: 500 12px ui-monospace, SFMono-Regular, Consolas, monospace; text-align: right; text-shadow: 0 0 7px var(--timer-number-glow); }
+.timer-opacity-control + .timer-window-actions { flex-shrink: 0; margin-left: 0; }
+.timer-opacity-control input[type='range'] { width: 110px; height: 24px; margin: 0; appearance: none; accent-color: var(--timer-accent); background: transparent; cursor: pointer; }
+.timer-opacity-control input[type='range']::-webkit-slider-runnable-track { height: 3px; border: 1px solid var(--timer-ring); border-radius: 999px; background: linear-gradient(90deg, var(--timer-accent), var(--timer-ring)); box-shadow: 0 0 7px var(--timer-outer-glow); }
+.timer-opacity-control input[type='range']::-webkit-slider-thumb { width: 13px; height: 13px; margin-top: -6px; border: 1px solid var(--timer-accent); border-radius: 50%; background: #14130f; box-shadow: 0 0 0 2px rgba(183,143,65,.18), 0 0 9px var(--timer-number-glow); -webkit-appearance: none; }
+.timer-opacity-control input[type='range']:focus-visible { outline: 1px solid var(--timer-accent); outline-offset: 3px; }
+.timer-opacity-control input[type='range']::-moz-range-track { height: 3px; border: 1px solid var(--timer-ring); border-radius: 999px; background: linear-gradient(90deg, var(--timer-accent), var(--timer-ring)); box-shadow: 0 0 7px var(--timer-outer-glow); }
+.timer-opacity-control input[type='range']::-moz-range-progress { height: 3px; border-radius: 999px; background: var(--timer-accent); }
+.timer-opacity-control input[type='range']::-moz-range-thumb { width: 11px; height: 11px; border: 1px solid var(--timer-accent); border-radius: 50%; background: #14130f; box-shadow: 0 0 0 2px rgba(183,143,65,.18), 0 0 9px var(--timer-number-glow); }
 .timer-skin-bar { height: 37px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px; background: transparent; }
 .timer-skin-bar > span { display: inline-flex; align-items: center; gap: 5px; color: var(--timer-muted); font-size: 8px; letter-spacing: 1px; }
 .timer-skin-bar > span svg { width: 11px; height: 11px; }
@@ -116,14 +169,16 @@ body:has(.timer-app) #root {
 
 /* The rail skin keeps the timer readable at a glance while the whole pill
    remains a native drag region. */
-.skin-strip .timer-face-container { width: calc(100% - 52px); height: auto; aspect-ratio: 276 / 84; }
-.skin-strip .timer-face-collapsed { width: 100%; height: 100%; border-radius: 999px; cursor: move; grid-template-columns: 20% minmax(0, 1fr) 20%; padding: 0 5%; background: var(--timer-dial); }
+.skin-strip .timer-face-container { width: calc(100% - 64px); height: auto; aspect-ratio: 276 / 84; }
+.skin-strip .timer-face-collapsed { width: 100%; height: 100%; border-radius: 999px; cursor: move; grid-template-columns: 27% minmax(0, 1fr) 23%; padding: 0 5%; background: var(--timer-dial); }
 .skin-strip .timer-face-collapsed::before { inset: 2%; border-radius: 999px; border-top-color: var(--timer-accent); border-right-color: var(--timer-ring); animation-duration: 9s; }
 .skin-strip .timer-face-collapsed::after { inset: 4%; border-radius: 999px; border-style: solid; opacity: .24; animation: timer-strip-pulse 3.2s ease-in-out infinite; }
 .skin-strip .timer-face-ornament { inset: 25% 7.5%; border-radius: 999px; border-style: solid; opacity: .28; animation: timer-orbit 13s linear infinite; }
-.skin-strip .timer-face-caption { left: 14px; top: 50%; transform: translateY(-50%); font-size: 6px; letter-spacing: 1.4px; }
-.skin-strip .timer-face-collapsed strong { margin: 0; font-size: 17px; letter-spacing: .04em; transform: translateX(24px); }
-.skin-strip .timer-face-state { right: 14px; bottom: auto; top: 50%; transform: translateY(-50%); font-size: 6px; letter-spacing: .6px; text-align: right; }
+.skin-strip .timer-face-caption { left: 10px; top: 50%; transform: translateY(-50%); font-size: clamp(9px, 4.8cqw, 15px); letter-spacing: .8px; white-space: nowrap; }
+.skin-strip .timer-face-collapsed strong { position: absolute; left: 50%; top: 50%; margin: 0; font-size: clamp(12px, 7.6cqw, 28px); letter-spacing: .04em; transform: translate(-50%, -50%); white-space: nowrap; }
+.skin-strip .timer-face-state { right: 14px; bottom: auto; top: 50%; transform: translateY(-50%); font-size: clamp(9px, 4.8cqw, 13px); letter-spacing: .5px; text-align: right; }
+.skin-strip .timer-face-quick-actions { left: 50%; bottom: 7px; transform: translateX(-50%); }
+.skin-strip .timer-face-quick-button { width: 19px; height: 19px; }
 .skin-strip .timer-face-collapsed::after { background: linear-gradient(90deg, transparent 0%, rgba(255,226,152,.04) 35%, rgba(255,226,152,.2) 50%, rgba(255,226,152,.04) 65%, transparent 100%); background-size: 240% 100%; animation: timer-strip-sheen 4.2s linear infinite, timer-strip-pulse 3.2s ease-in-out infinite; }
 .skin-strip .timer-hand { left: 50%; top: 11%; width: 1px; height: 78%; transform-origin: 50% 100%; opacity: .6; animation-duration: 60s; }
 .skin-strip .timer-face-open-button { inset: 15% 25%; border-radius: 999px; }
@@ -132,7 +187,7 @@ body:has(.timer-app) #root {
 .skin-strip .timer-face-expanded::after { inset: 11px; border-radius: 25px; border-style: solid; }
 .skin-strip .timer-face-expanded .timer-face-ornament { inset: 17px 21px; border-radius: 19px; border-style: solid; }
 .skin-strip .timer-face-expanded .timer-face-caption { left: 20px; top: 50%; transform: translateY(-50%); font-size: 7px; }
-.skin-strip .timer-face-expanded strong { margin: 0; font-size: 20px; }
+.skin-strip .timer-face-expanded strong { margin: 0; font-size: clamp(13px, 7.6cqw, 28px); }
 .skin-strip .timer-face-expanded .timer-face-state { right: 20px; bottom: auto; top: 50%; transform: translateY(-50%); font-size: 7px; text-align: right; }
 .skin-strip .timer-face-expanded .timer-hand { left: 50%; top: 8px; height: 56px; }
 

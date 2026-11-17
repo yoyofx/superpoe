@@ -7,7 +7,7 @@ const POLL_INTERVAL_MS = 350
 const GENERATING_FALLBACK_MS = 5_000
 
 export type GameLogMapEvent = {
-  type: 'map-start' | 'map-end'
+  type: 'area-entered' | 'map-start' | 'map-end'
   areaId: string
   sceneName?: string
 }
@@ -176,6 +176,7 @@ export class GameLogMapParser {
     const generatedArea = /Generating level\s+\d+\s+area\s+"([^"]+)"/iu.exec(line)?.[1]
     if (generatedArea) {
       this.clearFallback()
+      this.emit({ type: 'area-entered', areaId: generatedArea })
       if (this.activeArea) {
         this.emit({ type: 'map-end', ...this.activeArea })
         this.activeArea = undefined
@@ -278,6 +279,10 @@ export class GameLogTimerController {
   }
 
   private handleEvent(event: GameLogMapEvent): void {
+    if (event.type === 'area-entered') {
+      this.onEvent(event)
+      return
+    }
     if (event.type === 'map-start') {
       if (this.activeAreaId === event.areaId) return
       this.finishActiveArea()

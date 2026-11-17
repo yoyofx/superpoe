@@ -13,7 +13,7 @@ const Root = surface === 'price-check'
         ? React.lazy(() => import('./components/equipment/EquipmentTryOnWindow').then((module) => ({ default: module.EquipmentTryOnWindow })))
       : surface === 'timer'
           ? React.lazy(() => import('./timer/TimerApp').then((module) => ({ default: module.TimerApp })))
-          : surface === 'timer-settings'
+          : surface === 'timer-settings' || surface === 'timer-campaign'
             ? React.lazy(() => import('./timer/TimerApp').then((module) => ({ default: module.TimerApp })))
     : React.lazy(() => import('./App').then((module) => ({ default: module.default })))
 

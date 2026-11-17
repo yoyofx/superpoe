@@ -1,0 +1,829 @@
+{
+  "fetchedAt": "2026-11-16T12:23:57.407Z",
+  "sources": [
+    "https://poe2db.tw/cn/Act_1",
+    "https://poe2db.tw/cn/Act_2",
+    "https://poe2db.tw/cn/Act_3",
+    "https://poe2db.tw/cn/Act_4",
+    "https://poe2db.tw/cn/Ashen_Forest",
+    "https://poe2db.tw/cn/Dreadnought",
+    "https://poe2db.tw/cn/Etched_Ravine",
+    "https://poe2db.tw/cn/Glacial_Tarn",
+    "https://poe2db.tw/cn/Heart_of_the_Tribe",
+    "https://poe2db.tw/cn/Holten",
+    "https://poe2db.tw/cn/Holten_Estate",
+    "https://poe2db.tw/cn/Howling_Caves",
+    "https://poe2db.tw/cn/Jiquanis_Machinarium",
+    "https://poe2db.tw/cn/Jiquanis_Sanctum",
+    "https://poe2db.tw/cn/Journeys_End",
+    "https://poe2db.tw/cn/Kriar_Peaks",
+    "https://poe2db.tw/cn/Kriar_Village",
+    "https://poe2db.tw/cn/Lightless_Passage",
+    "https://poe2db.tw/cn/Pools_of_Khatal",
+    "https://poe2db.tw/cn/Qimah",
+    "https://poe2db.tw/cn/Qimah_Reservoir",
+    "https://poe2db.tw/cn/Scorched_Farmlands",
+    "https://poe2db.tw/cn/Sel_Khari_Sanctuary_",
+    "https://poe2db.tw/cn/Stones_of_Serle",
+    "https://poe2db.tw/cn/The_Blackwood",
+    "https://poe2db.tw/cn/The_Cuachic_Vault",
+    "https://poe2db.tw/cn/The_Dreadnoughts_Wake",
+    "https://poe2db.tw/cn/The_Galai_Gates",
+    "https://poe2db.tw/cn/The_Glade",
+    "https://poe2db.tw/cn/The_Khari_Bazaar",
+    "https://poe2db.tw/cn/The_Khari_Crossing",
+    "https://poe2db.tw/cn/The_Refuge",
+    "https://poe2db.tw/cn/The_Well_of_Souls",
+    "https://poe2db.tw/cn/Traitors_Passage",
+    "https://poe2db.tw/cn/Wolvenhold",
+    "https://poe2db.tw/tw/Act_1",
+    "https://poe2db.tw/tw/Act_2",
+    "https://poe2db.tw/tw/Act_3",
+    "https://poe2db.tw/tw/Act_4",
+    "https://poe2db.tw/tw/Ashen_Forest",
+    "https://poe2db.tw/tw/Dreadnought",
+    "https://poe2db.tw/tw/Etched_Ravine",
+    "https://poe2db.tw/tw/Glacial_Tarn",
+    "https://poe2db.tw/tw/Heart_of_the_Tribe",
+    "https://poe2db.tw/tw/Holten",
+    "https://poe2db.tw/tw/Holten_Estate",
+    "https://poe2db.tw/tw/Howling_Caves",
+    "https://poe2db.tw/tw/Jiquanis_Machinarium",
+    "https://poe2db.tw/tw/Jiquanis_Sanctum",
+    "https://poe2db.tw/tw/Journeys_End",
+    "https://poe2db.tw/tw/Kriar_Peaks",
+    "https://poe2db.tw/tw/Kriar_Village",
+    "https://poe2db.tw/tw/Lightless_Passage",
+    "https://poe2db.tw/tw/Pools_of_Khatal",
+    "https://poe2db.tw/tw/Qimah",
+    "https://poe2db.tw/tw/Qimah_Reservoir",
+    "https://poe2db.tw/tw/Scorched_Farmlands",
+    "https://poe2db.tw/tw/Sel_Khari_Sanctuary_",
+    "https://poe2db.tw/tw/Stones_of_Serle",
+    "https://poe2db.tw/tw/The_Blackwood",
+    "https://poe2db.tw/tw/The_Cuachic_Vault",
+    "https://poe2db.tw/tw/The_Dreadnoughts_Wake",
+    "https://poe2db.tw/tw/The_Galai_Gates",
+    "https://poe2db.tw/tw/The_Glade",
+    "https://poe2db.tw/tw/The_Khari_Bazaar",
+    "https://poe2db.tw/tw/The_Khari_Crossing",
+    "https://poe2db.tw/tw/The_Refuge",
+    "https://poe2db.tw/tw/The_Well_of_Souls",
+    "https://poe2db.tw/tw/Traitors_Passage",
+    "https://poe2db.tw/tw/Wolvenhold"
+  ],
+  "areas": [
+    {
+      "areaId": "Abyss_Hub",
+      "names": {
+        "chinese": "灵魂之井",
+        "international": "靈魂之井"
+      },
+      "source": "https://poe2db.tw/cn/The_Well_of_Souls"
+    },
+    {
+      "areaId": "Abyss_Intro",
+      "names": {
+        "chinese": "暗光走廊",
+        "international": "無光通道"
+      },
+      "source": "https://poe2db.tw/cn/Lightless_Passage"
+    },
+    {
+      "areaId": "G1_1",
+      "names": {
+        "international": "河岸",
+        "chinese": "污流河畔"
+      },
+      "source": "https://poe2db.tw/cn/The_Riverbank"
+    },
+    {
+      "areaId": "G1_11",
+      "names": {
+        "international": "獵場",
+        "chinese": "猎场"
+      },
+      "source": "https://poe2db.tw/cn/Hunting_Grounds"
+    },
+    {
+      "areaId": "G1_12",
+      "names": {
+        "international": "弗雷索恩",
+        "chinese": "茂棘深林"
+      },
+      "source": "https://poe2db.tw/cn/Freythorn"
+    },
+    {
+      "areaId": "G1_13_1",
+      "names": {
+        "international": "奧格姆農地",
+        "chinese": "欧甘农地"
+      },
+      "source": "https://poe2db.tw/cn/Ogham_Farmlands"
+    },
+    {
+      "areaId": "G1_13_2",
+      "names": {
+        "international": "奧格姆村",
+        "chinese": "欧甘村庄"
+      },
+      "source": "https://poe2db.tw/cn/Ogham_Village"
+    },
+    {
+      "areaId": "G1_14",
+      "names": {
+        "international": "宅第壁壘",
+        "chinese": "庄园城壁"
+      },
+      "source": "https://poe2db.tw/cn/The_Manor_Ramparts"
+    },
+    {
+      "areaId": "G1_15",
+      "names": {
+        "international": "奧格姆宅第",
+        "chinese": "欧甘庄园"
+      },
+      "source": "https://poe2db.tw/cn/Ogham_Manor"
+    },
+    {
+      "areaId": "G1_2",
+      "names": {
+        "international": "皆伐",
+        "chinese": "克里费尔"
+      },
+      "source": "https://poe2db.tw/cn/Clearfell"
+    },
+    {
+      "areaId": "G1_3",
+      "names": {
+        "international": "泥沼陋居",
+        "chinese": "泥穴"
+      },
+      "source": "https://poe2db.tw/cn/Mud_Burrow"
+    },
+    {
+      "areaId": "G1_4",
+      "names": {
+        "international": "葛瑞爾林",
+        "chinese": "韧木森林"
+      },
+      "source": "https://poe2db.tw/cn/The_Grelwood"
+    },
+    {
+      "areaId": "G1_5",
+      "names": {
+        "international": "赤谷",
+        "chinese": "红谷"
+      },
+      "source": "https://poe2db.tw/cn/The_Red_Vale"
+    },
+    {
+      "areaId": "G1_6",
+      "names": {
+        "international": "纏縛陰林",
+        "chinese": "阴森网道"
+      },
+      "source": "https://poe2db.tw/cn/The_Grim_Tangle"
+    },
+    {
+      "areaId": "G1_7",
+      "names": {
+        "international": "不朽帝國之墓",
+        "chinese": "永恒园林"
+      },
+      "source": "https://poe2db.tw/cn/Cemetery_of_the_Eternals"
+    },
+    {
+      "areaId": "G1_8",
+      "names": {
+        "international": "政務官陵墓",
+        "chinese": "执政官的地宫"
+      },
+      "source": "https://poe2db.tw/cn/Mausoleum_of_the_Praetor"
+    },
+    {
+      "areaId": "G1_9",
+      "names": {
+        "international": "配偶的墓室",
+        "chinese": "伴侣寝宫"
+      },
+      "source": "https://poe2db.tw/cn/Tomb_of_the_Consort"
+    },
+    {
+      "areaId": "G1_town",
+      "names": {
+        "international": "皆伐營地",
+        "chinese": "克里费尔营地"
+      },
+      "source": "https://poe2db.tw/cn/Clearfell_Encampment"
+    },
+    {
+      "areaId": "G2_1",
+      "names": {
+        "international": "瓦斯提里郊區",
+        "chinese": "瓦斯提里外沿"
+      },
+      "source": "https://poe2db.tw/cn/Vastiri_Outskirts"
+    },
+    {
+      "areaId": "G2_10_1",
+      "names": {
+        "international": "莫頓挖石場",
+        "chinese": "莫丹采石场"
+      },
+      "source": "https://poe2db.tw/cn/Mawdun_Quarry"
+    },
+    {
+      "areaId": "G2_10_2",
+      "names": {
+        "international": "莫頓礦坑",
+        "chinese": "莫丹矿场"
+      },
+      "source": "https://poe2db.tw/cn/Mawdun_Mine"
+    },
+    {
+      "areaId": "G2_11",
+      "names": {
+        "chinese": "无畏战车之痕",
+        "international": "無畏隊的軌跡"
+      },
+      "source": "https://poe2db.tw/cn/The_Dreadnoughts_Wake"
+    },
+    {
+      "areaId": "G2_12",
+      "names": {
+        "chinese": "无畏战车",
+        "international": "無畏隊"
+      },
+      "source": "https://poe2db.tw/cn/Dreadnought"
+    },
+    {
+      "areaId": "G2_13",
+      "names": {
+        "international": "絲克瑪試煉",
+        "chinese": "丝克玛试炼"
+      },
+      "source": "https://poe2db.tw/cn/Trial_of_the_Sekhemas"
+    },
+    {
+      "areaId": "G2_2",
+      "names": {
+        "chinese": "叛徒小径",
+        "international": "叛徒之路"
+      },
+      "source": "https://poe2db.tw/cn/Traitors_Passage"
+    },
+    {
+      "areaId": "G2_3",
+      "names": {
+        "international": "哈拉妮關口",
+        "chinese": "哈拉尼之门"
+      },
+      "source": "https://poe2db.tw/cn/The_Halani_Gates"
+    },
+    {
+      "areaId": "G2_4_1",
+      "names": {
+        "international": "凱斯城",
+        "chinese": "克斯"
+      },
+      "source": "https://poe2db.tw/cn/Keth"
+    },
+    {
+      "areaId": "G2_4_2",
+      "names": {
+        "international": "失落之城",
+        "chinese": "失落之城"
+      },
+      "source": "https://poe2db.tw/cn/The_Lost_City"
+    },
+    {
+      "areaId": "G2_4_3",
+      "names": {
+        "international": "掩埋神殿",
+        "chinese": "掩埋的殿堂"
+      },
+      "source": "https://poe2db.tw/cn/Buried_Shrines"
+    },
+    {
+      "areaId": "G2_5_1",
+      "names": {
+        "international": "乳齒象惡地",
+        "chinese": "长毛象荒原"
+      },
+      "source": "https://poe2db.tw/cn/Mastodon_Badlands"
+    },
+    {
+      "areaId": "G2_5_2",
+      "names": {
+        "international": "骨坑",
+        "chinese": "遗迹深坑"
+      },
+      "source": "https://poe2db.tw/cn/The_Bone_Pits"
+    },
+    {
+      "areaId": "G2_6",
+      "names": {
+        "international": "泰坦之谷",
+        "chinese": "巨人之谷"
+      },
+      "source": "https://poe2db.tw/cn/Valley_of_the_Titans"
+    },
+    {
+      "areaId": "G2_7",
+      "names": {
+        "international": "泰坦石窟",
+        "chinese": "巨人石窟"
+      },
+      "source": "https://poe2db.tw/cn/The_Titan_Grotto"
+    },
+    {
+      "areaId": "G2_8",
+      "names": {
+        "international": "戴斯哈",
+        "chinese": "德莎尔"
+      },
+      "source": "https://poe2db.tw/cn/Deshar"
+    },
+    {
+      "areaId": "G2_9_1",
+      "names": {
+        "international": "悼念之路",
+        "chinese": "怀念之阶"
+      },
+      "source": "https://poe2db.tw/cn/Path_of_Mourning"
+    },
+    {
+      "areaId": "G2_9_2",
+      "names": {
+        "international": "戴斯哈尖塔",
+        "chinese": "德莎尔的高塔"
+      },
+      "source": "https://poe2db.tw/cn/The_Spires_of_Deshar"
+    },
+    {
+      "areaId": "G2_town",
+      "names": {
+        "international": "阿杜拉車隊",
+        "chinese": "阿杜拉的商队"
+      },
+      "source": "https://poe2db.tw/cn/The_Ardura_Caravan"
+    },
+    {
+      "areaId": "G3_1",
+      "names": {
+        "international": "風沙沼澤",
+        "chinese": "飞沙沼泽"
+      },
+      "source": "https://poe2db.tw/cn/Sandswept_Marsh"
+    },
+    {
+      "areaId": "G3_10_Airlock",
+      "names": {
+        "international": "混沌神殿",
+        "chinese": "混沌大殿"
+      },
+      "source": "https://poe2db.tw/cn/The_Temple_of_Chaos"
+    },
+    {
+      "areaId": "G3_11",
+      "names": {
+        "international": "污垢頂峰",
+        "chinese": "污秽巅峰"
+      },
+      "source": "https://poe2db.tw/cn/Apex_of_Filth"
+    },
+    {
+      "areaId": "G3_12",
+      "names": {
+        "international": "科佩克神殿",
+        "chinese": "科佩克之殿"
+      },
+      "source": "https://poe2db.tw/cn/Temple_of_Kopec"
+    },
+    {
+      "areaId": "G3_14",
+      "names": {
+        "international": "奧札爾",
+        "chinese": "乌扎尔"
+      },
+      "source": "https://poe2db.tw/cn/Utzaal"
+    },
+    {
+      "areaId": "G3_16",
+      "names": {
+        "international": "阿戈拉",
+        "chinese": "阿戈拉特"
+      },
+      "source": "https://poe2db.tw/cn/Aggorat"
+    },
+    {
+      "areaId": "G3_17",
+      "names": {
+        "international": "漆黑密室",
+        "chinese": "暗胧殿堂"
+      },
+      "source": "https://poe2db.tw/cn/The_Black_Chambers"
+    },
+    {
+      "areaId": "G3_2_1",
+      "names": {
+        "international": "感染荒地",
+        "chinese": "滋孽荒原"
+      },
+      "source": "https://poe2db.tw/cn/Infested_Barrens"
+    },
+    {
+      "areaId": "G3_2_2",
+      "names": {
+        "international": "瑪特蘭水道",
+        "chinese": "马特兰水道"
+      },
+      "source": "https://poe2db.tw/cn/The_Matlan_Waterways"
+    },
+    {
+      "areaId": "G3_3",
+      "names": {
+        "international": "叢林遺跡",
+        "chinese": "丛林废墟"
+      },
+      "source": "https://poe2db.tw/cn/Jungle_Ruins"
+    },
+    {
+      "areaId": "G3_4",
+      "names": {
+        "international": "劇毒墓穴",
+        "chinese": "蛇毒地窟"
+      },
+      "source": "https://poe2db.tw/cn/The_Venom_Crypts"
+    },
+    {
+      "areaId": "G3_5",
+      "names": {
+        "international": "龍蜥濕地",
+        "chinese": "幻缈湿地"
+      },
+      "source": "https://poe2db.tw/cn/Chimeral_Wetlands"
+    },
+    {
+      "areaId": "G3_6_1",
+      "names": {
+        "chinese": "佳华尼的机械迷城",
+        "international": "吉卡尼的機械迷城"
+      },
+      "source": "https://poe2db.tw/cn/Jiquanis_Machinarium"
+    },
+    {
+      "areaId": "G3_6_2",
+      "names": {
+        "chinese": "佳华尼的密殿",
+        "international": "吉卡尼的聖域"
+      },
+      "source": "https://poe2db.tw/cn/Jiquanis_Sanctum"
+    },
+    {
+      "areaId": "G3_7",
+      "names": {
+        "international": "阿札克泥沼",
+        "chinese": "阿扎卡泥沼"
+      },
+      "source": "https://poe2db.tw/cn/The_Azak_Bog"
+    },
+    {
+      "areaId": "G3_8",
+      "names": {
+        "international": "淹沒之城",
+        "chinese": "淹没之城"
+      },
+      "source": "https://poe2db.tw/cn/The_Drowned_City"
+    },
+    {
+      "areaId": "G3_9",
+      "names": {
+        "international": "熔岩寶庫",
+        "chinese": "熔火宝库"
+      },
+      "source": "https://poe2db.tw/cn/The_Molten_Vault"
+    },
+    {
+      "areaId": "G3_town",
+      "names": {
+        "international": "高地神塔營地",
+        "chinese": "金字塔营地"
+      },
+      "source": "https://poe2db.tw/cn/Ziggurat_Encampment"
+    },
+    {
+      "areaId": "G4_1_1",
+      "names": {
+        "international": "金氏島",
+        "chinese": "亲眷岛"
+      },
+      "source": "https://poe2db.tw/cn/Isle_of_Kin"
+    },
+    {
+      "areaId": "G4_1_2",
+      "names": {
+        "international": "火山迷窟",
+        "chinese": "熔火院落"
+      },
+      "source": "https://poe2db.tw/cn/Volcanic_Warrens"
+    },
+    {
+      "areaId": "G4_10",
+      "names": {
+        "international": "挖掘",
+        "chinese": "挖掘场"
+      },
+      "source": "https://poe2db.tw/cn/The_Excavation"
+    },
+    {
+      "areaId": "G4_11_1a",
+      "names": {
+        "international": "尼加卡努",
+        "chinese": "纳卡努"
+      },
+      "source": "https://poe2db.tw/cn/Ngakanu"
+    },
+    {
+      "areaId": "G4_11_2",
+      "names": {
+        "chinese": "部族之心",
+        "international": "部族之心"
+      },
+      "source": "https://poe2db.tw/cn/Heart_of_the_Tribe"
+    },
+    {
+      "areaId": "G4_2_1",
+      "names": {
+        "international": "凱吉灣",
+        "chinese": "落锚湾"
+      },
+      "source": "https://poe2db.tw/cn/Kedge_Bay"
+    },
+    {
+      "areaId": "G4_2_2",
+      "names": {
+        "chinese": "旅途终点",
+        "international": "旅程之末"
+      },
+      "source": "https://poe2db.tw/cn/Journeys_End"
+    },
+    {
+      "areaId": "G4_3_1",
+      "names": {
+        "international": "瓦卡帕努島",
+        "chinese": "瓦卡帕努岛"
+      },
+      "source": "https://poe2db.tw/cn/Whakapanu_Island"
+    },
+    {
+      "areaId": "G4_3_2",
+      "names": {
+        "international": "吟謠洞窟",
+        "chinese": "冥曲洞窟"
+      },
+      "source": "https://poe2db.tw/cn/Singing_Caverns"
+    },
+    {
+      "areaId": "G4_4_1",
+      "names": {
+        "international": "悉妮蔻拉之眼",
+        "chinese": "辛格拉之眼"
+      },
+      "source": "https://poe2db.tw/cn/Eye_of_Hinekora"
+    },
+    {
+      "areaId": "G4_4_2",
+      "names": {
+        "international": "亡者之殿",
+        "chinese": "亡者之境"
+      },
+      "source": "https://poe2db.tw/cn/Halls_of_the_Dead"
+    },
+    {
+      "areaId": "G4_4_3",
+      "names": {
+        "international": "祖靈的試煉",
+        "chinese": "命运试炼"
+      },
+      "source": "https://poe2db.tw/cn/Trial_of_the_Ancestors"
+    },
+    {
+      "areaId": "G4_5_1",
+      "names": {
+        "international": "廢棄監獄",
+        "chinese": "废弃监牢"
+      },
+      "source": "https://poe2db.tw/cn/Abandoned_Prison"
+    },
+    {
+      "areaId": "G4_5_2",
+      "names": {
+        "international": "單獨禁閉室",
+        "chinese": "遗世监禁"
+      },
+      "source": "https://poe2db.tw/cn/Solitary_Confinement"
+    },
+    {
+      "areaId": "G4_7",
+      "names": {
+        "international": "伯勞鳥之島",
+        "chinese": "百舌岛"
+      },
+      "source": "https://poe2db.tw/cn/Shrike_Island"
+    },
+    {
+      "areaId": "G4_8a",
+      "names": {
+        "international": "阿拉塔斯",
+        "chinese": "阿拉斯塔"
+      },
+      "source": "https://poe2db.tw/cn/Arastas"
+    },
+    {
+      "areaId": "G4_town",
+      "names": {
+        "international": "金司馬區",
+        "chinese": "君锋镇"
+      },
+      "source": "https://poe2db.tw/cn/Kingsmarch"
+    },
+    {
+      "areaId": "P1_1",
+      "names": {
+        "chinese": "焦土农田",
+        "international": "火噬農地"
+      },
+      "source": "https://poe2db.tw/cn/Scorched_Farmlands"
+    },
+    {
+      "areaId": "P1_2",
+      "names": {
+        "chinese": "瑟尔之石",
+        "international": "瑟雷之石"
+      },
+      "source": "https://poe2db.tw/cn/Stones_of_Serle"
+    },
+    {
+      "areaId": "P1_3",
+      "names": {
+        "chinese": "黑木林",
+        "international": "黑木林"
+      },
+      "source": "https://poe2db.tw/cn/The_Blackwood"
+    },
+    {
+      "areaId": "P1_4",
+      "names": {
+        "chinese": "霍尔顿",
+        "international": "霍爾登"
+      },
+      "source": "https://poe2db.tw/cn/Holten"
+    },
+    {
+      "areaId": "P1_5",
+      "names": {
+        "chinese": "狼堡",
+        "international": "狼之要塞"
+      },
+      "source": "https://poe2db.tw/cn/Wolvenhold"
+    },
+    {
+      "areaId": "P1_6",
+      "names": {
+        "chinese": "霍尔顿庄园",
+        "international": "霍爾登宅第"
+      },
+      "source": "https://poe2db.tw/cn/Holten_Estate"
+    },
+    {
+      "areaId": "P1_Town",
+      "names": {
+        "chinese": "避难所",
+        "international": "庇護所"
+      },
+      "source": "https://poe2db.tw/cn/The_Refuge"
+    },
+    {
+      "areaId": "P2_1",
+      "names": {
+        "chinese": "卡莉渡口",
+        "international": "卡里交匯道"
+      },
+      "source": "https://poe2db.tw/cn/The_Khari_Crossing"
+    },
+    {
+      "areaId": "P2_2",
+      "names": {
+        "chinese": "卡哈塔之池",
+        "international": "卡塔爾之塘"
+      },
+      "source": "https://poe2db.tw/cn/Pools_of_Khatal"
+    },
+    {
+      "areaId": "P2_3",
+      "names": {
+        "chinese": "塞卡莉圣所",
+        "international": "塞爾卡里庇護所"
+      },
+      "source": "https://poe2db.tw/cn/Sel_Khari_Sanctuary_"
+    },
+    {
+      "areaId": "P2_5",
+      "names": {
+        "chinese": "加莱之门",
+        "international": "賈萊關口"
+      },
+      "source": "https://poe2db.tw/cn/The_Galai_Gates"
+    },
+    {
+      "areaId": "P2_6",
+      "names": {
+        "chinese": "奇玛尔",
+        "international": "奇瑪"
+      },
+      "source": "https://poe2db.tw/cn/Qimah"
+    },
+    {
+      "areaId": "P2_7",
+      "names": {
+        "chinese": "奇玛尔水库",
+        "international": "奇瑪水源地"
+      },
+      "source": "https://poe2db.tw/cn/Qimah_Reservoir"
+    },
+    {
+      "areaId": "P2_Town",
+      "names": {
+        "chinese": "卡莉集市",
+        "international": "卡里市集"
+      },
+      "source": "https://poe2db.tw/cn/The_Khari_Bazaar"
+    },
+    {
+      "areaId": "P3_1",
+      "names": {
+        "chinese": "灰烬森林",
+        "international": "灰燼森林"
+      },
+      "source": "https://poe2db.tw/cn/Ashen_Forest"
+    },
+    {
+      "areaId": "P3_2",
+      "names": {
+        "chinese": "克里亚村",
+        "international": "庫萊亞村"
+      },
+      "source": "https://poe2db.tw/cn/Kriar_Village"
+    },
+    {
+      "areaId": "P3_3",
+      "names": {
+        "chinese": "冰川池塘",
+        "international": "冰川湖泊"
+      },
+      "source": "https://poe2db.tw/cn/Glacial_Tarn"
+    },
+    {
+      "areaId": "P3_4",
+      "names": {
+        "chinese": "嚎叫洞穴",
+        "international": "狂嗥洞穴"
+      },
+      "source": "https://poe2db.tw/cn/Howling_Caves"
+    },
+    {
+      "areaId": "P3_5",
+      "names": {
+        "chinese": "克里亚峰",
+        "international": "庫萊亞山巔"
+      },
+      "source": "https://poe2db.tw/cn/Kriar_Peaks"
+    },
+    {
+      "areaId": "P3_6",
+      "names": {
+        "chinese": "刻蚀峡谷",
+        "international": "蝕刻溪谷"
+      },
+      "source": "https://poe2db.tw/cn/Etched_Ravine"
+    },
+    {
+      "areaId": "P3_7",
+      "names": {
+        "chinese": "库阿奇克宝库",
+        "international": "庫阿西克寶庫"
+      },
+      "source": "https://poe2db.tw/cn/The_Cuachic_Vault"
+    },
+    {
+      "areaId": "P3_Town",
+      "names": {
+        "chinese": "林间空地",
+        "international": "林間空地"
+      },
+      "source": "https://poe2db.tw/cn/The_Glade"
+    }
+  ]
+}

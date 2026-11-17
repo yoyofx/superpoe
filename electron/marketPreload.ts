@@ -1,4 +1,5 @@
-import { ipcRenderer } from 'electron'
+import { ipcRenderer, webFrame } from 'electron'
+import { MarketFilterPicker } from './marketFilterPicker.js'
 import { parseLiveResult } from './marketLive.js'
 import { MAX_ACTIVE_PURCHASE_TARGETS, type MarketListingAffixGroupKind, type MarketPageAffixGroup, type MarketPageDefenseStats, type MarketPageListingRarity, type MarketPageListingSummary, type MarketPageWeaponStats } from '../src/types/market.js'
 import { desktopText, isUiLanguage, type UiLanguage } from './uiLocale.js'
@@ -102,6 +103,30 @@ const originalFilterInputValues = new WeakMap<HTMLInputElement, string>()
 const renderedFilterInputValues = new WeakMap<HTMLInputElement, string>()
 const trackedFilterInputs = new Set<HTMLInputElement>()
 
+const marketFilterPicker = new MarketFilterPicker({
+  execute: (source) => webFrame.executeJavaScript(source),
+  localize: (source) => marketPageTranslator.translate(source, true),
+  text: l,
+  statData: () => ipcRenderer.invoke('market-filter-picker:stats', language),
+  beforeOpen: () => removeLocalizedSuggestionPanel(),
+  modalState: (open) => ipcRenderer.send('market-filter-picker:state', open),
+  itemData: async () => {
+    const [catalog, categories] = await Promise.all([
+      getOfficialSuggestionData('items'), ipcRenderer.invoke('market-filter-picker:item-categories'),
+    ])
+    if (!catalog || !Array.isArray(categories)) throw new Error('Item catalog unavailable')
+    return { catalog, categories }
+  },
+  labels: async () => {
+    const data = await getOfficialSuggestionData('filters') as { result?: Array<{ filters?: Array<{ id?: string; text?: string; label?: string }> }> } | undefined
+    return (data?.result || []).flatMap((group) => (group.filters || []).flatMap((filter): Array<[string, string]> => {
+      const label = filter.text || filter.label
+      if (!filter.id || !label) return []
+      return [[filter.id, label], [filter.id, marketPageTranslator.translate(label, true)]]
+    }))
+  },
+})
+
 function isSupportedMarketHost(): boolean {
   return window.location.hostname === 'www.pathofexile.com'
     || window.location.hostname === 'pathofexile.com'
@@ -113,7 +138,11 @@ function isMarketTranslationEnabled(): boolean {
 }
 
 function isOwnedElement(element: Element | null): boolean {
-  return Boolean(element?.closest('[data-superpoe-market-owned="true"]'))
+  const owner = element?.closest('[data-superpoe-market-owned="true"]')
+  const official = element?.closest('[data-superpoe-official-source="true"]')
+  // Moved official form nodes still need translation. Our controls nested
+  // inside them already own their labels and must not be translated twice.
+  return Boolean(owner && (!official || official.contains(owner)))
 }
 
 function isGameContext(element: Element | null): boolean {
@@ -206,6 +235,7 @@ function getOfficialSuggestionData(kind: OfficialSuggestionDataKind): Promise<un
   if (existing) return existing
   const promise = readOrFetchOfficialData(officialDataCacheKey(kind), OFFICIAL_TRADE_DATA_PATHS[kind])
   officialSuggestionDataPromises.set(kind, promise)
+  void promise.then((data) => { if (data === undefined) officialSuggestionDataPromises.delete(kind) })
   return promise
 }
 
@@ -637,6 +667,7 @@ async function showLocalizedSuggestionPanel(input: HTMLInputElement, value: stri
 function handleLocalizedFilterInput(event: Event): void {
   if (!isMarketTranslationEnabled()) return
   const input = (event.composedPath?.()[0] || event.target) as Element | null
+  if (marketFilterPicker.isManaged(input)) return
   if (!isLocalizedFilterInput(input)) return
   if (event instanceof InputEvent && event.isComposing) return
   const value = input.value
@@ -839,13 +870,25 @@ function walkMarketDocument(root: Node, onText: (node: Text) => void, onElement:
 
 function observeMarketRoot(root: ParentNode): void {
   if (translationObservers.has(root)) return
-  const observer = new MutationObserver(() => {
-    scheduleScan()
-    if (!applyingMarketTranslation) scheduleMarketTranslation()
+  const observer = new MutationObserver((records) => {
+    marketFilterPicker.guardMutations(records)
+    const contentChanged = records.some((record) => record.type !== 'attributes' || record.attributeName !== 'class')
+    if (contentChanged) {
+      scheduleScan()
+      if (!applyingMarketTranslation) scheduleMarketTranslation()
+    }
+    // Official Vue controls replace their classes after selection. Restore the
+    // enhanced field without rescanning translations for our own class updates.
+    if (records.some((record) => record.attributeName === 'class'
+      && record.target instanceof Element
+      && record.target.hasAttribute('data-superpoe-picker-token')
+      && record.oldValue?.split(/\s+/).includes('sp-market-filter-managed')
+      && !record.target.classList.contains('sp-market-filter-managed'))) marketFilterPicker.schedule()
   })
   observer.observe(root, {
     attributes: true,
-    attributeFilter: [...TRANSLATABLE_ATTRIBUTES],
+    attributeFilter: [...TRANSLATABLE_ATTRIBUTES, 'class'],
+    attributeOldValue: true,
     characterData: true,
     childList: true,
     subtree: true,
@@ -884,6 +927,7 @@ function scheduleMarketTranslation(force = false): void {
 }
 
 function setMarketTranslation(value: unknown): void {
+  marketFilterPicker.reset()
   restoreMarketTranslations()
   if (value && typeof value === 'object' && !Array.isArray(value)) {
     const payload = value as Partial<MarketPageTranslationPayload>
@@ -1643,39 +1687,6 @@ function clickOfficialPageCommand(command: 'search' | 'clear'): void {
   if (command === 'search' && form) form.requestSubmit()
 }
 
-function focusOfficialFilterArea(): void {
-  const filterWords = [
-    'type filters', 'equipment filters', 'stat filters', 'item category',
-    '类型筛选', '装备筛选', '属性筛选', '物品类别',
-    '類型篩選', '裝備篩選', '屬性篩選', '物品類別',
-  ]
-  const isFilterText = (value: string): boolean => {
-    const normalized = value.toLocaleLowerCase()
-    return filterWords.some((word) => normalized.includes(word))
-  }
-  const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT)
-  let node: Node | null = walker.nextNode()
-  while (node) {
-    const textNode = node as Text
-    const parent = textNode.parentElement
-    if (parent && !isOwnedElement(parent) && !isUserContent(parent) && isVisibleOfficialControl(parent) && isFilterText(originalText(textNode))) {
-      parent.scrollIntoView({ behavior: 'smooth', block: 'start' })
-      return
-    }
-    node = walker.nextNode()
-  }
-
-  const showFilters = Array.from(document.querySelectorAll('button, [role="button"]'))
-    .filter((element) => !isOwnedElement(element) && isVisibleOfficialControl(element))
-    .find((element) => /(?:show\s+filters|显示筛选|顯示篩選|展开筛选|展開篩選)/iu.test(officialControlLabel(element)))
-  if (showFilters instanceof HTMLElement) showFilters.click()
-
-  const fallback = Array.from(document.querySelectorAll('form, [class*="search"], [class*="filter"]'))
-    .filter((element) => !isOwnedElement(element) && isVisibleOfficialControl(element))
-    .sort((left, right) => left.getBoundingClientRect().top - right.getBoundingClientRect().top)[0]
-  fallback?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-}
-
 function applyButtonState(button: HTMLButtonElement, state: FavoriteVisualState): void {
   button.dataset.state = state
   button.disabled = state === 'pending'
@@ -1812,6 +1823,7 @@ function decorateCard(card: Element): void {
 }
 
 function scan(root: ParentNode = document): void {
+  marketFilterPicker.schedule()
   const listingIds = new Set([
     ...buttonsByListing.keys(),
     ...tryOnButtonsByListing.keys(),
@@ -2070,7 +2082,7 @@ ipcRenderer.on('market-enhancement:copy-pob-result', (_event, payload: unknown) 
 
 ipcRenderer.on('market-page:command', (_event, value: unknown) => {
   if (value === 'focus-filters') {
-    focusOfficialFilterArea()
+    marketFilterPicker.openFilters()
     return
   }
   if (value !== 'search' && value !== 'clear') return
@@ -2125,6 +2137,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
   }, true)
   document.addEventListener('keydown', (event) => {
+    if (marketFilterPicker.isOpen) return
     if (event.key === 'Escape' && localizedSuggestionPanel) removeLocalizedSuggestionPanel()
     if (event.isComposing || !localizedSuggestionPanel || event.target !== localizedSuggestionInput) return
     if (!localizedSuggestionCandidates.length) return
@@ -2149,9 +2162,12 @@ window.addEventListener('DOMContentLoaded', () => {
   window.addEventListener('resize', positionLocalizedSuggestionPanel)
   window.addEventListener('scroll', positionLocalizedSuggestionPanel, true)
   window.addEventListener('beforeunload', () => {
+    marketFilterPicker.close(false)
     pageListingsSignature = ''
     ipcRenderer.send('market-page:listings', { listings: [] })
   })
-  window.addEventListener('popstate', scheduleScan)
-  window.addEventListener('hashchange', scheduleScan)
+  window.addEventListener('popstate', () => { marketFilterPicker.close(false); scheduleScan() })
+  window.addEventListener('hashchange', () => { marketFilterPicker.close(false); scheduleScan() })
 })
+
+ipcRenderer.on('market-filter-picker:close', () => marketFilterPicker.close(false))

@@ -12,6 +12,7 @@ interface CommunityPageProps {
   onCenter: () => void
   onLibrary: () => void
   onTradeCenter: () => void
+  onStoryGuide: () => void
   onCommunity: () => void
   onReference: () => void
   onAbout: () => void
@@ -46,7 +47,7 @@ function displayOrigin(url: string): string {
   }
 }
 
-export function CommunityPage({ onCenter, onLibrary, onTradeCenter, onCommunity, onReference, onAbout, onBack }: CommunityPageProps) {
+export function CommunityPage({ onCenter, onLibrary, onTradeCenter, onStoryGuide, onCommunity, onReference, onAbout, onBack }: CommunityPageProps) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   const hostRef = useRef<HTMLDivElement>(null)
@@ -124,7 +125,7 @@ export function CommunityPage({ onCenter, onLibrary, onTradeCenter, onCommunity,
 
   return <div className="build-center embedded-browser-page community-page">
     <header className="embedded-browser-toolbar community-toolbar">
-      <EmbeddedBrowserNavigation active="community" onBack={() => leaveCommunity(onBack)} onCenter={() => leaveCommunity(onCenter)} onLibrary={() => leaveCommunity(onLibrary)} onTradeCenter={() => leaveCommunity(onTradeCenter)} onCommunity={onCommunity} onReference={() => leaveCommunity(onReference)} onAbout={() => leaveCommunity(onAbout)} />
+      <EmbeddedBrowserNavigation active="community" onBack={() => leaveCommunity(onBack)} onCenter={() => leaveCommunity(onCenter)} onLibrary={() => leaveCommunity(onLibrary)} onTradeCenter={() => leaveCommunity(onTradeCenter)} onStoryGuide={() => leaveCommunity(onStoryGuide)} onCommunity={onCommunity} onReference={() => leaveCommunity(onReference)} onAbout={() => leaveCommunity(onAbout)} />
       <span className="community-toolbar-divider" aria-hidden="true" />
       <div className="community-navigation" aria-label={l('Web navigation', '网页导航', '網頁導覽', '웹 탐색')}>
         <button className="icon-command compact" disabled={!bridge || !state.canGoBack} onClick={() => navigate('back')} title={l('Back', '后退', '上一頁', '뒤로')} aria-label={l('Back', '后退', '上一頁', '뒤로')}><ChevronLeft /></button>

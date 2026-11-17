@@ -136,6 +136,7 @@ export class MarketViewManager {
     if (realm === this.activeRealm) return
     this.activeRealm = realm
     if (!this.activeView) return
+    if (!this.activeView.webContents.isDestroyed()) this.activeView.webContents.send('market-filter-picker:close')
     this.detach()
     const view = this.getOrCreateView(realm)
     this.activeView = view
@@ -165,6 +166,7 @@ export class MarketViewManager {
 
   deactivate(): void {
     this.visible = false
+    if (this.activeView && !this.activeView.webContents.isDestroyed()) this.activeView.webContents.send('market-filter-picker:close')
     this.hideActiveView()
     this.detach()
   }
@@ -204,6 +206,7 @@ export class MarketViewManager {
 
   sendPageCommand(command: MarketPageCommand): void {
     if (!this.activeView || this.activeView.webContents.isDestroyed()) return
+    if (command === 'focus-filters') this.activeView.webContents.focus()
     this.activeView.webContents.send('market-page:command', command)
   }
 
@@ -529,7 +532,19 @@ export class MarketViewManager {
   }
 
   private bindEscape(contents: WebContents): void {
+    let filterPickerOpen = false
+    contents.on('ipc-message', (event, channel, value) => {
+      if (channel !== 'market-filter-picker:state' || typeof value !== 'boolean') return
+      if (event.senderFrame !== contents.mainFrame) return
+      try {
+        const url = new URL(contents.getURL())
+        if (['poe.game.qq.com', 'www.pathofexile.com', 'pathofexile.com'].includes(url.hostname)
+          && url.pathname.startsWith('/trade2')) filterPickerOpen = value
+      } catch { /* A blank or closing view has no picker. */ }
+    })
+    contents.on('did-start-navigation', (_event, _url, _inPlace, mainFrame) => { if (mainFrame) filterPickerOpen = false })
     contents.on('before-input-event', (event, input) => {
+      if (filterPickerOpen) return
       if (input.type !== 'keyDown' || input.isAutoRepeat || (input.key !== 'Escape' && input.code !== 'Escape')) return
       if (input.alt || input.control || input.meta || input.shift) return
       if (this.handleEscape()) event.preventDefault()

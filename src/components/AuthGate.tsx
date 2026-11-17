@@ -4,6 +4,7 @@ import { useTranslation } from '@/i18n/useTranslation'
 import { uiText } from '@/i18n/uiLocale'
 import { AuthApiError, type AuthSession, type AuthUser, changePassword as apiChangePassword, confirmPasswordReset, login, logout, refreshSession, register, requestPasswordReset, restoreSession } from '@/engine/authClient'
 import { trackAnalytics } from '@/engine/analytics'
+import { AUTH_ENABLED } from '@/engine/authConfig'
 
 interface AuthContextValue {
   session: AuthSession | null
@@ -14,6 +15,14 @@ interface AuthContextValue {
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
+
+const disabledAuthContext: AuthContextValue = {
+  session: null,
+  user: null,
+  logout: async () => {},
+  changePassword: async () => {},
+  requestLogin: (afterLogin) => afterLogin?.(),
+}
 
 const USERNAME_PATTERN = /^[A-Za-z0-9_-]{3,32}$/
 
@@ -258,6 +267,11 @@ function AuthScreen({ onAuthenticated, onCancel }: { onAuthenticated: (session: 
 }
 
 export function AuthGate({ children }: { children: ReactNode }) {
+  if (!AUTH_ENABLED) return <AuthContext.Provider value={disabledAuthContext}>{children}</AuthContext.Provider>
+  return <EnabledAuthGate>{children}</EnabledAuthGate>
+}
+
+function EnabledAuthGate({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<AuthSession | null>(null)
   const [checking, setChecking] = useState(true)
   const [restoreError, setRestoreError] = useState<unknown>(null)
@@ -333,6 +347,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
 }
 
 export function AccountStatus() {
+  if (!AUTH_ENABLED) return null
+  return <EnabledAccountStatus />
+}
+
+function EnabledAccountStatus() {
   const { user, requestLogin, logout: signOut, changePassword } = useAuth()
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)

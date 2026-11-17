@@ -27,6 +27,12 @@ export interface ProxyDomainsInfo {
 
 declare global {
   interface Window {
+    pob2StoryGuide?: {
+      getCampaignStatistics(page?: number): Promise<import('@/types/campaignStats').CampaignStatistics>
+      getCurrentArea(): Promise<import('@/types/storyGuide').StoryAreaEvent | null>
+      onOpenRequested(callback: () => void): () => void
+      onAreaChanged(callback: (area: import('@/types/storyGuide').StoryAreaEvent) => void): () => void
+    }
     superpoePriceCheck?: {
       open(request: import('@/types/market').PriceCheckOpenRequest): Promise<import('@/types/market').PriceCheckContextState>
       getState?(): Promise<import('@/types/market').PriceCheckContextState>
@@ -76,6 +82,9 @@ declare global {
       exportDiagnosticLog(): Promise<{ canceled: boolean; filePath?: string }>
       openDiagnosticLogDirectory(): Promise<void>
       openTimer(): Promise<void>
+      getTimerVisibility(): Promise<boolean>
+      setTimerVisibility(visible: boolean, mode?: 'map' | 'campaign' | 'system'): Promise<boolean>
+      onTimerVisibilityChanged(callback: (visible: boolean) => void): () => void
       collectBackupData(): Promise<import('@/engine/superPoeBackup').SuperPoeBackupMainData>
       restoreBackupData(main: import('@/engine/superPoeBackup').SuperPoeBackupMainData): Promise<void>
       registerBuildFileAssociation(): Promise<{ registered: boolean; isDefault: boolean; settingsOpened: boolean; reason?: 'unsupported-platform' }>
@@ -100,19 +109,39 @@ declare global {
       openEquipmentTryOn(payload: import('@/types/tryOn').EquipmentTryOnOpenRequest): Promise<void>
     }
     pob2Timer?: {
-      getState(): Promise<{ state: 'idle' | 'running' | 'paused' | 'finished'; elapsed: number; gameRunning: boolean }>
+      getState(): Promise<{
+        mode: 'map' | 'campaign' | 'system'
+        state: 'idle' | 'running' | 'paused' | 'finished'
+        elapsed: number
+        gameRunning: boolean
+        opacity: number
+        mapAreaId: string | null
+        campaign: {
+          runId: number | null
+          status: 'idle' | 'running' | 'paused' | 'completed'
+          elapsed: number
+          currentSegment: 'act1' | 'act2' | 'act3' | 'act4' | 'interlude' | null
+          currentAreaId: string | null
+          segments: Array<{ key: 'act1' | 'act2' | 'act3' | 'act4' | 'interlude'; elapsed: number; status: 'current' | 'completed' | 'pending' }>
+        }
+      }>
+      setMode(mode: 'map' | 'campaign' | 'system'): Promise<void>
+      setOpacity(opacity: number): Promise<void>
       start(): Promise<void>
       pause(): Promise<void>
       finish(): Promise<void>
       reset(): Promise<void>
       resize(size: { width: number; height: number }): Promise<void>
+      moveBy(delta: { x: number; y: number }): Promise<void>
       close(): Promise<void>
       minimize(): Promise<void>
       openSettings(): Promise<void>
+      openCampaign(): Promise<void>
+      openStoryGuide(): Promise<void>
       closeSettings(): Promise<void>
       setSkin(skin: 'obsidian' | 'ember' | 'frost' | 'strip'): Promise<void>
       onSkinChanged(callback: (skin: string) => void): () => void
-      onStateChanged(callback: (state: { state: 'idle' | 'running' | 'paused' | 'finished'; elapsed: number; gameRunning: boolean }) => void): () => void
+      onStateChanged(callback: (state: Awaited<ReturnType<NonNullable<Window['pob2Timer']>['getState']>>) => void): () => void
     }
     pob2TryOn?: {
       close(): Promise<void>

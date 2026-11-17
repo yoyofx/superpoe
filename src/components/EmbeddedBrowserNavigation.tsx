@@ -13,6 +13,7 @@ interface EmbeddedBrowserNavigationProps {
   onCenter: () => void
   onLibrary: () => void
   onTradeCenter: () => void
+  onStoryGuide: () => void
   onCommunity: () => void
   onReference: () => void
   onAbout: () => void
@@ -25,6 +26,7 @@ export function EmbeddedBrowserNavigation({
   onCenter,
   onLibrary,
   onTradeCenter,
+  onStoryGuide,
   onCommunity,
   onReference,
   onAbout,
@@ -35,6 +37,7 @@ export function EmbeddedBrowserNavigation({
     { key: 'center', icon: LayoutDashboard, label: l('Builds', '构筑', '構築', '빌드'), title: l('Build center', '构筑中心', '構築中心', '빌드 센터'), onClick: onCenter },
     { key: 'library', icon: Archive, label: l('Library', '仓库', '倉庫', '보관함'), title: l('Equipment library', '装备仓库', '裝備倉庫', '장비 라이브러리'), onClick: onLibrary },
     { key: 'trade', icon: Store, label: l('Trade', '交易', '交易', '거래'), title: l('Trade center', '交易中心', '交易中心', '거래 센터'), onClick: onTradeCenter },
+    { key: 'story', icon: BookOpen, label: l('Story', '剧情', '劇情', '스토리'), title: l('Story guide', '剧情指引', '劇情指引', '스토리 가이드'), onClick: onStoryGuide },
     { key: 'community', icon: Headphones, label: l('Community', '社区', '社群', '커뮤니티'), title: l('Voice community', '语音社区', '語音社群', '음성 커뮤니티'), onClick: onCommunity },
     { key: 'reference', icon: BookOpen, label: l('Reference', '资料', '資料', '참고'), title: l('Reference', '资料参考', '資料參考', '참고 자료'), onClick: onReference },
     { key: 'about', icon: Info, label: l('About', '关于', '關於', '정보'), title: l('About SuperPoE', '关于 SuperPoE', '關於 SuperPoE', 'SuperPoE 정보'), onClick: onAbout },

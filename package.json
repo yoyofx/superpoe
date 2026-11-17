@@ -1,10 +1,12 @@
 {
   "name": "superpoe2",
   "private": true,
-  "version": "0.5.5",
+  "version": "0.5.6",
   "superpoe": {
     "gameVersion": "0.5.5",
-    "revision": 4
+    "revision": 4,
+    "releaseStage": "preview",
+    "previewTarget": "1.0"
   },
   "type": "module",
   "main": "dist-electron/electron/main.js",
@@ -57,6 +59,7 @@
   "build": {
     "appId": "com.yoyofx.superpoe",
     "productName": "SuperPoE2",
+    "artifactName": "SuperPoE2 Setup 1.0 Preview.${ext}",
     "files": [
       "dist/**",
       "dist-electron/**",

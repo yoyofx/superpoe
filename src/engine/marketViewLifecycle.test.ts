@@ -52,11 +52,12 @@ describe('MarketViewManager lifecycle', () => {
     )
     const view = {
       setBounds: vi.fn(),
-      webContents: { isDestroyed: () => false, close: vi.fn() },
+      webContents: { isDestroyed: () => false, close: vi.fn(), send: vi.fn() },
     }
     Object.assign(manager, { activeView: view, attached: true, visible: true })
 
     manager.deactivate()
+    expect(view.webContents.send).toHaveBeenCalledWith('market-filter-picker:close')
     listeners.get('restore')?.()
 
     expect(removeChildView).toHaveBeenCalledWith(view)

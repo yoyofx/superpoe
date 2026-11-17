@@ -1,14 +1,20 @@
 import { BrowserWindow, screen, shell, type Rectangle } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { CampaignTimerStore, type CampaignSegmentKey, type CampaignTimerSnapshot } from './campaignTimerStore.js'
 
 type TimerSkinId = 'obsidian' | 'ember' | 'frost' | 'strip'
 type TimerState = 'idle' | 'running' | 'paused' | 'finished'
+export type TimerMode = 'map' | 'campaign' | 'system'
 
 export interface TimerStateSnapshot {
+  mode: TimerMode
   state: TimerState
   elapsed: number
   gameRunning: boolean
+  opacity: number
+  mapAreaId: string | null
+  campaign: CampaignTimerSnapshot
 }
 
 const COLLAPSED_SIZES: Record<TimerSkinId, { width: number; height: number }> = {
@@ -18,27 +24,29 @@ const COLLAPSED_SIZES: Record<TimerSkinId, { width: number; height: number }> = 
   strip: { width: 276, height: 84 },
 }
 const TIMER_MIN_SIZES: Record<TimerSkinId, { width: number; height: number }> = {
-  obsidian: { width: 116, height: 116 },
-  ember: { width: 116, height: 116 },
-  frost: { width: 116, height: 116 },
-  strip: { width: 196, height: 60 },
+  obsidian: { width: 128, height: 128 },
+  ember: { width: 128, height: 128 },
+  frost: { width: 128, height: 128 },
+  strip: { width: 220, height: 67 },
 }
 const TIMER_MAX_SIZES: Record<TimerSkinId, { width: number; height: number }> = {
-  obsidian: { width: 420, height: 420 },
-  ember: { width: 420, height: 420 },
-  frost: { width: 420, height: 420 },
-  strip: { width: 720, height: 220 },
+  obsidian: { width: 320, height: 320 },
+  ember: { width: 320, height: 320 },
+  frost: { width: 320, height: 320 },
+  strip: { width: 480, height: 146 },
 }
 const LEGACY_SETTINGS_SIZE = { width: 640, height: 280 }
-const SETTINGS_SIZE = { width: 760, height: 360 }
-const SETTINGS_MIN_SIZE = { width: 640, height: 320 }
+const SETTINGS_SIZE = { width: 760, height: 500 }
+const SETTINGS_MIN_SIZE = { width: 640, height: 420 }
 const SETTINGS_MAX_SIZE = { width: 1_200, height: 800 }
 
 type TimerBounds = Partial<Rectangle>
 type TimerBoundsStore = {
   activeSkin?: TimerSkinId
+  opacity?: number
   skins?: Partial<Record<TimerSkinId, TimerBounds>>
   settings?: TimerBounds
+  campaign?: TimerBounds
 }
 
 function isTimerSkinId(value: unknown): value is TimerSkinId {
@@ -94,7 +102,7 @@ function settingsSize(saved: TimerBounds | undefined): { width: number; height: 
   }
 }
 
-function surfaceUrl(rendererUrl: string | undefined, surface: 'timer' | 'timer-settings'): string {
+function surfaceUrl(rendererUrl: string | undefined, surface: 'timer' | 'timer-settings' | 'timer-campaign'): string {
   if (rendererUrl) return `${rendererUrl}${rendererUrl.includes('?') ? '&' : '?'}surface=${surface}`
   return `app://localhost/index.html?surface=${surface}`
 }
@@ -120,26 +128,38 @@ function clampBounds(saved: Partial<Rectangle> | undefined, size: { width: numbe
 export class TimerWindowManager {
   private window?: BrowserWindow
   private settingsWindow?: BrowserWindow
+  private campaignWindow?: BrowserWindow
   private skin: TimerSkinId = 'obsidian'
-  private state: TimerState = 'idle'
+  private opacity = 1
+  private mode: TimerMode = 'map'
+  private mapState: TimerState = 'idle'
   private accumulatedElapsed = 0
   private startedAt: number | null = null
   private automaticAreaId: string | null = null
+  private storySegment: CampaignSegmentKey | null = null
   private gameRunning = false
+  private readonly campaignStore: CampaignTimerStore
   private stateTicker?: NodeJS.Timeout
   private boundsTicker?: NodeJS.Timeout
+  private disposed = false
   private boundsLoaded = false
   private timerBounds: Partial<Record<TimerSkinId, TimerBounds>> = {}
   private settingsBounds?: TimerBounds
+  private campaignBounds?: TimerBounds
+  private positioningWindow = false
+  private moveSize?: { width: number; height: number }
 
   constructor(
     private readonly preload: string,
     private readonly rendererUrl: string | undefined,
     private readonly icon: string,
     private readonly boundsFile: string,
+    campaignDatabaseFile: string,
+    private readonly onVisibilityChanged?: (visible: boolean) => void,
   ) {
+    this.campaignStore = new CampaignTimerStore(campaignDatabaseFile)
     this.stateTicker = setInterval(() => {
-      if (this.state === 'running') this.broadcastState()
+      if (this.mapState === 'running' || this.campaignStore.getSnapshot().status === 'running') this.broadcastState()
     }, 250)
     // Frameless native drag regions do not emit a move event consistently on
     // every Windows/Electron combination. Keep the persisted bounds in sync
@@ -155,9 +175,51 @@ export class TimerWindowManager {
     return Boolean(this.settingsWindow && !this.settingsWindow.isDestroyed() && this.settingsWindow.webContents.id === senderId)
   }
 
+  ownsCampaign(senderId: number): boolean {
+    return Boolean(this.campaignWindow && !this.campaignWindow.isDestroyed() && this.campaignWindow.webContents.id === senderId)
+  }
+
+  enterCampaign(senderId: number): void {
+    this.requireAnyOwner(senderId)
+    this.changeMode('campaign')
+  }
+
   getState(senderId: number): TimerStateSnapshot {
     this.requireAnyOwner(senderId)
     return this.snapshot()
+  }
+
+  getCampaignStatistics(page = 0) {
+    return this.campaignStore.getStatistics(page)
+  }
+
+  setMode(senderId: number, mode: TimerMode): void {
+    this.requireAnyOwner(senderId)
+    this.changeMode(mode)
+  }
+
+  private changeMode(mode: TimerMode): void {
+    if (this.mode === mode) return
+    if (this.mode === 'campaign' && this.campaignStore.getSnapshot().status === 'running') this.campaignStore.pause()
+    this.mode = mode
+    this.broadcastState()
+  }
+
+  setOpacity(senderId: number, opacity: number): void {
+    this.requireAnyOwner(senderId)
+    this.loadBounds()
+    this.opacity = clamp(opacity, 0.45, 1)
+    for (const window of [this.window, this.settingsWindow, this.campaignWindow]) {
+      if (window && !window.isDestroyed()) window.setOpacity(this.opacity)
+    }
+    this.writeBoundsStore()
+    this.broadcastState()
+  }
+
+  setStoryArea(areaId: string, segment: CampaignSegmentKey): void {
+    this.storySegment = segment
+    this.campaignStore.setCurrentArea(areaId, segment)
+    this.broadcastState()
   }
 
   setGameRunning(running: boolean): void {
@@ -168,45 +230,71 @@ export class TimerWindowManager {
 
   start(senderId: number): void {
     this.requireAnyOwner(senderId)
+    if (this.ownsCampaign(senderId)) this.changeMode('campaign')
+    if (this.mode === 'campaign') {
+      this.campaignStore.start(this.storySegment)
+      this.broadcastState()
+      return
+    }
+    if (this.mode === 'system') return
     this.automaticAreaId = null
     this.startedAt = Date.now() - this.accumulatedElapsed
-    this.state = 'running'
+    this.mapState = 'running'
     this.broadcastState()
   }
 
   pause(senderId: number): void {
     this.requireAnyOwner(senderId)
-    if (this.state !== 'running') return
+    if (this.ownsCampaign(senderId)) this.changeMode('campaign')
+    if (this.mode === 'campaign') {
+      this.campaignStore.pause()
+      this.broadcastState()
+      return
+    }
+    if (this.mapState !== 'running') return
     this.accumulatedElapsed = this.currentElapsed()
     this.startedAt = null
-    this.state = 'paused'
+    this.mapState = 'paused'
     this.broadcastState()
   }
 
   finish(senderId: number): void {
     this.requireAnyOwner(senderId)
+    if (this.ownsCampaign(senderId)) this.changeMode('campaign')
+    if (this.mode === 'campaign') {
+      this.campaignStore.complete()
+      this.broadcastState()
+      return
+    }
+    if (this.mode === 'system') return
     const elapsed = this.currentElapsed()
     if (elapsed <= 0) return
     this.accumulatedElapsed = elapsed
     this.startedAt = null
     this.automaticAreaId = null
-    this.state = 'finished'
+    this.mapState = 'finished'
     this.broadcastState()
   }
 
   reset(senderId: number): void {
     this.requireAnyOwner(senderId)
+    if (this.ownsCampaign(senderId)) this.changeMode('campaign')
+    if (this.mode === 'campaign') {
+      this.campaignStore.reset()
+      this.broadcastState()
+      return
+    }
     this.resetState()
   }
 
   beginAutomaticMap(areaId: string): void {
     if (!areaId) return
-    if (this.automaticAreaId === areaId && this.state === 'running') return
+    if (this.automaticAreaId === areaId && this.mapState === 'running') return
     this.finishAutomaticMap()
     this.automaticAreaId = areaId
     this.accumulatedElapsed = 0
     this.startedAt = Date.now()
-    this.state = 'running'
+    this.mapState = 'running'
     this.broadcastState()
   }
 
@@ -214,13 +302,14 @@ export class TimerWindowManager {
     if (!this.automaticAreaId || (areaId && this.automaticAreaId !== areaId)) return
     this.accumulatedElapsed = this.currentElapsed()
     this.startedAt = null
-    this.state = this.accumulatedElapsed > 0 ? 'finished' : 'idle'
+    this.mapState = this.accumulatedElapsed > 0 ? 'finished' : 'idle'
     this.automaticAreaId = null
     this.broadcastState()
   }
 
   resize(senderId: number, size: { width: number; height: number }): void {
     this.requireOwner(senderId)
+    this.moveSize = undefined
     const window = this.window
     if (!window || window.isDestroyed()) return
     const current = window.getBounds()
@@ -233,6 +322,25 @@ export class TimerWindowManager {
     this.saveTimerBounds(this.skin, applied)
   }
 
+  moveBy(senderId: number, delta: { x: number; y: number }): void {
+    this.requireOwner(senderId)
+    const window = this.window
+    if (!window || window.isDestroyed()) return
+    const current = window.getBounds()
+    // At fractional Windows display scaling, a move can report a one-DIP
+    // resize. Do not feed that rounded size back into subsequent moves or
+    // into the square aspect-ratio normalizer.
+    this.moveSize ??= { width: current.width, height: current.height }
+    const next = clampBounds({ x: current.x + delta.x, y: current.y + delta.y }, this.moveSize)
+    this.positioningWindow = true
+    try {
+      window.setBounds(next)
+    } finally {
+      this.positioningWindow = false
+    }
+    this.saveTimerWindowBounds(window)
+  }
+
   show(): void {
     const window = this.ensure()
     if (window.isMinimized()) window.restore()
@@ -243,22 +351,43 @@ export class TimerWindowManager {
     this.saveTimerWindowBounds()
   }
 
+  isVisible(): boolean {
+    return Boolean(this.window && !this.window.isDestroyed() && this.window.isVisible() && !this.window.isMinimized())
+  }
+
+  setVisible(visible: boolean, mode?: TimerMode): void {
+    if (visible) {
+      if (mode) this.changeMode(mode)
+      this.show()
+    }
+    else {
+      this.saveTimerWindowBounds()
+      this.saveSettingsWindowBounds()
+      this.saveCampaignWindowBounds()
+      this.window?.hide()
+      this.settingsWindow?.hide()
+      this.campaignWindow?.hide()
+    }
+  }
+
   close(senderId: number): void {
-    if (this.ownsSettings(senderId)) {
+    if (this.ownsCampaign(senderId)) {
+      this.saveCampaignWindowBounds()
+      this.campaignWindow?.hide()
+    }
+    else if (this.ownsSettings(senderId)) {
       this.saveSettingsWindowBounds()
       this.settingsWindow?.hide()
     }
     else {
       this.requireOwner(senderId)
-      this.saveTimerWindowBounds()
-      this.saveSettingsWindowBounds()
-      this.window?.hide()
-      this.settingsWindow?.hide()
+      this.setVisible(false)
     }
   }
 
   minimize(senderId: number): void {
-    if (this.ownsSettings(senderId)) this.settingsWindow?.minimize()
+    if (this.ownsCampaign(senderId)) this.campaignWindow?.minimize()
+    else if (this.ownsSettings(senderId)) this.settingsWindow?.minimize()
     else {
       this.requireOwner(senderId)
       this.window?.minimize()
@@ -276,8 +405,19 @@ export class TimerWindowManager {
     this.saveSettingsWindowBounds()
   }
 
+  openCampaign(senderId: number): void {
+    this.enterCampaign(senderId)
+    const window = this.ensureSettings('timer-campaign')
+    if (window.isMinimized()) window.restore()
+    window.show()
+    window.focus()
+    window.setAlwaysOnTop(true, 'screen-saver')
+    window.moveTop()
+    this.saveCampaignWindowBounds()
+  }
+
   setSkin(senderId: number, skin: TimerSkinId): void {
-    if (!this.owns(senderId) && !this.ownsSettings(senderId)) throw new Error('Unauthorized timer skin request')
+    this.requireAnyOwner(senderId)
     const window = this.window
     if (skin === this.skin) {
       // Renderer hot reloads and React StrictMode can repeat this request.
@@ -286,6 +426,7 @@ export class TimerWindowManager {
       return
     }
     if (window && !window.isDestroyed()) {
+      this.moveSize = undefined
       const current = window.getBounds()
       this.saveTimerBounds(this.skin, current)
       this.skin = skin
@@ -301,19 +442,26 @@ export class TimerWindowManager {
       this.skin = skin
     }
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) this.settingsWindow.webContents.send('timer:skin-changed', skin)
+    if (this.campaignWindow && !this.campaignWindow.isDestroyed()) this.campaignWindow.webContents.send('timer:skin-changed', skin)
   }
 
   dispose(): void {
+    if (this.disposed) return
+    this.disposed = true
     this.saveTimerWindowBounds()
     this.saveSettingsWindowBounds()
+    this.saveCampaignWindowBounds()
     if (this.stateTicker) clearInterval(this.stateTicker)
     this.stateTicker = undefined
     if (this.boundsTicker) clearInterval(this.boundsTicker)
     this.boundsTicker = undefined
+    this.campaignStore.dispose()
     if (this.window && !this.window.isDestroyed()) this.window.destroy()
     if (this.settingsWindow && !this.settingsWindow.isDestroyed()) this.settingsWindow.destroy()
+    if (this.campaignWindow && !this.campaignWindow.isDestroyed()) this.campaignWindow.destroy()
     this.window = undefined
     this.settingsWindow = undefined
+    this.campaignWindow = undefined
   }
 
   private requireOwner(senderId: number): BrowserWindow {
@@ -322,11 +470,11 @@ export class TimerWindowManager {
   }
 
   private requireAnyOwner(senderId: number): void {
-    if (!this.owns(senderId) && !this.ownsSettings(senderId)) throw new Error('Unauthorized timer request')
+    if (!this.owns(senderId) && !this.ownsSettings(senderId) && !this.ownsCampaign(senderId)) throw new Error('Unauthorized timer request')
   }
 
   private currentElapsed(): number {
-    return this.state === 'running' && this.startedAt !== null
+    return this.mapState === 'running' && this.startedAt !== null
       ? Math.max(0, Date.now() - this.startedAt)
       : this.accumulatedElapsed
   }
@@ -335,17 +483,29 @@ export class TimerWindowManager {
     this.startedAt = null
     this.accumulatedElapsed = 0
     this.automaticAreaId = null
-    this.state = 'idle'
+    this.mapState = 'idle'
     this.broadcastState()
   }
 
   private snapshot(): TimerStateSnapshot {
-    return { state: this.state, elapsed: this.currentElapsed(), gameRunning: this.gameRunning }
+    const campaign = this.campaignStore.getSnapshot()
+    const state = this.mode === 'campaign'
+      ? campaign.status === 'completed' ? 'finished' : campaign.status
+      : this.mode === 'map' ? this.mapState : 'idle'
+    return {
+      mode: this.mode,
+      state,
+      elapsed: this.mode === 'campaign' ? campaign.elapsed : this.mode === 'map' ? this.currentElapsed() : 0,
+      gameRunning: this.gameRunning,
+      opacity: this.opacity,
+      mapAreaId: this.automaticAreaId,
+      campaign,
+    }
   }
 
   private broadcastState(): void {
     const snapshot = this.snapshot()
-    for (const window of [this.window, this.settingsWindow]) {
+    for (const window of [this.window, this.settingsWindow, this.campaignWindow]) {
       if (window && !window.isDestroyed()) window.webContents.send('timer:state-changed', snapshot)
     }
   }
@@ -391,6 +551,7 @@ export class TimerWindowManager {
     })
     this.applyWindowConstraints(window, this.skin)
     applyTimerSurface(window)
+    window.setOpacity(this.opacity)
     window.setAlwaysOnTop(true, 'screen-saver')
     const reapplySurface = () => {
       if (window.isDestroyed()) return
@@ -407,7 +568,12 @@ export class TimerWindowManager {
     window.on('move', save)
     window.on('resize', () => {
       const current = window.getBounds()
-      if (!normalizingResize) {
+      if (this.positioningWindow) {
+        lastBounds = current
+        return
+      }
+      if (!normalizingResize && (current.width !== lastBounds.width || current.height !== lastBounds.height)) {
+        this.moveSize = undefined
         const widthChanged = Math.abs(current.width - lastBounds.width)
         const heightChanged = Math.abs(current.height - lastBounds.height)
         const preferredDimension = widthChanged >= heightChanged ? 'width' : 'height'
@@ -428,19 +594,34 @@ export class TimerWindowManager {
       window.hide()
     })
     window.on('hide', save)
-    window.on('closed', () => { if (this.window === window) this.window = undefined })
+    const reportVisibility = () => this.onVisibilityChanged?.(this.isVisible())
+    window.on('show', reportVisibility)
+    window.on('hide', reportVisibility)
+    window.on('minimize', reportVisibility)
+    window.on('restore', reportVisibility)
+    window.on('closed', () => {
+      if (this.window === window) this.window = undefined
+      this.onVisibilityChanged?.(this.isVisible())
+    })
     void window.loadURL(surfaceUrl(this.rendererUrl, 'timer'))
     this.window = window
     return window
   }
 
-  private ensureSettings(): BrowserWindow {
-    if (this.settingsWindow && !this.settingsWindow.isDestroyed()) return this.settingsWindow
+  private ensureSettings(surface: 'timer-settings' | 'timer-campaign' = 'timer-settings'): BrowserWindow {
+    const campaign = surface === 'timer-campaign'
+    const existing = campaign ? this.campaignWindow : this.settingsWindow
+    if (existing && !existing.isDestroyed()) return existing
     this.loadBounds()
     const timer = this.window
     const timerBounds = timer && !timer.isDestroyed() ? timer.getBounds() : undefined
-    const size = settingsSize(this.settingsBounds)
-    const saved = this.settingsBounds || {
+    const savedBounds = campaign ? this.campaignBounds : this.settingsBounds
+    const minimum = campaign ? SETTINGS_MIN_SIZE : { width: 480, height: 300 }
+    const size = campaign ? settingsSize(savedBounds) : {
+      width: clamp(savedBounds?.width ?? 640, minimum.width, SETTINGS_MAX_SIZE.width),
+      height: clamp(savedBounds?.height ?? 340, minimum.height, SETTINGS_MAX_SIZE.height),
+    }
+    const saved = savedBounds || {
       x: (timerBounds?.x ?? 0) + ((timerBounds?.width ?? 148) - size.width) / 2,
       y: (timerBounds?.y ?? 0) + (timerBounds?.height ?? 148) + 12,
     }
@@ -450,8 +631,8 @@ export class TimerWindowManager {
       frame: false,
       resizable: true,
       movable: true,
-      minWidth: SETTINGS_MIN_SIZE.width,
-      minHeight: SETTINGS_MIN_SIZE.height,
+      minWidth: minimum.width,
+      minHeight: minimum.height,
       maxWidth: SETTINGS_MAX_SIZE.width,
       maxHeight: SETTINGS_MAX_SIZE.height,
       fullscreenable: false,
@@ -471,10 +652,12 @@ export class TimerWindowManager {
       },
     })
     applyTimerSurface(window)
+    window.setOpacity(this.opacity)
     window.setAlwaysOnTop(true, 'screen-saver')
     window.webContents.setWindowOpenHandler(({ url }) => { void shell.openExternal(url); return { action: 'deny' } })
     const save = () => {
-      this.saveSettingsWindowBounds(window)
+      if (campaign) this.saveCampaignWindowBounds(window)
+      else this.saveSettingsWindowBounds(window)
     }
     window.on('move', save)
     window.on('resize', save)
@@ -484,9 +667,13 @@ export class TimerWindowManager {
       window.hide()
     })
     window.on('hide', save)
-    window.on('closed', () => { if (this.settingsWindow === window) this.settingsWindow = undefined })
-    void window.loadURL(surfaceUrl(this.rendererUrl, 'timer-settings'))
-    this.settingsWindow = window
+    window.on('closed', () => {
+      if (campaign && this.campaignWindow === window) this.campaignWindow = undefined
+      if (!campaign && this.settingsWindow === window) this.settingsWindow = undefined
+    })
+    void window.loadURL(surfaceUrl(this.rendererUrl, surface))
+    if (campaign) this.campaignWindow = window
+    else this.settingsWindow = window
     return window
   }
 
@@ -496,8 +683,10 @@ export class TimerWindowManager {
     try {
       const parsed = JSON.parse(readFileSync(this.boundsFile, 'utf8')) as TimerBoundsStore & TimerBounds
       if (isTimerSkinId(parsed.activeSkin)) this.skin = parsed.activeSkin
+      if (typeof parsed.opacity === 'number' && Number.isFinite(parsed.opacity)) this.opacity = clamp(parsed.opacity, 0.45, 1)
       if (parsed.skins && typeof parsed.skins === 'object') this.timerBounds = parsed.skins
       if (parsed.settings && typeof parsed.settings === 'object') this.settingsBounds = parsed.settings
+      if (parsed.campaign && typeof parsed.campaign === 'object') this.campaignBounds = parsed.campaign
       if (!parsed.skins && !parsed.settings && (parsed.x !== undefined || parsed.y !== undefined || parsed.width !== undefined || parsed.height !== undefined)) {
         this.timerBounds.obsidian = parsed
       }
@@ -537,13 +726,21 @@ export class TimerWindowManager {
     this.saveSettingsBounds(window.getBounds())
   }
 
+  private saveCampaignWindowBounds(window = this.campaignWindow): void {
+    if (!window || window.isDestroyed() || window.isMinimized() || window.isMaximized()) return
+    this.campaignBounds = window.getBounds()
+    this.writeBoundsStore()
+  }
+
   private writeBoundsStore(): void {
     try {
       mkdirSync(path.dirname(this.boundsFile), { recursive: true })
       const store: TimerBoundsStore = {
         activeSkin: this.skin,
+        opacity: this.opacity,
         skins: this.timerBounds,
         ...(this.settingsBounds ? { settings: this.settingsBounds } : {}),
+        ...(this.campaignBounds ? { campaign: this.campaignBounds } : {}),
       }
       writeFileSync(this.boundsFile, JSON.stringify(store), 'utf8')
     } catch {

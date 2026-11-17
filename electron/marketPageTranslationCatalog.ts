@@ -8,6 +8,7 @@ import type {
   MarketPageTranslationPayload,
   MarketTranslationPair,
 } from '../src/engine/marketPageTranslation.js'
+import { marketCategoryTranslationPairs } from '../src/engine/marketCategoryTranslation.js'
 
 type ChineseLanguage = Extract<UiLanguage, 'zh-rCN' | 'zh-rTW'>
 
@@ -28,6 +29,7 @@ const STATIC_UI_PAIRS: ReadonlyArray<readonly [source: string, zhCN: string, zhT
   ['Miscellaneous', '其他', '其他'],
   ['Other', '其他', '其他'],
   ['Item Category', '物品类别', '物品類別'],
+  ['Item Rarity', '物品稀有度', '物品稀有度'],
   ['Base Type', '基底类型', '基底類型'],
   ['Rarity', '稀有度', '稀有度'],
   ['Select', '选择', '選擇'],
@@ -81,6 +83,11 @@ const STATIC_UI_PAIRS: ReadonlyArray<readonly [source: string, zhCN: string, zhT
   ['Any', '全部', '全部'],
   ['Any Item', '任意物品', '任意物品'],
   ['Any Weapon', '任意武器', '任意武器'],
+  ['Any Martial Weapon', '任意武术武器', '任意武術武器'],
+  ['Uncut Gem', '未切割宝石', '未切割寶石'],
+  ['Uncut Skill Gem', '未切割技能宝石', '未切割技能寶石'],
+  ['Uncut Support Gem', '未切割辅助宝石', '未切割輔助寶石'],
+  ['Uncut Spirit Gem', '未切割精神宝石', '未切割精神寶石'],
   ['Any One-Handed Weapon', '任意单手武器', '任意單手武器'],
   ['Any Two-Handed Weapon', '任意双手武器', '任意雙手武器'],
   ['Any Melee Weapon', '任意近战武器', '任意近戰武器'],
@@ -383,8 +390,12 @@ function addCatalogPairs(
   addCatalogItemPairs(target, canonical, localized, options)
 }
 
-function buildUiPairs(language: ChineseLanguage): MarketTranslationPair[] {
-  return STATIC_UI_PAIRS.map(([source, zhCN, zhTW]) => [source, language === 'zh-rCN' ? zhCN : zhTW] as const)
+function buildUiPairs(language: ChineseLanguage, gamePairs: Map<string, MarketTranslationPair>): MarketTranslationPair[] {
+  const pairs = new Map(STATIC_UI_PAIRS.map(([source, zhCN, zhTW]) => [source.toLowerCase(), [source, language === 'zh-rCN' ? zhCN : zhTW] as const]))
+  for (const pair of marketCategoryTranslationPairs(language)) {
+    if (!pairs.has(pair[0].toLowerCase()) && !gamePairs.has(pair[0].toLowerCase())) pairs.set(pair[0].toLowerCase(), pair)
+  }
+  return [...pairs.values()]
 }
 
 export function buildMarketPageTranslation(
@@ -411,7 +422,7 @@ export function buildMarketPageTranslation(
   addCatalogItemPairs(itemPairs, canonical, localized, options)
   const gamePairs = new Map<string, MarketTranslationPair>()
   addCatalogPairs(gamePairs, canonical, localized, options)
-  const uiPairs = buildUiPairs(language)
+  const uiPairs = buildUiPairs(language, gamePairs)
   return {
     schemaVersion: 1,
     language,

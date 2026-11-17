@@ -9,18 +9,19 @@ interface UtilityCenterProps {
   onCenter: () => void
   onLibrary: () => void
   onTradeCenter: () => void
+  onStoryGuide: () => void
   onCommunity: () => void
   onAbout: () => void
   onNinja: () => void
   onPoe2db: () => void
 }
 
-export function UtilityCenter({ onCenter, onLibrary, onTradeCenter, onCommunity, onAbout, onNinja, onPoe2db }: UtilityCenterProps) {
+export function UtilityCenter({ onCenter, onLibrary, onTradeCenter, onStoryGuide, onCommunity, onAbout, onNinja, onPoe2db }: UtilityCenterProps) {
   const { lang } = useTranslation()
   const l = (en: string, zhCN: string, zhTW: string, koKR: string) => uiText(lang, en, zhCN, zhTW, koKR)
   return (
     <div className="build-center utility-center">
-      <BuildCenterNav active="reference" onCenter={onCenter} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onCommunity={onCommunity} onReference={() => {}} onAbout={onAbout} />
+      <BuildCenterNav active="reference" onCenter={onCenter} onLibrary={onLibrary} onTradeCenter={onTradeCenter} onStoryGuide={onStoryGuide} onCommunity={onCommunity} onReference={() => {}} onAbout={onAbout} />
       <header className="center-app-bar utility-center-header">
         <div className="center-actions utility-center-actions"><button type="button" className="icon-command toolbar-community-button" onClick={onCommunity} title={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')} aria-label={l('Open voice community', '打开语音社区', '開啟語音社群', '음성 커뮤니티 열기')}><Headphones /></button><AccountStatus /></div>
         <div className="build-center-page-heading">

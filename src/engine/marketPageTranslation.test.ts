@@ -4,6 +4,7 @@ import { MarketPageTranslator, type MarketPageTranslationPayload } from './marke
 import { buildMarketPageTranslation } from '../../electron/marketPageTranslationCatalog'
 import { ItemTranslationIndex } from '../../electron/itemTranslationIndex'
 import { XiletradeDataCatalog } from '../../electron/xiletradeDataCatalog'
+import { localizeMarketCategory } from './marketCategoryTranslation'
 
 function payload(
   uiPairs: Array<readonly [string, string]> = [],
@@ -149,6 +150,7 @@ describe('market page translation catalog', () => {
     expect(translator.translate('Search')).toBe('搜索')
     expect(translator.translate('Type Filters')).toBe('类型筛选')
     expect(translator.translate('Item Category')).toBe('物品类别')
+    expect(translator.translate('Item Rarity')).toBe('物品稀有度')
     expect(translator.translate('Item Quality')).toBe('物品品质')
     expect(translator.translate('Equipment Filters')).toBe('装备筛选')
     expect(translator.translate('Attacks per Second')).toBe('每秒攻击次数')
@@ -184,6 +186,22 @@ describe('market page translation catalog', () => {
 
     expect(source).toBeDefined()
     expect(translator.translate('30% increased Movement Speed', true)).toBe('30% 增加移動速度')
+  })
+
+  it('translates category families, plural labels, and Any variants in both Chinese locales', () => {
+    for (const language of ['zh-rCN', 'zh-rTW'] as const) {
+      const translator = new MarketPageTranslator(buildMarketPageTranslation(catalog, language))
+      for (const source of ['Focus', 'Foci', 'Any Caster Weapon', 'Any Gem', 'Skill Gem', 'Support Gems', 'Meta Gem',
+        'Life Flask', 'Mana Flasks', 'Any Endgame Item', 'Map Fragments', 'Expedition Logbook', 'Djinn Barya',
+        'Pinnacle Keys', 'Ultimatum Key', 'Divination Cards', 'Any Relic', 'Any Currency', 'Any Socketable',
+        'Any Rune', 'Soul Cores', 'Idols', 'Talismans', 'Fishing Rod']) {
+        expect(translator.translate(source, true), `${language}: ${source}`).toMatch(/[\u3400-\u9fff]/u)
+      }
+    }
+    const cn = (_en: string, value: string) => value
+    expect(localizeMarketCategory('armour.focus', 'Changed official wording', cn)).toBe('法器')
+    expect(localizeMarketCategory('gem.supportgem', 'Support Gems', cn)).toBe('辅助宝石')
+    expect(localizeMarketCategory('future.category', 'New category', cn)).toBe('New category')
   })
 
   it('composes unique item labels from translated name and base type', () => {

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type DragEvent as ReactDragEvent, type ReactNode } from 'react'
 import {
-  ArrowLeft, ArrowUp, BellOff, BellRing, Bookmark, Check, ChevronDown, ChevronRight, Eraser, ExternalLink, Eye, Folder, FolderInput, FolderPlus, Home, LoaderCircle,
+  ArrowLeft, BellOff, BellRing, Bookmark, Check, ChevronDown, ChevronRight, Eraser, ExternalLink, Eye, Folder, FolderInput, FolderPlus, Home, LoaderCircle,
   ListChecks, PanelLeftClose, PanelLeftOpen, Pencil, Save, Search, Square,
-  RefreshCw, Replace, Shirt, SquareCheckBig, Tags, Trash2, X,
+  RefreshCw, Replace, Shirt, SlidersHorizontal, SquareCheckBig, Tags, Trash2, X,
 } from 'lucide-react'
 import type {
   EquipmentLibraryEntry, EquipmentLibraryFolder, EquipmentLibrarySidebarSnapshot, LibraryTreeScope,
@@ -724,7 +724,7 @@ export function EquipmentLibraryPanel({ realm, language, currentSearch, currentP
         <header className="trade-helper-market-actions">
           <div><strong>{l('Market quick actions', '集市快捷操作', '市集快捷操作', '거래소 빠른 작업')}</strong><small>{l('Quickly preview market information', '快速预览集市信息', '快速預覽市集資訊', '거래소 정보를 빠르게 미리 보기')}</small></div>
           <span>
-            <button disabled={!bridge || marketCommand != null} onClick={() => onMarketCommand('focus-filters')} title={l('Return to filter area', '返回筛选区域', '返回篩選區域', '필터 영역으로 돌아가기')}><ArrowUp />{l('Filter', '筛选', '篩選', '필터')}</button>
+            <button className="market-filter-shortcut" disabled={!bridge || marketCommand != null} onClick={() => onMarketCommand('focus-filters')} title={l('Open market filters', '打开集市筛选', '開啟集市篩選', '거래소 필터 열기')} aria-haspopup="dialog"><SlidersHorizontal />{l('Filter', '筛选', '篩選', '필터')}</button>
             <button className="primary" disabled={!bridge || marketCommand != null} onClick={() => onMarketCommand('search')} title={l('Search the market', '集市搜索', '市集搜尋', '거래소 검색')}><Search />{l('Search', '搜索', '搜尋', '검색')}</button>
             <button disabled={!bridge || marketCommand != null} onClick={() => onMarketCommand('clear')} title={l('Clear filter conditions', '清空条件', '清空條件', '필터 조건 지우기')}><Eraser />{l('Clear', '清空', '清空', '지우기')}</button>
             <button disabled={!bridge || marketCommand != null} onClick={saveCurrentSearchFromMarket} title={l('Save the current search and open search favorites', '收藏当前搜索并打开搜索收藏', '儲存目前搜尋並開啟搜尋收藏', '현재 검색을 저장하고 검색 즐겨찾기 열기')}><Bookmark />{l('Save', '收藏', '收藏', '저장')}</button>

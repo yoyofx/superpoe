@@ -1,5 +1,20 @@
 import { contextBridge, ipcRenderer } from 'electron'
 
+contextBridge.exposeInMainWorld('pob2StoryGuide', {
+  getCampaignStatistics: (page = 0) => ipcRenderer.invoke('story-guide:campaign-statistics', page) as Promise<import('../src/types/campaignStats.js').CampaignStatistics>,
+  getCurrentArea: () => ipcRenderer.invoke('story-guide:current-area'),
+  onOpenRequested: (callback: () => void) => {
+    const handler = () => callback()
+    ipcRenderer.on('story-guide:open-requested', handler)
+    return () => { ipcRenderer.removeListener('story-guide:open-requested', handler) }
+  },
+  onAreaChanged: (callback: (area: import('../src/types/storyGuide.js').StoryAreaEvent) => void) => {
+    const handler = (_event: unknown, area: import('../src/types/storyGuide.js').StoryAreaEvent) => callback(area)
+    ipcRenderer.on('story-guide:area-changed', handler)
+    return () => { ipcRenderer.removeListener('story-guide:area-changed', handler) }
+  },
+})
+
 contextBridge.exposeInMainWorld('pob2Desktop', {
   authStorage: {
     load: () => ipcRenderer.invoke('pob2:auth-storage-load') as Promise<string | null>,
@@ -19,6 +34,13 @@ contextBridge.exposeInMainWorld('pob2Desktop', {
   exportDiagnosticLog: () => ipcRenderer.invoke('pob2:export-diagnostic-log') as Promise<{ canceled: boolean; filePath?: string }>,
   openDiagnosticLogDirectory: () => ipcRenderer.invoke('pob2:open-diagnostic-log-directory') as Promise<void>,
   openTimer: () => ipcRenderer.invoke('pob2:open-timer') as Promise<void>,
+  getTimerVisibility: () => ipcRenderer.invoke('pob2:get-timer-visibility') as Promise<boolean>,
+  setTimerVisibility: (visible: boolean, mode?: 'map' | 'campaign' | 'system') => ipcRenderer.invoke('pob2:set-timer-visibility', visible, mode) as Promise<boolean>,
+  onTimerVisibilityChanged: (callback: (visible: boolean) => void) => {
+    const handler = (_event: unknown, visible: boolean) => callback(visible)
+    ipcRenderer.on('timer:visibility-changed', handler)
+    return () => { ipcRenderer.removeListener('timer:visibility-changed', handler) }
+  },
   collectBackupData: () => ipcRenderer.invoke('pob2:collect-backup-data'),
   restoreBackupData: (main: import('../src/engine/superPoeBackup.js').SuperPoeBackupMainData) => ipcRenderer.invoke('pob2:restore-backup-data', main),
   registerBuildFileAssociation: () => ipcRenderer.invoke('pob2:register-build-file-association'),
